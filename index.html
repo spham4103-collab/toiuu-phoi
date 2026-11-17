@@ -1,0 +1,3650 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống · An Bình</title>
+  <meta name="description" content="Ứng dụng tối ưu xếp phôi cắt thép hộp, ống tròn, thanh nhôm 1D. Bộ nhớ lưu quy cách hộp, xếp riêng từng loại hộp và tính toán số cây cần dùng chính xác.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="toi-uu-engine.js"></script>
+  <script id="embeddedFusionData" type="application/json"></script>
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --tint: #F0FDFA;
+      --mu: #EEF4F6;
+      --ink: #134E4A;
+      --mut: #475569;
+      --edge: #D5E9E5;
+      --w: #FFFFFF;
+      --p: #0F766E;
+      --p-h: #0D635D;
+      --p3: #CCFBF1;
+      --cta: #C2410C;
+      --cta-h: #9A3412;
+      --dark: #0B3B38;
+      --bad: #B4232C;
+      --bad2: #FBE3E3;
+      --ok: #1D7A46;
+      --ok2: #DCFCE7;
+      --warn: #8A5200;
+      --warn2: #FFF4E5;
+      --steel: #9AA6B2;
+      --steel2: #DCE2E8;
+      --steel3: #B8C2CC;
+      --c1: #0F766E; --c2: #C2410C; --c3: #3A5BA0; --c4: #A21CAF;
+      --c5: #4D7C0F; --c6: #B4232C; --c7: #0369A1; --c8: #7C3AED;
+      --c9: #A16207; --c10: #BE185D; --c11: #15803D; --c12: #475569;
+      --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+      --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --r: 14px;
+      --gut: 28px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--tint);
+      color: var(--ink);
+      font: 400 15px/1.55 var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--p); text-decoration: none; }
+    h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
+    h1 { font-size: clamp(22px, 3.2vw, 29px); }
+    h2 { font-size: 19px; }
+    h3 { font-size: 16px; }
+    p { margin: 0; }
+
+    .wrap { max-width: 1260px; margin: 0 auto; padding: 0 var(--gut); }
+    @media (max-width: 640px) { :root { --gut: 12px; } }
+
+    /* Top Nav */
+    .top {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--edge);
+    }
+    .top .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      gap: 14px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--dark);
+      text-decoration: none;
+    }
+    .brand-logo-img {
+      height: 44px;
+      max-width: 140px;
+      object-fit: contain;
+      border-radius: 4px;
+      transition: transform 0.15s ease;
+    }
+    .brand-logo-img:hover { transform: scale(1.02); }
+    .brand-divider {
+      width: 1.5px;
+      height: 28px;
+      background: var(--edge);
+      margin: 0 2px;
+    }
+    .brand-text-col {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .brand-main-title {
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--dark);
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+    }
+    .brand-sub-title {
+      font-weight: 600;
+      color: var(--p);
+      font-size: 12px;
+      line-height: 1.15;
+      margin-top: 2px;
+    }
+    .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 38px;
+      padding: 7px 15px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font: 700 13.5px/1.2 var(--font);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+    .btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; flex: none; }
+    .btn-p { background: var(--p); color: #fff; }
+    .btn-p:hover { background: var(--p-h); box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25); }
+    .btn-cta { background: var(--cta); color: #fff; }
+    .btn-cta:hover { background: var(--cta-h); box-shadow: 0 4px 12px rgba(194, 65, 12, 0.25); }
+    .btn-soft { background: #fff; color: var(--ink); border-color: var(--edge); }
+    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .btn-sm { min-height: 32px; padding: 4px 12px; font-size: 12.5px; }
+    .btn-lg { min-height: 46px; padding: 12px 26px; font-size: 15.5px; border-radius: 12px; }
+
+    /* Header Banner */
+    .hero { padding: 18px 0 14px; }
+    .hero-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+    .hero-desc { color: var(--mut); margin-top: 5px; max-width: 820px; font-size: 14px; }
+
+    /* Main Grid */
+    .grid-input {
+      display: grid;
+      grid-template-columns: minmax(0, 1.95fr) minmax(0, 1.05fr);
+      gap: 18px;
+      align-items: start;
+    }
+    @media (max-width: 1060px) {
+      .grid-input { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    /* Cards */
+    .card {
+      background: #fff;
+      border: 1px solid var(--edge);
+      border-radius: var(--r);
+      padding: 20px;
+      box-shadow: var(--sh);
+      margin-bottom: 16px;
+    }
+    .card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+    .card-subtitle { font-size: 13.5px; color: var(--mut); margin-bottom: 14px; }
+
+    /* Box Profile Memory Library Section */
+    .memory-library-box {
+      background: linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%);
+      border: 1.5px solid #CBD5E1;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .memory-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .memory-header-row b {
+      font-size: 13.5px;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .memory-chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .memory-chip-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--edge);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      transition: all 0.12s;
+    }
+    .memory-chip-pill:hover {
+      border-color: var(--p);
+      color: var(--p);
+      background: var(--p3);
+    }
+    .memory-chip-del {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      color: #94A3B8;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      margin-left: 2px;
+    }
+    .memory-chip-del:hover { background: var(--bad2); color: var(--bad); }
+
+    /* Profile Tabs Bar (Grouped per box) */
+    .profile-tabs-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      border-bottom: 2px solid var(--edge);
+    }
+    .profile-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 15px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid var(--edge);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--mut);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .profile-tab:hover { background: var(--mu); border-color: #94A3B8; }
+    .profile-tab.active {
+      background: var(--dark);
+      color: #fff;
+      border-color: var(--dark);
+      box-shadow: 0 2px 6px rgba(11,59,56,0.25);
+    }
+    .profile-tab-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.06);
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .profile-tab.active .profile-tab-badge {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+    }
+    .profile-tab-bars-needed {
+      background: #DCFCE7;
+      color: #15803D;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11.5px;
+    }
+    .profile-tab.active .profile-tab-bars-needed {
+      background: #22C55E;
+      color: #fff;
+    }
+
+    /* Active Box Banner / Mini KPI */
+    .active-profile-header-banner {
+      background: #F0FDF4;
+      border: 1.5px solid #86EFAC;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .active-profile-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 800;
+      color: #14532D;
+    }
+    .active-profile-kpis {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #166534;
+      flex-wrap: wrap;
+    }
+    .active-kpi-highlight {
+      background: #15803D;
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    /* Input form */
+    input[type=text], input[type=number], select, textarea {
+      width: 100%;
+      min-height: 38px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--edge);
+      font: 500 14px var(--font);
+      color: var(--ink);
+      background: #fff;
+      transition: border 0.15s ease;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--p);
+      box-shadow: 0 0 0 3px var(--p3);
+    }
+    input.so { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* Parts Table */
+    .parts-header {
+      display: grid;
+      grid-template-columns: 20px minmax(140px, 1.5fr) 85px 60px 175px 60px 32px;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--mut);
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid var(--edge);
+    }
+    .parts-header span.r { text-align: right; }
+    .parts-row {
+      display: grid;
+      grid-template-columns: 20px minmax(140px, 1.5fr) 85px 60px 175px 60px 32px;
+      gap: 6px;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--edge);
+      transition: background 0.15s;
+    }
+    .parts-row:hover { background: rgba(240, 253, 250, 0.4); }
+    .color-dot {
+      width: 16px;
+      height: 32px;
+      border-radius: 4px;
+      background: var(--c);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+
+    /* Miter Segment Controls */
+    .miter-btns {
+      display: flex;
+      border: 1px solid var(--edge);
+      border-radius: 7px;
+      overflow: hidden;
+      min-height: 36px;
+      background: #fff;
+    }
+    .miter-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      border: 0;
+      background: transparent;
+      font: 600 11px/1 var(--font);
+      color: var(--mut);
+      cursor: pointer;
+      padding: 4px 1px;
+      transition: all 0.12s;
+    }
+    .miter-btn svg { width: 20px; height: 10px; flex: none; }
+    .miter-btn svg path { fill: var(--steel2); stroke: var(--steel); stroke-width: 1.2; }
+    .miter-btn.active {
+      background: var(--p3);
+      color: var(--p);
+      font-weight: 700;
+    }
+    .miter-btn.active svg path { fill: var(--p); stroke: var(--p); }
+    .miter-btn + .miter-btn { border-left: 1px solid var(--edge); }
+
+    .btn-del {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 0;
+      background: transparent;
+      color: #94A3B8;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .btn-del:hover { background: var(--bad2); color: var(--bad); }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    /* Stock Table */
+    .stock-header {
+      display: grid;
+      grid-template-columns: minmax(130px, 1.2fr) 85px 65px 32px;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--mut);
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid var(--edge);
+    }
+    .stock-header span.r { text-align: right; }
+    .stock-row {
+      display: grid;
+      grid-template-columns: minmax(130px, 1.2fr) 85px 65px 32px;
+      gap: 6px;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--edge);
+    }
+
+    /* Cut Settings */
+    .method-toggle {
+      display: flex;
+      background: var(--mu);
+      padding: 3px;
+      border-radius: 8px;
+      gap: 3px;
+      margin-bottom: 12px;
+    }
+    .method-toggle button {
+      flex: 1;
+      min-height: 34px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      font: 700 12.5px var(--font);
+      color: var(--mut);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .method-toggle button.active {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .setting-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink);
+      display: block;
+      margin-bottom: 3px;
+    }
+    .checkbox-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--tint);
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    .checkbox-box input { margin-top: 3px; cursor: pointer; accent-color: var(--p); }
+    .checkbox-text b { display: block; font-size: 13px; color: var(--ink); }
+    .checkbox-text small { color: var(--mut); font-size: 11.5px; display: block; margin-top: 2px; }
+
+    /* Results section */
+    .results-area {
+      margin-top: 26px;
+      margin-bottom: 60px;
+    }
+    .results-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .results-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* KPI Summary Cards */
+    .kpi-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: #fff;
+      border: 1px solid var(--edge);
+      border-radius: var(--r);
+      padding: 16px 14px;
+      box-shadow: var(--sh);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .kpi-card.highlight {
+      background: var(--dark);
+      color: #fff;
+      border-color: var(--dark);
+    }
+    .kpi-card.highlight .kpi-val { color: #fff; }
+    .kpi-card.highlight .kpi-label { color: rgba(255, 255, 255, 0.9); font-weight: 600; }
+    .kpi-card.interlock {
+      background: #F0FDF4;
+      border: 1.5px solid #86EFAC;
+    }
+    .kpi-card.interlock .kpi-val { color: #15803D; }
+    .kpi-val {
+      font-size: 30px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--dark);
+      font-variant-numeric: tabular-nums;
+    }
+    .kpi-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--mut);
+      margin-top: 4px;
+    }
+
+    /* Grouped Cutting Pattern Sections */
+    .profile-group-section {
+      background: #fff;
+      border: 1px solid var(--edge);
+      border-radius: var(--r);
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--sh);
+    }
+    .profile-group-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--edge);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .profile-group-title h3 {
+      font-size: 18px;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .profile-badge-pill {
+      background: var(--p3);
+      color: var(--p);
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+    }
+
+    .pattern-card {
+      border-top: 1px solid var(--edge);
+      padding: 18px 0;
+    }
+    .pattern-card:first-child { border-top: 0; padding-top: 4px; }
+    .pattern-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      margin-bottom: 10px;
+    }
+    .pattern-letter {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--dark);
+      color: #fff;
+      font-weight: 800;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pattern-multiplier {
+      font-size: 16.5px;
+      font-weight: 800;
+      color: var(--dark);
+    }
+    .pattern-meta {
+      font-size: 13px;
+      color: var(--mut);
+      margin-right: auto;
+    }
+    .pattern-meta .saving-badge {
+      color: var(--p);
+      font-weight: 700;
+    }
+
+    /* SVG Bar visualization */
+    .bar-visual-wrap {
+      position: relative;
+      margin-top: 6px;
+    }
+    .bar-visual-wrap svg {
+      display: block;
+      width: 100%;
+      height: 46px;
+      border-radius: 6px;
+      background: var(--steel2);
+      overflow: hidden;
+    }
+    .bar-labels-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 46px;
+      pointer-events: none;
+    }
+    .cut-label {
+      position: absolute;
+      top: 0;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .cut-label.waste-label {
+      color: var(--mut);
+      text-shadow: none;
+      font-weight: 600;
+      font-size: 11.5px;
+    }
+    .bar-ruler {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--mut);
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+    .pattern-items-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .pattern-item-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px 3px 7px;
+      border-radius: 999px;
+      background: var(--mu);
+      font-size: 12.5px;
+      font-weight: 500;
+    }
+    .pattern-item-pill i {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--c);
+      flex: none;
+    }
+    .pattern-item-pill b { font-weight: 800; }
+
+    /* Material Table */
+    .mat-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14.5px;
+      margin-top: 10px;
+    }
+    .mat-table th, .mat-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--edge);
+      text-align: left;
+    }
+    .mat-table th.r, .mat-table td.r { text-align: right; }
+    .mat-table th { font-weight: 700; color: var(--mut); font-size: 13.5px; background: #F8FAFC; }
+    .mat-summary {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--edge);
+      font-size: 13.5px;
+      color: var(--mut);
+      line-height: 1.6;
+    }
+
+    /* Modal / Paste Area */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 620px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      padding: 24px;
+      animation: popIn 0.2s ease;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .modal-close {
+      background: transparent;
+      border: 0;
+      font-size: 26px;
+      cursor: pointer;
+      color: var(--mut);
+      line-height: 1;
+    }
+
+    /* Dropzone for IGS and Fusion files */
+    .dropzone {
+      border: 2px dashed #0F766E;
+      border-radius: 12px;
+      background: #F0FDFA;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      background: #CCFBF1;
+      border-color: #0D9488;
+      transform: translateY(-1px);
+    }
+    .igs-item-row {
+      display: grid;
+      grid-template-columns: 1fr 130px 85px 75px 65px;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--edge);
+    }
+    .igs-item-row:last-child { border-bottom: none; }
+    .igs-item-row:hover { background: #F8FAFC; }
+
+    /* Alert Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--dark);
+      color: #fff;
+      padding: 12px 22px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      z-index: 100;
+      transition: all 0.25s ease;
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Warning boxes */
+    .warn-box {
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--warn2);
+      border: 1px solid #FDE68A;
+      color: var(--warn);
+      font-size: 13.5px;
+      margin-bottom: 14px;
+    }
+    .err-box {
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--bad2);
+      border: 1px solid #FECACA;
+      color: var(--bad);
+      font-size: 13.5px;
+      margin-bottom: 14px;
+    }
+
+    /* Print styles */
+    @media print {
+      body { background: #fff; color: #000; font-size: 11pt; }
+      .top, .hero, .grid-input, .results-actions, #toast, .modal-backdrop, .no-print { display: none !important; }
+      .results-area { margin-top: 0; }
+      .card, .profile-group-section { border: 1px solid #ccc !important; box-shadow: none !important; page-break-inside: avoid; margin-bottom: 16px !important; }
+      .kpi-cards { grid-template-columns: repeat(6, 1fr) !important; gap: 8px !important; }
+      .kpi-card { border: 1px solid #ccc !important; padding: 10px !important; }
+      .kpi-val { font-size: 20px !important; }
+      .kpi-label { font-size: 11px !important; }
+      .kpi-card.highlight { background: #eee !important; color: #000 !important; }
+      .kpi-card.highlight .kpi-val, .kpi-card.highlight .kpi-label { color: #000 !important; }
+      .print-header { display: block !important; margin-bottom: 20px; text-align: center; }
+      .pattern-card { page-break-inside: avoid; }
+      .bar-visual-wrap svg { height: 38px !important; }
+    }
+    .print-header { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar -->
+  <header class="top no-print">
+    <div class="wrap">
+      <a class="brand" href="#" title="An Bình - Tối Ưu Xếp Phôi Thép Hộp">
+        <img src="logo_an_binh.jpg" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
+          <div class="brand-sub-title">Cắt thép hộp &amp; bản vẽ đa quy cách</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <button class="btn btn-p btn-sm" id="btnOpenIgs" title="Kéo thả hoặc chọn các file .IGS cho máy cắt laser ống">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Nhập file .IGS
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnLoadFusion" title="Nạp trực tiếp từ bản vẽ Fusion 360 vừa bóc tách">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+          Từ Fusion 360
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnPresetMulti" title="Ví dụ bản vẽ kết cấu gồm nhiều loại hộp (50x50, 30x30, 20x40)">
+          Mẫu đa hộp
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnPresetUser" title="Nạp đúng bộ số liệu Hộp 30x30 từ ảnh mẫu bạn đã gửi">
+          Mẫu ảnh gốc
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnOpenPaste">
+          <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Dán Excel
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnReset">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Nhập mới
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Hero / Features -->
+    <div class="hero no-print">
+      <div class="hero-top">
+        <div>
+          <h1>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống Đa Quy Cách</h1>
+          <p class="hero-desc">
+            Xếp phôi độc lập và tính số cây cần dùng cho từng loại hộp trong bản vẽ. Tự động lưu bộ nhớ các quy cách hộp, vét cạn cây tồn kho và xếp xen kẽ ke 45° giảm hao phí tối đa.
+          </p>
+        </div>
+        <div>
+          <button class="btn btn-cta btn-lg" id="btnOptimizeHero">
+            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            TÍNH TOÁN XẾP PHÔI
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Form Grid -->
+    <div class="grid-input no-print">
+      <!-- Left: Parts to cut organized per Profile -->
+      <section class="card" aria-label="Chi tiết cần cắt">
+        <div class="card-title">
+          <h2>Chi tiết cần cắt (Xếp riêng theo loại hộp)</h2>
+          <span style="font-size:13px;color:var(--mut);" id="lblPartCount">0 chi tiết</span>
+        </div>
+        <p class="card-subtitle">
+          Chọn loại hộp để nhập chi tiết và xem tính toán số cây cần dùng của riêng loại hộp đó.
+        </p>
+
+        <!-- Box Profile Memory Library Section -->
+        <div class="memory-library-box">
+          <div class="memory-header-row">
+            <b>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Bộ nhớ quy cách hộp (Đã lưu trong máy):
+            </b>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="inpCustomProfile" placeholder="Thêm quy cách mới (vd: Hộp 25x25x1, 40x10x1.2...)" style="max-width:270px;min-height:32px;padding:3px 10px;font-size:12.5px;">
+              <button class="btn btn-p btn-sm" id="btnAddCustomProfile" type="button">+ Lưu bộ nhớ</button>
+            </div>
+          </div>
+          <div class="memory-chips-wrap" id="memoryChipsWrap">
+            <!-- Populated dynamically from localStorage -->
+          </div>
+        </div>
+
+        <!-- Filter Profile Tabs Bar with Bars Needed Badge -->
+        <div class="profile-tabs-bar" id="profileTabsBar">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Active Box Banner & Mini KPI for Selected Box -->
+        <div id="activeProfileBannerWrap"></div>
+
+        <!-- Parts Table Header -->
+        <div class="parts-header">
+          <span></span>
+          <span>Tên / Vị trí chi tiết</span>
+          <span class="r">Dài (mm)</span>
+          <span class="r">SL</span>
+          <span style="text-align:center;">Đầu cắt</span>
+          <span class="r" title="Bề rộng cạnh bị vát mòi 45° (ví dụ hộp 25x25 thì là 25mm, không phải độ dày 1 ly)">Mặt vát (mm)</span>
+          <span></span>
+        </div>
+
+        <div id="partsList"></div>
+
+        <div class="action-row">
+          <button class="btn btn-p btn-sm" id="btnAddPart">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Thêm chi tiết
+          </button>
+          <button class="btn btn-soft btn-sm" id="btnQuickIgs">Nhập file .IGS</button>
+          <button class="btn btn-soft btn-sm" id="btnQuickPaste">Dán từ Excel</button>
+          <button class="btn btn-soft btn-sm" id="btnRemoveCurrentProfile" style="color:var(--bad);" title="Xóa loại hộp này khỏi bản vẽ">
+            Xóa loại hộp này
+          </button>
+          <button class="btn btn-soft btn-sm" style="color:var(--bad);margin-left:auto;" id="btnClearAll">Xóa hết bản vẽ</button>
+        </div>
+      </section>
+
+      <!-- Right: Stock Bars & Cutting Settings -->
+      <div>
+        <!-- Stock Bars Card organized for the Active Profile -->
+        <section class="card" aria-label="Cây vật tư">
+          <div class="card-title">
+            <h2 id="stockCardTitle">Cây vật tư</h2>
+          </div>
+          <p class="card-subtitle" id="stockCardSub">
+            Cây tồn kho nhập số lượng có sẵn (ưu tiên vét trước). Cây mua mới 6m luôn sẵn sàng.
+          </p>
+
+          <div class="stock-header">
+            <span>Tên phôi</span>
+            <span class="r">Dài (mm)</span>
+            <span class="r">Số cây</span>
+            <span></span>
+          </div>
+
+          <div id="stockList"></div>
+
+          <div style="margin-top: 12px; display:flex; gap:8px;">
+            <button class="btn btn-soft btn-sm" id="btnAddStock">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Thêm cây tồn kho
+            </button>
+          </div>
+        </section>
+
+        <!-- Cut Settings Card -->
+        <section class="card" aria-label="Cách cắt">
+          <div class="card-title">
+            <h2>Cách cắt &amp; Máy cắt</h2>
+          </div>
+
+          <div class="method-toggle">
+            <button type="button" id="btnMethodSaw">Cắt đá / Cưa đĩa</button>
+            <button type="button" id="btnMethodLaser" class="active">Laser CNC</button>
+          </div>
+
+          <div class="settings-grid">
+            <div>
+              <label class="setting-label" for="inpKerf">Hao mạch cắt (mm)</label>
+              <input type="text" id="inpKerf" class="so" value="0">
+            </div>
+            <div>
+              <label class="setting-label" for="inpClamp">Kẹp đuôi (mm)</label>
+              <input type="text" id="inpClamp" class="so" value="80">
+            </div>
+          </div>
+
+          <label class="checkbox-box">
+            <input type="checkbox" id="chkInterlock" checked>
+            <div class="checkbox-text">
+              <b>Xếp xen kẽ chi tiết cắt ke 45°</b>
+              <small>Hai miếng ke cùng mặt nằm liền nhau, lật 1 miếng thì chung 1 nhát cắt chéo, bớt đúng bề rộng mặt hộp.</small>
+            </div>
+          </label>
+
+          <div style="margin-top: 10px;" id="boxGap">
+            <label class="setting-label" for="inpGap">Hở mối xen kẽ an toàn (mm)</label>
+            <input type="text" id="inpGap" class="so" value="0" placeholder="0">
+          </div>
+
+          <div style="margin-top: 18px;">
+            <button class="btn btn-cta btn-lg" style="width: 100%;" id="btnCalculate">
+              <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              TÍNH TOÁN XẾP PHÔI
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Print Header -->
+    <div class="print-header">
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px;">
+        <img src="logo_an_binh.jpg" alt="Logo An Bình" style="height: 48px; object-fit: contain;">
+        <div style="text-align:left;">
+          <h1 style="font-size:20px;margin:0;color:#0B3B38;">CÔNG TY AN BÌNH</h1>
+          <div style="font-size:13.5px;font-weight:700;color:#0F766E;">BẢNG TỐI ƯU XẾP PHÔI CẮT THÉP HỘP ĐA QUY CÁCH</div>
+        </div>
+      </div>
+      <p style="color:#666;font-size:13px;" id="printDate"></p>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results-area" id="resultsSection" style="display: none;">
+      <div class="results-header">
+        <h2>Kết quả tối ưu toàn bản vẽ</h2>
+        <div class="results-actions no-print">
+          <button class="btn btn-soft btn-sm" id="btnCopyZalo">
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Chép gửi Zalo
+          </button>
+          <button class="btn btn-soft btn-sm" id="btnPrintPDF">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            In / PDF
+          </button>
+          <button class="btn btn-soft btn-sm" id="btnExportCSV">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Xuất Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="kpi-cards" id="kpiContainer"></div>
+
+      <!-- Warnings container -->
+      <div id="warningsContainer"></div>
+
+      <!-- Materials Needed Card (Grouped by Profile) -->
+      <section class="card" style="margin-bottom: 22px;">
+        <div class="card-title">
+          <h2>Bảng vật tư cần đặt hàng (Theo loại hộp)</h2>
+        </div>
+        <p class="card-subtitle">Tổng hợp số lượng cây mua mới và cây tồn kho cần dùng cho từng loại hộp trong bản vẽ.</p>
+        <div id="materialsContainer"></div>
+      </section>
+
+      <!-- Filter Cutting Layout by Profile -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+        <h2>Sơ đồ cắt chi tiết theo từng loại hộp</h2>
+        <div class="profile-tabs-bar" id="resultFilterTabs" style="margin-bottom:0;border:0;padding-bottom:0;"></div>
+      </div>
+
+      <!-- Container for Profile-Grouped Patterns -->
+      <div id="patternsContainer"></div>
+    </div>
+  </main>
+
+  <!-- Modal Paste from Excel -->
+  <div class="modal-backdrop" id="modalPaste" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>Dán danh sách chi tiết từ Excel</h3>
+        <button class="modal-close" id="btnClosePaste">&times;</button>
+      </div>
+      <p style="font-size:13.5px;color:var(--mut);margin-bottom:12px;">
+        Dán trực tiếp các dòng từ Excel (Tên, Chiều dài, Số lượng, Đầu cắt, Mặt vát) hoặc gõ nhanh:
+      </p>
+      <textarea id="txtPaste" rows="8" placeholder="Ví dụ dán:&#10;Thanh giằng	835	4	ke1	30&#10;Thanh xà	1100	2	ke	30&#10;Thanh đứng	640	8&#10;1040x3&#10;453x1"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+        <button class="btn btn-soft btn-sm" id="btnCancelPaste">Đóng</button>
+        <button class="btn btn-p btn-sm" id="btnApplyPaste">Nhận dữ liệu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nhập file .IGS Cắt Ống -->
+  <div class="modal-backdrop" id="modalIgs" style="display: none;">
+    <div class="modal-box" style="max-width: 680px;">
+      <div class="modal-head">
+        <h3>Nhập file .IGS (Máy cắt ống Laser CNC &amp; Fusion 360)</h3>
+        <button class="modal-close" id="btnCloseIgs">&times;</button>
+      </div>
+      <p style="font-size:13px;color:var(--mut);margin-bottom:12px;">
+        Hệ thống tự động đọc hình học 3D từ file <b>.igs</b>: nhận diện quy cách hộp, độ dày, chiều dài và góc vát mòi 45°.
+      </p>
+
+      <div id="igsDropZone" class="dropzone">
+        <svg style="width: 44px; height: 44px; stroke: var(--p); fill: none; stroke-width: 1.8; margin: 0 auto 8px; display:block;" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <div style="font-weight: 700; font-size: 14.5px; color: var(--dark); margin-bottom: 4px;">
+          Kéo thả các file .IGS vào đây
+        </div>
+        <div style="font-size: 12.5px; color: var(--mut);">
+          hoặc <span style="color: var(--p); text-decoration: underline; font-weight: 600;">bấm vào đây để chọn nhiều file .IGS cùng lúc</span>
+        </div>
+        <input type="file" id="inpIgsFiles" multiple accept=".igs,.iges" style="display: none;">
+      </div>
+
+      <!-- Preview list of parsed IGS parts -->
+      <div id="igsPreviewWrap" style="display: none; margin-top: 14px;">
+        <div style="font-weight: 700; font-size: 13px; color: var(--dark); margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center;">
+          <span>Chi tiết đã nhận diện từ file .IGS:</span>
+          <span id="igsCountBadge" style="color:var(--p); font-size:12px; font-weight:700;">0 chi tiết</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 130px 85px 75px 65px; gap:8px; padding:6px 12px; background:#F1F5F9; border-radius:6px 6px 0 0; font-size:11.5px; font-weight:700; color:var(--mut);">
+          <span>Tên file / Chi tiết</span>
+          <span>Loại hộp</span>
+          <span style="text-align:right;">Dài (mm)</span>
+          <span style="text-align:center;">Đầu cắt</span>
+          <span style="text-align:right;">SL</span>
+        </div>
+        <div id="igsPreviewList" style="max-height: 220px; overflow-y: auto; border: 1px solid var(--edge); border-top:none; border-radius: 0 0 8px 8px; background: #FFFFFF; font-size: 12.5px;"></div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="btn btn-soft btn-sm" id="btnCancelIgs">Đóng</button>
+        <button class="btn btn-p btn-sm" id="btnApplyIgs" disabled style="opacity: 0.5;">+ Nạp vào bản vẽ tối ưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nạp từ Fusion 360 -->
+  <div class="modal-backdrop" id="modalFusion" style="display: none;">
+    <div class="modal-box" style="max-width: 600px;">
+      <div class="modal-head">
+        <h3>Nạp bản vẽ bóc tách từ Fusion 360</h3>
+        <button class="modal-close" id="btnCloseFusion">&times;</button>
+      </div>
+      <p style="font-size:13px;color:var(--mut);margin-bottom:12px;">
+        Chọn file <b>fusion_exported_project.json</b> vừa xuất từ script Fusion 360:
+      </p>
+      <div id="fusionDropZone" class="dropzone" style="padding: 24px 16px;">
+        <svg style="width: 38px; height: 38px; stroke: var(--p); fill: none; stroke-width: 1.8; margin: 0 auto 8px; display:block;" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+        </svg>
+        <div style="font-weight: 700; font-size: 14px; color: var(--dark); margin-bottom: 4px;">
+          Bấm để chọn file fusion_exported_project.json
+        </div>
+        <div style="font-size: 12px; color: var(--mut);">
+          (Tự động nhận diện toàn bộ các loại hộp, số lượng và mòi cắt)
+        </div>
+        <input type="file" id="inpFusionFile" accept=".json" style="display: none;">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="btn btn-soft btn-sm" id="btnCancelFusion">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast">Thông báo</div>
+
+  <script>
+    // Palette
+    const COLORS = [
+      '#0F766E', '#C2410C', '#3A5BA0', '#A21CAF',
+      '#4D7C0F', '#B4232C', '#0369A1', '#7C3AED',
+      '#A16207', '#BE185D', '#15803D', '#475569'
+    ];
+    const getColor = i => COLORS[i % COLORS.length];
+
+    // LocalStorage Keys
+    const LS_SAVED_PROFILES = 'toiuu_saved_box_profiles_v2';
+    const LS_ACTIVE_PROJECT = 'toiuu_active_project_v2';
+
+    // Default Saved Profiles Library
+    const DEFAULT_SAVED_PROFILES = [
+      'Hộp 20x20x1.4', 'Hộp 25x25x1.4', 'Hộp 30x30x1.8', 'Hộp 40x40x1.8', 'Hộp 50x50x2.0',
+      'Hộp 20x40x1.4', 'Hộp 25x50x1.8', 'Hộp 30x60x1.8', 'Hộp 40x80x2.0', 'Ống Ø27x1.4', 'Ống Ø34x1.4'
+    ];
+
+    // State
+    const state = {
+      savedProfiles: [],
+      activeProfiles: ['Hộp 30x30x1.8'],
+      selectedTabProfile: 'Hộp 30x30x1.8',
+      resultFilterProfile: 'ALL',
+      parts: [],
+      stock: [],
+      method: 'cnc',
+      kerf: 0,
+      clamp: 80,
+      interlock: true,
+      gap: 0,
+      result: null
+    };
+
+    let HINH_CACHE = [];
+
+    // Helpers
+    const $ = id => document.getElementById(id);
+    const numVN = (n, dec) => {
+      if (n == null || isNaN(n)) return '0';
+      const num = Number(n);
+      if (dec !== undefined && dec !== null) {
+        return num.toLocaleString('vi-VN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+      }
+      if (Number.isInteger(num)) {
+        return num.toLocaleString('vi-VN', { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+      } else {
+        return num.toLocaleString('vi-VN', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
+      }
+    };
+    const parseVN = v => {
+      if (v == null) return 0;
+      let s = String(v).trim().replace(/\s/g, '');
+      if (!s) return 0;
+      if (s.includes('.') && s.includes(',')) {
+        if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+          s = s.replace(/\./g, '').replace(',', '.');
+        } else {
+          s = s.replace(/,/g, '');
+        }
+      } else if (s.includes(',')) {
+        s = s.replace(',', '.');
+      } else if (s.includes('.')) {
+        const parts = s.split('.');
+        if (parts.length === 2) {
+          if (parts[1].length === 3 && (parts[1] === '000' || parts[1] === '100' || parts[1] === '500' || parts[1] === '200')) {
+            s = parts[0] + parts[1];
+          } else if (parts[1].length !== 3) {
+            // Keep decimal dot like 728.5 or 1040.5
+          } else {
+            s = parts[0] + parts[1];
+          }
+        } else {
+          s = s.replace(/\./g, '');
+        }
+      }
+      return parseFloat(s) || 0;
+    };
+
+    // Smart Specification & Profile Detector
+    // Detects box profile (e.g. "Hộp 25x25x1" -> "Hộp 25x25"), length ("L728.5" -> 728.5), qty ("x 4" -> 4), miter ("ke 1")
+    function detectSpecsFromText(text) {
+      if (!text || typeof text !== 'string') return null;
+      const str = text.trim();
+      if (!str) return null;
+
+      const allAvailable = Array.from(new Set([...(state.activeProfiles || []), ...(state.savedProfiles || [])])).filter(Boolean);
+
+      let detectedProfile = null;
+      let detectedLength = null;
+      let detectedQty = null;
+      let detectedStyle = null;
+      let detectedMat = null;
+
+      let remainder = str;
+
+      // 1. Detect Box Profile: WxH (xT)?
+      // Matches "Hộp 25x25x1", "25x25x1", "Hộp 25x25", "20x40", "50*50", "25×25"
+      const mBox = str.match(/(?:Hộp|Hop|hop|hộp)?\s*(\d{2,3})\s*(?:x|X|\*|×)\s*(\d{2,3})(?:\s*(?:x|X|\*|×)\s*(\d+(?:[.,]\d+)?))?/i);
+      if (mBox) {
+        remainder = remainder.replace(mBox[0], ' ');
+        const w = parseInt(mBox[1]);
+        const h = parseInt(mBox[2]);
+        const t = mBox[3] ? parseFloat(mBox[3].replace(',', '.')) : null;
+
+        // If thickness is explicitly specified (e.g. "Hộp 25x25x1", "20x40x1.4"), MUST preserve thickness!
+        if (t !== null) {
+          detectedProfile = allAvailable.find(p => {
+            const pm = p.match(/(\d+)\s*(?:x|X|\*|×)\s*(\d+)(?:\s*(?:x|X|\*|×)\s*(\d+(?:[.,]\d+)?))?/i);
+            return pm && parseInt(pm[1]) === w && parseInt(pm[2]) === h && pm[3] && parseFloat(pm[3].replace(',', '.')) === t;
+          });
+          if (!detectedProfile) {
+            const rawT = mBox[3].replace(',', '.');
+            detectedProfile = `Hộp ${w}x${h}x${rawT}`;
+          }
+        } else {
+          // Thickness was not specified: match nominal profile or any with same WxH
+          detectedProfile = allAvailable.find(p => {
+            const pm = p.match(/(\d+)\s*(?:x|X|\*|×)\s*(\d+)(?:\s*(?:x|X|\*|×)\s*(\d+(?:[.,]\d+)?))?/i);
+            return pm && parseInt(pm[1]) === w && parseInt(pm[2]) === h && !pm[3];
+          });
+          if (!detectedProfile) {
+            detectedProfile = allAvailable.find(p => {
+              const pm = p.match(/(\d+)\s*(?:x|X|\*|×)\s*(\d+)/i);
+              return pm && parseInt(pm[1]) === w && parseInt(pm[2]) === h;
+            });
+          }
+          if (!detectedProfile) {
+            detectedProfile = `Hộp ${w}x${h}`;
+          }
+        }
+        detectedMat = Math.max(w, h);
+      }
+
+      // 2. Detect Round Pipe: (Ống|Phi|Ø)? D(xT)?
+      if (!detectedProfile) {
+        const mRound = str.match(/(?:Ống|Ong|ong|ống|Phi|phi|Ø|D|d)\s*(\d{2,3})(?:\s*(?:x|X|\*|×)\s*(\d+(?:[.,]\d+)?))?/i);
+        if (mRound) {
+          remainder = remainder.replace(mRound[0], ' ');
+          const d = parseInt(mRound[1]);
+          const t = mRound[2] ? parseFloat(mRound[2].replace(',', '.')) : null;
+          if (t !== null) {
+            detectedProfile = allAvailable.find(p => {
+              const pm = p.match(/(?:Ống|Phi|Ø|D)\s*(\d+)(?:\s*(?:x|X|\*|×)\s*(\d+(?:[.,]\d+)?))?/i);
+              return pm && parseInt(pm[1]) === d && pm[2] && parseFloat(pm[2].replace(',', '.')) === t;
+            });
+            if (!detectedProfile) {
+              const rawT = mRound[2].replace(',', '.');
+              detectedProfile = `Ống Ø${d}x${rawT}`;
+            }
+          } else {
+            detectedProfile = allAvailable.find(p => {
+              const pm = p.match(/(?:Ống|Phi|Ø|D)\s*(\d+)/i);
+              return pm && parseInt(pm[1]) === d;
+            });
+            if (!detectedProfile) {
+              detectedProfile = `Ống Ø${d}`;
+            }
+          }
+          detectedMat = d;
+        }
+      }
+
+      // 3. Detect Length: L728.5 or dài 728.5 or L=728.5 or L 728,5
+      const mLen = remainder.match(/(?:L|l|dài|Dài|dai|Dai)\s*[:=-]?\s*(\d+(?:[.,]\d+)?)/i);
+      if (mLen) {
+        detectedLength = parseFloat(mLen[1].replace(',', '.'));
+        remainder = remainder.replace(mLen[0], ' ');
+      }
+
+      // 4. Detect Quantity from remainder: x 4, * 4, SL 4, SL: 3, SL3, 4 cây
+      const mQty = remainder.match(/(?:x|X|\*|SL|sl|Số lượng|so luong)\s*[:=-]?\s*(\d+)/i) || remainder.match(/(\d+)\s*(?:cây|cay|chi tiết|chi tiet|ct)\b/i);
+      if (mQty) {
+        detectedQty = parseInt(mQty[1]);
+        remainder = remainder.replace(mQty[0], ' ');
+      }
+
+      // 5. Detect Cut Style from remainder
+      if (/ke\s*1|ke1|1\s*dau|1\s*đầu|vat\s*1|vát\s*1/i.test(remainder)) {
+        detectedStyle = 'ke1';
+      } else if (/ke\s*2|ke2|ke\b|2\s*dau|2\s*đầu|vat\s*2|vát\s*2/i.test(remainder)) {
+        detectedStyle = 'ke';
+      } else if (/thang|thẳng/i.test(remainder)) {
+        detectedStyle = 'thang';
+      }
+
+      return { detectedProfile, detectedLength, detectedQty, detectedStyle, detectedMat };
+    }
+    const showToast = msg => {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    };
+
+    // Extract default miter width from profile name (e.g. "Hộp 50x50" -> 50, "Hộp 20x40" -> 40)
+    function extractMatFromProfile(pName) {
+      if (!pName) return 30;
+      const m = pName.match(/(?:Hộp|Ống|V|U)?\s*(\d+)(?:x|X)(\d+)/);
+      if (m) {
+        return Math.max(parseInt(m[1]), parseInt(m[2]));
+      }
+      const mRound = pName.match(/(?:Ø|D|Phi)\s*(\d+)/i);
+      if (mRound) return parseInt(mRound[1]);
+      return 30;
+    }
+
+    // Load & Save Memory Library
+    function initSavedProfiles() {
+      try {
+        const stored = localStorage.getItem(LS_SAVED_PROFILES);
+        if (stored) {
+          state.savedProfiles = JSON.parse(stored);
+        } else {
+          state.savedProfiles = DEFAULT_SAVED_PROFILES.slice();
+          saveProfilesLibrary();
+        }
+      } catch (e) {
+        state.savedProfiles = DEFAULT_SAVED_PROFILES.slice();
+      }
+    }
+
+    function saveProfilesLibrary() {
+      try {
+        localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(state.savedProfiles));
+      } catch (e) {}
+    }
+
+    function addProfileToMemory(pName) {
+      pName = String(pName || '').trim();
+      if (!pName) return;
+      if (!state.savedProfiles.includes(pName)) {
+        state.savedProfiles.push(pName);
+        saveProfilesLibrary();
+      }
+      if (!state.activeProfiles.includes(pName)) {
+        state.activeProfiles.push(pName);
+      }
+      // Ensure stock has 6m new stock for this profile
+      ensureStockForProfile(pName);
+      state.selectedTabProfile = pName;
+      renderMemoryLibraryChips();
+      renderProfileTabs();
+      renderPartsList();
+      renderStockList();
+      calculateOptimization(false);
+      saveActiveProject();
+      showToast(`Đã lưu "${pName}" vào bộ nhớ & thêm vào bản vẽ!`);
+    }
+
+    function removeProfileFromMemory(pName, e) {
+      if (e) e.stopPropagation();
+      if (confirm(`Bạn có chắc muốn xóa quy cách "${pName}" khỏi danh sách bộ nhớ?`)) {
+        state.savedProfiles = state.savedProfiles.filter(p => p !== pName);
+        saveProfilesLibrary();
+        renderMemoryLibraryChips();
+        showToast(`Đã xóa "${pName}" khỏi bộ nhớ!`);
+      }
+    }
+
+    function renderMemoryLibraryChips() {
+      const container = $('memoryChipsWrap');
+      container.innerHTML = '';
+
+      state.savedProfiles.forEach(pName => {
+        const chip = document.createElement('div');
+        chip.className = 'memory-chip-pill';
+        chip.title = `Bấm để xếp phôi cho ${pName}`;
+        chip.innerHTML = `
+          <span>+ ${escapeHtml(pName)}</span>
+          <span class="memory-chip-del" title="Xóa khỏi bộ nhớ">&times;</span>
+        `;
+
+        chip.querySelector('span:first-child').onclick = () => {
+          if (!state.activeProfiles.includes(pName)) {
+            state.activeProfiles.push(pName);
+          }
+          ensureStockForProfile(pName);
+          state.selectedTabProfile = pName;
+          renderProfileTabs();
+          renderPartsList();
+          renderStockList();
+          calculateOptimization(false);
+          saveActiveProject();
+          showToast(`Đang xếp chi tiết cho "${pName}"`);
+        };
+
+        chip.querySelector('.memory-chip-del').onclick = (e) => removeProfileFromMemory(pName, e);
+
+        container.appendChild(chip);
+      });
+    }
+
+    // Project Persistence in LocalStorage
+    function saveActiveProject() {
+      try {
+        const data = {
+          activeProfiles: state.activeProfiles,
+          selectedTabProfile: state.selectedTabProfile,
+          parts: state.parts,
+          stock: state.stock,
+          method: state.method,
+          kerf: state.kerf,
+          clamp: state.clamp,
+          interlock: state.interlock,
+          gap: state.gap
+        };
+        localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(data));
+      } catch (e) {}
+    }
+
+    function loadActiveProject() {
+      try {
+        const stored = localStorage.getItem(LS_ACTIVE_PROJECT);
+        if (stored) {
+          const data = JSON.parse(stored);
+          if (data && Array.isArray(data.parts) && data.parts.length > 0) {
+            state.activeProfiles = data.activeProfiles || ['Hộp 30x30x1.8'];
+            state.selectedTabProfile = data.selectedTabProfile || state.activeProfiles[0];
+            state.parts = data.parts;
+            state.stock = data.stock || [];
+            state.method = data.method || 'cnc';
+            state.kerf = data.kerf != null ? data.kerf : 0;
+            state.clamp = data.clamp != null ? data.clamp : 80;
+            state.interlock = data.interlock != null ? data.interlock : true;
+            state.gap = data.gap != null ? data.gap : 0;
+
+            updateInputsFromState();
+            renderProfileTabs();
+            renderPartsList();
+            renderStockList();
+            calculateOptimization(false);
+            return true;
+          }
+        }
+      } catch (e) {}
+      return false;
+    }
+
+    function ensureStockForProfile(prof) {
+      const exist = state.stock.find(s => s.profile === prof);
+      if (!exist) {
+        state.stock.push({
+          id: 's_auto_' + Date.now() + Math.random(),
+          profile: prof,
+          name: `Cây mới 6.000 (${prof})`,
+          length: 6000,
+          qty: null,
+          clamp: state.clamp
+        });
+      }
+    }
+
+    // Presets
+    function loadMultiProfilePreset() {
+      state.activeProfiles = ['Hộp 50x50x2.0', 'Hộp 30x30x1.8', 'Hộp 20x40x1.4'];
+      state.selectedTabProfile = 'Hộp 50x50x2.0';
+
+      state.parts = [
+        // Hộp 50x50x2.0
+        { id: 'p1', name: 'Chân cột chính', profile: 'Hộp 50x50x2.0', length: 1500, qty: 4, style: 'thang', mat: 0 },
+        { id: 'p2', name: 'Khung giằng trên', profile: 'Hộp 50x50x2.0', length: 1000, qty: 4, style: 'ke', mat: 50 },
+
+        // Hộp 30x30x1.8 (Bộ 18 chi tiết thực tế của bạn)
+        { id: 'p3', name: 'Hộp 30x30 L835', profile: 'Hộp 30x30x1.8', length: 835, qty: 4, style: 'ke1', mat: 30 },
+        { id: 'p4', name: 'Hộp 30x30 L1100', profile: 'Hộp 30x30x1.8', length: 1100, qty: 2, style: 'ke', mat: 30 },
+        { id: 'p5', name: 'Hộp 30x30 L640', profile: 'Hộp 30x30x1.8', length: 640, qty: 8, style: 'thang', mat: 0 },
+        { id: 'p6', name: 'Hộp 30x30 L1040', profile: 'Hộp 30x30x1.8', length: 1040, qty: 3, style: 'thang', mat: 0 },
+        { id: 'p7', name: 'Hộp 30x30 L453', profile: 'Hộp 30x30x1.8', length: 453, qty: 1, style: 'thang', mat: 0 },
+
+        // Hộp 20x40x1.4
+        { id: 'p8', name: 'Thanh đỡ sàn', profile: 'Hộp 20x40x1.4', length: 950, qty: 6, style: 'thang', mat: 0 },
+        { id: 'p9', name: 'Nan bảo vệ', profile: 'Hộp 20x40x1.4', length: 420, qty: 8, style: 'thang', mat: 0 }
+      ];
+
+      state.stock = [
+        { id: 's1', name: 'Cây tồn 2.400', profile: 'Hộp 50x50x2.0', length: 2400, qty: 1, clamp: 80 },
+        { id: 's2', name: 'Cây mới 6.000 (Hộp 50x50x2.0)', profile: 'Hộp 50x50x2.0', length: 6000, qty: null, clamp: 80 },
+
+        { id: 's3', name: 'Cây tồn 6.000', profile: 'Hộp 30x30x1.8', length: 6000, qty: 3, clamp: 80 },
+        { id: 's4', name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: 80 },
+
+        { id: 's5', name: 'Cây tồn 1.800', profile: 'Hộp 20x40x1.4', length: 1800, qty: 1, clamp: 80 },
+        { id: 's6', name: 'Cây mới 6.000 (Hộp 20x40x1.4)', profile: 'Hộp 20x40x1.4', length: 6000, qty: null, clamp: 80 }
+      ];
+
+      state.method = 'cnc';
+      state.kerf = 0;
+      state.clamp = 80;
+      state.interlock = true;
+      state.gap = 0;
+
+      updateInputsFromState();
+      renderProfileTabs();
+      renderPartsList();
+      renderStockList();
+      calculateOptimization(false);
+      saveActiveProject();
+      showToast('Đã nạp mẫu bản vẽ đa loại hộp (50x50, 30x30, 20x40)!');
+    }
+
+    function loadUserCase() {
+      state.activeProfiles = ['Hộp 30x30x1.8'];
+      state.selectedTabProfile = 'Hộp 30x30x1.8';
+
+      state.parts = [
+        { id: 'p1', name: 'Hộp 30x30x1.8 L835', profile: 'Hộp 30x30x1.8', length: 835, qty: 4, style: 'ke1', mat: 30 },
+        { id: 'p2', name: 'Hộp 30x30x1.8 L1100', profile: 'Hộp 30x30x1.8', length: 1100, qty: 2, style: 'ke', mat: 30 },
+        { id: 'p3', name: 'Hộp 30x30x1.8 L640', profile: 'Hộp 30x30x1.8', length: 640, qty: 8, style: 'thang', mat: 0 },
+        { id: 'p4', name: 'Hộp 30x30x1.8 L1040', profile: 'Hộp 30x30x1.8', length: 1040, qty: 3, style: 'thang', mat: 0 },
+        { id: 'p5', name: 'Hộp 30x30x1.8 L453', profile: 'Hộp 30x30x1.8', length: 453, qty: 1, style: 'thang', mat: 0 }
+      ];
+      state.stock = [
+        { id: 's1', name: 'Cây tồn 6.000', profile: 'Hộp 30x30x1.8', length: 6000, qty: 5, clamp: 80 }
+      ];
+      state.method = 'cnc';
+      state.kerf = 0;
+      state.clamp = 80;
+      state.interlock = true;
+      state.gap = 0;
+
+      updateInputsFromState();
+      renderProfileTabs();
+      renderPartsList();
+      renderStockList();
+      calculateOptimization(false);
+      saveActiveProject();
+      showToast('Đã nạp đúng 100% dữ liệu từ ảnh mẫu bạn đã gửi!');
+    }
+
+    function updateInputsFromState() {
+      $('inpKerf').value = state.kerf;
+      $('inpClamp').value = state.clamp;
+      $('chkInterlock').checked = state.interlock;
+      $('inpGap').value = state.gap;
+      $('boxGap').style.display = state.interlock ? 'block' : 'none';
+
+      if (state.method === 'cnc') {
+        $('btnMethodLaser').classList.add('active');
+        $('btnMethodSaw').classList.remove('active');
+      } else {
+        $('btnMethodSaw').classList.add('active');
+        $('btnMethodLaser').classList.remove('active');
+      }
+    }
+
+    function ensureProfilesConsistency() {
+      const set = new Set(state.activeProfiles);
+      state.parts.forEach(p => { if (p.profile) set.add(p.profile); });
+      state.activeProfiles = Array.from(set).filter(Boolean);
+      if (!state.activeProfiles.length) state.activeProfiles = ['Hộp 30x30x1.8'];
+      if (!state.activeProfiles.includes(state.selectedTabProfile) && state.selectedTabProfile !== 'ALL') {
+        state.selectedTabProfile = state.activeProfiles[0];
+      }
+    }
+
+    // Render Profile Filter Tabs (Shows Bars Needed badge on each tab!)
+    function renderProfileTabs() {
+      ensureProfilesConsistency();
+      const container = $('profileTabsBar');
+      container.innerHTML = '';
+
+      // Tab 'Tất cả'
+      const totalParts = state.parts.length;
+      const allTab = document.createElement('button');
+      allTab.type = 'button';
+      allTab.className = `profile-tab ${state.selectedTabProfile === 'ALL' ? 'active' : ''}`;
+      allTab.innerHTML = `<span>Tất cả quy cách</span> <span class="profile-tab-badge">${totalParts} mục</span>`;
+      allTab.onclick = () => {
+        state.selectedTabProfile = 'ALL';
+        renderProfileTabs();
+        renderActiveProfileBanner();
+        renderPartsList();
+        renderStockList();
+      };
+      container.appendChild(allTab);
+
+      // Tabs for each box type
+      state.activeProfiles.forEach(prof => {
+        const partsOfProf = state.parts.filter(p => p.profile === prof);
+        const count = partsOfProf.length;
+        const totalPcs = partsOfProf.reduce((a, b) => a + (+b.qty || 0), 0);
+
+        // Calculate bars needed for this profile from current result
+        let barsNeededText = '';
+        if (state.result && state.result.summaryByProfile) {
+          const sp = state.result.summaryByProfile.find(s => s.profile === prof);
+          if (sp && sp.totalBars > 0) {
+            barsNeededText = `<span class="profile-tab-bars-needed">Cần ${sp.totalBars} cây</span>`;
+          }
+        }
+
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.dataset.prof = prof;
+        tab.className = `profile-tab ${state.selectedTabProfile === prof ? 'active' : ''}`;
+        tab.innerHTML = `
+          <span>${escapeHtml(prof)}</span>
+          <span class="profile-tab-badge">${count} mục (${totalPcs} ct)</span>
+          ${barsNeededText}
+        `;
+        tab.onclick = () => {
+          state.selectedTabProfile = prof;
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          renderStockList();
+        };
+        container.appendChild(tab);
+      });
+    }
+
+    // Render Active Profile Banner & Mini KPI
+    function renderActiveProfileBanner() {
+      const container = $('activeProfileBannerWrap');
+      const cur = state.selectedTabProfile;
+
+      if (cur === 'ALL') {
+        const totalPcs = state.parts.reduce((a, b) => a + (+b.qty || 0), 0);
+        let totalBars = state.result ? state.result.bars.length : 0;
+        container.innerHTML = `
+          <div class="active-profile-header-banner" style="background:#F8FAFC;border-color:#CBD5E1;">
+            <div class="active-profile-title" style="color:var(--dark);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              Toàn bộ bản vẽ (${state.activeProfiles.length} loại hộp)
+            </div>
+            <div class="active-profile-kpis" style="color:var(--mut);">
+              <span>Tổng ${state.parts.length} mục · ${totalPcs} chi tiết</span>
+              <span class="active-kpi-highlight" style="background:var(--dark);">Tổng cần: ${totalBars} cây</span>
+            </div>
+          </div>
+        `;
+        $('stockCardTitle').textContent = 'Cây vật tư (Toàn bộ bản vẽ)';
+        $('stockCardSub').textContent = 'Hiển thị cây phôi của tất cả các loại hộp trong bản vẽ.';
+        return;
+      }
+
+      // Specific box profile selected
+      const partsOfProf = state.parts.filter(p => p.profile === cur);
+      const totalPcs = partsOfProf.reduce((a, b) => a + (+b.qty || 0), 0);
+      const miterPcs = partsOfProf.filter(p => p.style === 'ke' || p.style === 'ke1').reduce((a, b) => a + (+b.qty || 0), 0);
+
+      let barKpiHTML = 'Chưa có chi tiết';
+      if (state.result && state.result.summaryByProfile) {
+        const sp = state.result.summaryByProfile.find(s => s.profile === cur);
+        if (sp && sp.totalBars > 0) {
+          const wasteM = (sp.usageStats.totalWasteLength / 1000).toFixed(2);
+          const savingM = (sp.usageStats.totalInterlockSaving / 1000).toFixed(2);
+          barKpiHTML = `
+            <span class="active-kpi-highlight">Cần ${sp.totalBars} cây</span>
+            <span>(Mua mới: ${sp.newBars}, Tồn: ${sp.totalBars - sp.newBars})</span>
+            <span>· Dư ${wasteM} m</span>
+            ${sp.usageStats.totalInterlockSaving > 0 ? `<span style="color:#0F766E;">· Bớt ${savingM} m ke</span>` : ''}
+          `;
+        }
+      }
+
+      container.innerHTML = `
+        <div class="active-profile-header-banner">
+          <div class="active-profile-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            Đang xếp phôi cho: <span style="text-decoration:underline;">${escapeHtml(cur)}</span>
+          </div>
+          <div class="active-profile-kpis">
+            <span>${partsOfProf.length} mục (${totalPcs} chi tiết)</span>
+            ${miterPcs > 0 ? `<span style="background:#E0F2FE; color:#0369A1; font-weight:700; padding:2px 8px; border-radius:12px; font-size:11px;">⚡ ${miterPcs} thanh ghép mòi 45°</span>` : ''}
+            ${barKpiHTML}
+          </div>
+        </div>
+      `;
+
+      $('stockCardTitle').textContent = `Cây vật tư cho: ${cur}`;
+      $('stockCardSub').textContent = `Cây phôi tồn kho và cây mua mới 6m dùng riêng cho ${cur}.`;
+    }
+
+    // Render Parts List
+    function renderPartsList() {
+      const container = $('partsList');
+      container.innerHTML = '';
+
+      const filteredParts = state.selectedTabProfile === 'ALL'
+        ? state.parts
+        : state.parts.filter(p => p.profile === state.selectedTabProfile);
+
+      let totalPieces = 0;
+      state.parts.forEach(p => totalPieces += (+p.qty || 0));
+
+      if (!filteredParts.length) {
+        container.innerHTML = `
+          <div style="padding:24px 16px;text-align:center;color:var(--mut);font-size:14px;background:#F8FAFC;border-radius:8px;margin-top:8px;">
+            Chưa có chi tiết nào cho <b>${escapeHtml(state.selectedTabProfile)}</b>.<br>
+            Bấm <b>"+ Thêm chi tiết"</b> ở dưới để bắt đầu nhập.
+          </div>
+        `;
+        $('lblPartCount').textContent = `${state.activeProfiles.length} loại hộp · ${state.parts.length} mục · ${totalPieces} chi tiết`;
+        return;
+      }
+
+      function getProfileOptionsHtml(currentProfile) {
+        const allProfs = Array.from(new Set([...state.activeProfiles, currentProfile])).filter(Boolean);
+        return allProfs.map(p => `<option value="${escapeHtml(p)}" ${p === currentProfile ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('');
+      }
+
+      filteredParts.forEach(part => {
+        const originalIndex = state.parts.findIndex(x => x.id === part.id);
+        const color = getColor(originalIndex);
+        const row = document.createElement('div');
+        row.className = 'parts-row';
+        row.dataset.id = part.id;
+
+        row.innerHTML = `
+          <div class="color-dot" style="--c: ${color};" title="Màu chi tiết ${originalIndex + 1}"></div>
+          <div>
+            <input type="text" value="${escapeHtml(part.name || '')}" placeholder="Tên (vd: Hộp 25x25x1 L728.5)" data-f="name">
+            <div style="display:flex; align-items:center; gap:5px; margin-top:3px; flex-wrap:wrap;">
+              <span style="font-size:10px; color:var(--mut); font-weight:600;">Hộp:</span>
+              <select class="row-profile-select" data-id="${part.id}" style="height:21px; padding:0 4px; font-size:11px; font-weight:700; border-radius:4px; border:1px solid #CBD5E1; background:#F8FAFC; color:var(--p); cursor:pointer;">
+                ${getProfileOptionsHtml(part.profile)}
+              </select>
+              <span class="row-auto-badge" style="font-size:10px; font-weight:700; color:#047857; background:#D1FAE5; border-radius:3px; padding:1px 5px; display:${part._autoDetected ? 'inline-flex' : 'none'}; align-items:center;">
+                ✓ ${escapeHtml(part.profile)}
+              </span>
+              ${part.style === 'ke' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (2 đầu)</span>' : (part.style === 'ke1' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (1 đầu)</span>' : '<span style="font-size:10px; color:#64748B; background:#F1F5F9; border-radius:3px; padding:1px 5px;">⊥ Ghép 90°</span>')}
+            </div>
+          </div>
+          <div>
+            <input type="text" class="so" value="${part.length || ''}" placeholder="Dài" data-f="length">
+          </div>
+          <div>
+            <input type="number" min="1" class="so" value="${part.qty || ''}" placeholder="SL" data-f="qty">
+          </div>
+          <div>
+            <div class="miter-btns">
+              <button type="button" class="miter-btn ${part.style === 'thang' ? 'active' : ''}" data-style="thang" title="Cắt thẳng 90°">
+                <svg viewBox="0 0 24 12"><path d="M2 1h20v10H2z"/></svg>
+                Thẳng
+              </button>
+              <button type="button" class="miter-btn ${part.style === 'ke1' ? 'active' : ''}" data-style="ke1" title="Vát 45° một đầu">
+                <svg viewBox="0 0 24 12"><path d="M2 1h14l6 10H2z"/></svg>
+                Ke 1
+              </button>
+              <button type="button" class="miter-btn ${part.style === 'ke' ? 'active' : ''}" data-style="ke" title="Vát 45° hai đầu (hình thang)">
+                <svg viewBox="0 0 24 12"><path d="M4 1h16l4 10H0z"/></svg>
+                Ke 2
+              </button>
+            </div>
+          </div>
+          <div>
+            <input type="text" class="so" value="${part.style === 'thang' ? '' : ((part.mat && part.mat >= 5) ? part.mat : extractMatFromProfile(part.profile))}" 
+                   placeholder="Mặt vát" title="Bề rộng cạnh bị vát mòi 45° (mm) - Không phải độ dày thành hộp" data-f="mat" ${part.style === 'thang' ? 'disabled style="opacity:0.4;"' : ''}>
+          </div>
+          <div>
+            <button type="button" class="btn-del" title="Xóa dòng">&times;</button>
+          </div>
+        `;
+
+        const inpName = row.querySelector('[data-f="name"]');
+        const inpLen = row.querySelector('[data-f="length"]');
+        const inpQty = row.querySelector('[data-f="qty"]');
+        const inpMat = row.querySelector('[data-f="mat"]');
+        const selProf = row.querySelector('.row-profile-select');
+        const autoBadge = row.querySelector('.row-auto-badge');
+
+        inpName.oninput = e => {
+          part.name = e.target.value;
+          const specs = detectSpecsFromText(part.name);
+          if (specs) {
+            let changedProfile = false;
+            if (specs.detectedProfile && specs.detectedProfile !== part.profile) {
+              part.profile = specs.detectedProfile;
+              part._autoDetected = true;
+              changedProfile = true;
+              if (!state.activeProfiles.includes(part.profile)) {
+                state.activeProfiles.push(part.profile);
+              }
+              if (!state.savedProfiles.includes(part.profile)) {
+                state.savedProfiles.push(part.profile);
+                saveProfilesLibrary();
+                renderMemoryLibraryChips();
+              }
+              ensureStockForProfile(part.profile);
+            }
+            if (specs.detectedMat) {
+              part.mat = specs.detectedMat;
+              if (inpMat && part.style !== 'thang') inpMat.value = part.mat;
+            }
+            if (specs.detectedLength && (!part.length || part._autoLength)) {
+              part.length = specs.detectedLength;
+              part._autoLength = true;
+              if (inpLen) inpLen.value = numVN(part.length);
+            }
+            if (specs.detectedQty && (!part.qty || part.qty === 1)) {
+              part.qty = specs.detectedQty;
+              if (inpQty) inpQty.value = part.qty;
+            }
+            if (specs.detectedStyle) {
+              part.style = specs.detectedStyle;
+              row.querySelectorAll('.miter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.style === part.style);
+              });
+              if (inpMat) {
+                inpMat.disabled = (part.style === 'thang');
+                inpMat.style.opacity = (part.style === 'thang') ? '0.4' : '1';
+                if (part.style !== 'thang') inpMat.value = part.mat;
+              }
+            }
+
+            if (changedProfile) {
+              selProf.innerHTML = getProfileOptionsHtml(part.profile);
+              selProf.value = part.profile;
+              if (autoBadge) {
+                autoBadge.style.display = 'inline-flex';
+                autoBadge.textContent = `✓ ${part.profile}`;
+              }
+              renderProfileTabs();
+              renderActiveProfileBanner();
+            }
+          }
+          autoRecalc();
+        };
+
+        selProf.onchange = e => {
+          part.profile = e.target.value;
+          part._autoDetected = false;
+          if (autoBadge) autoBadge.style.display = 'none';
+          part.mat = extractMatFromProfile(part.profile);
+          if (inpMat && part.style !== 'thang') inpMat.value = part.mat;
+          ensureProfilesConsistency();
+          ensureStockForProfile(part.profile);
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          autoRecalc();
+        };
+
+        inpLen.oninput = e => {
+          part.length = parseVN(e.target.value);
+          part._autoLength = false;
+          autoRecalc();
+        };
+        inpQty.oninput = e => { part.qty = parseInt(e.target.value) || 0; autoRecalc(); };
+        inpMat.oninput = e => {
+          part.mat = parseVN(e.target.value);
+          autoRecalc();
+        };
+        inpMat.onblur = e => {
+          const val = parseVN(e.target.value);
+          if (part.style !== 'thang' && val > 0 && val < 5) {
+            const defM = extractMatFromProfile(part.profile);
+            part.mat = defM;
+            inpMat.value = defM;
+            showToast(`ℹ Hộp ${part.profile} có mặt vát 45° là ${defM}mm (không phải độ dày ${val}mm)`);
+            autoRecalc();
+          }
+        };
+
+        row.querySelectorAll('.miter-btn').forEach(btn => {
+          btn.onclick = () => {
+            part.style = btn.dataset.style;
+            if (part.style !== 'thang' && !part.mat) {
+              part.mat = extractMatFromProfile(part.profile);
+            }
+            renderPartsList();
+            autoRecalc();
+          };
+        });
+
+        row.querySelector('.btn-del').onclick = () => {
+          state.parts = state.parts.filter(p => p.id !== part.id);
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          autoRecalc();
+        };
+
+        container.appendChild(row);
+      });
+
+      $('lblPartCount').textContent = `${state.activeProfiles.length} loại hộp · ${state.parts.length} mục · ${totalPieces} chi tiết`;
+    }
+
+    // Render Stock List organized for current box profile
+    function renderStockList() {
+      ensureProfilesConsistency();
+      const container = $('stockList');
+      container.innerHTML = '';
+
+      const targetProf = state.selectedTabProfile;
+      const stocksToShow = targetProf === 'ALL'
+        ? state.stock
+        : state.stock.filter(s => s.profile === targetProf);
+
+      // Make sure there is at least one 6m new stock for the profile
+      if (targetProf !== 'ALL') {
+        const has6m = stocksToShow.some(s => s.profile === targetProf && s.qty === null);
+        if (!has6m) {
+          state.stock.push({
+            id: 's_auto_' + Date.now() + Math.random(),
+            profile: targetProf,
+            name: `Cây mới 6m (${targetProf})`,
+            length: 6000,
+            qty: null,
+            clamp: state.clamp
+          });
+          renderStockList();
+          return;
+        }
+      }
+
+      stocksToShow.forEach(stock => {
+        const row = document.createElement('div');
+        row.className = 'stock-row';
+
+        row.innerHTML = `
+          <div>
+            <input type="text" value="${escapeHtml(stock.name || '')}" placeholder="Tên phôi" data-f="name">
+          </div>
+          <div>
+            <input type="text" class="so" value="${stock.length || ''}" placeholder="Dài" data-f="length">
+          </div>
+          <div>
+            <input type="text" class="so" value="${stock.qty === null ? '' : stock.qty}" placeholder="Mới" title="Để trống = mua mới không giới hạn" data-f="qty">
+          </div>
+          <div>
+            <button type="button" class="btn-del" title="Xóa">&times;</button>
+          </div>
+        `;
+
+        row.querySelector('[data-f="name"]').oninput = e => { stock.name = e.target.value; autoRecalc(); };
+        row.querySelector('[data-f="length"]').oninput = e => { stock.length = parseVN(e.target.value); autoRecalc(); };
+        row.querySelector('[data-f="qty"]').oninput = e => {
+          const v = e.target.value.trim();
+          stock.qty = v === '' ? null : parseInt(v) || 0;
+          autoRecalc();
+        };
+        row.querySelector('.btn-del').onclick = () => {
+          state.stock = state.stock.filter(s => s.id !== stock.id);
+          renderStockList();
+          autoRecalc();
+        };
+
+        container.appendChild(row);
+      });
+    }
+
+    // Optimization Calculation (Guaranteed NO auto-scroll while typing!)
+    function calculateOptimization(shouldScroll = false) {
+      const validParts = state.parts.filter(p => p.length > 0 && p.qty > 0);
+      if (!validParts.length) {
+        if (shouldScroll) showToast('Vui lòng nhập ít nhất 1 chi tiết có chiều dài và số lượng!');
+        return;
+      }
+
+      // Check stock for all part profiles
+      const partProfiles = new Set(validParts.map(p => p.profile || 'Chung'));
+      let addedStock = false;
+      partProfiles.forEach(prof => {
+        const hasStock = state.stock.some(s => s.profile === prof && s.length > 0);
+        if (!hasStock) {
+          state.stock.push({
+            id: 's_auto_' + Date.now() + Math.random(),
+            profile: prof,
+            name: `Cây mới 6m (${prof})`,
+            length: 6000,
+            qty: null,
+            clamp: state.clamp
+          });
+          addedStock = true;
+        }
+      });
+      if (addedStock) {
+        renderStockList();
+      }
+
+      const kerf = parseVN($('inpKerf').value);
+      const clampTail = parseVN($('inpClamp').value);
+      const interlock = $('chkInterlock').checked;
+      const gap = parseVN($('inpGap').value);
+
+      state.kerf = kerf;
+      state.clamp = clampTail;
+      state.interlock = interlock;
+      state.gap = gap;
+
+      // Luôn cập nhật thông số kẹp đuôi cho tất cả các cây phôi trong kho
+      state.stock.forEach(s => { s.clamp = clampTail; });
+
+      // Prepare Engine Data with accurate Profile mappings
+      const engineData = {
+        kerf,
+        interlock,
+        gap,
+        stock: state.stock.filter(s => s.length > 0).map((s, idx) => ({
+          label: s.name || (s.qty === null ? `Cây mới ${numVN(s.length)}` : `Cây tồn ${numVN(s.length)}`),
+          length: s.length,
+          clampTail: clampTail,
+          qty: s.qty,
+          priority: idx,
+          profile: s.profile || 'Chung'
+        })),
+        parts: validParts.map(p => ({
+          label: p.id,
+          length: p.length,
+          qty: p.qty,
+          end_style: p.style || 'thang',
+          mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? p.mat : extractMatFromProfile(p.profile)),
+          profile: p.profile || 'Chung'
+        }))
+      };
+
+      try {
+        const result = RC.solve(engineData);
+        state.result = result;
+        renderResults(result);
+        renderProfileTabs();
+        renderActiveProfileBanner();
+        saveActiveProject();
+
+        $('resultsSection').style.display = 'block';
+        if (shouldScroll) {
+          $('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } catch (err) {
+        console.error(err);
+        if (shouldScroll) showToast('Lỗi tính toán: ' + err.message);
+      }
+    }
+
+    let recalcTimeout = null;
+    function autoRecalc() {
+      clearTimeout(recalcTimeout);
+      recalcTimeout = setTimeout(() => {
+        if ($('resultsSection').style.display !== 'none') {
+          calculateOptimization(false); // DO NOT SCROLL on autoRecalc
+        }
+      }, 300);
+    }
+
+    // Render Results View
+    function renderResults(res) {
+      const u = res.usageStats;
+      const efficiency = u.totalNominalLength > 0 ? (u.totalCutLength / u.totalNominalLength * 100) : 0;
+      const savingM = (u.totalInterlockSaving || 0) / 1000;
+      const wasteM = (u.totalWasteLength || 0) / 1000;
+      const diffBars = res.compare ? (res.compare.bars - res.bars.length) : 0;
+
+      const totalPartsReq = state.parts.reduce((a, b) => a + (+b.qty || 0), 0);
+      const missingParts = totalPartsReq - res.totalPiecesCut;
+      const numProfiles = res.summaryByProfile ? res.summaryByProfile.length : 1;
+
+      // KPI Header
+      $('kpiContainer').innerHTML = `
+        <div class="kpi-card highlight">
+          <div class="kpi-val">${numVN(res.bars.length)}</div>
+          <div class="kpi-label">tổng số cây cần dùng</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">${numVN(res.totalPiecesCut)}</div>
+          <div class="kpi-label">${numProfiles} loại hộp · ${state.parts.length} mục ${missingParts > 0 ? `· <span style="color:var(--bad)">thiếu ${missingParts}</span>` : ''}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">${numVN(res.totalNewBars)}</div>
+          <div class="kpi-label">cây mua mới</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">${numVN(res.totalExistingUsed)}</div>
+          <div class="kpi-label">cây tồn kho dùng</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">${numVN(efficiency, 1)}%</div>
+          <div class="kpi-label">hiệu suất · dư ${numVN(wasteM, 2)} m</div>
+        </div>
+        <div class="kpi-card interlock">
+          <div class="kpi-val">${state.interlock ? (diffBars > 0 ? `−${diffBars} cây` : `${numVN(savingM, 2)} m`) : 'Tắt'}</div>
+          <div class="kpi-label">${state.interlock ? (diffBars > 0 ? `tiết kiệm ${diffBars} cây nhờ xen kẽ` : 'tiết kiệm nhờ xếp xen kẽ ke') : 'xếp xen kẽ ke 45°'}</div>
+        </div>
+      `;
+
+      // Warnings
+      let warnHTML = '';
+      if (res.unfulfilled && res.unfulfilled.length > 0) {
+        warnHTML += `
+          <div class="err-box">
+            <b>Cảnh báo không xếp vừa:</b> ${res.unfulfilled.map(u => `[${u.profile}] ${numVN(u.length)} mm (thiếu ${u.qtyMissing})`).join(', ')}.
+            Vui lòng kiểm tra chiều dài phôi hoặc thêm cây mua mới dài hơn.
+          </div>
+        `;
+      }
+      if (res.interlockWarnings && res.interlockWarnings.length > 0) {
+        warnHTML += `
+          <div class="warn-box">
+            <b>Lưu ý ke 45°:</b> ${res.interlockWarnings.map(w => `${numVN(w.length)} mm`).join(', ')} không xếp xen kẽ được (cắt rời thông thường).
+          </div>
+        `;
+      }
+      $('warningsContainer').innerHTML = warnHTML;
+
+      // Grouped Materials Table (Order / Purchasing BOM)
+      renderMaterialsGrouped(res);
+
+      // Result Filter Tabs
+      renderResultFilterTabs(res);
+
+      // Grouped Patterns with SVG
+      renderPatternsGrouped(res);
+
+      $('printDate').textContent = `Ngày tính: ${new Date().toLocaleDateString('vi-VN')} · Tổng ${res.totalPiecesCut} chi tiết · ${numProfiles} loại hộp · ${res.bars.length} cây`;
+    }
+
+    // Render Filter Tabs on Results
+    function renderResultFilterTabs(res) {
+      const container = $('resultFilterTabs');
+      container.innerHTML = '';
+
+      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : [];
+      
+      const allBtn = document.createElement('button');
+      allBtn.type = 'button';
+      allBtn.className = `profile-tab ${state.resultFilterProfile === 'ALL' ? 'active' : ''}`;
+      allBtn.innerHTML = `<span>Tất cả loại hộp (${res.bars.length} cây)</span>`;
+      allBtn.onclick = () => {
+        state.resultFilterProfile = 'ALL';
+        renderResultFilterTabs(res);
+        renderPatternsGrouped(res);
+      };
+      container.appendChild(allBtn);
+
+      profiles.forEach(prof => {
+        const profSummary = res.summaryByProfile.find(s => s.profile === prof);
+        const barCount = profSummary ? profSummary.totalBars : 0;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `profile-tab ${state.resultFilterProfile === prof ? 'active' : ''}`;
+        btn.innerHTML = `<span>${escapeHtml(prof)} (${barCount} cây)</span>`;
+        btn.onclick = () => {
+          state.resultFilterProfile = prof;
+          renderResultFilterTabs(res);
+          renderPatternsGrouped(res);
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    // Render Patterns Grouped by Profile
+    function renderPatternsGrouped(res) {
+      const container = $('patternsContainer');
+      container.innerHTML = '';
+      HINH_CACHE = [];
+      let globalPatternIdx = 0;
+
+      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
+      const targetProfiles = state.resultFilterProfile === 'ALL' ? profiles : [state.resultFilterProfile];
+
+      targetProfiles.forEach(prof => {
+        const patternsOfProfile = res.patterns.filter(p => (p.profile || 'Chung') === prof);
+        if (!patternsOfProfile.length) return;
+
+        const profSummary = res.summaryByProfile ? res.summaryByProfile.find(s => s.profile === prof) : null;
+        const totalBars = profSummary ? profSummary.totalBars : patternsOfProfile.reduce((a, b) => a + b.count, 0);
+        const newBars = profSummary ? profSummary.newBars : 0;
+        const usedExisting = totalBars - newBars;
+        const wasteM = profSummary ? (profSummary.usageStats.totalWasteLength / 1000) : 0;
+        const savingM = profSummary ? (profSummary.usageStats.totalInterlockSaving / 1000) : 0;
+
+        const section = document.createElement('div');
+        section.className = 'profile-group-section';
+
+        let sectionHeaderHTML = `
+          <div class="profile-group-title">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              ${escapeHtml(prof)}
+            </h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <span class="profile-badge-pill">Cần: ${totalBars} cây (Mua mới: ${newBars}, Tồn: ${usedExisting})</span>
+              <span style="font-size:13px;color:var(--mut);">Dư: ${numVN(wasteM, 2)} m ${savingM > 0 ? `· Tiết kiệm ke: ${numVN(savingM, 2)} m` : ''}</span>
+              <button type="button" class="btn btn-soft btn-sm btn-export-all-bars" data-prof="${escapeHtml(prof)}" style="font-size:11px; padding:3px 9px; margin-left:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #0F766E; color:#0F766E;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Tải tất cả file .IGS cây ghép (${totalBars} cây)
+              </button>
+            </div>
+          </div>
+        `;
+
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        let patternsHTML = '';
+
+        patternsOfProfile.forEach((p, pSubIdx) => {
+          const letter = alphabet[pSubIdx % alphabet.length];
+          const cacheIdx = globalPatternIdx++;
+          const L = RC.layoutBar(p, res.kerf, res.gap, extractMatFromProfile(prof));
+          const ke = L.pieces.filter(g => g.eL !== 'S' || g.eR !== 'S');
+          L.H = Math.max(40, ...ke.map(g => g.w));
+          L.pieces.forEach(g => { g.ti = 1; });
+          HINH_CACHE[cacheIdx] = { p, L };
+
+          // Group pieces by part for the footer
+          const grouped = new Map();
+          L.pieces.forEach(g => {
+            const partId = g.c.label;
+            const exist = grouped.get(partId);
+            if (exist) exist.count++;
+            else {
+              const originalPart = state.parts.find(x => x.id === partId);
+              grouped.set(partId, {
+                part: originalPart,
+                length: g.c.length,
+                style: g.c.endStyle,
+                count: 1,
+                color: getColor(state.parts.findIndex(x => x.id === partId))
+              });
+            }
+          });
+
+          const pillsHTML = Array.from(grouped.values()).map(item => {
+            const styleName = item.style === 'ke1' ? 'ke 1 đầu' : (item.style === 'ke' ? 'ke 2 đầu' : '');
+            return `
+              <span class="pattern-item-pill">
+                <i style="--c: ${item.color};"></i>
+                ${item.part && item.part.name ? `${escapeHtml(item.part.name)} ` : ''}${numVN(item.length)} ${styleName ? `· ${styleName}` : ''}
+                <b>× ${item.count}</b>
+              </span>
+            `;
+          }).join('');
+
+          // SVG geometry
+          const stockW = p.stockLength;
+          const usableW = p.usableLength;
+          const clampW = p.clampTail || 0;
+          const H = L.H;
+
+          let svgPolygons = '';
+          let labelsHTML = '';
+
+          L.pieces.forEach((g, kIdx) => {
+            const originalPartIdx = state.parts.findIndex(x => x.id === g.c.label);
+            const color = getColor(originalPartIdx >= 0 ? originalPartIdx : 0);
+
+            const yTop = 0;
+            const yBot = H;
+            const pts = `${g.xt0},${yTop} ${g.xt1},${yTop} ${g.xb1},${yBot} ${g.xb0},${yBot}`;
+
+            svgPolygons += `<polygon data-k="${kIdx}" points="${pts}" fill="${color}" stroke="#FFFFFF" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+
+            const minX = Math.min(g.xb0, g.xt0);
+            const maxX = Math.max(g.xb1, g.xt1);
+            const leftPercent = (minX / stockW) * 100;
+            const widthPercent = ((maxX - minX) / stockW) * 100;
+
+            if (widthPercent > 3.8) {
+              labelsHTML += `
+                <div class="cut-label" style="left:${leftPercent}%;width:${widthPercent}%;">
+                  ${numVN(g.c.length)}
+                </div>
+              `;
+            }
+          });
+
+          const wasteW = Math.max(0, p.waste);
+          const wasteLeft = (L.end / stockW) * 100;
+          const wasteWidth = (wasteW / stockW) * 100;
+          if (wasteWidth > 5) {
+            labelsHTML += `
+              <div class="cut-label waste-label" style="left:${wasteLeft}%;width:${wasteWidth}%;">
+                dư ${numVN(wasteW)}
+              </div>
+            `;
+          }
+
+          if (clampW > 0 && (clampW / stockW) * 100 > 1.0) {
+            const clampLeft = (usableW / stockW) * 100;
+            const clampWidth = (clampW / stockW) * 100;
+            labelsHTML += `
+              <div class="cut-label waste-label" style="left:${clampLeft}%;width:${clampWidth}%;color:#64748B;" title="Kẹp đuôi: ${numVN(clampW)} mm">
+                kẹp ${numVN(clampW)}
+              </div>
+            `;
+          }
+
+          patternsHTML += `
+            <div class="pattern-card">
+              <div class="pattern-header" style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span class="pattern-letter">${letter}</span>
+                <span class="pattern-multiplier">× ${p.count} cây</span>
+                <span class="pattern-meta" style="flex:1;">
+                  ${escapeHtml(p.stockLabel)} · ${numVN(p.stockLength)} mm ${p.isNewPurchase ? '' : '(tồn)'} · cắt ${p.cuts.length} chi tiết · dư ${numVN(Math.max(0, p.waste))} mm ${clampW > 0 ? `· kẹp đuôi ${numVN(clampW)} mm` : ''}
+                  ${p.interlockSaving > 0 ? `· <span class="saving-badge">xen kẽ bớt ${numVN(p.interlockSaving)} mm</span>` : ''}
+                </span>
+                <button type="button" class="btn btn-sm btn-p btn-export-bar" data-letter="${letter}" data-prof="${escapeHtml(prof)}" data-len="${p.stockLength}" data-idx="${cacheIdx}" data-count="${p.count}" style="font-size:11.5px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px; margin-left:auto;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Lưu file .IGS cây ghép (${letter})
+                </button>
+              </div>
+
+              <div class="bar-visual-wrap" data-i="${cacheIdx}">
+                <svg viewBox="0 0 ${stockW} ${H}" preserveAspectRatio="none">
+                  <rect x="0" y="0" width="${usableW}" height="${H}" fill="var(--steel2)"/>
+                  ${clampW > 0 ? `<rect x="${usableW}" y="0" width="${clampW}" height="${H}" fill="var(--steel3)"/>` : ''}
+                  ${svgPolygons}
+                </svg>
+                <div class="bar-labels-layer">
+                  ${labelsHTML}
+                </div>
+              </div>
+
+              <div class="bar-ruler">
+                <span>0</span>
+                <span>${numVN(p.stockLength)} mm</span>
+              </div>
+
+              <div class="pattern-items-list">
+                ${pillsHTML}
+              </div>
+            </div>
+          `;
+        });
+
+        section.innerHTML = sectionHeaderHTML + patternsHTML;
+        container.appendChild(section);
+      });
+
+      // Gắn sự kiện xuất file .IGS cho từng cây ghép hoặc toàn bộ cây
+      document.querySelectorAll('.btn-export-bar').forEach(btn => {
+        btn.onclick = () => {
+          const letter = btn.dataset.letter;
+          const prof = btn.dataset.prof;
+          const len = parseFloat(btn.dataset.len) || 6000;
+          const count = parseInt(btn.dataset.count) || 1;
+          const cache = HINH_CACHE[+btn.dataset.idx];
+          const pieces = cache && cache.L ? cache.L.pieces : null;
+
+          const normP = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+          const fusionBar = state.fusionProject && state.fusionProject.nested_bars
+            ? (state.fusionProject.nested_bars.find(b => b.letter === letter && normP(b.profile) === normP(prof)) ||
+               state.fusionProject.nested_bars.find(b => b.letter === letter && (normP(b.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(b.profile)))))
+            : null;
+
+          const safeProf = prof.replace(/\s+/g, '_');
+          const defaultFileName = `Cay_${letter}_${safeProf}_L${Math.round(len)}_SL_${count}.igs`;
+
+          // 1. Tải trực tiếp nội dung 3D Solid Fusion 360 nếu có sẵn trong bộ nhớ (Blob không bị CORS)
+          if (fusionBar && fusionBar.igs_content && fusionBar.igs_content.length > 100) {
+            const blob = new Blob([fusionBar.igs_content], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fusionBar.name || defaultFileName}.igs`.replace(/\.igs\.igs$/, '.igs');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`✓ Đã tải file 3D cây ghép Solid: ${a.download}`);
+            return;
+          }
+
+          // 2. Thử fetch file nếu đang chạy HTTP / Web Server
+          if (fusionBar && fusionBar.name) {
+            const targetName = `${fusionBar.name}.igs`.replace(/\.igs\.igs$/, '.igs');
+            fetch(targetName)
+              .then(res => {
+                if (!res.ok) throw new Error('Fetch failed');
+                return res.blob();
+              })
+              .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = targetName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`✓ Đã tải file 3D cây ghép Solid: ${targetName}`);
+              })
+              .catch(() => {
+                // Nếu fetch bị chặn (sandbox file://), tự động sinh bề mặt 3D Entity 128 chuẩn xác
+                exportNestedBarIGES(defaultFileName, prof, len, pieces);
+              });
+            return;
+          }
+
+          // 3. Tự sinh file 3D IGES B-Spline Surfaces (Entity 128)
+          exportNestedBarIGES(defaultFileName, prof, len, pieces);
+        };
+      });
+
+      document.querySelectorAll('.btn-export-all-bars').forEach(btn => {
+        btn.onclick = () => {
+          const prof = btn.dataset.prof;
+          const barBtns = document.querySelectorAll(`.btn-export-bar[data-prof="${prof}"]`);
+          if (!barBtns.length) {
+            showToast('Không có cây ghép nào để xuất!');
+            return;
+          }
+          barBtns.forEach((b, idx) => {
+            setTimeout(() => b.click(), idx * 400);
+          });
+        };
+      });
+
+      requestAnimationFrame(applyMiterAngleAdjustment);
+    }
+
+    // Xuất file 3D IGES cho cả cây ghép với Bề mặt 3D (Entity 128 B-Spline Surface) chuẩn xác 100% 80 cột
+    function exportNestedBarIGES(fileName, profile, stockLen, pieces) {
+      let w = 20, h = 20, t = 1.2;
+      const mBox = profile.match(/(\d+)\s*[xX\*×]\s*(\d+)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?/);
+      if (mBox) {
+        w = parseFloat(mBox[1]);
+        h = parseFloat(mBox[2]);
+        if (mBox[3]) t = parseFloat(mBox[3].replace(',', '.'));
+      }
+      if (pieces && pieces.length) {
+        const miterPiece = pieces.find(p => (p.eL && p.eL !== 'S') || (p.eR && p.eR !== 'S'));
+        if (miterPiece && miterPiece.w && Math.abs(miterPiece.w - h) < Math.abs(miterPiece.w - w)) {
+          const tmp = w; w = h; h = tmp;
+        }
+      }
+
+      const surfaces = [];
+      const lines = [];
+      const round = v => Number(v.toFixed(3));
+
+      // Tạo mặt phẳng 3D bilinear B-Spline Surface (Entity 128)
+      const makeQuad = (p00, p10, p01, p11) => [
+        128, 1, 1, 1, 1, 0, 0, 1, 0, 0,
+        0.0, 0.0, 1.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+        1.0, 1.0, 1.0, 1.0,
+        round(p00[0]), round(p00[1]), round(p00[2]),
+        round(p10[0]), round(p10[1]), round(p10[2]),
+        round(p01[0]), round(p01[1]), round(p01[2]),
+        round(p11[0]), round(p11[1]), round(p11[2]),
+        0.0, 1.0, 0.0, 1.0
+      ];
+
+      // Thêm đường viền wireframe (Entity 110)
+      const addLine = (p0, p1) => {
+        lines.push([
+          110,
+          round(p0[0]), round(p0[1]), round(p0[2]),
+          round(p1[0]), round(p1[1]), round(p1[2])
+        ]);
+      };
+
+      const x0 = -w / 2, x1 = w / 2;
+      const y0 = -h / 2, y1 = h / 2;
+      const hasInner = (w > 2 * t && h > 2 * t);
+      const ix0 = x0 + t, ix1 = x1 - t;
+      const iy0 = y0 + t, iy1 = y1 - t;
+
+      const tubePieces = (pieces && pieces.length) ? pieces : [{ xt0: 0, xb0: 0, xt1: stockLen, xb1: stockLen }];
+
+      tubePieces.forEach(p => {
+        const zt0 = p.xt0 !== undefined ? p.xt0 : (p.xL || 0);
+        const zb0 = p.xb0 !== undefined ? p.xb0 : zt0;
+        const zt1 = p.xt1 !== undefined ? p.xt1 : (p.xR || (p.length || stockLen));
+        const zb1 = p.xb1 !== undefined ? p.xb1 : zt1;
+
+        // 4 mặt ngoài (Top, Bot, Left, Right)
+        surfaces.push(makeQuad([x0, y0, zt0], [x1, y0, zb0], [x0, y0, zt1], [x1, y0, zb1]));
+        surfaces.push(makeQuad([x0, y1, zt0], [x1, y1, zb0], [x0, y1, zt1], [x1, y1, zb1]));
+        surfaces.push(makeQuad([x0, y0, zt0], [x0, y1, zt0], [x0, y0, zt1], [x0, y1, zt1]));
+        surfaces.push(makeQuad([x1, y0, zb0], [x1, y1, zb0], [x1, y0, zb1], [x1, y1, zb1]));
+
+        // 4 đường gân cạnh ngoài
+        addLine([x0, y0, zt0], [x0, y0, zt1]);
+        addLine([x0, y1, zt0], [x0, y1, zt1]);
+        addLine([x1, y0, zb0], [x1, y0, zb1]);
+        addLine([x1, y1, zb0], [x1, y1, zb1]);
+
+        if (hasInner) {
+          const izt0 = zt0 + (zb0 - zt0) * (t / w);
+          const izb0 = zt0 + (zb0 - zt0) * ((w - t) / w);
+          const izt1 = zt1 + (zb1 - zt1) * (t / w);
+          const izb1 = zt1 + (zb1 - zt1) * ((w - t) / w);
+
+          // 4 mặt trong rỗng
+          surfaces.push(makeQuad([ix0, iy0, izt0], [ix1, iy0, izb0], [ix0, iy0, izt1], [ix1, iy0, izb1]));
+          surfaces.push(makeQuad([ix0, iy1, izt0], [ix1, iy1, izb0], [ix0, iy1, izt1], [ix1, iy1, izb1]));
+          surfaces.push(makeQuad([ix0, iy0, izt0], [ix0, iy1, izt0], [ix0, iy0, izt1], [ix0, iy1, izt1]));
+          surfaces.push(makeQuad([ix1, iy0, izb0], [ix1, iy1, izb0], [ix1, iy0, izb1], [ix1, iy1, izb1]));
+
+          // 4 đường gân trong
+          addLine([ix0, iy0, izt0], [ix0, iy0, izt1]);
+          addLine([ix0, iy1, izt0], [ix0, iy1, izt1]);
+          addLine([ix1, iy0, izb0], [ix1, iy0, izb1]);
+          addLine([ix1, iy1, izb0], [ix1, iy1, izb1]);
+
+          // Mặt nắp vát ở 2 đầu cắt (giữa thành ngoài và thành trong)
+          const addEndFaces = (zt, zb, izt, izb) => {
+            surfaces.push(makeQuad([x0, y0, zt], [x1, y0, zb], [ix0, iy0, izt], [ix1, iy0, izb]));
+            surfaces.push(makeQuad([x0, y1, zt], [x1, y1, zb], [ix0, iy1, izt], [ix1, iy1, izb]));
+            surfaces.push(makeQuad([x0, y0, zt], [x0, y1, zt], [ix0, iy0, izt], [ix0, iy1, izt]));
+            surfaces.push(makeQuad([x1, y0, zb], [x1, y1, zb], [ix1, iy0, izb], [ix1, iy1, izb]));
+
+            addLine([x0, y0, zt], [x1, y0, zb]);
+            addLine([x1, y0, zb], [x1, y1, zb]);
+            addLine([x1, y1, zb], [x0, y1, zt]);
+            addLine([x0, y1, zt], [x0, y0, zt]);
+
+            addLine([ix0, iy0, izt], [ix1, iy0, izb]);
+            addLine([ix1, iy0, izb], [ix1, iy1, izb]);
+            addLine([ix1, iy1, izb], [ix0, iy1, izt]);
+            addLine([ix0, iy1, izt], [ix0, iy0, izt]);
+          };
+          addEndFaces(zt0, zb0, izt0, izb0);
+          addEndFaces(zt1, zb1, izt1, izb1);
+        } else {
+          // Đầu đặc
+          surfaces.push(makeQuad([x0, y0, zt0], [x1, y0, zb0], [x0, y1, zt0], [x1, y1, zb0]));
+          surfaces.push(makeQuad([x0, y0, zt1], [x1, y0, zb1], [x0, y1, zt1], [x1, y1, zb1]));
+          addLine([x0, y0, zt0], [x1, y0, zb0]);
+          addLine([x1, y0, zb0], [x1, y1, zb0]);
+          addLine([x1, y1, zb0], [x0, y1, zt0]);
+          addLine([x0, y1, zt0], [x0, y0, zt0]);
+          addLine([x0, y0, zt1], [x1, y0, zb1]);
+          addLine([x1, y0, zb1], [x1, y1, zb1]);
+          addLine([x1, y1, zb1], [x0, y1, zt1]);
+          addLine([x0, y1, zt1], [x0, y0, zt1]);
+        }
+      });
+
+      // Tạo các Section IGES với độ dài chuẩn xác 80 ký tự
+      const safeFileName = fileName.replace(/[^\w\.\-]/g, '_');
+      const sLine = (`An Binh nested tube 3D IGES - ${profile} L${stockLen}`).padEnd(72, ' ') + 'S      1\n';
+
+      const fnHol = safeFileName.length + 'H' + safeFileName;
+      const gFields = [
+        '1H,', '1H;', fnHol, fnHol, '7HAn Binh',
+        '10HWeb nesting', '32', '38', '7', '99', '15', '', '1.0', '2', '2HMM', '1', '0.01',
+        '15H20261116.140000', '0.01', String(stockLen) + '.0', '7HAn Binh', '7HAn Binh', '11', '0'
+      ];
+      let gLines = [];
+      let curG = '';
+      for (let i = 0; i < gFields.length; i++) {
+        const item = gFields[i] + (i === gFields.length - 1 ? ';' : ',');
+        if (curG.length + item.length > 72) {
+          gLines.push(curG.padEnd(72, ' '));
+          curG = item;
+        } else {
+          curG += item;
+        }
+      }
+      if (curG.length > 0) gLines.push(curG.padEnd(72, ' '));
+      const gSec = gLines.map((l, idx) => l + 'G' + String(idx + 1).padStart(7, ' ')).join('\n') + '\n';
+
+      let dLines = [];
+      let pLines = [];
+      let dSeq = 1;
+      let pSeq = 1;
+
+      // Đóng gói surfaces (Entity 128)
+      surfaces.forEach(params => {
+        const dePtr = dSeq;
+        const pStart = pSeq;
+        let entityPLines = [];
+        let curP = '';
+        for (let k = 0; k < params.length; k++) {
+          const tok = String(params[k]) + (k === params.length - 1 ? ';' : ',');
+          if (curP.length + tok.length > 64) {
+            entityPLines.push(curP.padEnd(64, ' '));
+            curP = tok;
+          } else {
+            curP += tok;
+          }
+        }
+        if (curP.length > 0) entityPLines.push(curP.padEnd(64, ' '));
+
+        entityPLines.forEach(pl => {
+          pLines.push(pl + String(dePtr).padStart(8, ' ') + 'P' + String(pSeq++).padStart(7, ' '));
+        });
+
+        const pLineCount = entityPLines.length;
+        dLines.push(String(128).padStart(8, ' ') + String(pStart).padStart(8, ' ') + '       0' + '       1' + '       0' + '       0' + '       0' + '       0' + '00000000' + 'D' + String(dSeq++).padStart(7, ' '));
+        dLines.push(String(128).padStart(8, ' ') + '       0' + '       3' + String(pLineCount).padStart(8, ' ') + '       0' + '        ' + '        ' + '    SURF' + '       0' + 'D' + String(dSeq++).padStart(7, ' '));
+      });
+
+      // Đóng gói wireframe edges (Entity 110)
+      lines.forEach(params => {
+        const dePtr = dSeq;
+        const pStart = pSeq;
+        const pData = params.join(',') + ';';
+        pLines.push(pData.padEnd(64, ' ') + String(dePtr).padStart(8, ' ') + 'P' + String(pSeq++).padStart(7, ' '));
+
+        dLines.push(String(110).padStart(8, ' ') + String(pStart).padStart(8, ' ') + '       0' + '       1' + '       0' + '       0' + '       0' + '       0' + '00000000' + 'D' + String(dSeq++).padStart(7, ' '));
+        dLines.push(String(110).padStart(8, ' ') + '       0' + '       1' + String(1).padStart(8, ' ') + '       0' + '        ' + '        ' + '    LINE' + '       0' + 'D' + String(dSeq++).padStart(7, ' '));
+      });
+
+      const totalD = dLines.length;
+      const totalP = pLines.length;
+      const tLine = ('S      1G' + String(gLines.length).padStart(7, ' ') + 'D' + String(totalD).padStart(7, ' ') + 'P' + String(totalP).padStart(7, ' ')).padEnd(72, ' ') + 'T      1\n';
+
+      const content = sLine + gSec + dLines.join('\n') + '\n' + pLines.join('\n') + '\n' + tLine;
+
+      const blob = new Blob([content], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`✓ Đã lưu file .IGS 3D cây ghép: ${fileName}`);
+    }
+
+    // Apply Miter visual angles on SVG polygons
+    function applyMiterAngleAdjustment() {
+      document.querySelectorAll('.bar-visual-wrap[data-i]').forEach(wrap => {
+        const svg = wrap.querySelector('svg');
+        const cache = HINH_CACHE[+wrap.dataset.i];
+        if (!svg || !cache || !svg.clientWidth) return;
+
+        const { p, L } = cache;
+        const H = L.H;
+        const ps = L.pieces;
+        const mmPx = p.stockLength / svg.clientWidth;
+        const cao = svg.clientHeight;
+
+        const chung = k => k > 0 && k < ps.length && ps[k].run >= 0 && ps[k].run === ps[k - 1].run && ps[k].c.pos > 0;
+        const X = ps.map(g => Math.min(cao * mmPx, Math.abs((g.xt1 + g.xb1) / 2 - (g.xt0 + g.xb0) / 2) * 0.45));
+
+        ps.forEach((g, k) => {
+          let t0 = g.xt0, b0 = g.xb0, t1 = g.xt1, b1 = g.xb1;
+          const dL = Math.sign(b0 - t0), dR = Math.sign(b1 - t1);
+          if (dL && chung(k)) {
+            const m = (t0 + b0) / 2, h = Math.min(X[k], X[k - 1]) / 2;
+            t0 = m - dL * h; b0 = m + dL * h;
+          } else if (dL > 0) b0 = t0 + X[k];
+          else if (dL < 0) t0 = b0 + X[k];
+
+          if (dR && chung(k + 1)) {
+            const m = (t1 + b1) / 2, h = Math.min(X[k], X[k + 1]) / 2;
+            t1 = m - dR * h; b1 = m + dR * h;
+          } else if (dR > 0) t1 = b1 - X[k];
+          else if (dR < 0) b1 = t1 - X[k];
+
+          const po = svg.querySelector(`polygon[data-k="${k}"]`);
+          if (po) po.setAttribute('points', `${t0},0 ${t1},0 ${b1},${H} ${b0},${H}`);
+        });
+      });
+    }
+
+    window.addEventListener('resize', applyMiterAngleAdjustment);
+
+    // Grouped Materials Table (BOM for Purchasing)
+    function renderMaterialsGrouped(res) {
+      const container = $('materialsContainer');
+      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
+
+      let tableHTML = `
+        <table class="mat-table">
+          <thead>
+            <tr>
+              <th>Loại hộp / Quy cách</th>
+              <th>Cây vật tư</th>
+              <th class="r">Dài (mm)</th>
+              <th class="r">Đang có</th>
+              <th class="r">Cần dùng</th>
+              <th class="r">Tình trạng</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      profiles.forEach(prof => {
+        const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === prof && s.usedQty > 0);
+        if (!stocks.length) return;
+
+        stocks.forEach((st, idx) => {
+          const isNew = st.availableQty === null;
+          const statusBadge = isNew
+            ? `<span style="color:var(--cta);font-weight:700;">Mua mới ${st.usedQty} cây</span>`
+            : `<span style="color:var(--p);font-weight:700;">Lấy tồn ${st.usedQty} cây</span>`;
+
+          tableHTML += `
+            <tr>
+              ${idx === 0 ? `<td rowspan="${stocks.length}" style="vertical-align:top;font-weight:800;color:var(--dark);background:#F8FAFC;border-right:1px solid var(--edge);">${escapeHtml(prof)}</td>` : ''}
+              <td><b>${escapeHtml(st.label)}</b></td>
+              <td class="r">${numVN(st.length)}</td>
+              <td class="r">${isNew ? 'Không giới hạn' : numVN(st.availableQty)}</td>
+              <td class="r"><b>${numVN(st.usedQty)}</b></td>
+              <td class="r">${statusBadge}</td>
+            </tr>
+          `;
+        });
+      });
+
+      tableHTML += `
+          </tbody>
+        </table>
+      `;
+
+      const u = res.usageStats;
+      const summaryNote = `
+        <div class="mat-summary">
+          Tổng chiều dài cắt: <b>${numVN(u.totalCutLength / 1000, 2)} m</b> · 
+          Mạch cắt: <b>${numVN(u.totalKerfLength / 1000, 2)} m</b> · 
+          Kẹp đuôi: <b>${numVN(u.totalClampTailLength / 1000, 2)} m</b> · 
+          Phôi dư: <b>${numVN(u.totalWasteLength / 1000, 2)} m</b>
+          ${res.compare ? `<br>Nếu cắt rời không xen kẽ: <b>${numVN(res.compare.bars)} cây</b> (dư thừa ${numVN(res.compare.waste / 1000, 2)} m).` : ''}
+        </div>
+      `;
+
+      container.innerHTML = tableHTML + summaryNote;
+    }
+
+    // Zalo Message Generator with Profile Grouping
+    function generateZaloText() {
+      const res = state.result;
+      if (!res) return '';
+
+      const u = res.usageStats;
+      const numProfiles = res.summaryByProfile ? res.summaryByProfile.length : 1;
+      const lines = [
+        `AN BÌNH · TỐI ƯU XẾP PHÔI BẢN VẼ (${numProfiles} LOẠI HỘP) · ${new Date().toLocaleDateString('vi-VN')}`,
+        `Tổng cộng: ${res.bars.length} cây (mua mới ${res.totalNewBars}, tồn kho ${res.totalExistingUsed}), dư ${numVN(u.totalWasteLength / 1000, 2)} m` +
+        (u.totalInterlockSaving > 0 ? `, xen kẽ ke bớt ${numVN(u.totalInterlockSaving / 1000, 2)} m` : ''),
+        '',
+        '═════════════════════════════',
+        '📦 VẬT TƯ CẦN THEO TỪNG LOẠI HỘP:'
+      ];
+
+      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
+      profiles.forEach(prof => {
+        const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === prof && s.usedQty > 0);
+        if (stocks.length) {
+          lines.push(`\n▶ ${prof}:`);
+          stocks.forEach(s => {
+            lines.push(`  - ${s.label} (${numVN(s.length)} mm): ${s.availableQty === null ? `MUA MỚI ${s.usedQty} cây` : `lấy ${s.usedQty} cây tồn (có ${s.availableQty})`}`);
+          });
+        }
+      });
+
+      lines.push('', '═════════════════════════════', '✂️ SƠ ĐỒ CẮT CHI TIẾT (mm, từ trái qua):');
+
+      profiles.forEach(prof => {
+        const patterns = res.patterns.filter(p => (p.profile || 'Chung') === prof);
+        if (patterns.length) {
+          lines.push(`\n【${prof}】:`);
+          const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+          patterns.forEach((p, idx) => {
+            const letter = alphabet[idx % alphabet.length];
+            lines.push(`  Mẫu ${letter} × ${p.count} cây ${numVN(p.stockLength)} mm ${p.isNewPurchase ? '' : '(cây tồn)'}:`);
+
+            const cutsGroup = [];
+            p.cuts.forEach((c, k) => {
+              const originalPart = state.parts.find(x => x.id === c.label);
+              const styleName = c.endStyle === 'ke1' ? 'ke 1 đầu' : (c.endStyle === 'ke' ? 'ke 2 đầu' : '');
+              const labelPart = originalPart && originalPart.name ? `${originalPart.name} ` : '';
+              const cutDesc = `${labelPart}${numVN(c.length)}${styleName ? ` ${styleName}` : ''}`;
+
+              const isChained = k > 0 && c.run >= 0 && c.pos > 0;
+              const prev = cutsGroup[cutsGroup.length - 1];
+              if (prev && prev.desc === cutDesc && !isChained && !prev.isChained) {
+                prev.qty++;
+              } else {
+                cutsGroup.push({ desc: cutDesc, qty: 1, isChained });
+              }
+            });
+
+            const cutsStr = cutsGroup.map(g => `${g.desc}${g.qty > 1 ? ` × ${g.qty}` : ''}${g.isChained ? ' (xen kẽ)' : ''}`).join(' + ');
+            lines.push(`    ${cutsStr}`);
+            lines.push(`    Dư ${numVN(Math.max(0, p.waste))} mm${p.interlockSaving > 0 ? `, xen kẽ bớt ${numVN(p.interlockSaving)} mm` : ''}`);
+          });
+        }
+      });
+
+      lines.push('', 'Ghi chú: ke 1 đầu = vát 45° một đầu, ke 2 đầu = vát 45° hai đầu; số đo là cạnh dài. (xen kẽ) = lật ngược miếng đó ghép chung một nhát cắt xiên.');
+      return lines.join('\n');
+    }
+
+    // Export CSV
+    function exportCSV() {
+      const res = state.result;
+      if (!res) return;
+
+      const lines = [];
+      lines.push('STT,Loại Hộp,Mẫu Cắt,Số Lượng Cây,Loại Phôi,Chiều Dài Phôi (mm),Các Chi Tiết Cắt (mm),Phôi Dư (mm),Bớt Nhờ Xen Kẽ (mm)');
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+      res.patterns.forEach((p, idx) => {
+        const letter = alphabet[idx % alphabet.length];
+        const cutsStr = p.cuts.map(c => `${c.length}${c.endStyle !== 'thang' ? `(${c.endStyle})` : ''}`).join(' + ');
+        lines.push(`${idx + 1},"${p.profile || 'Chung'}",Mẫu ${letter},${p.count},"${p.stockLabel}",${p.stockLength},"${cutsStr}",${Math.max(0, p.waste)},${p.interlockSaving || 0}`);
+      });
+
+      const bom = '\uFEFF';
+      const blob = new Blob([bom + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AnBinh_ToiUuXepPhoi_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Đã xuất file CSV thành công!');
+    }
+
+    // ==========================================
+    // IGES (.igs) 3D Geometry Parser for Tube Laser CNC
+    // ==========================================
+    function parseIGESFile(content, fileName) {
+      if (!content || typeof content !== 'string') return null;
+      const lines = content.split(/\r?\n/);
+      let pData = '';
+      let headerText = '';
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length >= 73) {
+          const sec = line[72];
+          if (sec === 'G' || sec === 'S') {
+            headerText += line.substring(0, 72) + ' ';
+          } else if (sec === 'P') {
+            pData += line.substring(0, 64).trimEnd();
+          }
+        }
+      }
+
+      // 1. Look for Hollerith strings in header
+      const holleriths = [];
+      const hollerithRegex = /(\d+)H([^\,\;]+)/g;
+      let hm;
+      while ((hm = hollerithRegex.exec(headerText)) !== null) {
+        const val = hm[2].trim();
+        if (val.length >= 4) holleriths.push(val);
+      }
+
+      // 2. Extract vertex coordinates (from Entity 502 or Entity 110 lines)
+      // Hỗ trợ chuẩn ký hiệu khoa học Fortran 'D'/'d' (vd: -3.08D-14 -> 0.0) trong file IGES của Fusion 360
+      const parseIgsFloat = s => parseFloat(String(s).trim().replace(/[dD]/g, 'E'));
+      let pts = [];
+      const m502 = pData.match(/502,(\d+),([\s\S]*?);/);
+      if (m502) {
+        const rawCoords = m502[2];
+        const coords = rawCoords.split(',').map(parseIgsFloat).filter(n => !isNaN(n));
+        for (let i = 0; i + 2 < coords.length; i += 3) {
+          pts.push([coords[i], coords[i + 1], coords[i + 2]]);
+        }
+      } else {
+        const entityMatches = pData.matchAll(/110,([-\d.,eEdD+]+);/g);
+        for (const em of entityMatches) {
+          const nums = em[1].split(',').map(parseIgsFloat).filter(n => !isNaN(n));
+          if (nums.length >= 6) {
+            pts.push([nums[0], nums[1], nums[2]]);
+            pts.push([nums[3], nums[4], nums[5]]);
+          }
+        }
+      }
+
+      if (!pts.length) return null;
+
+      const xs = pts.map(p => p[0]);
+      const ys = pts.map(p => p[1]);
+      const zs = pts.map(p => p[2]);
+
+      const dx = Math.round((Math.max(...xs) - Math.min(...xs)) * 100) / 100;
+      const dy = Math.round((Math.max(...ys) - Math.min(...ys)) * 100) / 100;
+      const dz = Math.round((Math.max(...zs) - Math.min(...zs)) * 100) / 100;
+
+      const ranges = [dx, dy, dz];
+      const axes = [0, 1, 2].sort((a, b) => ranges[a] - ranges[b]);
+      const axH = axes[0], axW = axes[1], axL = axes[2];
+
+      const w2 = ranges[axH]; // Cạnh nhỏ mặt cắt (H)
+      const w1 = ranges[axW]; // Cạnh lớn mặt cắt (W)
+      const length = Math.round(ranges[axL] * 10) / 10;
+
+      // 3. Nhận diện góc vát mòi ke 45° chính xác theo độ phủ mặt cắt tại 2 đầu mút lMin và lMax
+      // (Không bị nhầm với lỗ đục gần đầu ống và nhận diện chuẩn cả hộp chữ nhật 40x10 vát cạnh 10mm)
+      const lVals = pts.map(p => p[axL]);
+      const lMin = Math.min(...lVals);
+      const lMax = Math.max(...lVals);
+      const endTol = 0.8;
+
+      const end1Pts = pts.filter(p => Math.abs(p[axL] - lMin) <= endTol);
+      const end2Pts = pts.filter(p => Math.abs(p[axL] - lMax) <= endTol);
+
+      const spanOf = (arr, ax) => arr.length ? (Math.max(...arr.map(p => p[ax])) - Math.min(...arr.map(p => p[ax]))) : 0;
+      const wSpan1 = spanOf(end1Pts, axW), hSpan1 = spanOf(end1Pts, axH);
+      const wSpan2 = spanOf(end2Pts, axW), hSpan2 = spanOf(end2Pts, axH);
+
+      const isM1_W = wSpan1 < w1 * 0.5;
+      const isM1_H = hSpan1 < w2 * 0.5;
+      const isMiter1 = isM1_W || isM1_H;
+      const mat1 = isM1_W ? w1 : (isM1_H ? w2 : w1);
+
+      const isM2_W = wSpan2 < w1 * 0.5;
+      const isM2_H = hSpan2 < w2 * 0.5;
+      const isMiter2 = isM2_W || isM2_H;
+      const mat2 = isM2_W ? w1 : (isM2_H ? w2 : w1);
+
+      let style = 'thang';
+      if (isMiter1 && isMiter2) style = 'ke';
+      else if (isMiter1 || isMiter2) style = 'ke1';
+
+      const mat = isMiter1 ? mat1 : (isMiter2 ? mat2 : w1);
+
+      // Extract Part Name and Profile
+      let cleanFileName = fileName.replace(/\.igs$/i, '').replace(/\.iges$/i, '');
+      // Remove occurrence suffix like _1, _2 or :1, :2
+      cleanFileName = cleanFileName.replace(/[:_]\d+$/, '').trim();
+
+      const smartSpecs = detectSpecsFromText(cleanFileName);
+      let profileName = '';
+      if (smartSpecs && smartSpecs.detectedProfile) {
+        profileName = smartSpecs.detectedProfile;
+      } else {
+        if (Math.abs(w1 - w2) < 2) {
+          profileName = `Hộp ${Math.round(w1)}x${Math.round(w2)}`;
+        } else {
+          profileName = `Hộp ${Math.round(Math.max(w1, w2))}x${Math.round(Math.min(w1, w2))}`;
+        }
+      }
+
+      const finalLength = (smartSpecs && smartSpecs.detectedLength) ? smartSpecs.detectedLength : length;
+      const finalQty = (smartSpecs && smartSpecs.detectedQty) ? smartSpecs.detectedQty : 1;
+      const finalStyle = (smartSpecs && smartSpecs.detectedStyle) ? smartSpecs.detectedStyle : style;
+
+      // Chuẩn hóa tên chi tiết: loại bỏ phần "SL <số>" ở đuôi nếu có để tên sạch đẹp (vd: "Hộp 30x30x1.8 L640 lỗ ren (1)")
+      const cleanPartName = cleanFileName.replace(/\s*SL\s*\d+\s*$/i, '').trim();
+
+      return {
+        name: cleanPartName || cleanFileName,
+        profile: profileName,
+        length: finalLength,
+        style: finalStyle,
+        mat: Math.round(mat) || extractMatFromProfile(profileName),
+        qty: finalQty
+      };
+    }
+
+    // Quick Paste Parser
+    function parsePasteInput(text) {
+      const lines = text.trim().split(/\r?\n/);
+      const newParts = [];
+      const curProf = state.selectedTabProfile !== 'ALL' ? state.selectedTabProfile : (state.activeProfiles[0] || 'Hộp 30x30x1.8');
+
+      lines.forEach((line, i) => {
+        const str = line.trim();
+        if (!str) return;
+
+        let name = '', profile = curProf, length = 0, qty = 1, style = 'thang', mat = 30;
+
+        // Smart detect from line text first
+        const specs = detectSpecsFromText(str);
+        if (specs && specs.detectedProfile) {
+          profile = specs.detectedProfile;
+          if (!state.activeProfiles.includes(profile)) state.activeProfiles.push(profile);
+          if (!state.savedProfiles.includes(profile)) {
+            state.savedProfiles.push(profile);
+            saveProfilesLibrary();
+            renderMemoryLibraryChips();
+          }
+          ensureStockForProfile(profile);
+          if (specs.detectedMat) mat = specs.detectedMat;
+          if (specs.detectedStyle) style = specs.detectedStyle;
+          if (specs.detectedQty) qty = specs.detectedQty;
+          if (specs.detectedLength) length = specs.detectedLength;
+        }
+
+        if (str.includes('\t')) {
+          const cols = str.split('\t').map(c => c.trim());
+          if (cols.length >= 2) {
+            name = cols[0];
+            const parsedL = parseVN(cols[1]);
+            if (parsedL > 0) length = parsedL;
+            if (cols[2]) qty = parseInt(cols[2]) || qty;
+            if (cols[3]) {
+              const s = cols[3].toLowerCase();
+              if (s.includes('ke1') || s.includes('1')) style = 'ke1';
+              else if (s.includes('ke') || s.includes('2')) style = 'ke';
+            }
+            if (cols[4]) mat = parseVN(cols[4]) || mat;
+          }
+        } else if (!length) {
+          const numMatch = str.match(/(\d+(?:[.,]\d+)?)\s*(?:x|\*|\s)\s*(\d+)(.*)/i);
+          if (numMatch) {
+            length = parseVN(numMatch[1]);
+            qty = parseInt(numMatch[2]) || qty;
+            const extra = (numMatch[3] || '').toLowerCase();
+            if (extra.includes('ke1') || extra.includes('1 dau') || extra.includes('1 đầu')) style = 'ke1';
+            else if (extra.includes('ke') || extra.includes('2 dau') || extra.includes('2 đầu')) style = 'ke';
+
+            const matMatch = extra.match(/(\d+)\s*(?:mm)?$/);
+            if (matMatch) mat = parseInt(matMatch[1]) || mat;
+          }
+        }
+
+        if (!name) name = str;
+        if (!mat) mat = extractMatFromProfile(profile);
+
+        if (length > 0) {
+          newParts.push({
+            id: 'p_' + Date.now() + '_' + i,
+            name,
+            profile,
+            length,
+            qty: qty || 1,
+            style,
+            mat,
+            _autoDetected: !!(specs && specs.detectedProfile)
+          });
+        }
+      });
+
+      return newParts;
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    // Attach Event Listeners
+    window.addEventListener('DOMContentLoaded', () => {
+      initSavedProfiles();
+      renderMemoryLibraryChips();
+
+      // Try restore from localStorage or load default
+      if (!loadActiveProject()) {
+        loadMultiProfilePreset();
+      }
+
+      $('btnPresetMulti').onclick = () => loadMultiProfilePreset();
+      $('btnPresetUser').onclick = () => loadUserCase();
+      $('btnOptimizeHero').onclick = () => calculateOptimization(true); // Chỉ cuộn khi bấm nút Tính toán
+      $('btnCalculate').onclick = () => calculateOptimization(true);    // Chỉ cuộn khi bấm nút Tính toán
+
+      // Add Custom Profile to Memory & Project
+      $('btnAddCustomProfile').onclick = () => {
+        const val = $('inpCustomProfile').value.trim();
+        if (val) {
+          addProfileToMemory(val);
+          $('inpCustomProfile').value = '';
+        }
+      };
+      $('inpCustomProfile').onkeydown = e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          $('btnAddCustomProfile').click();
+        }
+      };
+
+      // Reset
+      $('btnReset').onclick = () => {
+        if (confirm('Bạn có chắc muốn đặt lại dự án mới? (Bộ nhớ các loại hộp đã lưu vẫn được giữ nguyên)')) {
+          state.activeProfiles = ['Hộp 30x30x1.8'];
+          state.selectedTabProfile = 'Hộp 30x30x1.8';
+          state.parts = [
+            { id: 'p1', name: '', profile: 'Hộp 30x30x1.8', length: 1200, qty: 4, style: 'ke', mat: 30 },
+            { id: 'p2', name: '', profile: 'Hộp 30x30x1.8', length: 600, qty: 6, style: 'thang', mat: 0 }
+          ];
+          state.stock = [
+            { id: 's1', name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: 0 }
+          ];
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          renderStockList();
+          calculateOptimization(false);
+          saveActiveProject();
+          showToast('Đã đặt lại dữ liệu mới!');
+        }
+      };
+
+      // Add Part
+      $('btnAddPart').onclick = () => {
+        const targetProf = state.selectedTabProfile !== 'ALL' ? state.selectedTabProfile : (state.activeProfiles[0] || 'Hộp 30x30x1.8');
+        state.parts.push({
+          id: 'p_' + Date.now(),
+          name: '',
+          profile: targetProf,
+          length: '',
+          qty: 1,
+          style: 'thang',
+          mat: extractMatFromProfile(targetProf)
+        });
+        renderProfileTabs();
+        renderActiveProfileBanner();
+        renderPartsList();
+        saveActiveProject();
+        const rows = document.querySelectorAll('.parts-row');
+        if (rows.length) {
+          const last = rows[rows.length - 1];
+          const inp = last.querySelector('[data-f="name"]') || last.querySelector('[data-f="length"]');
+          if (inp) inp.focus();
+        }
+      };
+
+      // Add Stock for active box
+      $('btnAddStock').onclick = () => {
+        const targetProf = state.selectedTabProfile !== 'ALL' ? state.selectedTabProfile : (state.activeProfiles[0] || 'Hộp 30x30x1.8');
+        state.stock.push({
+          id: 's_' + Date.now(),
+          profile: targetProf,
+          name: `Cây tồn (${targetProf})`,
+          length: 6000,
+          qty: 1,
+          clamp: state.clamp
+        });
+        renderStockList();
+        saveActiveProject();
+      };
+
+      // Remove current profile from drawing
+      $('btnRemoveCurrentProfile').onclick = () => {
+        const cur = state.selectedTabProfile;
+        if (cur === 'ALL') {
+          showToast('Vui lòng chọn một loại hộp cụ thể để xóa khỏi bản vẽ!');
+          return;
+        }
+        if (confirm(`Bạn có chắc muốn xóa loại hộp "${cur}" cùng toàn bộ chi tiết của nó khỏi bản vẽ?`)) {
+          state.parts = state.parts.filter(p => p.profile !== cur);
+          state.stock = state.stock.filter(s => s.profile !== cur);
+          state.activeProfiles = state.activeProfiles.filter(p => p !== cur);
+          if (!state.activeProfiles.length) state.activeProfiles = ['Hộp 30x30x1.8'];
+          state.selectedTabProfile = state.activeProfiles[0];
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          renderStockList();
+          calculateOptimization(false);
+          saveActiveProject();
+          showToast(`Đã xóa loại hộp "${cur}" khỏi bản vẽ!`);
+        }
+      };
+
+      // Clear all
+      $('btnClearAll').onclick = () => {
+        if (confirm('Bạn có chắc muốn xóa toàn bộ danh sách chi tiết của tất cả các loại hộp?')) {
+          state.parts = [];
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          autoRecalc();
+        }
+      };
+
+      // Cut Method Toggles
+      $('btnMethodSaw').onclick = () => {
+        state.method = 'da';
+        state.kerf = 3;
+        state.clamp = 0;
+        state.stock.forEach(s => { s.clamp = 0; });
+        updateInputsFromState();
+        calculateOptimization(false);
+      };
+      $('btnMethodLaser').onclick = () => {
+        state.method = 'cnc';
+        state.kerf = 0;
+        state.clamp = 80;
+        state.stock.forEach(s => { s.clamp = 80; });
+        updateInputsFromState();
+        calculateOptimization(false);
+      };
+
+      $('chkInterlock').onchange = e => {
+        state.interlock = e.target.checked;
+        $('boxGap').style.display = state.interlock ? 'block' : 'none';
+        calculateOptimization(false);
+      };
+
+      ['inpKerf', 'inpClamp', 'inpGap'].forEach(id => {
+        const el = $(id);
+        if (el) {
+          el.oninput = autoRecalc;
+          el.onkeydown = e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              calculateOptimization(true);
+            }
+          };
+        }
+      });
+
+      // Copy Zalo
+      $('btnCopyZalo').onclick = () => {
+        const text = generateZaloText();
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(() => {
+            showToast('✓ Đã sao chép! Dán trực tiếp vào Zalo là gửi được ngay.');
+          }).catch(() => {
+            fallbackCopy(text);
+          });
+        } else {
+          fallbackCopy(text);
+        }
+      };
+
+      function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('✓ Đã sao chép vào bộ nhớ tạm!');
+      }
+
+      // Print PDF
+      $('btnPrintPDF').onclick = () => {
+        window.print();
+      };
+
+      // Export CSV
+      $('btnExportCSV').onclick = exportCSV;
+
+      // Paste Modal
+      $('btnOpenPaste').onclick = () => { $('modalPaste').style.display = 'flex'; $('txtPaste').focus(); };
+      $('btnQuickPaste').onclick = () => { $('modalPaste').style.display = 'flex'; $('txtPaste').focus(); };
+      $('btnClosePaste').onclick = () => { $('modalPaste').style.display = 'none'; };
+      $('btnCancelPaste').onclick = () => { $('modalPaste').style.display = 'none'; };
+      $('btnApplyPaste').onclick = () => {
+        const text = $('txtPaste').value;
+        const parsed = parsePasteInput(text);
+        if (parsed.length) {
+          state.parts = state.parts.concat(parsed);
+          ensureProfilesConsistency();
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          renderStockList();
+          calculateOptimization(false);
+          saveActiveProject();
+          $('modalPaste').style.display = 'none';
+          $('txtPaste').value = '';
+          showToast(`Đã nhận ${parsed.length} chi tiết từ dữ liệu dán!`);
+        } else {
+          showToast('Không tìm thấy dòng chi tiết hợp lệ!');
+        }
+      };
+
+      // ==========================================
+      // IGS (.igs) Drag & Drop and Import Handlers
+      // ==========================================
+      let stagedIgsParts = [];
+
+      function renderIgsPreview() {
+        const wrap = $('igsPreviewWrap');
+        const list = $('igsPreviewList');
+        const badge = $('igsCountBadge');
+        const btnApply = $('btnApplyIgs');
+
+        if (!stagedIgsParts.length) {
+          wrap.style.display = 'none';
+          btnApply.disabled = true;
+          btnApply.style.opacity = '0.5';
+          return;
+        }
+
+        wrap.style.display = 'block';
+        btnApply.disabled = false;
+        btnApply.style.opacity = '1';
+        badge.textContent = `${stagedIgsParts.length} mục (${stagedIgsParts.reduce((a, b) => a + b.qty, 0)} chi tiết)`;
+
+        list.innerHTML = stagedIgsParts.map(p => `
+          <div class="igs-item-row">
+            <span style="font-weight:600; color:var(--dark); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+            <span style="font-weight:700; color:var(--p);">${escapeHtml(p.profile)}</span>
+            <span style="text-align:right; font-weight:600;">${numVN(p.length)}</span>
+            <span style="text-align:center;">
+              <span style="font-size:11px; padding:2px 6px; border-radius:4px; font-weight:700; background:${p.style === 'ke' ? '#FEF3C7;color:#B45309' : (p.style === 'ke1' ? '#E0F2FE;color:#0369A1' : '#F1F5F9;color:#475569')};">
+                ${p.style === 'ke' ? 'Ke 2 đầu' : (p.style === 'ke1' ? 'Ke 1 đầu' : 'Thẳng 90°')}
+              </span>
+            </span>
+            <span style="text-align:right; font-weight:700;">× ${p.qty}</span>
+          </div>
+        `).join('');
+      }
+
+      function processIgsFileList(files) {
+        if (!files || !files.length) return;
+        let pending = files.length;
+        const newlyParsed = [];
+
+        Array.from(files).forEach(file => {
+          if (!file.name.toLowerCase().endsWith('.igs') && !file.name.toLowerCase().endsWith('.iges')) {
+            pending--;
+            if (pending === 0) finishProcessing(newlyParsed);
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = e => {
+            const parsed = parseIGESFile(e.target.result, file.name);
+            if (parsed) newlyParsed.push(parsed);
+            pending--;
+            if (pending === 0) finishProcessing(newlyParsed);
+          };
+          reader.onerror = () => {
+            pending--;
+            if (pending === 0) finishProcessing(newlyParsed);
+          };
+          reader.readAsText(file);
+        });
+
+        function finishProcessing(items) {
+          if (!items.length) {
+            showToast('Không đọc được hình học từ file .IGS đã chọn!');
+            return;
+          }
+          items.forEach(it => {
+            // Chỉ gộp khi trùng cả tên (hậu tố lỗ/ghi chú), quy cách, chiều dài và góc vát
+            const exist = stagedIgsParts.find(p => 
+              p.name.toLowerCase() === it.name.toLowerCase() &&
+              p.profile === it.profile && 
+              Math.abs(p.length - it.length) < 0.5 && 
+              p.style === it.style
+            );
+            if (exist) {
+              exist.qty += it.qty;
+            } else {
+              stagedIgsParts.push(it);
+            }
+          });
+          renderIgsPreview();
+          const totalCount = stagedIgsParts.reduce((a, b) => a + b.qty, 0);
+          showToast(`✓ Đã nhận diện thành công ${stagedIgsParts.length} mục (Tổng ${totalCount} thanh phôi)!`);
+        }
+      }
+
+      // IGS Modal Controls
+      const openIgsModal = () => {
+        stagedIgsParts = [];
+        renderIgsPreview();
+        $('modalIgs').style.display = 'flex';
+      };
+      $('btnOpenIgs').onclick = openIgsModal;
+      if ($('btnQuickIgs')) $('btnQuickIgs').onclick = openIgsModal;
+      $('btnCloseIgs').onclick = () => { $('modalIgs').style.display = 'none'; };
+      $('btnCancelIgs').onclick = () => { $('modalIgs').style.display = 'none'; };
+
+      const igsDropZone = $('igsDropZone');
+      const inpIgs = $('inpIgsFiles');
+      igsDropZone.onclick = () => inpIgs.click();
+      inpIgs.onchange = e => processIgsFileList(e.target.files);
+
+      igsDropZone.ondragover = e => { e.preventDefault(); igsDropZone.classList.add('dragover'); };
+      igsDropZone.ondragleave = () => igsDropZone.classList.remove('dragover');
+      igsDropZone.ondrop = e => {
+        e.preventDefault();
+        igsDropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) processIgsFileList(e.dataTransfer.files);
+      };
+
+      // Apply IGS Parts to Project
+      $('btnApplyIgs').onclick = () => {
+        if (!stagedIgsParts.length) return;
+        const newParts = stagedIgsParts.map((p, idx) => ({
+          id: 'p_igs_' + Date.now() + '_' + idx,
+          name: p.name,
+          profile: p.profile,
+          length: p.length,
+          qty: p.qty,
+          style: p.style,
+          mat: p.mat || extractMatFromProfile(p.profile),
+          _autoDetected: true
+        }));
+
+        state.parts = state.parts.concat(newParts);
+        newParts.forEach(p => {
+          if (!state.activeProfiles.includes(p.profile)) state.activeProfiles.push(p.profile);
+          if (!state.savedProfiles.includes(p.profile)) {
+            state.savedProfiles.push(p.profile);
+            saveProfilesLibrary();
+          }
+          ensureStockForProfile(p.profile);
+        });
+
+        renderMemoryLibraryChips();
+        ensureProfilesConsistency();
+        renderProfileTabs();
+        renderActiveProfileBanner();
+        renderPartsList();
+        renderStockList();
+        calculateOptimization(false);
+        saveActiveProject();
+        $('modalIgs').style.display = 'none';
+        showToast(`✓ Đã nạp thành công ${newParts.length} mục (${newParts.reduce((a, b) => a + b.qty, 0)} chi tiết) từ file .IGS!`);
+      };
+
+      // Fusion 360 Loader Modal
+      const openFusionModal = () => {
+        $('modalFusion').style.display = 'flex';
+      };
+      $('btnLoadFusion').onclick = openFusionModal;
+      $('btnCloseFusion').onclick = () => { $('modalFusion').style.display = 'none'; };
+      $('btnCancelFusion').onclick = () => { $('modalFusion').style.display = 'none'; };
+
+      const fusionDropZone = $('fusionDropZone');
+      const inpFusion = $('inpFusionFile');
+      fusionDropZone.onclick = () => inpFusion.click();
+      fusionDropZone.ondragover = e => { e.preventDefault(); fusionDropZone.style.borderColor = 'var(--p)'; };
+      fusionDropZone.ondragleave = () => { fusionDropZone.style.borderColor = ''; };
+      fusionDropZone.ondrop = e => {
+        e.preventDefault();
+        fusionDropZone.style.borderColor = '';
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            loadFusionDataPayload(data);
+            $('modalFusion').style.display = 'none';
+          } catch (err) {
+            showToast('File JSON không hợp lệ!');
+          }
+        };
+        reader.readAsText(file);
+      };
+      inpFusion.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            loadFusionDataPayload(data);
+            $('modalFusion').style.display = 'none';
+          } catch (err) {
+            showToast('File JSON không hợp lệ!');
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      function loadFusionDataPayload(data) {
+        state.fusionProject = data;
+        const partsList = Array.isArray(data) ? data : (data.parts || []);
+        if (!partsList.length) {
+          showToast('Không có chi tiết hợp lệ trong dữ liệu Fusion 360!');
+          return;
+        }
+
+        if (data.clamp_tail != null) {
+          state.clamp = Number(data.clamp_tail);
+          if ($('inpClamp')) $('inpClamp').value = state.clamp;
+        }
+        if (data.kerf != null) {
+          state.kerf = Number(data.kerf);
+          if ($('inpKerf')) $('inpKerf').value = state.kerf;
+        }
+
+        const newParts = partsList.map((p, idx) => ({
+          id: 'p_f360_' + Date.now() + '_' + idx,
+          name: p.name || `Chi tiết ${idx + 1}`,
+          profile: p.profile,
+          length: p.length,
+          qty: p.qty || 1,
+          style: p.style || 'thang',
+          mat: p.mat || extractMatFromProfile(p.profile),
+          _autoDetected: true
+        }));
+
+        state.parts = newParts;
+        state.activeProfiles = [];
+        state.stock = [];
+        newParts.forEach(p => {
+          if (!state.activeProfiles.includes(p.profile)) state.activeProfiles.push(p.profile);
+          if (!state.savedProfiles.includes(p.profile)) {
+            state.savedProfiles.push(p.profile);
+            saveProfilesLibrary();
+          }
+          ensureStockForProfile(p.profile);
+        });
+
+        renderMemoryLibraryChips();
+        ensureProfilesConsistency();
+        state.selectedTabProfile = 'ALL';
+        state.resultFilterProfile = 'ALL';
+        renderProfileTabs();
+        renderActiveProfileBanner();
+        renderPartsList();
+        renderStockList();
+        calculateOptimization(true);
+        saveActiveProject();
+
+        const projName = data.project_name ? `từ bản vẽ "${data.project_name}"` : '';
+        showToast(`✓ Đã nạp thành công ${newParts.length} mục (${state.activeProfiles.length} loại hộp) ${projName}!`);
+      }
+
+      // 1. Kiểm tra dữ liệu Fusion nhúng sẵn trong file HTML (Offline Portable)
+      const embScript = $('embeddedFusionData');
+      let loadedFromEmbedded = false;
+      if (embScript && embScript.textContent.trim()) {
+        try {
+          const safeJson = embScript.textContent.trim().replace(/\\(?![/u"\\bfnrt])/g, '/');
+          const embData = JSON.parse(safeJson);
+          if (embData && (embData.parts || Array.isArray(embData))) {
+            loadFusionDataPayload(embData);
+            loadedFromEmbedded = true;
+          }
+        } catch (e) {
+          console.warn('Lỗi đọc embeddedFusionData:', e);
+        }
+      }
+
+      // 2. Kiểm tra URL query ?src=fusion nếu chưa nạp nhúng
+      if (!loadedFromEmbedded) {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('src') === 'fusion') {
+          fetch('fusion_exported_project.json')
+            .then(res => res.json())
+            .then(data => {
+              loadFusionDataPayload(data);
+            })
+            .catch(() => {
+              openFusionModal();
+            });
+        }
+      }
+    });
+  </script>
+</body>
+</html>
