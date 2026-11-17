@@ -823,6 +823,116 @@
     .igs-item-row:last-child { border-bottom: none; }
     .igs-item-row:hover { background: #F8FAFC; }
 
+    /* Project Manager Modal & Cards */
+    .modal-box-lg {
+      max-width: 860px !important;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .projects-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .projects-search {
+      flex: 1;
+      min-width: 220px;
+      position: relative;
+    }
+    .projects-search input {
+      width: 100%;
+      padding: 7px 12px 7px 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .projects-search svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 15px;
+      height: 15px;
+      stroke: var(--mut);
+    }
+    .projects-list-container {
+      overflow-y: auto;
+      max-height: calc(85vh - 180px);
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .project-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+    .project-card:hover {
+      border-color: var(--p);
+      box-shadow: 0 4px 12px rgba(15, 118, 110, 0.08);
+      transform: translateY(-1px);
+    }
+    .project-card.active-proj {
+      border-color: #10B981;
+      background: #F0FDF4;
+    }
+    .project-info-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .project-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .project-title {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--dark);
+      cursor: pointer;
+    }
+    .project-title:hover {
+      color: var(--p);
+      text-decoration: underline;
+    }
+    .project-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12.5px;
+      color: var(--mut);
+      flex-wrap: wrap;
+    }
+    .project-stat-pill {
+      background: #F1F5F9;
+      color: #334155;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+    .project-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
     /* Alert Toast */
     #toast {
       position: fixed;
@@ -896,7 +1006,15 @@
         </div>
       </a>
       <div class="top-actions">
-        <button class="btn btn-p btn-sm" id="btnOpenIgs" title="Kéo thả hoặc chọn các file .IGS cho máy cắt laser ống">
+        <button class="btn btn-p btn-sm" id="btnProjectsManager" title="Quản lý danh sách các dự án đã lưu, mở lại dự án cũ, xuất/nhập file">
+          <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Quản lý Dự án <span id="badgeProjectCount" style="margin-left:4px;background:#fff;color:var(--p);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:700;">0</span>
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnOpenSaveModal" title="Lưu dự án hiện tại theo tên và khách hàng">
+          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Lưu Dự án
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnOpenIgs" title="Kéo thả hoặc chọn các file .IGS cho máy cắt laser ống">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Nhập file .IGS
         </button>
@@ -914,13 +1032,37 @@
           <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Dán Excel
         </button>
         <button class="btn btn-soft btn-sm" id="btnReset">
-          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Nhập mới
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Tạo mới
         </button>
       </div>
     </div>
   </header>
 
   <main class="wrap">
+    <!-- Project Active Status Banner -->
+    <div class="project-active-bar no-print" id="projectActiveBar" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:10px 18px; margin: 14px 0 6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; box-shadow: 0 2px 6px rgba(16,185,129,0.06);">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:#DCFCE7; color:#15803D;">
+          <svg viewBox="0 0 24 24" style="width:15px; height:15px; stroke:currentColor; stroke-width:2.2; fill:none;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </span>
+        <div style="font-size:13.5px;">
+          <span style="color:#15803D; font-weight:700;">Đang mở dự án:</span>
+          <strong id="dispCurrentProjName" style="color:#0F172A; font-size:14.5px; margin-left:4px;">Dự án hiện hành</strong>
+          <span id="dispCurrentProjCustomer" style="color:#64748B; font-size:13px; margin-left:6px;"></span>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn btn-sm btn-soft" id="btnBannerSave" title="Lưu nhanh các thay đổi vào dự án này">
+          <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Lưu cập nhật
+        </button>
+        <button class="btn btn-sm btn-soft" id="btnBannerExportJson" title="Xuất file .json dự án này về máy">
+          <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Xuất file .json
+        </button>
+        <button class="btn btn-sm btn-p" id="btnBannerOpenManager" title="Mở danh sách tất cả các dự án đã lưu">
+          Danh sách dự án
+        </button>
+      </div>
+    </div>
     <!-- Hero / Features -->
     <div class="hero no-print">
       <div class="hero-top">
@@ -1229,6 +1371,78 @@
     </div>
   </div>
 
+  <!-- Modal Quản Lý Danh Sách Dự Án -->
+  <div class="modal-backdrop" id="modalProjects" style="display: none;">
+    <div class="modal-box modal-box-lg">
+      <div class="modal-head">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <svg style="width:24px; height:24px; stroke:var(--p); fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <h3 style="margin:0; font-size:18px;">Quản lý Danh sách Dự án &amp; Đơn hàng</h3>
+        </div>
+        <button class="modal-close" id="btnCloseProjects">&times;</button>
+      </div>
+      
+      <div class="projects-toolbar">
+        <button class="btn btn-p btn-sm" id="btnProjModalSaveCurrent" title="Lưu số liệu hiện tại thành dự án mới">
+          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Lưu dự án hiện tại
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnProjModalNewBlank" title="Tạo dự án mới hoàn toàn">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Tạo dự án mới
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnProjModalImport" title="Nhập file dự án JSON hoặc file Fusion 360">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Nhập file .json
+        </button>
+        <input type="file" id="inpImportProjFile" accept=".json" style="display: none;">
+        <button class="btn btn-soft btn-sm" id="btnProjModalBackupAll" title="Tải file sao lưu toàn bộ danh sách dự án">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Sao lưu tất cả
+        </button>
+        
+        <div class="projects-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="inpSearchProjects" placeholder="Tìm theo tên dự án, khách hàng, ngày...">
+        </div>
+      </div>
+
+      <div class="projects-list-container" id="projectsListWrap">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Lưu / Đổi Tên Dự Án -->
+  <div class="modal-backdrop" id="modalSaveProjectForm" style="display: none;">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-head">
+        <h3 id="saveProjModalTitle" style="margin:0; font-size:17px;">Lưu Dự Án Vào Bộ Nhớ</h3>
+        <button class="modal-close" id="btnCloseSaveProjForm">&times;</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
+            Tên dự án <span style="color:#DC2626;">*</span>
+          </label>
+          <input type="text" id="inpSaveProjName" class="input" style="width:100%; font-size:14px; font-weight:600;" placeholder="Ví dụ: Bàn thao tác 1500x600x770">
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
+            Khách hàng / Công trình
+          </label>
+          <input type="text" id="inpSaveProjCustomer" class="input" style="width:100%;" placeholder="Ví dụ: Công ty Cơ khí An Bình">
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
+            Ghi chú
+          </label>
+          <textarea id="inpSaveProjNotes" class="input" rows="3" style="width:100%; resize:vertical;" placeholder="Ghi chú thêm về đơn hàng, thời gian giao hàng..."></textarea>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px;">
+        <button class="btn btn-soft btn-sm" id="btnCancelSaveProjForm">Hủy</button>
+        <button class="btn btn-p btn-sm" id="btnConfirmSaveProjForm">Lưu vào bộ nhớ</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast">Thông báo</div>
 
@@ -1244,6 +1458,8 @@
     // LocalStorage Keys
     const LS_SAVED_PROFILES = 'toiuu_saved_box_profiles_v2';
     const LS_ACTIVE_PROJECT = 'toiuu_active_project_v2';
+    const LS_SAVED_PROJECTS = 'toiuu_saved_projects_list_v1';
+    const LS_CURRENT_PROJ_ID = 'toiuu_current_proj_id_v1';
 
     // Default Saved Profiles Library
     const DEFAULT_SAVED_PROFILES = [
@@ -1264,7 +1480,15 @@
       clamp: 80,
       interlock: true,
       gap: 0,
-      result: null
+      result: null,
+      // Quản lý nhiều dự án
+      currentProjectId: null,
+      currentProjectName: '',
+      currentProjectCustomer: '',
+      currentProjectNotes: '',
+      savedProjects: [],
+      editingProjectId: null,
+      fusionProject: null
     };
 
     let HINH_CACHE = [];
@@ -1526,10 +1750,16 @@
       });
     }
 
-    // Project Persistence in LocalStorage
+    // ==========================================
+    // Project Persistence & Management
+    // ==========================================
     function saveActiveProject() {
       try {
         const data = {
+          currentProjectId: state.currentProjectId,
+          currentProjectName: state.currentProjectName,
+          currentProjectCustomer: state.currentProjectCustomer,
+          currentProjectNotes: state.currentProjectNotes,
           activeProfiles: state.activeProfiles,
           selectedTabProfile: state.selectedTabProfile,
           parts: state.parts,
@@ -1538,7 +1768,8 @@
           kerf: state.kerf,
           clamp: state.clamp,
           interlock: state.interlock,
-          gap: state.gap
+          gap: state.gap,
+          fusionProject: state.fusionProject
         };
         localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(data));
       } catch (e) {}
@@ -1550,6 +1781,12 @@
         if (stored) {
           const data = JSON.parse(stored);
           if (data && Array.isArray(data.parts) && data.parts.length > 0) {
+            state.currentProjectId = data.currentProjectId || null;
+            state.currentProjectName = data.currentProjectName || '';
+            state.currentProjectCustomer = data.currentProjectCustomer || '';
+            state.currentProjectNotes = data.currentProjectNotes || '';
+            state.fusionProject = data.fusionProject || null;
+
             state.activeProfiles = data.activeProfiles || ['Hộp 30x30x1.8'];
             state.selectedTabProfile = data.selectedTabProfile || state.activeProfiles[0];
             state.parts = data.parts;
@@ -1565,11 +1802,586 @@
             renderPartsList();
             renderStockList();
             calculateOptimization(false);
+            updateProjectActiveBanner();
             return true;
           }
         }
       } catch (e) {}
       return false;
+    }
+
+    // Khởi tạo hệ thống quản lý danh sách dự án
+    function initProjectsManager() {
+      try {
+        const raw = localStorage.getItem(LS_SAVED_PROJECTS);
+        state.savedProjects = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(state.savedProjects)) state.savedProjects = [];
+      } catch (e) {
+        state.savedProjects = [];
+      }
+
+      try {
+        const curId = localStorage.getItem(LS_CURRENT_PROJ_ID);
+        if (curId && !state.currentProjectId) {
+          const found = state.savedProjects.find(p => p.id === curId);
+          if (found) {
+            state.currentProjectId = found.id;
+            state.currentProjectName = found.name;
+            state.currentProjectCustomer = found.customer || '';
+            state.currentProjectNotes = found.notes || '';
+          }
+        }
+      } catch (e) {}
+
+      updateProjectsBadge();
+      updateProjectActiveBanner();
+    }
+
+    function saveProjectsListToStorage() {
+      try {
+        localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects));
+      } catch (e) {}
+      updateProjectsBadge();
+    }
+
+    function updateProjectsBadge() {
+      const badge = $('projCountBadge');
+      if (badge) {
+        badge.textContent = state.savedProjects ? state.savedProjects.length : 0;
+      }
+    }
+
+    function updateProjectActiveBanner() {
+      const bar = $('projectActiveBar');
+      const nameDisp = $('dispCurrentProjName');
+      const custDisp = $('dispCurrentProjCustomer');
+      const btnSave = $('btnBannerSave');
+      if (!bar || !nameDisp) return;
+
+      if (state.currentProjectId && state.currentProjectName) {
+        nameDisp.textContent = state.currentProjectName;
+        custDisp.textContent = state.currentProjectCustomer ? `• Khách hàng: ${state.currentProjectCustomer}` : '';
+        if (btnSave) {
+          btnSave.innerHTML = `<svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Lưu cập nhật`;
+          btnSave.title = `Lưu đè các số liệu mới nhất vào dự án "${state.currentProjectName}"`;
+        }
+      } else {
+        nameDisp.textContent = 'Dự án nháp (Chưa lưu)';
+        custDisp.textContent = '• Bấm "Lưu dự án" để đặt tên và lưu vào danh mục quản lý';
+        if (btnSave) {
+          btnSave.innerHTML = `<svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Lưu dự án`;
+          btnSave.title = 'Lưu dữ liệu hiện tại thành một dự án mới';
+        }
+      }
+    }
+
+    function openProjectsManagerModal() {
+      const modal = $('modalProjects');
+      if (!modal) return;
+      $('inpSearchProjects').value = '';
+      renderProjectsList('');
+      modal.style.display = 'flex';
+    }
+
+    function closeProjectsManagerModal() {
+      const modal = $('modalProjects');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function renderProjectsList(filterText = '') {
+      const wrap = $('projectsListWrap');
+      if (!wrap) return;
+
+      const q = String(filterText || '').toLowerCase().trim();
+      const filtered = (state.savedProjects || []).filter(p => {
+        if (!q) return true;
+        const name = String(p.name || '').toLowerCase();
+        const cust = String(p.customer || '').toLowerCase();
+        const note = String(p.notes || '').toLowerCase();
+        return name.includes(q) || cust.includes(q) || note.includes(q);
+      });
+
+      if (!filtered.length) {
+        wrap.innerHTML = `
+          <div style="text-align:center; padding:40px 20px; color:#64748B;">
+            <svg style="width:48px; height:48px; stroke:#CBD5E1; fill:none; stroke-width:1.5; margin-bottom:12px;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <div style="font-size:15px; font-weight:600; color:#475569; margin-bottom:6px;">
+              ${q ? 'Không tìm thấy dự án phù hợp với từ khóa!' : 'Chưa có dự án nào được lưu trong bộ nhớ'}
+            </div>
+            <div style="font-size:13px; max-width:400px; margin:0 auto 16px;">
+              ${q ? 'Hãy thử tìm bằng tên dự án, khách hàng hoặc từ khóa khác.' : 'Bấm nút "Lưu dự án hiện tại" bên trên hoặc nạp dữ liệu từ file .json / Fusion 360 để quản lý.'}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      wrap.innerHTML = filtered.map(p => {
+        const isActive = p.id === state.currentProjectId;
+        const partCount = p.data && Array.isArray(p.data.parts) ? p.data.parts.reduce((a, b) => a + (Number(b.qty) || 0), 0) : 0;
+        const profCount = p.data && Array.isArray(p.data.activeProfiles) ? p.data.activeProfiles.length : 0;
+        const dateStr = p.updatedAt ? new Date(p.updatedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Không rõ';
+
+        return `
+          <div class="project-card ${isActive ? 'active-proj' : ''}" data-id="${p.id}">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:8px;">
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span style="font-size:16px; font-weight:700; color:var(--dark); word-break:break-word;">
+                    ${escapeHtml(p.name)}
+                  </span>
+                  ${isActive ? '<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; background:#DCFCE7; color:#15803D;">● Đang làm việc</span>' : ''}
+                </div>
+                ${p.customer ? `<div style="font-size:13px; color:#475569; margin-top:2px; font-weight:500;">Khách hàng: <strong>${escapeHtml(p.customer)}</strong></div>` : ''}
+                ${p.notes ? `<div style="font-size:12px; color:#64748B; margin-top:3px; font-style:italic;">${escapeHtml(p.notes)}</div>` : ''}
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-top:10px; padding-top:10px; border-top:1px dashed #E2E8F0;">
+              <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:#64748B;">
+                <span>Cập nhật: <strong>${dateStr}</strong></span>
+                <span>• <strong>${profCount}</strong> loại hộp</span>
+                <span>• <strong>${partCount}</strong> chi tiết</span>
+              </div>
+
+              <div class="project-card-actions">
+                ${isActive ? `
+                  <button class="btn btn-sm btn-soft" disabled style="opacity:0.75; cursor:default; background:#DCFCE7; color:#15803D; border-color:#BBF7D0;">
+                    ✓ Đang mở
+                  </button>
+                ` : `
+                  <button class="btn btn-sm btn-p btn-load-proj" data-id="${p.id}" title="Mở dự án này ra màn hình làm việc">
+                    Mở dự án
+                  </button>
+                `}
+                <button class="btn btn-sm btn-soft btn-edit-proj" data-id="${p.id}" title="Đổi tên / Khách hàng / Ghi chú">
+                  Sửa
+                </button>
+                <button class="btn btn-sm btn-soft btn-duplicate-proj" data-id="${p.id}" title="Nhân bản (sao chép) dự án này">
+                  Nhân bản
+                </button>
+                <button class="btn btn-sm btn-soft btn-export-proj" data-id="${p.id}" title="Tải file .json của dự án này về máy">
+                  Xuất file
+                </button>
+                <button class="btn btn-sm btn-soft btn-del-proj" data-id="${p.id}" style="color:#DC2626;" title="Xóa dự án khỏi bộ nhớ">
+                  Xóa
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Gắn sự kiện cho các nút trong thẻ dự án
+      wrap.querySelectorAll('.btn-load-proj').forEach(btn => {
+        btn.onclick = () => loadProjectById(btn.getAttribute('data-id'));
+      });
+      wrap.querySelectorAll('.btn-edit-proj').forEach(btn => {
+        btn.onclick = () => openSaveProjectModal(btn.getAttribute('data-id'));
+      });
+      wrap.querySelectorAll('.btn-duplicate-proj').forEach(btn => {
+        btn.onclick = () => duplicateProject(btn.getAttribute('data-id'));
+      });
+      wrap.querySelectorAll('.btn-export-proj').forEach(btn => {
+        btn.onclick = () => exportSingleProjectJson(btn.getAttribute('data-id'));
+      });
+      wrap.querySelectorAll('.btn-del-proj').forEach(btn => {
+        btn.onclick = () => deleteProject(btn.getAttribute('data-id'));
+      });
+    }
+
+    function openSaveProjectModal(targetId = null) {
+      state.editingProjectId = targetId;
+      const modal = $('modalSaveProjectForm');
+      const title = $('saveProjModalTitle');
+      const inpName = $('inpSaveProjName');
+      const inpCust = $('inpSaveProjCustomer');
+      const inpNotes = $('inpSaveProjNotes');
+      const btnConfirm = $('btnConfirmSaveProjForm');
+
+      if (targetId) {
+        const found = state.savedProjects.find(p => p.id === targetId);
+        if (found) {
+          title.textContent = 'Chỉnh sửa thông tin Dự án';
+          inpName.value = found.name || '';
+          inpCust.value = found.customer || '';
+          inpNotes.value = found.notes || '';
+          btnConfirm.textContent = 'Cập nhật';
+        }
+      } else {
+        title.textContent = 'Lưu Dự Án Vào Bộ Nhớ';
+        // Điền tên gợi ý nếu đang có sẵn tên dự án hoặc gợi ý theo ngày
+        inpName.value = state.currentProjectName || `Dự án ngày ${new Date().toLocaleDateString('vi-VN')}`;
+        inpCust.value = state.currentProjectCustomer || '';
+        inpNotes.value = state.currentProjectNotes || '';
+        btnConfirm.textContent = 'Lưu vào bộ nhớ';
+      }
+
+      modal.style.display = 'flex';
+      setTimeout(() => { inpName.focus(); inpName.select(); }, 50);
+    }
+
+    function closeSaveProjectModal() {
+      const modal = $('modalSaveProjectForm');
+      if (modal) modal.style.display = 'none';
+      state.editingProjectId = null;
+    }
+
+    function confirmSaveProjectForm() {
+      const name = $('inpSaveProjName').value.trim();
+      if (!name) {
+        showToast('Vui lòng nhập tên dự án!');
+        $('inpSaveProjName').focus();
+        return;
+      }
+      const customer = $('inpSaveProjCustomer').value.trim();
+      const notes = $('inpSaveProjNotes').value.trim();
+      const nowStr = new Date().toISOString();
+
+      if (state.editingProjectId) {
+        // Cập nhật thông tin dự án có sẵn
+        const target = state.savedProjects.find(p => p.id === state.editingProjectId);
+        if (target) {
+          target.name = name;
+          target.customer = customer;
+          target.notes = notes;
+          target.updatedAt = nowStr;
+          // Nếu chính là dự án đang mở, cập nhật thông tin hiển thị
+          if (state.currentProjectId === target.id) {
+            state.currentProjectName = name;
+            state.currentProjectCustomer = customer;
+            state.currentProjectNotes = notes;
+            updateProjectActiveBanner();
+            saveActiveProject();
+          }
+        }
+        showToast(`✓ Đã cập nhật dự án "${name}"!`);
+      } else {
+        // Lưu dữ liệu hiện hành thành dự án mới (hoặc cập nhật đè nếu đã có ID)
+        const projectDataPayload = {
+          activeProfiles: [...state.activeProfiles],
+          selectedTabProfile: state.selectedTabProfile,
+          parts: JSON.parse(JSON.stringify(state.parts)),
+          stock: JSON.parse(JSON.stringify(state.stock)),
+          method: state.method,
+          kerf: state.kerf,
+          clamp: state.clamp,
+          interlock: state.interlock,
+          gap: state.gap,
+          fusionProject: state.fusionProject
+        };
+
+        let targetProj = state.currentProjectId ? state.savedProjects.find(p => p.id === state.currentProjectId) : null;
+        if (targetProj) {
+          targetProj.name = name;
+          targetProj.customer = customer;
+          targetProj.notes = notes;
+          targetProj.updatedAt = nowStr;
+          targetProj.data = projectDataPayload;
+        } else {
+          const newId = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          targetProj = {
+            id: newId,
+            name: name,
+            customer: customer,
+            notes: notes,
+            createdAt: nowStr,
+            updatedAt: nowStr,
+            data: projectDataPayload
+          };
+          state.savedProjects.unshift(targetProj);
+          state.currentProjectId = newId;
+          localStorage.setItem(LS_CURRENT_PROJ_ID, newId);
+        }
+
+        state.currentProjectName = name;
+        state.currentProjectCustomer = customer;
+        state.currentProjectNotes = notes;
+        updateProjectActiveBanner();
+        saveActiveProject();
+        showToast(`✓ Đã lưu dự án "${name}" vào bộ nhớ!`);
+      }
+
+      saveProjectsListToStorage();
+      closeSaveProjectModal();
+
+      // Nếu modal quản lý dự án đang mở, render lại danh sách
+      if ($('modalProjects').style.display === 'flex') {
+        renderProjectsList($('inpSearchProjects').value.trim());
+      }
+    }
+
+    function loadProjectById(projId) {
+      const proj = state.savedProjects.find(p => p.id === projId);
+      if (!proj || !proj.data) {
+        showToast('Không tìm thấy dữ liệu dự án!');
+        return;
+      }
+
+      const d = proj.data;
+      state.currentProjectId = proj.id;
+      state.currentProjectName = proj.name;
+      state.currentProjectCustomer = proj.customer || '';
+      state.currentProjectNotes = proj.notes || '';
+      state.fusionProject = d.fusionProject || null;
+
+      state.activeProfiles = (d.activeProfiles && d.activeProfiles.length) ? d.activeProfiles : ['Hộp 30x30x1.8'];
+      state.selectedTabProfile = d.selectedTabProfile || state.activeProfiles[0];
+      state.parts = Array.isArray(d.parts) ? d.parts : [];
+      state.stock = Array.isArray(d.stock) ? d.stock : [];
+      state.method = d.method || 'cnc';
+      state.kerf = d.kerf != null ? d.kerf : 0;
+      state.clamp = d.clamp != null ? d.clamp : 80;
+      state.interlock = d.interlock != null ? d.interlock : true;
+      state.gap = d.gap != null ? d.gap : 0;
+
+      // Đảm bảo các loại hộp của dự án xuất hiện trong bộ nhớ mẫu
+      let addedToMemory = false;
+      state.activeProfiles.forEach(prof => {
+        if (!state.savedProfiles.includes(prof)) {
+          state.savedProfiles.push(prof);
+          addedToMemory = true;
+        }
+      });
+      if (addedToMemory) {
+        saveProfilesLibrary();
+        renderMemoryLibraryChips();
+      }
+
+      localStorage.setItem(LS_CURRENT_PROJ_ID, proj.id);
+      saveActiveProject();
+
+      updateInputsFromState();
+      ensureProfilesConsistency();
+      renderProfileTabs();
+      renderActiveProfileBanner();
+      renderPartsList();
+      renderStockList();
+      calculateOptimization(false);
+      updateProjectActiveBanner();
+
+      closeProjectsManagerModal();
+      showToast(`✓ Đã mở dự án "${proj.name}"!`);
+    }
+
+    function deleteProject(projId) {
+      const proj = state.savedProjects.find(p => p.id === projId);
+      if (!proj) return;
+      if (!confirm(`Bạn có chắc muốn xóa vĩnh viễn dự án "${proj.name}" khỏi bộ nhớ?`)) return;
+
+      state.savedProjects = state.savedProjects.filter(p => p.id !== projId);
+      if (state.currentProjectId === projId) {
+        state.currentProjectId = null;
+        state.currentProjectName = '';
+        state.currentProjectCustomer = '';
+        state.currentProjectNotes = '';
+        localStorage.removeItem(LS_CURRENT_PROJ_ID);
+        saveActiveProject();
+        updateProjectActiveBanner();
+      }
+
+      saveProjectsListToStorage();
+      renderProjectsList($('inpSearchProjects').value.trim());
+      showToast(`✓ Đã xóa dự án "${proj.name}"!`);
+    }
+
+    function duplicateProject(projId) {
+      const src = state.savedProjects.find(p => p.id === projId);
+      if (!src) return;
+
+      const clone = {
+        id: 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        name: src.name + ' (Bản sao)',
+        customer: src.customer || '',
+        notes: src.notes || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        data: JSON.parse(JSON.stringify(src.data || {}))
+      };
+
+      state.savedProjects.unshift(clone);
+      saveProjectsListToStorage();
+      renderProjectsList($('inpSearchProjects').value.trim());
+      showToast(`✓ Đã nhân bản dự án thành "${clone.name}"!`);
+    }
+
+    function downloadJsonFile(filename, dataObj) {
+      const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function exportSingleProjectJson(projId) {
+      let proj = state.savedProjects.find(p => p.id === projId);
+      if (!proj) {
+        // Xuất trực tiếp dữ liệu hiện hành trên màn hình
+        proj = {
+          id: state.currentProjectId || ('proj_cur_' + Date.now()),
+          name: state.currentProjectName || `Dự án ngày ${new Date().toLocaleDateString('vi-VN')}`,
+          customer: state.currentProjectCustomer || '',
+          notes: state.currentProjectNotes || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          data: {
+            activeProfiles: [...state.activeProfiles],
+            selectedTabProfile: state.selectedTabProfile,
+            parts: JSON.parse(JSON.stringify(state.parts)),
+            stock: JSON.parse(JSON.stringify(state.stock)),
+            method: state.method,
+            kerf: state.kerf,
+            clamp: state.clamp,
+            interlock: state.interlock,
+            gap: state.gap,
+            fusionProject: state.fusionProject
+          }
+        };
+      }
+      if (!proj) return;
+
+      const exportPayload = {
+        generator: 'PhanMemToiUuPhoi_ToanThang',
+        version: '2.0',
+        exportedAt: new Date().toISOString(),
+        project: proj
+      };
+
+      const safeName = (proj.name || 'Du_An').replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF-]/g, '_');
+      downloadJsonFile(`${safeName}.json`, exportPayload);
+      showToast(`✓ Đã xuất file dự án "${proj.name}.json"!`);
+    }
+
+    function exportAllProjectsBackup() {
+      if (!state.savedProjects || !state.savedProjects.length) {
+        showToast('Chưa có dự án nào trong bộ nhớ để sao lưu!');
+        return;
+      }
+
+      const backupPayload = {
+        generator: 'PhanMemToiUuPhoi_ToanThang',
+        version: '2.0',
+        exportedAt: new Date().toISOString(),
+        total_projects: state.savedProjects.length,
+        saved_projects: state.savedProjects,
+        saved_profiles: state.savedProfiles
+      };
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadJsonFile(`sao_luu_toan_bo_du_an_${dateStr}.json`, backupPayload);
+      showToast(`✓ Đã sao lưu toàn bộ ${state.savedProjects.length} dự án vào máy!`);
+    }
+
+    function importProjectFromFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const parsed = JSON.parse(ev.target.result);
+          
+          // Trường hợp 1: File sao lưu toàn bộ (chứa saved_projects)
+          if (parsed && Array.isArray(parsed.saved_projects) && parsed.saved_projects.length > 0) {
+            const count = parsed.saved_projects.length;
+            const overwrite = confirm(`File sao lưu này chứa ${count} dự án.\n\nBấm [OK] để GỘP thêm vào danh sách hiện tại.\nBấm [Cancel] để GHI ĐÈ thay thế toàn bộ bộ nhớ.`);
+            
+            if (overwrite) {
+              // Gộp thêm
+              let imported = 0;
+              parsed.saved_projects.forEach(p => {
+                const exist = state.savedProjects.find(sp => sp.id === p.id || sp.name === p.name);
+                if (!exist) {
+                  state.savedProjects.push(p);
+                  imported++;
+                } else {
+                  // Đổi id và tạo mới
+                  p.id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                  p.name = p.name + ' (Nhập)';
+                  state.savedProjects.push(p);
+                  imported++;
+                }
+              });
+              saveProjectsListToStorage();
+              renderProjectsList('');
+              showToast(`✓ Đã gộp thành công ${imported} dự án vào bộ nhớ!`);
+            } else {
+              // Ghi đè
+              state.savedProjects = parsed.saved_projects;
+              if (Array.isArray(parsed.saved_profiles)) {
+                parsed.saved_profiles.forEach(pr => {
+                  if (!state.savedProfiles.includes(pr)) state.savedProfiles.push(pr);
+                });
+                saveProfilesLibrary();
+                renderMemoryLibraryChips();
+              }
+              saveProjectsListToStorage();
+              renderProjectsList('');
+              showToast(`✓ Đã nạp ${count} dự án từ file sao lưu!`);
+            }
+            return;
+          }
+
+          // Trường hợp 2: File xuất 1 dự án riêng (chứa parsed.project)
+          if (parsed && parsed.project && parsed.project.data) {
+            const p = parsed.project;
+            p.id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            state.savedProjects.unshift(p);
+            saveProjectsListToStorage();
+            renderProjectsList('');
+            if (confirm(`Đã nạp dự án "${p.name}". Bạn có muốn mở dự án này ra làm việc ngay không?`)) {
+              loadProjectById(p.id);
+            } else {
+              showToast(`✓ Đã thêm dự án "${p.name}" vào danh sách!`);
+            }
+            return;
+          }
+
+          // Trường hợp 3: File JSON xuất từ Fusion 360 (có parts, clamp_tail, project_name)
+          if (parsed && (parsed.parts || Array.isArray(parsed))) {
+            loadFusionDataPayload(parsed);
+            closeProjectsManagerModal();
+            showToast('✓ Đã nạp thành công dữ liệu từ file JSON!');
+            return;
+          }
+
+          showToast('Cấu trúc file JSON không được hỗ trợ!');
+        } catch (err) {
+          showToast('Lỗi đọc file JSON: định dạng không hợp lệ!');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function createNewBlankProject() {
+      if (state.parts.length > 0) {
+        if (!confirm('Tạo một dự án mới hoàn toàn?\n\nDữ liệu chưa lưu của màn hình hiện tại sẽ được làm mới.')) return;
+      }
+      state.currentProjectId = null;
+      state.currentProjectName = '';
+      state.currentProjectCustomer = '';
+      state.currentProjectNotes = '';
+      localStorage.removeItem(LS_CURRENT_PROJ_ID);
+
+      state.activeProfiles = ['Hộp 30x30x1.8'];
+      state.selectedTabProfile = 'Hộp 30x30x1.8';
+      state.parts = [];
+      state.stock = [
+        { id: 's1', name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: state.clamp }
+      ];
+      renderProfileTabs();
+      renderActiveProfileBanner();
+      renderPartsList();
+      renderStockList();
+      calculateOptimization(false);
+      saveActiveProject();
+      updateProjectActiveBanner();
+      closeProjectsManagerModal();
+
+      // Mở modal đặt tên dự án ngay cho người dùng
+      openSaveProjectModal();
     }
 
     function ensureStockForProfile(prof) {
@@ -3150,6 +3962,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       initSavedProfiles();
       renderMemoryLibraryChips();
+      initProjectsManager();
 
       // Try restore from localStorage or load default
       if (!loadActiveProject()) {
@@ -3364,6 +4177,67 @@
           showToast('Không tìm thấy dòng chi tiết hợp lệ!');
         }
       };
+
+      // ==========================================
+      // Project Management Event Listeners
+      // ==========================================
+      // Header Top Action Buttons
+      if ($('btnProjectsManager')) $('btnProjectsManager').onclick = openProjectsManagerModal;
+      if ($('btnOpenSaveModal')) $('btnOpenSaveModal').onclick = () => openSaveProjectModal();
+
+      // Active Project Banner Buttons
+      if ($('btnBannerSave')) {
+        $('btnBannerSave').onclick = () => {
+          if (state.currentProjectId) {
+            confirmSaveProjectForm();
+          } else {
+            openSaveProjectModal();
+          }
+        };
+      }
+      if ($('btnBannerExportJson')) {
+        $('btnBannerExportJson').onclick = () => {
+          exportSingleProjectJson(state.currentProjectId);
+        };
+      }
+      if ($('btnBannerOpenManager')) $('btnBannerOpenManager').onclick = openProjectsManagerModal;
+
+      // Projects Modal Controls
+      if ($('btnCloseProjects')) $('btnCloseProjects').onclick = closeProjectsManagerModal;
+      if ($('btnProjModalSaveCurrent')) $('btnProjModalSaveCurrent').onclick = () => openSaveProjectModal();
+      if ($('btnProjModalNewBlank')) $('btnProjModalNewBlank').onclick = createNewBlankProject;
+      
+      const inpProjFile = $('inpImportProjFile');
+      if ($('btnProjModalImport') && inpProjFile) {
+        $('btnProjModalImport').onclick = () => inpProjFile.click();
+        inpProjFile.onchange = e => {
+          if (e.target.files && e.target.files[0]) {
+            importProjectFromFile(e.target.files[0]);
+            e.target.value = '';
+          }
+        };
+      }
+
+      if ($('btnProjModalBackupAll')) $('btnProjModalBackupAll').onclick = exportAllProjectsBackup;
+
+      if ($('inpSearchProjects')) {
+        $('inpSearchProjects').oninput = e => {
+          renderProjectsList(e.target.value);
+        };
+      }
+
+      // Save/Edit Project Form Modal Controls
+      if ($('btnCloseSaveProjForm')) $('btnCloseSaveProjForm').onclick = closeSaveProjectModal;
+      if ($('btnCancelSaveProjForm')) $('btnCancelSaveProjForm').onclick = closeSaveProjectModal;
+      if ($('btnConfirmSaveProjForm')) $('btnConfirmSaveProjForm').onclick = confirmSaveProjectForm;
+      if ($('inpSaveProjName')) {
+        $('inpSaveProjName').onkeydown = e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmSaveProjectForm();
+          }
+        };
+      }
 
       // ==========================================
       // IGS (.igs) Drag & Drop and Import Handlers
@@ -3608,6 +4482,47 @@
         renderPartsList();
         renderStockList();
         calculateOptimization(true);
+
+        // Tự động liên kết và lưu thành dự án trong bộ nhớ
+        const fProjName = data.project_name || ('Bản vẽ Fusion 360 ' + new Date().toLocaleDateString('vi-VN'));
+        let existingProj = state.savedProjects.find(p => p.name.toLowerCase() === fProjName.toLowerCase());
+        const projId = existingProj ? existingProj.id : ('proj_f360_' + Date.now());
+        state.currentProjectId = projId;
+        state.currentProjectName = fProjName;
+        state.currentProjectCustomer = 'Autodesk Fusion 360';
+        state.currentProjectNotes = `Xuất lúc: ${data.timestamp || new Date().toLocaleString('vi-VN')}`;
+        localStorage.setItem(LS_CURRENT_PROJ_ID, projId);
+
+        const projEntry = {
+          id: projId,
+          name: fProjName,
+          customer: state.currentProjectCustomer,
+          notes: state.currentProjectNotes,
+          createdAt: existingProj ? existingProj.createdAt : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          data: {
+            activeProfiles: [...state.activeProfiles],
+            selectedTabProfile: 'ALL',
+            parts: JSON.parse(JSON.stringify(state.parts)),
+            stock: JSON.parse(JSON.stringify(state.stock)),
+            method: state.method,
+            kerf: state.kerf,
+            clamp: state.clamp,
+            interlock: state.interlock,
+            gap: state.gap,
+            fusionProject: data
+          }
+        };
+
+        if (existingProj) {
+          const idx = state.savedProjects.indexOf(existingProj);
+          state.savedProjects[idx] = projEntry;
+        } else {
+          state.savedProjects.unshift(projEntry);
+        }
+
+        saveProjectsListToStorage();
+        updateProjectActiveBanner();
         saveActiveProject();
 
         const projName = data.project_name ? `từ bản vẽ "${data.project_name}"` : '';
