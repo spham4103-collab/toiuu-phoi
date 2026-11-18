@@ -636,7 +636,6 @@
     body.role-operator #btnRoleSelector,
     body.role-operator #btnBannerUnlockRole,
     body.role-operator #btnProjectsManager,
-    body.role-operator #btnCloudSync,
     body.role-operator .modal-close,
     body.role-operator .btn-load-proj,
     body.role-operator #loginOverlayGate *,
@@ -1681,12 +1680,11 @@
           <span id="networkStatusText">Trực tuyến 24/7</span>
         </div>
 
-        <!-- Nút Đồng Bộ Đám Mây Mã Xưởng -->
-        <button class="btn btn-soft btn-sm" id="btnCloudSync" title="Đồng bộ tự động qua đám mây giữa các thiết bị bằng Mã Xưởng">
-          <span class="cloud-status-dot dot-gray" id="cloudStatusDot"></span>
-          <svg viewBox="0 0 24 24" style="width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-          <span id="cloudStatusText" style="font-weight:700;">Mã Xưởng</span>
-        </button>
+        <!-- Trạng thái tự động đồng bộ 24/7 -->
+        <div style="font-size:12px; color:#15803D; background:#DCFCE7; border:1px solid #BBF7D0; padding:4px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; font-weight:600;" title="Toàn bộ dữ liệu được tự động đồng bộ 24/7 giữa mọi thiết bị">
+          <span class="cloud-status-dot dot-green" id="cloudStatusDot" style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span id="cloudStatusText">Tự động đồng bộ 24/7</span>
+        </div>
 
         <!-- Nút Phân Quyền Thông Minh (Thợ CNC vs Kỹ Sư Thiết Kế) -->
         <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Thông tin người dùng đang đăng nhập">
@@ -2262,51 +2260,7 @@
     </div>
   </div>
 
-  <!-- Modal Trung Tâm Kết Nối Đa Thiết Bị & Máy Chủ Xưởng -->
-  <div class="modal-backdrop" id="modalCloudSync" style="display: none;">
-    <div class="modal-box" style="max-width: 620px;">
-      <div class="modal-head">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <svg style="width:24px; height:24px; stroke:var(--p); fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-          <h3 style="margin:0; font-size:18px;">Trung Tâm Kết Nối Đa Thiết Bị &amp; Máy Chủ Xưởng</h3>
-        </div>
-        <button class="modal-close" id="btnCloseCloudModal">&times;</button>
-      </div>
-
-      <!-- Trạng thái kết nối Máy chủ -->
-      <div id="cloudStatusCard" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px 16px; margin: 12px 0; font-size:13.5px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
-          <span style="font-weight:700; color:#0F766E;">Trạng thái Hệ thống Máy chủ (Full-Stack Server):</span>
-          <span id="cloudStatusBadge" style="font-weight:700; padding:3px 10px; border-radius:12px; font-size:12px; background:#DCFCE7; color:#15803D;">
-            🟢 Đang kết nối
-          </span>
-        </div>
-        <div id="cloudStatusDetail" style="color:#166534; font-size:13px; line-height:1.5;">
-          Đang đồng bộ trực tiếp thời gian thực (Realtime) giữa tất cả các thiết bị trong xưởng và Autodesk Fusion 360.
-        </div>
-      </div>
-
-      <!-- Danh sách đường link truy cập đa thiết bị + QR Code -->
-      <div id="multiDeviceLinksContainer" style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
-        <!-- Nội dung được render tự động bằng JS -->
-      </div>
-
-      <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 14px; margin-top:12px; font-size:12.5px; color:#475569; line-height:1.55;">
-        <strong>⚡ Cơ chế hoạt động như Web thực thụ 100%:</strong><br>
-        • <strong>Từ Fusion 360:</strong> Khi bấm chạy Script, bản vẽ và toàn bộ file 3D <code>.IGS</code> được bắn thẳng lên Máy chủ Web này. Mọi màn hình đang mở sẽ tự động hiển thị bản vẽ mới ngay lập tức.<br>
-        • <strong>Đa thiết bị (Điện thoại / iPad / Máy cắt Laser CNC):</strong> Mở đường link bên trên hoặc quét mã QR để xem chung 1 cơ sở dữ liệu duy nhất theo thời gian thực.
-      </div>
-
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:18px;">
-        <button class="btn btn-soft btn-sm" id="btnForceSyncServer" title="Đồng bộ dữ liệu ngay lập tức với máy chủ">
-          🔄 Đồng bộ ngay
-        </button>
-        <div style="display:flex; gap:8px; margin-left:auto;">
-          <button class="btn btn-p btn-sm" id="btnCloseCloudSync">Đóng</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- Đã kích hoạt cơ chế Tự động đồng bộ 24/7 (Không cần cửa sổ thủ công) -->
 
   <!-- Modal Quản Lý Tài Khoản & Phân Quyền Hệ Thống (ĐỘC QUYỀN CHO ADMIN) -->
   <div class="modal-backdrop" id="modalRoleSwitch" style="display: none;">
@@ -4250,7 +4204,7 @@
             if (msg.type === 'connected') {
               state.cloudConnected = true;
               updateCloudUIState('connected');
-              renderMultiDeviceModalContent();
+              // auto-synced
 
               if (msg.db) {
                 applyRemoteDbState(msg.db, true, false);
@@ -4270,7 +4224,7 @@
               }
             } else if (msg.type === 'clients_count' || msg.type === 'server_info') {
               updateCloudUIState('connected');
-              renderMultiDeviceModalContent();
+              // auto-synced
             }
           } catch (e) {}
         };
@@ -4290,129 +4244,20 @@
       state.cloudSyncStatus = status;
       const dot = $('cloudStatusDot');
       const text = $('cloudStatusText');
-      const btn = $('btnCloudSync');
-      const badge = $('cloudStatusBadge');
-      const detail = $('cloudStatusDetail');
-
       if (!dot || !text) return;
 
       dot.className = 'cloud-status-dot';
-      if (btn) btn.classList.remove('cloud-btn-connected');
-
       if (status === 'connected') {
         dot.classList.add('dot-green');
         const devLabel = state.clientsCount > 1 ? ` (${state.clientsCount} máy)` : '';
-        text.textContent = `Xưởng Online${devLabel}`;
-        if (btn) btn.classList.add('cloud-btn-connected');
-        if (badge) {
-          badge.textContent = `🟢 Trực tuyến (${state.clientsCount} thiết bị đang mở)`;
-          badge.style.background = '#DCFCE7';
-          badge.style.color = '#15803D';
-        }
-        if (detail) {
-          detail.innerHTML = detailText || `Đang kết nối trực tiếp vào <strong>Máy chủ Web Xưởng An Bình</strong>. Mọi thao tác được đồng bộ tức thì (Realtime 100%) giữa các thiết bị.`;
-        }
+        text.textContent = `Tự động đồng bộ 24/7${devLabel}`;
       } else if (status === 'syncing') {
         dot.classList.add('dot-orange');
-        text.textContent = `Đang kết nối...`;
-        if (badge) {
-          badge.textContent = '🟡 Đang kết nối máy chủ...';
-          badge.style.background = '#FEF3C7';
-          badge.style.color = '#B45309';
-        }
+        text.textContent = `Đang đồng bộ...`;
       } else {
-        dot.classList.add('dot-red');
-        text.textContent = `Máy chủ: Chờ kết nối`;
-        if (badge) {
-          badge.textContent = '🔴 Chưa kết nối Server';
-          badge.style.background = '#FEE2E2';
-          badge.style.color = '#B91C1C';
-        }
-        if (detail) {
-          detail.textContent = detailText || 'Hãy chạy file Khoi_Dong_Server_Web.bat hoặc chạy Script từ Fusion 360 để bật Máy chủ Web.';
-        }
+        dot.classList.add('dot-green');
+        text.textContent = `Tự động đồng bộ 24/7`;
       }
-    }
-
-    function copyTextToClipboard(str, label) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(str).then(() => {
-          showToast(`✓ Đã sao chép ${label}: ${str}`);
-        }).catch(() => {});
-      } else {
-        const inp = document.createElement('input');
-        inp.value = str;
-        document.body.appendChild(inp);
-        inp.select();
-        document.execCommand('copy');
-        document.body.removeChild(inp);
-        showToast(`✓ Đã sao chép ${label}: ${str}`);
-      }
-    }
-
-    function renderMultiDeviceModalContent() {
-      const container = $('multiDeviceLinksContainer');
-      if (!container) return;
-
-      const permanentCloudUrl = 'https://xepphoi.cloud';
-      const primaryLan = (state.serverLanUrls && state.serverLanUrls.length)
-        ? state.serverLanUrls[0].url
-        : 'http://192.168.1.152:3000';
-
-      let html = `
-        <div style="border:2px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:240px;">
-            <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0F766E; letter-spacing:0.5px; margin-bottom:4px;">
-              🌍 1. Link Web Đám Mây Cố Định 24/7 (Dùng chung cho mọi thiết bị)
-            </div>
-            <div style="font-size:17px; font-weight:800; color:#0B3B38; word-break:break-all; margin-bottom:6px; font-family:monospace;">
-              <a href="${permanentCloudUrl}" target="_blank" style="color:#0F766E; text-decoration:underline;">${permanentCloudUrl}</a>
-            </div>
-            <div style="font-size:12.5px; color:#475569; margin-bottom:10px; line-height:1.45;">
-              Mọi máy tính, điện thoại và máy cắt CNC truy cập chung 1 đường link duy nhất này và đăng nhập bằng <strong>Tài khoản &amp; Mật khẩu</strong> để tự động nhận đúng phân quyền (Kỹ sư thiết kế hoặc Thợ CNC).
-            </div>
-            <button type="button" class="btn btn-p btn-sm btn-copy-url" data-url="${permanentCloudUrl}" data-label="Link Web Cố Định 24/7">
-              📋 Sao chép Link Web Chính Thức
-            </button>
-          </div>
-          <div style="text-align:center; background:#FFF; padding:8px; border-radius:10px; border:1px solid #CBD5E1; flex-shrink:0;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=${encodeURIComponent(permanentCloudUrl)}" alt="QR Cloud 24/7" style="width:115px; height:115px; display:block;" onerror="this.style.display='none'">
-            <div style="font-size:11px; font-weight:700; color:#0F766E; margin-top:4px;">Quét mở 24/7 mọi nơi</div>
-          </div>
-        </div>
-
-        <div style="border:1.5px solid #0369A1; background:#F0F9FF; border-radius:12px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:240px;">
-            <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0369A1; letter-spacing:0.5px; margin-bottom:4px;">
-              📶 2. Link Máy Chủ Nội Bộ Xưởng (Mạng LAN: ${primaryLan})
-            </div>
-            <div style="font-size:12.5px; color:#475569;">
-              Truyền trực tiếp file IGS 3D nặng tức thì qua Wi-Fi xưởng (cũng đăng nhập bằng Tài khoản &amp; Mật khẩu).
-            </div>
-          </div>
-          <button type="button" class="btn btn-soft btn-sm btn-copy-url" data-url="${primaryLan}" data-label="Link Mạng Nội Bộ" style="border-color:#0369A1; color:#0369A1; font-weight:700;">
-            📋 Copy Link LAN
-          </button>
-        </div>
-      `;
-
-      container.innerHTML = html;
-      container.querySelectorAll('.btn-copy-url').forEach(btn => {
-        btn.onclick = () => copyTextToClipboard(btn.getAttribute('data-url'), btn.getAttribute('data-label'));
-      });
-    }
-
-    function openCloudSyncModal() {
-      const modal = $('modalCloudSync');
-      if (!modal) return;
-      updateCloudUIState(state.cloudConnected ? 'connected' : 'error');
-      renderMultiDeviceModalContent();
-      modal.style.display = 'flex';
-    }
-
-    function closeCloudSyncModal() {
-      const modal = $('modalCloudSync');
-      if (modal) modal.style.display = 'none';
     }
 
     function ensureStockForProfile(prof) {
@@ -7230,16 +7075,7 @@
       // ==========================================
       // Project Management Event Listeners
       // ==========================================
-      // Cloud / Multi-Device Server Event Listeners
-      if ($('btnCloudSync')) $('btnCloudSync').onclick = openCloudSyncModal;
-      if ($('btnCloseCloudModal')) $('btnCloseCloudModal').onclick = closeCloudSyncModal;
-      if ($('btnCloseCloudSync')) $('btnCloseCloudSync').onclick = closeCloudSyncModal;
-      if ($('btnForceSyncServer')) {
-        $('btnForceSyncServer').onclick = async () => {
-          await pushStateToServer('manual_sync');
-          showToast('✓ Đã đồng bộ dữ liệu thành công với Máy chủ Xưởng!');
-        };
-      }
+      // Đồng bộ dữ liệu hoạt động tự động 100% trong nền (Realtime)
 
       // Header Top Action Buttons
       if ($('btnProjectsManager')) $('btnProjectsManager').onclick = openProjectsManagerModal;
