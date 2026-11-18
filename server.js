@@ -531,8 +531,11 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 6. Phục vụ các file tĩnh của Web App (index.html, toi-uu-engine.js, logo_an_binh.jpg...)
+  // 6. Phục vụ các file tĩnh của Web App (index.html, admin.html, toi-uu-engine.js, logo_an_binh.jpg...)
   let safePath = pathname === '/' ? '/index.html' : pathname;
+  if (safePath === '/admin' || safePath === '/admin/') {
+    safePath = '/admin.html';
+  }
   let fullPath = path.join(ROOT_DIR, safePath);
 
   // Ngăn chặn truy cập ngoài thư mục gốc
@@ -540,6 +543,12 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(403);
     res.end('Forbidden');
     return;
+  }
+
+  // Tự động tìm index.html nếu trỏ vào thư mục (ví dụ /admin/)
+  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
+    const indexPath = path.join(fullPath, 'index.html');
+    if (fs.existsSync(indexPath)) fullPath = indexPath;
   }
 
   if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {

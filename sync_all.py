@@ -7,6 +7,7 @@ dist_dir = os.path.join(toiuu_phoi_dir, 'dist')
 
 src_py = os.path.join(toiuu_phoi_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
 src_html = os.path.join(toiuu_phoi_dir, 'index.html')
+src_admin = os.path.join(toiuu_phoi_dir, 'admin.html')
 src_engine = os.path.join(toiuu_phoi_dir, 'toi-uu-engine.js')
 src_helper = os.path.join(toiuu_phoi_dir, 'run_engine_helper.js')
 src_logo = os.path.join(toiuu_phoi_dir, 'logo_an_binh.jpg')
@@ -15,7 +16,7 @@ src_cfg = os.path.join(toiuu_phoi_dir, 'workshop_config.json')
 src_manifest = os.path.join(toiuu_phoi_dir, 'manifest.json')
 src_sw = os.path.join(toiuu_phoi_dir, 'sw.js')
 
-all_web_assets = [src_html, src_engine, src_helper, src_logo, src_cfg, src_server, src_manifest, src_sw]
+all_web_assets = [src_html, src_admin, src_engine, src_helper, src_logo, src_cfg, src_server, src_manifest, src_sw]
 
 # 1. Đồng bộ script Python sang Fusion Script dir
 py_in_fusion = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
@@ -34,13 +35,22 @@ os.makedirs(fusion_workspace_dir, exist_ok=True)
 for f in all_web_assets + [src_py]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
+admin_in_fusion = os.path.join(fusion_workspace_dir, 'admin')
+os.makedirs(admin_in_fusion, exist_ok=True)
+admin_src_dir = os.path.join(toiuu_phoi_dir, 'admin', 'index.html')
+if os.path.exists(admin_src_dir):
+    shutil.copy2(admin_src_dir, os.path.join(admin_in_fusion, 'index.html'))
 print('Copied web assets to Fusion360/toiuu-phoi')
 
-# 4. Copy web assets to dist directory for Netlify deploy
+# 4. Copy web assets to dist directory for Netlify/GitHub Pages deploy
 os.makedirs(dist_dir, exist_ok=True)
-for f in [src_html, src_engine, src_logo, src_cfg, src_manifest, src_sw]:
+for f in [src_html, src_admin, src_engine, src_logo, src_cfg, src_manifest, src_sw]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(dist_dir, os.path.basename(f)))
+dist_admin = os.path.join(dist_dir, 'admin')
+os.makedirs(dist_admin, exist_ok=True)
+if os.path.exists(admin_src_dir):
+    shutil.copy2(admin_src_dir, os.path.join(dist_admin, 'index.html'))
 print('Copied web assets to dist dir')
 
 # 5. Update export folders on Desktop if they exist
