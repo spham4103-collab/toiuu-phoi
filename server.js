@@ -249,10 +249,11 @@ function startPublicCloudTunnel() {
       : 'ssh';
 
     const tunnel = spawn(sshCmd, [
+      '-T',
       '-o', 'StrictHostKeyChecking=no',
       '-o', 'ServerAliveInterval=30',
       '-o', 'ExitOnForwardFailure=yes',
-      '-R', `80:localhost:${PORT}`,
+      '-R', `80:127.0.0.1:${PORT}`,
       'nokey@localhost.run'
     ], { windowsHide: true });
 
@@ -519,7 +520,7 @@ setInterval(() => {
   }
 }, 20000);
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   const lanList = getLanAddresses();
   console.log('====================================================================');
   console.log(' 🚀 MÁY CHỦ WEB TỐI ƯU XẾP PHÔI AN BÌNH ĐÃ KHỞI ĐỘNG THÀNH CÔNG!');
