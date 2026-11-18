@@ -2574,8 +2574,11 @@
     }
 
     // ==========================================
-    // Full-Stack Server & Realtime Multi-Device Sync Engine
+    // 24/7 Global Cloud Sync + Local Workshop Server Engine
+    // (Hoạt động 24/7 kể cả khi tắt nguồn máy tính cá nhân & đồng bộ từ mọi máy chạy Fusion 360)
     // ==========================================
+    const GLOBAL_CLOUD_TOPIC = 'toiuu_phoi_anbinh_cloud_v2';
+    const GLOBAL_CLOUD_URL = `https://ntfy.sh/${GLOBAL_CLOUD_TOPIC}`;
     const SERVER_API_BASE = window.location.protocol.startsWith('http')
       ? window.location.origin
       : 'http://localhost:3000';
@@ -2585,10 +2588,26 @@
     state.serverPublicUrl = null;
     state.clientsCount = 1;
     let serverSyncTimeout = null;
+    let cloudSyncTimeout = null;
     let sseSource = null;
+    let cloudSseSource = null;
 
-    function getActiveProjectSnapshot() {
-      return {
+    // Loại bỏ chuỗi igs_content nặng khi đồng bộ lên Cloud 24/7 (giữ nguyên cấu trúc pieces để trình duyệt tự xuất 3D .IGS mọi nơi)
+    function stripHeavyIgsForCloud(projObj) {
+      if (!projObj) return projObj;
+      const clone = JSON.parse(JSON.stringify(projObj));
+      const cleanFusion = (fp) => {
+        if (fp && Array.isArray(fp.nested_bars)) {
+          fp.nested_bars.forEach(b => { delete b.igs_content; });
+        }
+      };
+      if (clone.fusionProject) cleanFusion(clone.fusionProject);
+      if (clone.data && clone.data.fusionProject) cleanFusion(clone.data.fusionProject);
+      return clone;
+    }
+
+    function getActiveProjectSnapshot(forCloud = false) {
+      const snap = {
         currentProjectId: state.currentProjectId,
         currentProjectName: state.currentProjectName,
         currentProjectCustomer: state.currentProjectCustomer,
@@ -2604,6 +2623,7 @@
         gap: state.gap,
         fusionProject: state.fusionProject
       };
+      return forCloud ? stripHeavyIgsForCloud(snap) : snap;
     }
 
     function scheduleSyncToServer(actionName = 'sync') {
@@ -2612,6 +2632,106 @@
       serverSyncTimeout = setTimeout(() => {
         pushStateToServer(actionName);
       }, 150);
+
+      // Đồng bộ lên Đám mây Quốc tế 24/7 (debounce 600ms để mượt mà)
+      clearTimeout(cloudSyncTimeout);
+      cloudSyncTimeout = setTimeout(() => {
+        pushStateToGlobalCloud(actionName);
+      }, 600);
+    }
+
+    async function pushStateToGlobalCloud(actionName = 'sync') {
+      if (state.isApplyingRemoteChange) return;
+      try {
+        const cloudPayload = {
+          senderId: state.clientId,
+          action: actionName,
+          updatedAt: new Date().toISOString(),
+          savedProfiles: state.savedProfiles,
+          savedProjects: (state.savedProjects || []).map(p => stripHeavyIgsForCloud(p)),
+          activeProject: getActiveProjectSnapshot(true)
+        };
+        const res = await fetch(GLOBAL_CLOUD_URL, {
+          method: 'PUT',
+          headers: {
+            'Filename': 'workshop_db.json',
+            'Title': `AnBinh Sync (${actionName})`
+          },
+          body: JSON.stringify(cloudPayload)
+        });
+        if (res.ok && !state.cloudConnected) {
+          state.cloudConnected = true;
+          updateCloudUIState('connected');
+        }
+      } catch (e) {}
+    }
+
+    async function pullLatestFromGlobalCloud() {
+      try {
+        const pollRes = await fetch(`${GLOBAL_CLOUD_URL}/json?poll=1`);
+        if (!pollRes.ok) return;
+        const text = await pollRes.text();
+        const lines = text.trim().split('\n').filter(Boolean);
+        let latestMsg = null;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const parsed = JSON.parse(lines[i]);
+            if (parsed.event === 'message' && (parsed.attachment || parsed.message)) {
+              latestMsg = parsed;
+              break;
+            }
+          } catch (e) {}
+        }
+        if (!latestMsg) return;
+
+        let cloudDb = null;
+        if (latestMsg.attachment && latestMsg.attachment.url) {
+          const attRes = await fetch(latestMsg.attachment.url);
+          if (attRes.ok) cloudDb = await attRes.json();
+        } else if (latestMsg.message && latestMsg.message.startsWith('{')) {
+          cloudDb = JSON.parse(latestMsg.message);
+        }
+
+        if (cloudDb && (cloudDb.activeProject || cloudDb.savedProjects)) {
+          applyRemoteDbState(cloudDb, true);
+          state.cloudConnected = true;
+          updateCloudUIState('connected');
+        }
+      } catch (e) {}
+    }
+
+    function connectGlobalCloudStream() {
+      if (cloudSseSource) {
+        try { cloudSseSource.close(); } catch (e) {}
+      }
+      try {
+        cloudSseSource = new EventSource(`${GLOBAL_CLOUD_URL}/sse`);
+        cloudSseSource.onopen = () => {
+          state.cloudConnected = true;
+          updateCloudUIState('connected');
+        };
+        cloudSseSource.onmessage = async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.event !== 'message') return;
+            let cloudDb = null;
+            if (data.attachment && data.attachment.url) {
+              const attRes = await fetch(data.attachment.url);
+              if (attRes.ok) cloudDb = await attRes.json();
+            } else if (data.message && data.message.startsWith('{')) {
+              cloudDb = JSON.parse(data.message);
+            }
+            if (cloudDb && cloudDb.senderId !== state.clientId) {
+              applyRemoteDbState(cloudDb, false);
+              if (cloudDb.action === 'fusion_import') {
+                showToast(`🚀 Đã nhận bản vẽ mới "${cloudDb.projectName || ''}" từ Fusion 360 qua Đám mây 24/7!`);
+              } else if (cloudDb.action === 'save_project') {
+                showToast('🔔 Đã đồng bộ dự án mới từ Đám mây 24/7!');
+              }
+            }
+          } catch (e) {}
+        };
+      } catch (e) {}
     }
 
     async function pushStateToServer(actionName = 'sync') {
@@ -2710,6 +2830,10 @@
 
     function initCloudSyncSystem() {
       updateCloudUIState('syncing');
+      // 1. Kết nối ngay với Đám mây Quốc tế 24/7 (Hoạt động kể cả khi máy tính tắt nguồn!)
+      pullLatestFromGlobalCloud();
+      connectGlobalCloudStream();
+      // 2. Kết nối thêm với Máy chủ Nội bộ nếu đang bật
       connectServerEventStream();
     }
 
@@ -2736,7 +2860,6 @@
               if (msg.db && ((msg.db.activeProject && msg.db.activeProject.parts && msg.db.activeProject.parts.length) || (msg.db.savedProjects && msg.db.savedProjects.length))) {
                 applyRemoteDbState(msg.db, true);
               } else {
-                // Nếu máy chủ chưa có dữ liệu, đẩy dữ liệu hiện tại của trình duyệt lên máy chủ
                 pushStateToServer('initial_seed');
               }
             } else if (msg.type === 'state_updated') {
@@ -2760,14 +2883,14 @@
         };
 
         sseSource.onerror = () => {
-          state.cloudConnected = false;
-          updateCloudUIState('error', 'Đang tự động kết nối lại với Máy chủ Xưởng (port 3000)...');
           try { sseSource.close(); } catch (e) {}
-          setTimeout(connectServerEventStream, 4000);
+          // Nếu máy tính cá nhân tắt nguồn, vẫn duy trì kết nối qua Đám mây Quốc tế 24/7!
+          if (cloudSseSource && cloudSseSource.readyState === 1) {
+            state.cloudConnected = true;
+            updateCloudUIState('connected', 'Đang đồng bộ trực tiếp qua Đám mây Quốc tế 24/7 (Hoạt động độc lập kể cả khi tắt máy tính).');
+          }
         };
-      } catch (err) {
-        updateCloudUIState('error');
-      }
+      } catch (err) {}
     }
 
     function updateCloudUIState(status, detailText = '') {

@@ -965,6 +965,99 @@ def run(context):
         except Exception:
             pushed_to_server = False
 
+        # 6B. Bắn dữ liệu trực tiếp lên ĐÁM MÂY QUỐC TẾ 24/7 (https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2)
+        # Giúp mọi máy tính khác chạy Script đều đẩy chung về 1 kho dữ liệu 24/7 và hoạt động kể cả khi tắt máy tính!
+        try:
+            active_profs = list(parts_by_prof.keys())
+            cloud_parts = []
+            for idx, p in enumerate(parts_list):
+                cloud_parts.append({
+                    'id': f"p_f360_{int(time.time()*1000)}_{idx}",
+                    'name': p['name'],
+                    'profile': p['profile'],
+                    'length': p['length'],
+                    'qty': p['qty'],
+                    'style': p['style'],
+                    'mat': p['mat'],
+                    '_autoDetected': True
+                })
+            cloud_stock = []
+            for idx, prof in enumerate(active_profs):
+                cloud_stock.append({
+                    'id': f"s_f360_{int(time.time()*1000)}_{idx}",
+                    'profile': prof,
+                    'name': f"Cây mới 6.000 ({prof})",
+                    'length': stock_len,
+                    'qty': None,
+                    'clamp': clamp_len
+                })
+            light_bars = []
+            for b in bar_exports:
+                light_bars.append({
+                    'name': b['name'],
+                    'profile': b['profile'],
+                    'letter': b['letter'],
+                    'count': b.get('bar_count', 1),
+                    'cuts_count': b.get('cuts_count', 0),
+                    'pieces': b.get('pieces', [])
+                })
+            now_iso = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+            proj_data_obj = {
+                'activeProfiles': active_profs,
+                'selectedTabProfile': active_profs[0] if active_profs else 'Hộp 30x30x1.8',
+                'parts': cloud_parts,
+                'stock': cloud_stock,
+                'method': 'cnc',
+                'kerf': kerf,
+                'clamp': clamp_len,
+                'interlock': True,
+                'gap': 0,
+                'fusionProject': {
+                    'project_name': doc.name,
+                    'stock_length': stock_len,
+                    'clamp_tail': clamp_len,
+                    'kerf': kerf,
+                    'nested_bars': light_bars
+                }
+            }
+            new_proj_id = f"proj_f360_{int(time.time()*1000)}"
+            cloud_proj_entry = {
+                'id': new_proj_id,
+                'name': doc.name,
+                'customer': 'Fusion 360 CAD',
+                'notes': f"Đồng bộ tự động từ Fusion 360 ({len(cloud_parts)} mục, {len(active_profs)} loại hộp)",
+                'createdAt': now_iso,
+                'updatedAt': now_iso,
+                'data': proj_data_obj
+            }
+            cloud_envelope = {
+                'senderId': 'fusion360_addin',
+                'action': 'fusion_import',
+                'projectName': doc.name,
+                'updatedAt': now_iso,
+                'savedProjects': [cloud_proj_entry],
+                'activeProject': {
+                    'currentProjectId': new_proj_id,
+                    'currentProjectName': doc.name,
+                    'currentProjectCustomer': 'Fusion 360 CAD',
+                    'currentProjectNotes': cloud_proj_entry['notes'],
+                    **proj_data_obj
+                }
+            }
+            cloud_bytes = json.dumps(cloud_envelope, ensure_ascii=False).encode('utf-8')
+            req_cloud = urllib.request.Request(
+                "https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2",
+                data=cloud_bytes,
+                headers={
+                    'Filename': 'workshop_db.json',
+                    'Title': 'Fusion 360 Sync'
+                },
+                method='PUT'
+            )
+            urllib.request.urlopen(req_cloud, timeout=8).close()
+        except Exception:
+            pass
+
         if pushed_to_server:
             target_web_url = server_url
         else:

@@ -1,6 +1,6 @@
 {
   "workspaceId": "ANBINH",
-  "updatedAt": "2026-11-18T07:06:47.066Z",
+  "updatedAt": "2026-11-18T07:19:55.217Z",
   "savedProfiles": [
     "Hộp 20x20x1.4",
     "Hộp 25x25x1.4",
@@ -14,278 +14,22 @@
     "Ống Ø27x1.4",
     "Ống Ø34x1.4"
   ],
-  "savedProjects": [
-    {
-      "id": "proj_f360_1794985588448",
-      "name": "Bàn thao tác",
-      "customer": "Medikit",
-      "notes": "Tự động đồng bộ từ Fusion 360 (11 mục, 1 loại hộp)",
-      "createdAt": "2026-11-18T07:06:28.448Z",
-      "updatedAt": "2026-11-18T07:06:46.913Z",
-      "data": {
-        "activeProfiles": [
-          "Hộp 30x30x1.8"
-        ],
-        "selectedTabProfile": "Hộp 30x30x1.8",
-        "parts": [
-          {
-            "id": "p_f360_1794985588443_0",
-            "name": "Hộp 30x30x1.8 L835 Ke1 SL 2",
-            "profile": "Hộp 30x30x1.8",
-            "length": 835,
-            "qty": 2,
-            "style": "ke1",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_1",
-            "name": "Hộp 30x30x1.8 L640 SL 4",
-            "profile": "Hộp 30x30x1.8",
-            "length": 640,
-            "qty": 4,
-            "style": "thang",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_2",
-            "name": "Hộp 30x30x1.8 L1100 lỗ thoát Ke SL 1",
-            "profile": "Hộp 30x30x1.8",
-            "length": 1100,
-            "qty": 1,
-            "style": "ke",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_3",
-            "name": "Hộp 30x30x1.8 L1040 SL 1",
-            "profile": "Hộp 30x30x1.8",
-            "length": 1040,
-            "qty": 1,
-            "style": "thang",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_4",
-            "name": "Hộp 30x30x1.8 L1040 lỗ thoát SL 2",
-            "profile": "Hộp 30x30x1.8",
-            "length": 1040,
-            "qty": 2,
-            "style": "thang",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_5",
-            "name": "Hộp 30x30x1.8 L1100 lỗ ren Ke SL 1",
-            "profile": "Hộp 30x30x1.8",
-            "length": 1100,
-            "qty": 1,
-            "style": "ke",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_6",
-            "name": "Hộp 30x30x1.8 L835 lỗ ren Ke1 SL 1",
-            "profile": "Hộp 30x30x1.8",
-            "length": 835,
-            "qty": 1,
-            "style": "ke1",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_7",
-            "name": "Hộp 30x30x1.8 L640 lỗ ren SL 2",
-            "profile": "Hộp 30x30x1.8",
-            "length": 640,
-            "qty": 2,
-            "style": "thang",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_8",
-            "name": "Hộp 30x30x1.8 L453 SL 1",
-            "profile": "Hộp 30x30x1.8",
-            "length": 453,
-            "qty": 1,
-            "style": "thang",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_9",
-            "name": "Hộp 30x30x1.8 L835 lỗ ren(Mirror) Ke1 SL 1",
-            "profile": "Hộp 30x30x1.8",
-            "length": 835,
-            "qty": 1,
-            "style": "ke1",
-            "mat": 30,
-            "_autoDetected": true
-          },
-          {
-            "id": "p_f360_1794985588443_10",
-            "name": "Hộp 30x30x1.8 L640 lỗ ren (1) SL 2",
-            "profile": "Hộp 30x30x1.8",
-            "length": 640,
-            "qty": 2,
-            "style": "thang",
-            "mat": 30,
-            "_autoDetected": true
-          }
-        ],
-        "stock": [
-          {
-            "id": "s_f360_1794985588443_0",
-            "profile": "Hộp 30x30x1.8",
-            "name": "Cây mới 6.000 (Hộp 30x30x1.8)",
-            "length": 6000,
-            "qty": null,
-            "clamp": 80
-          }
-        ],
-        "method": "cnc",
-        "kerf": 0,
-        "clamp": 80,
-        "interlock": true,
-        "gap": 0,
-        "fusionProject": {
-          "project_name": "Bàn thao tác",
-          "export_dir": "C:/Users/Administrator/Desktop/TEST/Bàn thao tác",
-          "stock_length": 6000,
-          "clamp_tail": 80,
-          "kerf": 0,
-          "nested_bars": [
-            {
-              "name": "Cay_A_Hộp_30x30x1.8_L6000_SL_1",
-              "profile": "Hộp 30x30x1.8",
-              "letter": "A",
-              "count": 1,
-              "cuts_count": 7,
-              "pieces": [],
-              "igs_url": "/api/igs/Cay_A_H%E1%BB%99p_30x30x1.8_L6000_SL_1.igs"
-            },
-            {
-              "name": "Cay_B_Hộp_30x30x1.8_L6000_SL_1",
-              "profile": "Hộp 30x30x1.8",
-              "letter": "B",
-              "count": 1,
-              "cuts_count": 4,
-              "pieces": [],
-              "igs_url": "/api/igs/Cay_B_H%E1%BB%99p_30x30x1.8_L6000_SL_1.igs"
-            },
-            {
-              "name": "Cay_C_Hộp_30x30x1.8_L6000_SL_1",
-              "profile": "Hộp 30x30x1.8",
-              "letter": "C",
-              "count": 1,
-              "cuts_count": 7,
-              "pieces": [],
-              "igs_url": "/api/igs/Cay_C_H%E1%BB%99p_30x30x1.8_L6000_SL_1.igs"
-            }
-          ]
-        }
-      }
-    }
-  ],
+  "savedProjects": [],
   "activeProject": {
-    "currentProjectId": "proj_f360_1794985588448",
-    "currentProjectName": "Bàn thao tác",
-    "currentProjectCustomer": "Medikit",
-    "currentProjectNotes": "Tự động đồng bộ từ Fusion 360 (11 mục, 1 loại hộp)",
+    "currentProjectId": null,
+    "currentProjectName": "",
+    "currentProjectCustomer": "",
+    "currentProjectNotes": "",
     "activeProfiles": [
-      "Hộp 30x30x1.8"
+      "Hộp 50x50x2.0",
+      "Hộp 30x30x1.8",
+      "Hộp 20x40x1.4"
     ],
-    "selectedTabProfile": "Hộp 30x30x1.8",
+    "selectedTabProfile": "ALL",
     "parts": [
       {
-        "id": "p_f360_1794985588443_0",
-        "name": "Hộp 30x30x1.8 L835 Ke1 SL 2",
-        "profile": "Hộp 30x30x1.8",
-        "length": 835,
-        "qty": 2,
-        "style": "ke1",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_1",
-        "name": "Hộp 30x30x1.8 L640 SL 4",
-        "profile": "Hộp 30x30x1.8",
-        "length": 640,
-        "qty": 4,
-        "style": "thang",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_2",
-        "name": "Hộp 30x30x1.8 L1100 lỗ thoát Ke SL 1",
-        "profile": "Hộp 30x30x1.8",
-        "length": 1100,
-        "qty": 1,
-        "style": "ke",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_3",
-        "name": "Hộp 30x30x1.8 L1040 SL 1",
-        "profile": "Hộp 30x30x1.8",
-        "length": 1040,
-        "qty": 1,
-        "style": "thang",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_4",
-        "name": "Hộp 30x30x1.8 L1040 lỗ thoát SL 2",
-        "profile": "Hộp 30x30x1.8",
-        "length": 1040,
-        "qty": 2,
-        "style": "thang",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_5",
-        "name": "Hộp 30x30x1.8 L1100 lỗ ren Ke SL 1",
-        "profile": "Hộp 30x30x1.8",
-        "length": 1100,
-        "qty": 1,
-        "style": "ke",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_6",
-        "name": "Hộp 30x30x1.8 L835 lỗ ren Ke1 SL 1",
-        "profile": "Hộp 30x30x1.8",
-        "length": 835,
-        "qty": 1,
-        "style": "ke1",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_7",
-        "name": "Hộp 30x30x1.8 L640 lỗ ren SL 2",
-        "profile": "Hộp 30x30x1.8",
-        "length": 640,
-        "qty": 2,
-        "style": "thang",
-        "mat": 30,
-        "_autoDetected": true
-      },
-      {
-        "id": "p_f360_1794985588443_8",
-        "name": "Hộp 30x30x1.8 L453 SL 1",
+        "id": "p_igs_1794986326521_0",
+        "name": "Hộp 30x30x1.8 L453",
         "profile": "Hộp 30x30x1.8",
         "length": 453,
         "qty": 1,
@@ -294,8 +38,48 @@
         "_autoDetected": true
       },
       {
-        "id": "p_f360_1794985588443_9",
-        "name": "Hộp 30x30x1.8 L835 lỗ ren(Mirror) Ke1 SL 1",
+        "id": "p_igs_1794986326521_1",
+        "name": "Hộp 30x30x1.8 L1040",
+        "profile": "Hộp 30x30x1.8",
+        "length": 1040,
+        "qty": 1,
+        "style": "thang",
+        "mat": 30,
+        "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_2",
+        "name": "Hộp 30x30x1.8 L835",
+        "profile": "Hộp 30x30x1.8",
+        "length": 835,
+        "qty": 2,
+        "style": "ke1",
+        "mat": 30,
+        "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_3",
+        "name": "Hộp 30x30x1.8 L640",
+        "profile": "Hộp 30x30x1.8",
+        "length": 640,
+        "qty": 4,
+        "style": "thang",
+        "mat": 30,
+        "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_4",
+        "name": "Hộp 30x30x1.8 L1100 lỗ thoát",
+        "profile": "Hộp 30x30x1.8",
+        "length": 1100,
+        "qty": 1,
+        "style": "ke",
+        "mat": 30,
+        "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_5",
+        "name": "Hộp 30x30x1.8 L835 lỗ ren(Mirror)",
         "profile": "Hộp 30x30x1.8",
         "length": 835,
         "qty": 1,
@@ -304,21 +88,69 @@
         "_autoDetected": true
       },
       {
-        "id": "p_f360_1794985588443_10",
-        "name": "Hộp 30x30x1.8 L640 lỗ ren (1) SL 2",
+        "id": "p_igs_1794986326521_6",
+        "name": "Hộp 30x30x1.8 L835 lỗ ren",
+        "profile": "Hộp 30x30x1.8",
+        "length": 835,
+        "qty": 1,
+        "style": "ke1",
+        "mat": 30,
+        "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_7",
+        "name": "Hộp 30x30x1.8 L640 lỗ ren (1)",
         "profile": "Hộp 30x30x1.8",
         "length": 640,
         "qty": 2,
         "style": "thang",
         "mat": 30,
         "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_8",
+        "name": "Hộp 30x30x1.8 L640 lỗ ren",
+        "profile": "Hộp 30x30x1.8",
+        "length": 640,
+        "qty": 2,
+        "style": "thang",
+        "mat": 30,
+        "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_9",
+        "name": "Hộp 30x30x1.8 L1040 lỗ thoát",
+        "profile": "Hộp 30x30x1.8",
+        "length": 1040,
+        "qty": 2,
+        "style": "thang",
+        "mat": 30,
+        "_autoDetected": true
+      },
+      {
+        "id": "p_igs_1794986326521_10",
+        "name": "Hộp 30x30x1.8 L1100 lỗ ren",
+        "profile": "Hộp 30x30x1.8",
+        "length": 1100,
+        "qty": 1,
+        "style": "ke",
+        "mat": 30,
+        "_autoDetected": true
       }
     ],
     "stock": [
       {
-        "id": "s_f360_1794985588443_0",
+        "id": "s_1794986361304",
+        "profile": "Hộp 50x50x2.0",
+        "name": "Cây tồn (Hộp 30x30x1.8)",
+        "length": 3000,
+        "qty": 10,
+        "clamp": 80
+      },
+      {
+        "id": "s_auto_17949863940580.010858435658080312",
         "profile": "Hộp 30x30x1.8",
-        "name": "Cây mới 6.000 (Hộp 30x30x1.8)",
+        "name": "Cây mới 6m (Hộp 30x30x1.8)",
         "length": 6000,
         "qty": null,
         "clamp": 80
@@ -329,41 +161,6 @@
     "clamp": 80,
     "interlock": true,
     "gap": 0,
-    "fusionProject": {
-      "project_name": "Bàn thao tác",
-      "export_dir": "C:/Users/Administrator/Desktop/TEST/Bàn thao tác",
-      "stock_length": 6000,
-      "clamp_tail": 80,
-      "kerf": 0,
-      "nested_bars": [
-        {
-          "name": "Cay_A_Hộp_30x30x1.8_L6000_SL_1",
-          "profile": "Hộp 30x30x1.8",
-          "letter": "A",
-          "count": 1,
-          "cuts_count": 7,
-          "pieces": [],
-          "igs_url": "/api/igs/Cay_A_H%E1%BB%99p_30x30x1.8_L6000_SL_1.igs"
-        },
-        {
-          "name": "Cay_B_Hộp_30x30x1.8_L6000_SL_1",
-          "profile": "Hộp 30x30x1.8",
-          "letter": "B",
-          "count": 1,
-          "cuts_count": 4,
-          "pieces": [],
-          "igs_url": "/api/igs/Cay_B_H%E1%BB%99p_30x30x1.8_L6000_SL_1.igs"
-        },
-        {
-          "name": "Cay_C_Hộp_30x30x1.8_L6000_SL_1",
-          "profile": "Hộp 30x30x1.8",
-          "letter": "C",
-          "count": 1,
-          "cuts_count": 7,
-          "pieces": [],
-          "igs_url": "/api/igs/Cay_C_H%E1%BB%99p_30x30x1.8_L6000_SL_1.igs"
-        }
-      ]
-    }
+    "fusionProject": null
   }
 }
