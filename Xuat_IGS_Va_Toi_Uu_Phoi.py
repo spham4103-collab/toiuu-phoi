@@ -859,12 +859,12 @@ def run(context):
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(payload_data, f, indent=2, ensure_ascii=False)
 
-        # 6. Tìm nguồn Web App (thư mục script, toiuu-phoi hoặc link online)
+        # 6. Tự động khởi động Máy Chủ Web (server.js) và đẩy dữ liệu trực tiếp qua HTTP API
         script_dir = os.path.dirname(__file__)
         candidate_web_dirs = [
-            script_dir,
             'C:/Users/Administrator/toiuu-phoi',
-            'C:/Users/Administrator/Fusion360/toiuu-phoi'
+            'C:/Users/Administrator/Fusion360/toiuu-phoi',
+            script_dir
         ]
 
         found_web_dir = None
@@ -873,9 +873,7 @@ def run(context):
                 found_web_dir = os.path.abspath(cdir)
                 break
 
-        online_url = "https://anbinh-toiuu.netlify.app"
-        target_web_url = online_url
-
+        # Vẫn lưu bản sao file HTML dự phòng vào thư mục xuất
         if found_web_dir:
             try:
                 for fname in ['index.html', 'logo_an_binh.jpg', 'toi-uu-engine.js', 'run_engine_helper.js', 'workshop_config.json']:
@@ -884,33 +882,13 @@ def run(context):
                     if os.path.exists(src_f) and (not os.path.exists(dst_f) or os.path.abspath(src_f) != os.path.abspath(dst_f)):
                         shutil.copy2(src_f, dst_f)
 
-                # Đồng bộ cập nhật thẳng vào thư mục Web App chính (C:/Users/Administrator/toiuu-phoi)
-                main_web_dir = 'C:/Users/Administrator/toiuu-phoi'
-                if os.path.exists(main_web_dir):
-                    try:
-                        with open(os.path.join(main_web_dir, 'fusion_exported_project.json'), 'w', encoding='utf-8') as f:
-                            json.dump(payload_data, f, ensure_ascii=False, indent=2)
-                        main_idx_path = os.path.join(main_web_dir, 'index.html')
-                        if os.path.exists(main_idx_path):
-                            with open(main_idx_path, 'r', encoding='utf-8') as f:
-                                m_html = f.read()
-                            embed_tag = f'<script id="embeddedFusionData" type="application/json">{json.dumps(payload_data, ensure_ascii=False)}</script>'
-                            if '<script id="embeddedFusionData"' in m_html:
-                                m_html = re.sub(r'<script id="embeddedFusionData"[^>]*>.*?</script>', lambda m: embed_tag, m_html, flags=re.DOTALL)
-                                with open(main_idx_path, 'w', encoding='utf-8') as f:
-                                    f.write(m_html)
-                    except Exception:
-                        pass
-
                 idx_export_path = os.path.join(export_dir, 'index.html')
                 if os.path.exists(idx_export_path):
                     with open(idx_export_path, 'r', encoding='utf-8') as f:
                         html_content = f.read()
-
                     json_str = json.dumps(payload_data, ensure_ascii=False)
                     embed_tag = f'<script id="embeddedFusionData" type="application/json">{json_str}</script>'
                     if '<script id="embeddedFusionData"' in html_content:
-                        # Dùng lambda để re.sub không biến đổi ký tự '\' trong chuỗi JSON
                         html_content = re.sub(
                             r'<script id="embeddedFusionData"[^>]*>.*?</script>',
                             lambda m: embed_tag,
@@ -919,39 +897,96 @@ def run(context):
                         )
                     else:
                         html_content = html_content.replace('</head>', f'{embed_tag}\n</head>')
-
-                    # Nhúng sẵn Mã Xưởng ANBINH để khi mở trang là tự kết nối đồng bộ ngay lập tức
-                    if '<script id="embeddedWorkshopConfig"' not in html_content:
-                        ws_tag = '<script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>'
-                        html_content = html_content.replace('</head>', f'{ws_tag}\n</head>')
-
                     with open(idx_export_path, 'w', encoding='utf-8') as f:
                         f.write(html_content)
+            except Exception:
+                pass
 
-                    target_web_url = 'file:///' + idx_export_path.replace('\\', '/')
-            except Exception as e:
-                target_web_url = 'file:///' + os.path.join(found_web_dir, 'index.html').replace('\\', '/') + '?src=fusion'
+        # Đảm bảo Máy chủ Web Full-Stack (port 3000) đang chạy và đẩy dữ liệu lên API
+        import urllib.request
+        import time
+        server_url = "http://localhost:3000"
+        lan_url_display = server_url
+        pushed_to_server = False
 
-        # 7. Mở trình duyệt Web
+        def is_server_alive():
+            try:
+                req = urllib.request.Request(f"{server_url}/api/info", method='GET')
+                with urllib.request.urlopen(req, timeout=1.5) as resp:
+                    return resp.status == 200
+            except Exception:
+                return False
+
+        if not is_server_alive():
+            # Tự động bật server.js trong nền
+            node_exe = shutil.which('node')
+            if not node_exe:
+                for c_node in [r'C:\Program Files\nodejs\node.exe', r'C:\Program Files (x86)\nodejs\node.exe']:
+                    if os.path.exists(c_node):
+                        node_exe = c_node
+                        break
+            server_js = 'C:/Users/Administrator/toiuu-phoi/server.js'
+            if not os.path.exists(server_js) and found_web_dir:
+                server_js = os.path.join(found_web_dir, 'server.js')
+
+            if node_exe and os.path.exists(server_js):
+                try:
+                    creationflags = 0x08000000 if os.name == 'nt' else 0  # CREATE_NO_WINDOW
+                    subprocess.Popen(
+                        [node_exe, server_js],
+                        cwd=os.path.dirname(server_js),
+                        creationflags=creationflags,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    for _ in range(10):
+                        time.sleep(0.3)
+                        if is_server_alive():
+                            break
+                except Exception:
+                    pass
+
+        # Bắn dữ liệu bản vẽ trực tiếp lên Máy chủ Web qua POST /api/fusion-import
+        try:
+            post_bytes = json.dumps(payload_data, ensure_ascii=False).encode('utf-8')
+            req = urllib.request.Request(
+                f"{server_url}/api/fusion-import",
+                data=post_bytes,
+                headers={'Content-Type': 'application/json; charset=utf-8'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp_data = json.loads(resp.read().decode('utf-8'))
+                if resp_data.get('success'):
+                    pushed_to_server = True
+                    lan_list = resp_data.get('lanUrls') or []
+                    if len(lan_list) > 0 and lan_list[0].get('url'):
+                        lan_url_display = lan_list[0]['url']
+        except Exception:
+            pushed_to_server = False
+
+        if pushed_to_server:
+            target_web_url = server_url
+        else:
+            target_web_url = 'file:///' + os.path.join(export_dir, 'index.html').replace('\\', '/')
+
+        # 7. Mở trình duyệt Web App chính thức
         webbrowser.open(target_web_url)
 
         # 8. Hiển thị thông báo kết quả chi tiết
         prof_names_str = ", ".join(parts_by_prof.keys())
-        msg = f"✓ ĐÃ BÓC TÁCH & XUẤT ĐẦY ĐỦ TẤT CẢ FILE .IGS: {doc.name}\n\n"
+        msg = f"✓ ĐÃ ĐỒNG BỘ LÊN WEB SERVER & XUẤT FILE .IGS: {doc.name}\n\n"
         msg += f"• Các loại hộp phát hiện ({len(parts_by_prof)} loại): {prof_names_str}\n"
         msg += f"• Tổng số chi tiết bản vẽ: {total_tubes_count} thanh\n\n"
         msg += f"★ CÁC CÂY GHÉP 6M (LIỀN MẠCH - KHÍT MÒI 100%): {len(bar_exports)} file .IGS\n"
         for be in bar_exports:
             msg += f"   ➔ {be['name']}.igs ({be['profile']} · Ghép {be['cuts_count']} ct · SL: {be['bar_count']} cây)\n"
-        msg += f"\n★ CÁC CHI TIẾT LẺ THEO SỐ LƯỢNG: {len(parts_list)} file .IGS\n"
-        for p in parts_list[:8]:
-            msg += f"   • {p['name']}.igs\n"
-        if len(parts_list) > 8:
-            msg += f"   • ... và {len(parts_list) - 8} chi tiết khác\n"
-        msg += f"\n📂 Thư mục lưu file: {export_dir}\n"
-        msg += "\n✓ Đã mở bảng Tối Ưu Xếp Phôi trên trình duyệt!"
+        msg += f"\n🌐 ĐÃ ĐỒNG BỘ TRỰC TIẾP LÊN MÁY CHỦ WEB ĐA THIẾT BỊ:\n"
+        msg += f"   • Trên máy tính này: {server_url}\n"
+        msg += f"   • Trên Điện thoại / Máy CNC (Wi-Fi Xưởng): {lan_url_display}\n"
+        msg += f"\n📂 Thư mục lưu file .IGS: {export_dir}"
 
-        ui.messageBox(msg, 'An Bình - Xuất Đầy Đủ File IGS')
+        ui.messageBox(msg, 'An Bình - Đồng Bộ Web Server & Xuất IGS')
 
     except:
         if ui:

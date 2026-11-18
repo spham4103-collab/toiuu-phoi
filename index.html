@@ -9,9 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="toi-uu-engine.js"></script>
-  <!-- Google Firebase Realtime Cloud SDK (Compat v10) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script id="embeddedFusionData" type="application/json"></script>
   <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
   <style>
@@ -1571,74 +1568,47 @@
     </div>
   </div>
 
-  <!-- Modal Đồng Bộ Đám Mây Đa Thiết Bị / Mã Xưởng -->
+  <!-- Modal Trung Tâm Kết Nối Đa Thiết Bị & Máy Chủ Xưởng -->
   <div class="modal-backdrop" id="modalCloudSync" style="display: none;">
-    <div class="modal-box" style="max-width: 580px;">
+    <div class="modal-box" style="max-width: 620px;">
       <div class="modal-head">
         <div style="display:flex; align-items:center; gap:10px;">
           <svg style="width:24px; height:24px; stroke:var(--p); fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-          <h3 style="margin:0; font-size:18px;">Đồng Bộ Đám Mây - Mã Xưởng</h3>
+          <h3 style="margin:0; font-size:18px;">Trung Tâm Kết Nối Đa Thiết Bị &amp; Máy Chủ Xưởng</h3>
         </div>
         <button class="modal-close" id="btnCloseCloudModal">&times;</button>
       </div>
 
-      <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px 16px; margin: 12px 0; font-size:13.5px; color:#166534; line-height:1.5;">
-        <strong>💡 Tự động thông dữ liệu 100%:</strong> Nhập cùng một <strong>Mã Xưởng</strong> trên mọi thiết bị (máy văn phòng chạy Fusion 360, điện thoại, máy tính thợ xưởng). Khi một máy lưu dự án, tất cả các máy khác sẽ nhận được ngay tức thì theo thời gian thực!
+      <!-- Trạng thái kết nối Máy chủ -->
+      <div id="cloudStatusCard" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px 16px; margin: 12px 0; font-size:13.5px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+          <span style="font-weight:700; color:#0F766E;">Trạng thái Hệ thống Máy chủ (Full-Stack Server):</span>
+          <span id="cloudStatusBadge" style="font-weight:700; padding:3px 10px; border-radius:12px; font-size:12px; background:#DCFCE7; color:#15803D;">
+            🟢 Đang kết nối
+          </span>
+        </div>
+        <div id="cloudStatusDetail" style="color:#166534; font-size:13px; line-height:1.5;">
+          Đang đồng bộ trực tiếp thời gian thực (Realtime) giữa tất cả các thiết bị trong xưởng và Autodesk Fusion 360.
+        </div>
       </div>
 
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <div>
-          <label style="display:block; font-size:13px; font-weight:700; color:var(--dark); margin-bottom:5px;">
-            Tên Xưởng / Mã Xưởng kết nối <span style="color:#DC2626;">*</span>
-          </label>
-          <input type="text" id="inpCloudWorkspace" class="input" style="width:100%; font-size:15px; font-weight:700; letter-spacing:0.5px;" placeholder="Ví dụ: XUONG_AN_BINH hoặc Số điện thoại xưởng">
-          <div style="font-size:12px; color:#64748B; margin-top:4px;">Chỉ cần nhập giống hệt mã này trên các máy khác để chia sẻ chung kho dự án.</div>
-        </div>
+      <!-- Danh sách đường link truy cập đa thiết bị + QR Code -->
+      <div id="multiDeviceLinksContainer" style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+        <!-- Nội dung được render tự động bằng JS -->
+      </div>
 
-        <div>
-          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
-            Mã PIN bảo vệ nội bộ (Tùy chọn)
-          </label>
-          <input type="password" id="inpCloudPin" class="input" style="width:100%;" placeholder="Nhập 4-6 số nếu muốn khóa bảo vệ, hoặc để trống">
-        </div>
-
-        <!-- Trạng thái kết nối Cloud -->
-        <div id="cloudStatusCard" style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 14px; font-size:13px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-            <span style="font-weight:600; color:#475569;">Trạng thái máy chủ:</span>
-            <span id="cloudStatusBadge" style="font-weight:700; padding:2px 8px; border-radius:12px; font-size:12px; background:#E2E8F0; color:#475569;">
-              Chưa kết nối
-            </span>
-          </div>
-          <div id="cloudStatusDetail" style="color:#64748B; font-size:12.5px;">
-            Nhập Mã Xưởng và bấm nút kết nối bên dưới để bắt đầu tự động đồng bộ.
-          </div>
-        </div>
-
-        <!-- Phần cài đặt Firebase nâng cao -->
-        <details style="border:1px solid #E2E8F0; border-radius:8px; padding:8px 12px; font-size:13px; color:#475569;">
-          <summary style="cursor:pointer; font-weight:600; color:var(--p);">
-            ⚙️ Cấu hình Firebase Google riêng của xưởng (Nâng cao)
-          </summary>
-          <div style="margin-top:10px; font-size:12.5px; color:#64748B;">
-            <p style="margin:4px 0 8px;">Mặc định Web App sử dụng máy chủ đám mây chia sẻ sẵn. Nếu xưởng muốn dùng tài khoản Google Firebase riêng biệt 100% của mình, dán mã <code>firebaseConfig</code> vào đây:</p>
-            <textarea id="inpCustomFirebaseConfig" class="input" rows="4" style="width:100%; font-family:monospace; font-size:11.5px;" placeholder='{\n  "apiKey": "AIzaSy...",\n  "projectId": "toiuu-phoi-an-binh",\n  "appId": "1:..."\n}'></textarea>
-            <div style="margin-top:6px; display:flex; justify-content:flex-end;">
-              <button class="btn btn-soft btn-sm" id="btnSaveFirebaseConfig" style="font-size:12px;">Lưu cấu hình riêng</button>
-            </div>
-          </div>
-        </details>
+      <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 14px; margin-top:12px; font-size:12.5px; color:#475569; line-height:1.55;">
+        <strong>⚡ Cơ chế hoạt động như Web thực thụ 100%:</strong><br>
+        • <strong>Từ Fusion 360:</strong> Khi bấm chạy Script, bản vẽ và toàn bộ file 3D <code>.IGS</code> được bắn thẳng lên Máy chủ Web này. Mọi màn hình đang mở sẽ tự động hiển thị bản vẽ mới ngay lập tức.<br>
+        • <strong>Đa thiết bị (Điện thoại / iPad / Máy cắt Laser CNC):</strong> Mở đường link bên trên hoặc quét mã QR để xem chung 1 cơ sở dữ liệu duy nhất theo thời gian thực.
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:18px;">
-        <button class="btn btn-soft btn-sm" id="btnDisconnectCloud" style="display:none; color:#DC2626;">
-          Ngắt kết nối
+        <button class="btn btn-soft btn-sm" id="btnForceSyncServer" title="Đồng bộ dữ liệu ngay lập tức với máy chủ">
+          🔄 Đồng bộ ngay
         </button>
         <div style="display:flex; gap:8px; margin-left:auto;">
-          <button class="btn btn-soft btn-sm" id="btnCloseCloudSync">Đóng</button>
-          <button class="btn btn-p btn-sm" id="btnConnectCloud">
-            Kết nối &amp; Bắt đầu đồng bộ
-          </button>
+          <button class="btn btn-p btn-sm" id="btnCloseCloudSync">Đóng</button>
         </div>
       </div>
     </div>
@@ -1895,6 +1865,7 @@
       try {
         localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(state.savedProfiles));
       } catch (e) {}
+      scheduleSyncToServer('profiles');
     }
 
     function addProfileToMemory(pName) {
@@ -1985,6 +1956,7 @@
         };
         localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(data));
       } catch (e) {}
+      scheduleSyncToServer('active_project');
     }
 
     function loadActiveProject() {
@@ -2054,6 +2026,7 @@
         localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects));
       } catch (e) {}
       updateProjectsBadge();
+      scheduleSyncToServer('projects_list');
     }
 
     function updateProjectsBadge() {
@@ -2601,61 +2574,199 @@
     }
 
     // ==========================================
-    // Realtime Cloud Synchronization Engine
-    // (Google Firebase Firestore Multi-device Sync)
+    // Full-Stack Server & Realtime Multi-Device Sync Engine
     // ==========================================
+    const SERVER_API_BASE = window.location.protocol.startsWith('http')
+      ? window.location.origin
+      : 'http://localhost:3000';
 
-    const DEFAULT_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyB_DemoKeyForWorkshopSyncAnBinh2026",
-      authDomain: "toiuu-phoi-anbinh.firebaseapp.com",
-      projectId: "toiuu-phoi-anbinh",
-      storageBucket: "toiuu-phoi-anbinh.appspot.com",
-      messagingSenderId: "987654321000",
-      appId: "1:987654321000:web:abcdef1234567890"
-    };
+    state.clientId = 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    state.serverLanUrls = [];
+    state.serverPublicUrl = null;
+    state.clientsCount = 1;
+    let serverSyncTimeout = null;
+    let sseSource = null;
 
-    function getEffectiveFirebaseConfig() {
+    function getActiveProjectSnapshot() {
+      return {
+        currentProjectId: state.currentProjectId,
+        currentProjectName: state.currentProjectName,
+        currentProjectCustomer: state.currentProjectCustomer,
+        currentProjectNotes: state.currentProjectNotes,
+        activeProfiles: state.activeProfiles,
+        selectedTabProfile: state.selectedTabProfile,
+        parts: state.parts,
+        stock: state.stock,
+        method: state.method,
+        kerf: state.kerf,
+        clamp: state.clamp,
+        interlock: state.interlock,
+        gap: state.gap,
+        fusionProject: state.fusionProject
+      };
+    }
+
+    function scheduleSyncToServer(actionName = 'sync') {
+      if (state.isApplyingRemoteChange) return;
+      clearTimeout(serverSyncTimeout);
+      serverSyncTimeout = setTimeout(() => {
+        pushStateToServer(actionName);
+      }, 150);
+    }
+
+    async function pushStateToServer(actionName = 'sync') {
+      if (state.isApplyingRemoteChange) return;
       try {
-        const custom = localStorage.getItem(LS_FIREBASE_CONFIG);
-        if (custom) {
-          const parsed = JSON.parse(custom);
-          if (parsed && (parsed.projectId || parsed.apiKey)) return parsed;
+        const res = await fetch(`${SERVER_API_BASE}/api/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Client-Id': state.clientId
+          },
+          body: JSON.stringify({
+            clientId: state.clientId,
+            action: actionName,
+            savedProfiles: state.savedProfiles,
+            savedProjects: state.savedProjects,
+            activeProject: getActiveProjectSnapshot()
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.clientsCount != null) state.clientsCount = data.clientsCount;
+          if (!state.cloudConnected) {
+            state.cloudConnected = true;
+            updateCloudUIState('connected');
+          }
         }
-      } catch (e) {}
-      return DEFAULT_FIREBASE_CONFIG;
+      } catch (e) {
+        // Nếu server đang khởi động lại, giữ lưu cục bộ và tự kết nối lại qua SSE
+      }
+    }
+
+    function pushProjectToCloud(proj) {
+      scheduleSyncToServer('save_project');
+    }
+
+    function deleteProjectFromCloud(projId) {
+      scheduleSyncToServer('delete_project');
+    }
+
+    function applyRemoteDbState(remoteDb, isInitial = false) {
+      if (!remoteDb) return;
+      state.isApplyingRemoteChange = true;
+      try {
+        if (Array.isArray(remoteDb.savedProfiles) && remoteDb.savedProfiles.length) {
+          state.savedProfiles = remoteDb.savedProfiles;
+          try { localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(state.savedProfiles)); } catch (e) {}
+          renderMemoryLibraryChips();
+        }
+
+        if (Array.isArray(remoteDb.savedProjects)) {
+          state.savedProjects = remoteDb.savedProjects;
+          try { localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects)); } catch (e) {}
+          updateProjectsBadge();
+          if ($('modalProjects') && $('modalProjects').style.display === 'flex') {
+            renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+          }
+        }
+
+        const ap = remoteDb.activeProject;
+        if (ap && Array.isArray(ap.parts)) {
+          state.currentProjectId = ap.currentProjectId || null;
+          state.currentProjectName = ap.currentProjectName || '';
+          state.currentProjectCustomer = ap.currentProjectCustomer || '';
+          state.currentProjectNotes = ap.currentProjectNotes || '';
+          state.fusionProject = ap.fusionProject || null;
+
+          state.activeProfiles = (ap.activeProfiles && ap.activeProfiles.length) ? ap.activeProfiles : ['Hộp 30x30x1.8'];
+          state.selectedTabProfile = ap.selectedTabProfile || state.activeProfiles[0];
+          state.parts = ap.parts;
+          state.stock = Array.isArray(ap.stock) ? ap.stock : [];
+          state.method = ap.method || 'cnc';
+          state.kerf = ap.kerf != null ? ap.kerf : 0;
+          state.clamp = ap.clamp != null ? ap.clamp : 80;
+          state.interlock = ap.interlock != null ? ap.interlock : true;
+          state.gap = ap.gap != null ? ap.gap : 0;
+
+          try { localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(ap)); } catch (e) {}
+          if (state.currentProjectId) {
+            try { localStorage.setItem(LS_CURRENT_PROJ_ID, state.currentProjectId); } catch (e) {}
+          }
+
+          updateInputsFromState();
+          ensureProfilesConsistency();
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          renderStockList();
+          calculateOptimization(false);
+          updateProjectActiveBanner();
+        }
+      } finally {
+        setTimeout(() => { state.isApplyingRemoteChange = false; }, 100);
+      }
     }
 
     function initCloudSyncSystem() {
+      updateCloudUIState('syncing');
+      connectServerEventStream();
+    }
+
+    function connectServerEventStream() {
+      if (sseSource) {
+        try { sseSource.close(); } catch (e) {}
+      }
+
       try {
-        let savedWs = localStorage.getItem(LS_CLOUD_WORKSPACE);
-        const savedPin = localStorage.getItem(LS_CLOUD_PIN);
-        const customCfg = localStorage.getItem(LS_FIREBASE_CONFIG);
-        
-        if ($('inpCustomFirebaseConfig') && customCfg) {
-          $('inpCustomFirebaseConfig').value = customCfg;
-        }
+        sseSource = new EventSource(`${SERVER_API_BASE}/api/events?clientId=${encodeURIComponent(state.clientId)}`);
 
-        const embWs = $('embeddedWorkshopConfig');
-        if (!savedWs && embWs && embWs.textContent.trim()) {
+        sseSource.onmessage = (event) => {
           try {
-            const parsedWs = JSON.parse(embWs.textContent.trim());
-            if (parsedWs && parsedWs.workspaceId) savedWs = parsedWs.workspaceId;
-          } catch (e) {}
-        }
+            const msg = JSON.parse(event.data);
+            if (msg.lanUrls) state.serverLanUrls = msg.lanUrls;
+            if (msg.publicUrl !== undefined) state.serverPublicUrl = msg.publicUrl;
+            if (msg.clientsCount != null) state.clientsCount = msg.clientsCount;
 
-        if (savedWs) {
-          state.cloudWorkspaceId = savedWs;
-          state.cloudPin = savedPin || '';
-          if ($('inpCloudWorkspace')) $('inpCloudWorkspace').value = savedWs;
-          if ($('inpCloudPin')) $('inpCloudPin').value = state.cloudPin;
-          
-          // Tự động kết nối lại trong nền
-          connectToCloudWorkspace(savedWs, state.cloudPin, true);
-        } else {
-          updateCloudUIState('disconnected');
-        }
-      } catch (e) {
-        updateCloudUIState('disconnected');
+            if (msg.type === 'connected') {
+              state.cloudConnected = true;
+              updateCloudUIState('connected');
+              renderMultiDeviceModalContent();
+
+              if (msg.db && ((msg.db.activeProject && msg.db.activeProject.parts && msg.db.activeProject.parts.length) || (msg.db.savedProjects && msg.db.savedProjects.length))) {
+                applyRemoteDbState(msg.db, true);
+              } else {
+                // Nếu máy chủ chưa có dữ liệu, đẩy dữ liệu hiện tại của trình duyệt lên máy chủ
+                pushStateToServer('initial_seed');
+              }
+            } else if (msg.type === 'state_updated') {
+              if (msg.senderId !== state.clientId && msg.db) {
+                applyRemoteDbState(msg.db, false);
+                if (msg.action === 'save_project') {
+                  showToast('🔔 Đã đồng bộ dự án mới từ thiết bị khác!');
+                }
+              }
+              updateCloudUIState('connected');
+            } else if (msg.type === 'fusion_imported') {
+              if (msg.db) {
+                applyRemoteDbState(msg.db, false);
+                showToast(`🚀 Đã tự động nhận bản vẽ "${msg.projectName}" trực tiếp từ Fusion 360!`);
+              }
+            } else if (msg.type === 'clients_count' || msg.type === 'server_info') {
+              updateCloudUIState('connected');
+              renderMultiDeviceModalContent();
+            }
+          } catch (e) {}
+        };
+
+        sseSource.onerror = () => {
+          state.cloudConnected = false;
+          updateCloudUIState('error', 'Đang tự động kết nối lại với Máy chủ Xưởng (port 3000)...');
+          try { sseSource.close(); } catch (e) {}
+          setTimeout(connectServerEventStream, 4000);
+        };
+      } catch (err) {
+        updateCloudUIState('error');
       }
     }
 
@@ -2666,7 +2777,6 @@
       const btn = $('btnCloudSync');
       const badge = $('cloudStatusBadge');
       const detail = $('cloudStatusDetail');
-      const btnDisconn = $('btnDisconnectCloud');
 
       if (!dot || !text) return;
 
@@ -2675,284 +2785,131 @@
 
       if (status === 'connected') {
         dot.classList.add('dot-green');
-        text.textContent = `Xưởng: ${state.cloudWorkspaceId}`;
+        const devLabel = state.clientsCount > 1 ? ` (${state.clientsCount} máy)` : '';
+        text.textContent = `Xưởng Online${devLabel}`;
         if (btn) btn.classList.add('cloud-btn-connected');
         if (badge) {
-          badge.textContent = '🟢 Đang kết nối';
+          badge.textContent = `🟢 Trực tuyến (${state.clientsCount} thiết bị đang mở)`;
           badge.style.background = '#DCFCE7';
           badge.style.color = '#15803D';
         }
         if (detail) {
-          detail.innerHTML = detailText || `Đang tự động đồng bộ thời gian thực qua mạng với Mã Xưởng: <strong>${escapeHtml(state.cloudWorkspaceId)}</strong>.`;
+          detail.innerHTML = detailText || `Đang kết nối trực tiếp vào <strong>Máy chủ Web Xưởng An Bình</strong>. Mọi thao tác được đồng bộ tức thì (Realtime 100%) giữa các thiết bị.`;
         }
-        if (btnDisconn) btnDisconn.style.display = 'inline-block';
       } else if (status === 'syncing') {
         dot.classList.add('dot-orange');
-        text.textContent = `Đang đồng bộ...`;
+        text.textContent = `Đang kết nối...`;
         if (badge) {
-          badge.textContent = '🟡 Đang kết nối...';
+          badge.textContent = '🟡 Đang kết nối máy chủ...';
           badge.style.background = '#FEF3C7';
           badge.style.color = '#B45309';
         }
-        if (detail) detail.textContent = 'Đang thiết lập kênh truyền đám mây...';
-      } else if (status === 'error') {
+      } else {
         dot.classList.add('dot-red');
-        text.textContent = `Lỗi đám mây`;
+        text.textContent = `Máy chủ: Chờ kết nối`;
         if (badge) {
-          badge.textContent = '🔴 Lỗi kết nối';
+          badge.textContent = '🔴 Chưa kết nối Server';
           badge.style.background = '#FEE2E2';
           badge.style.color = '#B91C1C';
         }
-        if (detail) detail.textContent = detailText || 'Không thể kết nối đến máy chủ đám mây. Vui lòng kiểm tra mạng hoặc cấu hình Firebase.';
+        if (detail) {
+          detail.textContent = detailText || 'Hãy chạy file Khoi_Dong_Server_Web.bat hoặc chạy Script từ Fusion 360 để bật Máy chủ Web.';
+        }
+      }
+    }
+
+    function copyTextToClipboard(str, label) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(str).then(() => {
+          showToast(`✓ Đã sao chép ${label}: ${str}`);
+        }).catch(() => {});
       } else {
-        dot.classList.add('dot-gray');
-        text.textContent = `Mã Xưởng: Chưa kết nối`;
-        if (badge) {
-          badge.textContent = 'Chưa kết nối';
-          badge.style.background = '#E2E8F0';
-          badge.style.color = '#475569';
-        }
-        if (detail) detail.textContent = 'Nhập Mã Xưởng và bấm nút kết nối bên dưới để bắt đầu tự động đồng bộ.';
-        if (btnDisconn) btnDisconn.style.display = 'none';
+        const inp = document.createElement('input');
+        inp.value = str;
+        document.body.appendChild(inp);
+        inp.select();
+        document.execCommand('copy');
+        document.body.removeChild(inp);
+        showToast(`✓ Đã sao chép ${label}: ${str}`);
       }
     }
 
-    async function connectToCloudWorkspace(rawWsId, pin = '', isAuto = false) {
-      const wsId = String(rawWsId || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
-      if (!wsId) {
-        showToast('Vui lòng nhập Tên Xưởng / Mã Xưởng!');
-        if ($('inpCloudWorkspace')) $('inpCloudWorkspace').focus();
-        return;
+    function renderMultiDeviceModalContent() {
+      const container = $('multiDeviceLinksContainer');
+      if (!container) return;
+
+      const primaryLan = (state.serverLanUrls && state.serverLanUrls.length)
+        ? state.serverLanUrls[0].url
+        : SERVER_API_BASE;
+
+      const pubUrl = state.serverPublicUrl;
+
+      let html = `
+        <div style="border:1.5px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px;">
+            <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0F766E; letter-spacing:0.5px; margin-bottom:4px;">
+              📶 1. Link Mạng Nội Bộ Xưởng (Wi-Fi / LAN Tốc Độ Cao)
+            </div>
+            <div style="font-size:17px; font-weight:800; color:#0B3B38; word-break:break-all; margin-bottom:6px; font-family:monospace;">
+              <a href="${primaryLan}" target="_blank" style="color:#0F766E; text-decoration:underline;">${primaryLan}</a>
+            </div>
+            <div style="font-size:12.5px; color:#475569; margin-bottom:10px;">
+              Dùng cho Điện thoại, iPad, Máy tính văn phòng và Máy cắt Laser CNC kết nối chung Wi-Fi/mạng dây tại xưởng.
+            </div>
+            <button type="button" class="btn btn-p btn-sm btn-copy-url" data-url="${primaryLan}" data-label="Link Mạng Xưởng">
+              📋 Sao chép Link Xưởng
+            </button>
+          </div>
+          <div style="text-align:center; background:#FFF; padding:8px; border-radius:10px; border:1px solid #CBD5E1; flex-shrink:0;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=${encodeURIComponent(primaryLan)}" alt="QR LAN" style="width:115px; height:115px; display:block;" onerror="this.style.display='none'">
+            <div style="font-size:11px; font-weight:700; color:#475569; margin-top:4px;">Quét mở trên Điện thoại</div>
+          </div>
+        </div>
+      `;
+
+      if (pubUrl) {
+        html += `
+          <div style="border:1.5px solid #0369A1; background:#F0F9FF; border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:240px;">
+              <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0369A1; letter-spacing:0.5px; margin-bottom:4px;">
+                🌍 2. Link Cloud Internet Toàn Cầu (4G / 5G Mọi Nơi)
+              </div>
+              <div style="font-size:16px; font-weight:800; color:#0C4A6E; word-break:break-all; margin-bottom:6px; font-family:monospace;">
+                <a href="${pubUrl}" target="_blank" style="color:#0369A1; text-decoration:underline;">${pubUrl}</a>
+              </div>
+              <div style="font-size:12.5px; color:#475569; margin-bottom:10px;">
+                Dùng khi bạn đi công trình hoặc mở trên điện thoại bằng mạng 4G/5G bên ngoài xưởng.
+              </div>
+              <button type="button" class="btn btn-soft btn-sm btn-copy-url" data-url="${pubUrl}" data-label="Link Cloud Internet" style="border-color:#0369A1; color:#0369A1; font-weight:700;">
+                📋 Sao chép Link Internet
+              </button>
+            </div>
+            <div style="text-align:center; background:#FFF; padding:8px; border-radius:10px; border:1px solid #CBD5E1; flex-shrink:0;">
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=${encodeURIComponent(pubUrl)}" alt="QR Cloud" style="width:115px; height:115px; display:block;" onerror="this.style.display='none'">
+              <div style="font-size:11px; font-weight:700; color:#0369A1; margin-top:4px;">Quét bằng 4G/5G</div>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div style="border:1px dashed #CBD5E1; background:#F8FAFC; border-radius:10px; padding:10px 14px; font-size:12.5px; color:#64748B;">
+            🌍 <strong>Link Cloud Internet (4G/5G):</strong> Đang khởi tạo đường truyền Cloud Tunnel... (Link Mạng Nội Bộ Xưởng bên trên đã sẵn sàng 100%).
+          </div>
+        `;
       }
 
-      updateCloudUIState('syncing');
-
-      if (typeof firebase === 'undefined') {
-        console.warn('Firebase SDK chưa sẵn sàng hoặc thiết bị đang offline.');
-        updateCloudUIState('error', 'Không tìm thấy thư viện Firebase SDK. Hãy kiểm tra kết nối Internet để tải thư viện.');
-        if (!isAuto) showToast('Lỗi: Cần có kết nối Internet để khởi động đám mây!');
-        return;
-      }
-
-      try {
-        const config = getEffectiveFirebaseConfig();
-        
-        let app;
-        if (!firebase.apps || !firebase.apps.length) {
-          app = firebase.initializeApp(config);
-        } else {
-          app = firebase.app();
-        }
-
-        const db = firebase.firestore(app);
-        state.firebaseDb = db;
-
-        try {
-          db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
-        } catch (e) {}
-
-        state.cloudConnected = true;
-        state.cloudWorkspaceId = wsId;
-        state.cloudPin = pin || '';
-
-        localStorage.setItem(LS_CLOUD_WORKSPACE, wsId);
-        if (pin) localStorage.setItem(LS_CLOUD_PIN, pin);
-        else localStorage.removeItem(LS_CLOUD_PIN);
-
-        updateCloudUIState('connected');
-
-        startCloudProjectsListener(wsId);
-        pushInitialProjectsToCloud(wsId);
-
-        if (!isAuto) {
-          closeCloudSyncModal();
-          showToast(`✓ Đã kết nối thành công tới Mã Xưởng "${wsId}"!`);
-        }
-      } catch (err) {
-        console.error('Lỗi kết nối Firebase:', err);
-        updateCloudUIState('error', `Lỗi kết nối: ${err.message || err}`);
-        if (!isAuto) showToast('Không thể kết nối máy chủ đám mây!');
-      }
-    }
-
-    function disconnectFromCloud() {
-      if (state.cloudUnsubscribe) {
-        try { state.cloudUnsubscribe(); } catch (e) {}
-        state.cloudUnsubscribe = null;
-      }
-
-      state.cloudConnected = false;
-      state.cloudWorkspaceId = '';
-      state.cloudPin = '';
-      localStorage.removeItem(LS_CLOUD_WORKSPACE);
-      localStorage.removeItem(LS_CLOUD_PIN);
-
-      updateCloudUIState('disconnected');
-      closeCloudSyncModal();
-      showToast('Đã ngắt kết nối đám mây! Dữ liệu tiếp tục lưu cục bộ trên máy.');
-    }
-
-    function startCloudProjectsListener(wsId) {
-      if (!state.firebaseDb || !state.cloudConnected) return;
-
-      if (state.cloudUnsubscribe) {
-        try { state.cloudUnsubscribe(); } catch (e) {}
-      }
-
-      try {
-        const wsRef = state.firebaseDb.collection('workspaces').doc(wsId);
-
-        // 1. Lắng nghe danh sách dự án
-        state.cloudUnsubscribe = wsRef.collection('projects').onSnapshot(snapshot => {
-          if (state.isApplyingRemoteChange) return;
-
-          let hasChanges = false;
-          let newestUpdatedProject = null;
-
-          snapshot.docChanges().forEach(change => {
-            const data = change.doc.data();
-            if (!data || !data.id) return;
-
-            if (change.type === 'added') {
-              const existingIdx = state.savedProjects.findIndex(p => p.id === data.id);
-              if (existingIdx === -1) {
-                state.savedProjects.unshift(data);
-                hasChanges = true;
-                newestUpdatedProject = data;
-              }
-            } else if (change.type === 'modified') {
-              const existingIdx = state.savedProjects.findIndex(p => p.id === data.id);
-              if (existingIdx !== -1) {
-                const remoteTime = new Date(data.updatedAt || 0).getTime();
-                const localTime = new Date(state.savedProjects[existingIdx].updatedAt || 0).getTime();
-                if (remoteTime > localTime) {
-                  state.savedProjects[existingIdx] = data;
-                  hasChanges = true;
-                  newestUpdatedProject = data;
-                  
-                  if (state.currentProjectId === data.id) {
-                    loadProjectById(data.id);
-                  }
-                }
-              } else {
-                state.savedProjects.unshift(data);
-                hasChanges = true;
-              }
-            } else if (change.type === 'removed') {
-              const existingIdx = state.savedProjects.findIndex(p => p.id === data.id);
-              if (existingIdx !== -1) {
-                state.savedProjects.splice(existingIdx, 1);
-                hasChanges = true;
-                if (state.currentProjectId === data.id) {
-                  state.currentProjectId = null;
-                  state.currentProjectName = '';
-                  updateProjectActiveBanner();
-                }
-              }
-            }
-          });
-
-          if (hasChanges) {
-            saveProjectsListToStorage();
-            updateProjectsBadge();
-            if ($('modalProjects') && $('modalProjects').style.display === 'flex') {
-              renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value : '');
-            }
-            if (newestUpdatedProject) {
-              showToast(`🔔 Xưởng vừa cập nhật dự án: "${newestUpdatedProject.name}"!`);
-            }
-          }
-        }, err => {
-          console.warn('Lỗi Firestore onSnapshot:', err);
-        });
-
-        // 2. Lắng nghe thư viện quy cách hộp chung của xưởng
-        wsRef.onSnapshot(docSnap => {
-          if (!docSnap.exists) return;
-          const data = docSnap.data();
-          if (data && Array.isArray(data.profiles)) {
-            let addedNewProf = false;
-            data.profiles.forEach(prof => {
-              if (!state.savedProfiles.includes(prof)) {
-                state.savedProfiles.push(prof);
-                addedNewProf = true;
-              }
-            });
-            if (addedNewProf) {
-              saveProfilesLibrary();
-              renderMemoryLibraryChips();
-            }
-          }
-        }, () => {});
-
-      } catch (err) {
-        console.error('Lỗi thiết lập Firestore listener:', err);
-      }
-    }
-
-    function pushProjectToCloud(proj) {
-      if (!state.cloudConnected || !state.firebaseDb || !state.cloudWorkspaceId || !proj || !proj.id) return;
-
-      state.isApplyingRemoteChange = true;
-      try {
-        const wsRef = state.firebaseDb.collection('workspaces').doc(state.cloudWorkspaceId);
-        
-        wsRef.collection('projects').doc(proj.id).set(proj, { merge: true })
-          .catch(err => console.warn('Lỗi đẩy dự án lên Firestore:', err));
-
-        if (state.savedProfiles && state.savedProfiles.length) {
-          wsRef.set({
-            workspaceId: state.cloudWorkspaceId,
-            pin: state.cloudPin || '',
-            profiles: state.savedProfiles,
-            lastUpdated: new Date().toISOString()
-          }, { merge: true }).catch(() => {});
-        }
-      } catch (e) {
-        console.warn('Lỗi pushProjectToCloud:', e);
-      } finally {
-        setTimeout(() => { state.isApplyingRemoteChange = false; }, 300);
-      }
-    }
-
-    function deleteProjectFromCloud(projId) {
-      if (!state.cloudConnected || !state.firebaseDb || !state.cloudWorkspaceId || !projId) return;
-
-      try {
-        state.firebaseDb.collection('workspaces').doc(state.cloudWorkspaceId)
-          .collection('projects').doc(projId).delete()
-          .catch(err => console.warn('Lỗi xóa dự án trên Firestore:', err));
-      } catch (e) {}
-    }
-
-    function pushInitialProjectsToCloud(wsId) {
-      if (!state.firebaseDb || !state.savedProjects.length) return;
-
-      try {
-        const wsRef = state.firebaseDb.collection('workspaces').doc(wsId);
-        wsRef.set({
-          workspaceId: wsId,
-          pin: state.cloudPin || '',
-          profiles: state.savedProfiles,
-          lastUpdated: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
-
-        state.savedProjects.forEach(proj => {
-          wsRef.collection('projects').doc(proj.id).set(proj, { merge: true }).catch(() => {});
-        });
-      } catch (e) {}
+      container.innerHTML = html;
+      container.querySelectorAll('.btn-copy-url').forEach(btn => {
+        btn.onclick = () => copyTextToClipboard(btn.getAttribute('data-url'), btn.getAttribute('data-label'));
+      });
     }
 
     function openCloudSyncModal() {
       const modal = $('modalCloudSync');
       if (!modal) return;
-      if ($('inpCloudWorkspace')) $('inpCloudWorkspace').value = state.cloudWorkspaceId || '';
-      if ($('inpCloudPin')) $('inpCloudPin').value = state.cloudPin || '';
-      updateCloudUIState(state.cloudConnected ? 'connected' : 'disconnected');
+      updateCloudUIState(state.cloudConnected ? 'connected' : 'error');
+      renderMultiDeviceModalContent();
       modal.style.display = 'flex';
-      if (!state.cloudWorkspaceId && $('inpCloudWorkspace')) {
-        setTimeout(() => $('inpCloudWorkspace').focus(), 50);
-      }
     }
 
     function closeCloudSyncModal() {
@@ -3925,10 +3882,13 @@
             return;
           }
 
-          // 2. Thử fetch file nếu đang chạy HTTP / Web Server VÀ đúng cấu trúc chi tiết hiện tại
-          if (isMatch && fusionBar && fusionBar.name) {
-            const targetName = `${fusionBar.name}.igs`.replace(/\.igs\.igs$/, '.igs');
-            fetch(targetName)
+          // 2. Thử tải từ Máy chủ Web (/api/igs/...) hoặc fetch file cục bộ VÀ đúng cấu trúc chi tiết hiện tại
+          if (isMatch && fusionBar && (fusionBar.igs_url || fusionBar.name)) {
+            const targetName = `${fusionBar.name || defaultFileName}.igs`.replace(/\.igs\.igs$/, '.igs');
+            const fetchUrl = fusionBar.igs_url
+              ? (fusionBar.igs_url.startsWith('http') ? fusionBar.igs_url : `${SERVER_API_BASE}${fusionBar.igs_url}`)
+              : targetName;
+            fetch(fetchUrl)
               .then(res => {
                 if (!res.ok) throw new Error('Fetch failed');
                 return res.blob();
@@ -3945,7 +3905,7 @@
                 showToast(`✓ Đã tải file 3D cây ghép Solid: ${targetName}`);
               })
               .catch(() => {
-                // Nếu fetch bị chặn (sandbox file://), tự động sinh bề mặt 3D Entity 128 chuẩn xác
+                // Nếu fetch bị chặn, tự động sinh bề mặt 3D Entity 128 chuẩn xác
                 exportNestedBarIGES(defaultFileName, prof, len, pieces);
               });
             return;
@@ -4847,54 +4807,14 @@
       // ==========================================
       // Project Management Event Listeners
       // ==========================================
-      // Cloud Sync Event Listeners
+      // Cloud / Multi-Device Server Event Listeners
       if ($('btnCloudSync')) $('btnCloudSync').onclick = openCloudSyncModal;
       if ($('btnCloseCloudModal')) $('btnCloseCloudModal').onclick = closeCloudSyncModal;
       if ($('btnCloseCloudSync')) $('btnCloseCloudSync').onclick = closeCloudSyncModal;
-      if ($('btnConnectCloud')) {
-        $('btnConnectCloud').onclick = () => {
-          connectToCloudWorkspace($('inpCloudWorkspace').value, $('inpCloudPin').value);
-        };
-      }
-      if ($('btnDisconnectCloud')) $('btnDisconnectCloud').onclick = disconnectFromCloud;
-      if ($('inpCloudWorkspace')) {
-        $('inpCloudWorkspace').onkeydown = e => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            connectToCloudWorkspace($('inpCloudWorkspace').value, $('inpCloudPin').value);
-          }
-        };
-      }
-      if ($('inpCloudPin')) {
-        $('inpCloudPin').onkeydown = e => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            connectToCloudWorkspace($('inpCloudWorkspace').value, $('inpCloudPin').value);
-          }
-        };
-      }
-      if ($('btnSaveFirebaseConfig')) {
-        $('btnSaveFirebaseConfig').onclick = () => {
-          const raw = $('inpCustomFirebaseConfig').value.trim();
-          if (!raw) {
-            localStorage.removeItem(LS_FIREBASE_CONFIG);
-            showToast('Đã xóa cấu hình Firebase riêng, dùng cấu hình mặc định!');
-            return;
-          }
-          try {
-            const parsed = JSON.parse(raw);
-            if (!parsed.projectId && !parsed.apiKey) {
-              showToast('Cấu hình JSON phải có ít nhất projectId hoặc apiKey!');
-              return;
-            }
-            localStorage.setItem(LS_FIREBASE_CONFIG, JSON.stringify(parsed));
-            showToast('✓ Đã lưu cấu hình Firebase riêng thành công!');
-            if (state.cloudWorkspaceId) {
-              connectToCloudWorkspace(state.cloudWorkspaceId, state.cloudPin);
-            }
-          } catch (err) {
-            showToast('Cấu hình JSON không hợp lệ! Hãy kiểm tra cú pháp.');
-          }
+      if ($('btnForceSyncServer')) {
+        $('btnForceSyncServer').onclick = async () => {
+          await pushStateToServer('manual_sync');
+          showToast('✓ Đã đồng bộ dữ liệu thành công với Máy chủ Xưởng!');
         };
       }
 

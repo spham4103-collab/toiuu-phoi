@@ -9,6 +9,7 @@ src_html = os.path.join(toiuu_phoi_dir, 'index.html')
 src_engine = os.path.join(toiuu_phoi_dir, 'toi-uu-engine.js')
 src_helper = os.path.join(toiuu_phoi_dir, 'run_engine_helper.js')
 src_logo = os.path.join(toiuu_phoi_dir, 'logo_an_binh.jpg')
+src_server = os.path.join(toiuu_phoi_dir, 'server.js')
 
 # 1. Đồng bộ script Python sang Fusion Script dir
 py_in_toiuu = os.path.join(toiuu_phoi_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
@@ -17,18 +18,20 @@ if os.path.exists(py_in_toiuu):
     shutil.copy2(py_in_toiuu, py_in_fusion)
     print('Copied Xuat_IGS_Va_Toi_Uu_Phoi.py to Fusion Script dir')
 
-# 2. Copy helper, engine, index.html & workshop_config to fusion script dir
+# 2. Copy helper, engine, index.html, server.js & workshop_config to fusion script dir
 src_cfg = os.path.join(toiuu_phoi_dir, 'workshop_config.json')
 shutil.copy2(src_helper, os.path.join(fusion_script_dir, 'run_engine_helper.js'))
 shutil.copy2(src_engine, os.path.join(fusion_script_dir, 'toi-uu-engine.js'))
 shutil.copy2(src_html, os.path.join(fusion_script_dir, 'index.html'))
+if os.path.exists(src_server):
+    shutil.copy2(src_server, os.path.join(fusion_script_dir, 'server.js'))
 if os.path.exists(src_cfg):
     shutil.copy2(src_cfg, os.path.join(fusion_script_dir, 'workshop_config.json'))
 print('Copied web assets to Fusion Script dir')
 
 # 3. Copy web assets to Fusion360/toiuu-phoi
 os.makedirs(fusion_workspace_dir, exist_ok=True)
-for f in [src_html, src_engine, src_helper, src_logo, src_cfg]:
+for f in [src_html, src_engine, src_helper, src_logo, src_cfg, src_server]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
 print('Copied web assets to Fusion360/toiuu-phoi')
