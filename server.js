@@ -20,6 +20,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
@@ -69,10 +70,72 @@ let db = {
   users: DEFAULT_USERS.slice()
 };
 
-function saveDb() {
+const NTFY_TOPIC = 'toiuu_phoi_anbinh_cloud_v2';
+let cloudPushTimer = null;
+
+// Tự động đẩy toàn bộ cơ sở dữ liệu lên Đám mây 24/7 (ntfy.sh) để mọi thiết bị mới mở tự động lấy được
+function pushDbToGlobalCloud(actionName = 'server_sync') {
+  clearTimeout(cloudPushTimer);
+  cloudPushTimer = setTimeout(() => {
+    try {
+      const lightDb = {
+        senderId: 'server_anbinh_host',
+        action: actionName,
+        updatedAt: db.updatedAt,
+        savedProfiles: db.savedProfiles,
+        deletedProjectIds: db.deletedProjectIds || [],
+        savedProjects: (db.savedProjects || []).map(p => {
+          const clone = JSON.parse(JSON.stringify(p));
+          if (clone.fusionProject && Array.isArray(clone.fusionProject.nested_bars)) {
+            clone.fusionProject.nested_bars.forEach(b => delete b.igs_content);
+          }
+          if (clone.data && clone.data.fusionProject && Array.isArray(clone.data.fusionProject.nested_bars)) {
+            clone.data.fusionProject.nested_bars.forEach(b => delete b.igs_content);
+          }
+          return clone;
+        }),
+        activeProject: db.activeProject ? (() => {
+          const clone = JSON.parse(JSON.stringify(db.activeProject));
+          if (clone.fusionProject && Array.isArray(clone.fusionProject.nested_bars)) {
+            clone.fusionProject.nested_bars.forEach(b => delete b.igs_content);
+          }
+          return clone;
+        })() : null,
+        cutStatuses: db.cutStatuses || {},
+        users: db.users || []
+      };
+
+      const payload = JSON.stringify(lightDb);
+
+      const options = {
+        hostname: 'ntfy.sh',
+        path: `/${NTFY_TOPIC}`,
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Filename': 'workshop_db.json',
+          'Title': `AnBinh Server AutoSync (${actionName})`,
+          'Content-Length': Buffer.byteLength(payload)
+        }
+      };
+
+      const req = https.request(options, (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log(`[CLOUD 24/7] Đã đẩy thành công toàn bộ cơ sở dữ liệu lên Đám mây (${actionName}).`);
+        }
+      });
+      req.on('error', () => {});
+      req.write(payload);
+      req.end();
+    } catch (err) {}
+  }, 400);
+}
+
+function saveDb(action = 'db_save') {
   try {
     db.updatedAt = new Date().toISOString();
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+    pushDbToGlobalCloud(action);
   } catch (err) {
     console.error('[DB] Lỗi lưu database:', err.message);
   }
@@ -256,7 +319,7 @@ function loadInitialDb() {
       console.log('[DB] Đã tự động nạp dự án mẫu "Bàn thao tác" từ Fusion 360 vào Server.');
     } catch (e) {}
   }
-  saveDb();
+  saveDb('server_start');
 }
 
 loadInitialDb();
@@ -584,9 +647,8 @@ const server = http.createServer(async (req, res) => {
         db.users = mergeUsers(db.users, body.users);
       }
 
-      // 6. activeProject CHỈ ĐƯỢC CẬP NHẬT KHI LÀ FUSION IMPORT
-      // Tuyệt đối không để màn hình gõ nháp của thiết bị A ghi đè màn hình thiết bị B!
-      if (action === 'fusion_import' && body.activeProject) {
+      // 6. Lưu activeProject lên máy chủ để thiết bị mới mở có thể tự động lấy được dữ liệu cũ
+      if (body.activeProject && (action === 'fusion_import' || action === 'save_project' || !db.activeProject)) {
         db.activeProject = body.activeProject;
       }
 
@@ -763,4 +825,5 @@ server.listen(PORT, () => {
     console.log(` 📱 Truy cập Điện thoại/Máy CNC : ${item.url} (${item.interface})`);
   });
   console.log('====================================================================');
-});
+});pushDbToGlobalCloud('server_start');
+        

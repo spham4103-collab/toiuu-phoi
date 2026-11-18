@@ -102,11 +102,7 @@
 
     h3 { font-size: 15px; }
 
-
-
     .wrap { max-width: 1260px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
-
-
 
     /* Top Nav */
 
@@ -250,8 +246,6 @@
 
     }
 
-
-
     /* Subnav Bar */
 
     .subnav-bar { background: #F8FAFC; border-top: 1px solid var(--edge); }
@@ -320,8 +314,6 @@
 
     .subnav-link.subnav-admin.active { background: #0F766E; color: #FFFFFF; border-color: #0F766E; }
 
-
-
     /* Buttons */
 
     .btn {
@@ -374,8 +366,6 @@
 
     .btn-sm { min-height: 32px; padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 
-
-
     /* Cards */
 
     .card {
@@ -411,8 +401,6 @@
     }
 
     .card-sub { font-size: 13px; color: var(--mut); margin-bottom: 16px; }
-
-
 
     /* Inputs */
 
@@ -461,8 +449,6 @@
       margin-bottom: 4px;
 
     }
-
-
 
     /* KPI Cards */
 
@@ -550,8 +536,6 @@
 
     }
 
-
-
     /* Table */
 
     .table-responsive {
@@ -610,8 +594,6 @@
 
     .admin-table tr:hover { background: #F8FAFC; }
 
-
-
     /* Badge */
 
     .role-pill {
@@ -637,8 +619,6 @@
     .role-op { background: #FFEDD5; color: #C2410C; border: 1px solid #FED7AA; }
 
     .role-admin { background: #0F766E; color: #FFFFFF; }
-
-
 
     /* Toast */
 
@@ -677,8 +657,6 @@
     }
 
     #toast.show { opacity: 1; transform: translateY(0); }
-
-
 
     /* Responsive */
 
@@ -748,8 +726,6 @@
 
 <body>
 
-
-
   <!-- Top Header Navigation 2 Tầng -->
 
   <header class="top">
@@ -790,8 +766,6 @@
 
     </div>
 
-
-
     <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
 
       <div class="subnav-inner">
@@ -812,8 +786,6 @@
 
   </header>
 
-
-
   <!-- Màn hình Đăng Nhập Dành Riêng Cho Quản Trị Viên (Hiển thị khi chưa đăng nhập) -->
 
   <div id="adminLoginGate" style="display: none; padding: 40px 14px; margin: auto;">
@@ -826,11 +798,7 @@
 
       <p style="font-size: 13px; color: var(--mut); margin-bottom: 20px;">Vui lòng nhập tài khoản và mật khẩu Quản Trị Viên (Admin) để mở khóa trung tâm quản trị nhân sự xưởng.</p>
 
-      
-
       <div id="loginGateError" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; margin-bottom: 14px; text-align: left;"></div>
-
-
 
       <div style="text-align: left; margin-bottom: 12px;">
 
@@ -863,8 +831,6 @@
     </div>
 
   </div>
-
-
 
   <!-- Màn hình Báo Lỗi Quyền Truy Cập (Nếu người dùng đăng nhập tài khoản khác không phải admin) -->
 
@@ -904,13 +870,9 @@
 
   </div>
 
-
-
   <!-- Nội Dung Chính Bảng Quản Trị (Hiển thị khi Admin đã đăng nhập thành công) -->
 
   <main class="wrap" id="adminMainContent" style="display: none; padding-top: 16px; padding-bottom: 60px;">
-
-    
 
     <!-- Tiêu đề trang & lời chào -->
 
@@ -945,8 +907,6 @@
       </div>
 
     </div>
-
-
 
     <!-- 1. Thẻ Thống Kê Tổng Quan Xưởng -->
 
@@ -1010,8 +970,6 @@
 
     </div>
 
-
-
     <!-- 2. Danh Sách Nhân Sự & Phân Quyền Chi Tiết -->
 
     <section class="card">
@@ -1043,8 +1001,6 @@
         </div>
 
       </div>
-
-
 
       <div class="table-responsive" style="margin-top:14px;">
 
@@ -1082,13 +1038,9 @@
 
     </section>
 
-
-
     <!-- Lưới 2 cột: Thêm tài khoản mới & Đổi mật khẩu Admin -->
 
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:20px;">
-
-      
 
       <!-- 3. Form Cấp Tài Khoản Mới Cho Nhân Sự -->
 
@@ -1101,8 +1053,6 @@
         </div>
 
         <p class="card-sub">Tạo tài khoản đăng nhập cho Kỹ sư thiết kế hoặc Thợ phụ trách máy cắt Laser CNC.</p>
-
-
 
         <form id="formAddAccount" onsubmit="event.preventDefault(); handleAddNewUser();">
 
@@ -1154,8 +1104,6 @@
 
       </section>
 
-
-
       <!-- 4. Đổi Mật Khẩu Admin Của Tôi & Cài Đặt Hệ Thống -->
 
       <div>
@@ -1188,8 +1136,6 @@
 
         </section>
 
-
-
         <!-- Sao Lưu & Khôi Phục Dữ Liệu Toàn Xưởng -->
 
         <section class="card">
@@ -1201,8 +1147,6 @@
           </div>
 
           <p class="card-sub">Tải bản sao lưu toàn bộ nhân sự, dự án và quy cách hộp hoặc phục hồi khi đổi máy tính.</p>
-
-
 
           <div style="display:flex; flex-direction:column; gap:10px;">
 
@@ -1232,19 +1176,11 @@
 
       </div>
 
-
-
     </div>
-
-
 
   </main>
 
-
-
   <div id="toast"></div>
-
-
 
   <script>
 
@@ -1257,8 +1193,6 @@
     const USERS_STORAGE_KEY = 'toiuu_users_list_v1';
 
     const SESSION_STORAGE_KEY = 'toiuu_logged_user_v1';
-
-
 
     const DEFAULT_USERS = [
 
@@ -1306,17 +1240,11 @@
 
     ];
 
-
-
     let usersList = [];
 
     let currentUser = null;
 
-
-
     function $(id) { return document.getElementById(id); }
-
-
 
     function showToast(msg) {
 
@@ -1332,15 +1260,11 @@
 
     }
 
-
-
     function escapeHtml(str) {
 
       return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
 
     }
-
-
 
     function loadUsersFromStorage() {
 
@@ -1362,8 +1286,6 @@
 
       } catch (e) {}
 
-
-
       if (!usersList.length) {
 
         usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
@@ -1373,8 +1295,6 @@
       }
 
     }
-
-
 
     function saveUsersToStorage() {
 
@@ -1416,8 +1336,6 @@
 
     }
 
-
-
     function initRealtime() {
 
       try {
@@ -1454,14 +1372,11 @@
 
     }
 
-
-
     function checkAuthSession() {
 
       loadUsersFromStorage();
       initRealtime();
-
-
+      fetchCloudUsers();
 
       let session = null;
 
@@ -1472,8 +1387,6 @@
         if (raw) session = JSON.parse(raw);
 
       } catch (e) {}
-
-
 
       if (!session || !session.username) {
 
@@ -1493,8 +1406,6 @@
 
       }
 
-
-
       const found = usersList.find(u => u.username.toLowerCase() === String(session.username).toLowerCase());
 
       if (!found) {
@@ -1509,11 +1420,7 @@
 
       }
 
-
-
       currentUser = found;
-
-
 
       // KIỂM TRA QUYỀN HẠN TỐI CAO: CHỈ TÀI KHOẢN ADMIN MỚI ĐƯỢC PHÉP TRUY CẬP TRANG NÀY!
 
@@ -1533,8 +1440,6 @@
 
       }
 
-
-
       // Đã đăng nhập đúng quyền Admin -> Hiển thị Bảng Quản Trị
 
       $('adminLoginGate').style.display = 'none';
@@ -1549,13 +1454,9 @@
 
       $('topAdminUser').textContent = '@' + found.username;
 
-
-
       renderDashboard();
 
     }
-
-
 
     function handleAdminLogin() {
 
@@ -1564,8 +1465,6 @@
       const p = ($('inpAdminLoginPass').value || '').trim();
 
       const err = $('loginGateError');
-
-
 
       if (!u || !p) {
 
@@ -1576,8 +1475,6 @@
         return;
 
       }
-
-
 
       loadUsersFromStorage();
 
@@ -1593,8 +1490,6 @@
 
       }
 
-
-
       err.style.display = 'none';
 
       currentUser = adminAcc;
@@ -1609,8 +1504,6 @@
 
       } catch (e) {}
 
-
-
       $('inpAdminLoginPass').value = '';
 
       showToast('🎉 Đăng nhập Quản Trị Viên thành công!');
@@ -1618,8 +1511,6 @@
       checkAuthSession();
 
     }
-
-
 
     function handleAdminLogout() {
 
@@ -1639,13 +1530,9 @@
 
     }
 
-
-
     function renderDashboard() {
 
       loadUsersFromStorage();
-
-
 
       // Cập nhật KPIs
 
@@ -1655,15 +1542,11 @@
 
       const operators = usersList.filter(u => u.role === 'operator').length;
 
-
-
       $('kpiTotalUsers').textContent = total;
 
       $('kpiTotalEngineers').textContent = engineers;
 
       $('kpiTotalOperators').textContent = operators;
-
-
 
       let wsCode = 'ANBINH';
 
@@ -1677,13 +1560,9 @@
 
       $('kpiWorkshopCode').textContent = wsCode;
 
-
-
       renderUsersTable();
 
     }
-
-
 
     function renderUsersTable() {
 
@@ -1691,13 +1570,9 @@
 
       if (!tbody) return;
 
-
-
       const search = ($('inpSearchUser').value || '').trim().toLowerCase();
 
       const roleFilter = $('selFilterRole').value;
-
-
 
       let filtered = usersList.filter(u => {
 
@@ -1717,8 +1592,6 @@
 
       });
 
-
-
       if (!filtered.length) {
 
         tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748B;">Không tìm thấy nhân sự nào phù hợp với từ khóa tìm kiếm.</td></tr>`;
@@ -1726,8 +1599,6 @@
         return;
 
       }
-
-
 
       let html = '';
 
@@ -1738,8 +1609,6 @@
         const isEng = u.role === 'engineer';
 
         const createdDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mặc định';
-
-
 
         html += `
 
@@ -1831,11 +1700,7 @@
 
       });
 
-
-
       tbody.innerHTML = html;
-
-
 
       // Event: Xem / Ẩn mật khẩu
 
@@ -1864,8 +1729,6 @@
         };
 
       });
-
-
 
       // Event: Đổi mật khẩu
 
@@ -1907,8 +1770,6 @@
 
       });
 
-
-
       // Event: Chuyển đổi quyền
 
       tbody.querySelectorAll('.btn-toggle-role').forEach(btn => {
@@ -1940,8 +1801,6 @@
         };
 
       });
-
-
 
       // Event: Xóa tài khoản
 
@@ -1975,8 +1834,6 @@
 
     }
 
-
-
     function handleAddNewUser() {
 
       const u = ($('inpNewUsername').value || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -1986,8 +1843,6 @@
       const fn = ($('inpNewFullName').value || '').trim();
 
       const r = $('selNewRole').value;
-
-
 
       if (!u || u.length < 3) {
 
@@ -2013,8 +1868,6 @@
 
       }
 
-
-
       const newUser = {
 
         username: u,
@@ -2029,15 +1882,11 @@
 
       };
 
-
-
       usersList.push(newUser);
 
       saveUsersToStorage();
 
       renderDashboard();
-
-
 
       $('inpNewUsername').value = '';
 
@@ -2045,13 +1894,9 @@
 
       $('inpNewFullName').value = '';
 
-
-
       showToast(`🎉 Đã cấp tài khoản [@${u}] (${r === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
 
     }
-
-
 
     function handleSaveAdminPass() {
 
@@ -2085,8 +1930,6 @@
 
     }
 
-
-
     function handleBackupDataJson() {
 
       loadUsersFromStorage();
@@ -2101,8 +1944,6 @@
 
       } catch (e) {}
 
-
-
       let profiles = [];
 
       try {
@@ -2112,8 +1953,6 @@
         if (rawProf) profiles = JSON.parse(rawProf);
 
       } catch (e) {}
-
-
 
       let activeProject = null;
 
@@ -2125,8 +1964,6 @@
 
       } catch (e) {}
 
-
-
       let cutStatuses = {};
 
       try {
@@ -2136,8 +1973,6 @@
         if (rawCuts) cutStatuses = JSON.parse(rawCuts);
 
       } catch (e) {}
-
-
 
       const backupObj = {
 
@@ -2158,8 +1993,6 @@
         cutStatuses: cutStatuses
 
       };
-
-
 
       const jsonStr = JSON.stringify(backupObj, null, 2);
 
@@ -2187,15 +2020,11 @@
 
     }
 
-
-
     function handleRestoreBackupFile(event) {
 
       const file = event.target.files && event.target.files[0];
 
       if (!file) return;
-
-
 
       const reader = new FileReader();
 
@@ -2214,8 +2043,6 @@
           }
 
           if (!confirm(`⚠️ Bạn có chắc chắn muốn khôi phục dữ liệu từ file backup ngày [${data.exportedAt || 'không rõ'}] không? Dữ liệu hiện tại sẽ được cập nhật.`)) return;
-
-
 
           if (Array.isArray(data.users) && data.users.length) {
 
@@ -2255,8 +2082,6 @@
 
           }
 
-
-
           renderDashboard();
 
           showToast('🎉 Đã khôi phục dữ liệu toàn xưởng từ file backup thành công!');
@@ -2275,8 +2100,6 @@
 
     }
 
-
-
     function handleResetDefaultAccounts() {
 
       if (!confirm('⚠️ Bạn có chắc chắn muốn đặt lại danh sách nhân sự về 3 tài khoản mặc định (admin, kt1, thocnc) không?')) return;
@@ -2291,8 +2114,6 @@
 
     }
 
-
-
     // Gắn sự kiện khi DOM tải xong
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -2303,21 +2124,15 @@
 
       $('btnDeniedLogout').onclick = handleAdminLogout;
 
-
-
       $('inpAdminLoginPass').addEventListener('keydown', (e) => {
 
         if (e.key === 'Enter') handleAdminLogin();
 
       });
 
-
-
       $('inpSearchUser').oninput = renderUsersTable;
 
       $('selFilterRole').onchange = renderUsersTable;
-
-
 
       $('btnSaveAdminPass').onclick = handleSaveAdminPass;
 
@@ -2329,8 +2144,6 @@
 
       $('btnResetDefaultAccounts').onclick = handleResetDefaultAccounts;
 
-
-
       $('btnScrollToAddUser').onclick = () => {
 
         $('cardAddUser').scrollIntoView({ behavior: 'smooth' });
@@ -2339,15 +2152,76 @@
 
       };
 
-
-
       // Kiểm tra phiên đăng nhập
 
       checkAuthSession();
 
     });
 
-  </script>
+  
+    async function fetchCloudUsers() {
+      let got = false;
+      try {
+        const res = await fetch('/api/state');
+        if (res.ok) {
+          const d = await res.json();
+          if (d && d.db && Array.isArray(d.db.users)) {
+            mergeUsersList(d.db.users);
+            got = true;
+          }
+        }
+      } catch (e) {}
+
+      if (!got) {
+        try {
+          const pollRes = await fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/json?poll=1');
+          if (pollRes.ok) {
+            const text = await pollRes.text();
+            const lines = text.trim().split('\n').filter(Boolean);
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try {
+                const msg = JSON.parse(lines[i]);
+                if (msg.event === 'message') {
+                  let cloudDb = null;
+                  if (msg.attachment && msg.attachment.url) {
+                    const aRes = await fetch(msg.attachment.url);
+                    if (aRes.ok) cloudDb = await aRes.json();
+                  } else if (msg.message && msg.message.startsWith('{')) {
+                    cloudDb = JSON.parse(msg.message);
+                  }
+                  if (cloudDb && Array.isArray(cloudDb.users)) {
+                    mergeUsersList(cloudDb.users);
+                    break;
+                  }
+                }
+              } catch (err) {}
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    function mergeUsersList(remUsers) {
+      if (!Array.isArray(remUsers)) return;
+      const uMap = new Map();
+      usersList.forEach(u => uMap.set(u.username.toLowerCase(), u));
+      let changed = false;
+      remUsers.forEach(ru => {
+        if (ru && ru.username) {
+          const k = ru.username.toLowerCase();
+          if (!uMap.has(k) || JSON.stringify(uMap.get(k)) !== JSON.stringify(ru)) {
+            uMap.set(k, ru);
+            changed = true;
+          }
+        }
+      });
+      if (changed) {
+        usersList = Array.from(uMap.values());
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
+        renderUsersTable();
+      }
+    }
+</script>
 
 </body>
 

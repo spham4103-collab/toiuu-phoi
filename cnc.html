@@ -346,6 +346,93 @@
       sel.innerHTML = opts;
 
       solveAndRender();
+      initRealtime();
+      fetchCloudWorkshopData();
+    }
+
+    async function fetchCloudWorkshopData() {
+      let got = false;
+      try {
+        const res = await fetch('/api/state');
+        if (res.ok) {
+          const d = await res.json();
+          if (d && d.db) {
+            applyCloudData(d.db);
+            got = true;
+          }
+        }
+      } catch (e) {}
+
+      if (!got) {
+        try {
+          const pollRes = await fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/json?poll=1');
+          if (pollRes.ok) {
+            const text = await pollRes.text();
+            const lines = text.trim().split('\n').filter(Boolean);
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try {
+                const msg = JSON.parse(lines[i]);
+                if (msg.event === 'message') {
+                  let cloudDb = null;
+                  if (msg.attachment && msg.attachment.url) {
+                    const aRes = await fetch(msg.attachment.url);
+                    if (aRes.ok) cloudDb = await aRes.json();
+                  } else if (msg.message && msg.message.startsWith('{')) {
+                    cloudDb = JSON.parse(msg.message);
+                  }
+                  if (cloudDb && (cloudDb.activeProject || cloudDb.savedProjects)) {
+                    applyCloudData(cloudDb);
+                    break;
+                  }
+                }
+              } catch (err) {}
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    function applyCloudData(db) {
+      if (!db) return;
+      let changed = false;
+      if (Array.isArray(db.savedProjects) && db.savedProjects.length) {
+        savedProjects = db.savedProjects;
+        localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(savedProjects));
+        changed = true;
+      }
+      if (db.cutStatuses && typeof db.cutStatuses === 'object') {
+        cutStatuses = Object.assign(cutStatuses, db.cutStatuses);
+        localStorage.setItem(LS_CUT_STATUSES, JSON.stringify(cutStatuses));
+        changed = true;
+      }
+      if ((!activeProject || !activeProject.parts || !activeProject.parts.length) && db.activeProject && db.activeProject.parts && db.activeProject.parts.length) {
+        activeProject = db.activeProject;
+        localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activeProject));
+        changed = true;
+      } else if ((!activeProject || !activeProject.parts || !activeProject.parts.length) && savedProjects.length) {
+        const latest = savedProjects[0];
+        if (latest && latest.data) {
+          activeProject = {
+            currentProjectId: latest.id,
+            currentProjectName: latest.name,
+            ...latest.data
+          };
+          localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activeProject));
+          changed = true;
+        }
+      }
+      if (changed) {
+        const sel = $('selCncProject');
+        const curName = activeProject && activeProject.currentProjectName ? activeProject.currentProjectName : 'Dự án hiện hành trên bàn';
+        let opts = `<option value="ACTIVE">📌 ${escapeHtml(curName)}</option>`;
+        savedProjects.forEach(p => {
+          if (!activeProject || p.id !== activeProject.currentProjectId) {
+            opts += `<option value="${escapeHtml(p.id)}">📁 ${escapeHtml(p.name)}</option>`;
+          }
+        });
+        sel.innerHTML = opts;
+        solveAndRender();
+      }
     }
 
     function solveAndRender() {
