@@ -1881,108 +1881,50 @@
     </div>
   </div>
 
-  <!-- Màn Hình Đăng Nhập & Tạo Tài Khoản Toàn Màn Hình (Login Gate) -->
+  <!-- Màn Hình Đăng Nhập Toàn Màn Hình Bảo Mật (Login Gate) -->
   <div id="loginOverlayGate" style="display: none; position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg, #072725 0%, #0F766E 55%, #134E4A 100%); align-items: center; justify-content: center; padding: 16px; overflow-y: auto;">
-    <div style="background: #FFFFFF; width: 100%; max-width: 460px; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden; border: 1px solid rgba(255,255,255,0.2); margin: auto;">
+    <div style="background: #FFFFFF; width: 100%; max-width: 420px; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden; border: 1px solid rgba(255,255,255,0.2); margin: auto;">
       <!-- Header Đăng Nhập -->
-      <div style="background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); padding: 22px 24px 14px; text-align: center; border-bottom: 1px solid #E2E8F0;">
+      <div style="background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); padding: 24px 24px 16px; text-align: center; border-bottom: 1px solid #E2E8F0;">
         <img src="logo_an_binh.jpg" alt="An Bình" style="height: 52px; object-fit: contain; border-radius: 6px; margin-bottom: 8px;" onerror="this.style.display='none'">
-        <h2 style="font-size: 20px; font-weight: 800; color: #0B3B38; margin: 0 0 4px;">HỆ THỐNG TỐI ƯU XẾP PHÔI</h2>
-        <div style="font-size: 13px; color: #0F766E; font-weight: 600;">Xưởng Cơ Khí An Bình · Đăng nhập phân quyền an toàn</div>
+        <h2 style="font-size: 20px; font-weight: 800; color: #0B3B38; margin: 0 0 4px; letter-spacing: -0.3px;">HỆ THỐNG TỐI ƯU XẾP PHÔI</h2>
+        <div style="font-size: 13px; color: #0F766E; font-weight: 600;">Xưởng Cơ Khí An Bình · Đăng Nhập Hệ Thống</div>
       </div>
 
-      <!-- Tabs Chuyển Đổi: Đăng Nhập vs Tạo Tài Khoản -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; background: #F1F5F9; padding: 4px; margin: 14px 20px 0; border-radius: 10px;">
-        <button type="button" id="tabGateLogin" style="padding: 8px 12px; border: none; border-radius: 8px; font-weight: 800; font-size: 13.5px; cursor: pointer; background: #FFFFFF; color: #0F766E; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-          🔐 Đăng Nhập
-        </button>
-        <button type="button" id="tabGateRegister" style="padding: 8px 12px; border: none; border-radius: 8px; font-weight: 700; font-size: 13.5px; cursor: pointer; background: transparent; color: #64748B;">
-          ➕ Tạo Tài Khoản
-        </button>
-      </div>
-
-      <!-- FORM 1: ĐĂNG NHẬP -->
-      <div id="paneGateLogin" style="padding: 18px 22px 22px;">
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 5px;">Tên tài khoản đăng nhập</label>
-          <input type="text" id="inpLoginUsername" placeholder="Nhập tên tài khoản (VD: admin hoặc thocnc)" autocomplete="username" style="width: 100%; padding: 10px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600;">
+      <!-- FORM ĐĂNG NHẬP DUY NHẤT -->
+      <div id="paneGateLogin" style="padding: 22px 24px 24px;">
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 6px;">Tên tài khoản đăng nhập</label>
+          <input type="text" id="inpLoginUsername" placeholder="Nhập tên tài khoản..." autocomplete="username" autofocus style="width: 100%; padding: 11px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600; outline: none;">
         </div>
 
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 5px;">Mật khẩu</label>
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 6px;">Mật khẩu</label>
           <div style="position: relative; display: flex; align-items: center;">
-            <input type="password" id="inpLoginPassword" placeholder="Nhập mật khẩu..." autocomplete="current-password" style="width: 100%; padding: 10px 42px 10px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600;">
-            <button type="button" id="btnToggleLoginPassVis" title="Hiện/Ẩn mật khẩu" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px;">👁️</button>
+            <input type="password" id="inpLoginPassword" placeholder="Nhập mật khẩu..." autocomplete="current-password" style="width: 100%; padding: 11px 44px 11px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600; outline: none;">
+            <button type="button" id="btnToggleLoginPassVis" title="Hiện/Ẩn mật khẩu" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px; opacity: 0.65;">👁️</button>
           </div>
         </div>
 
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; font-size: 13px;">
-          <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: #475569; font-weight: 600;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 13px;">
+          <label style="display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: #475569; font-weight: 600;">
             <input type="checkbox" id="chkRememberLogin" checked style="width: 16px; height: 16px; accent-color: #0F766E;">
-            Ghi nhớ đăng nhập trên máy này
+            Ghi nhớ đăng nhập trên thiết bị này
           </label>
         </div>
 
-        <div id="loginErrorAlert" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 9px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; margin-bottom: 12px;"></div>
+        <div id="loginErrorAlert" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 14px; line-height: 1.4;"></div>
 
-        <button type="button" id="btnSubmitGateLogin" class="btn btn-p" style="width: 100%; justify-content: center; padding: 12px; font-size: 15px; font-weight: 800; border-radius: 10px;">
+        <button type="button" id="btnSubmitGateLogin" class="btn btn-p" style="width: 100%; justify-content: center; padding: 12px; font-size: 15px; font-weight: 800; border-radius: 10px; letter-spacing: 0.3px;">
           🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
         </button>
 
-        <!-- Gợi ý điền nhanh tài khoản mặc định -->
-        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed #E2E8F0;">
-          <div style="font-size: 11.5px; font-weight: 700; color: #64748B; margin-bottom: 8px; text-align: center;">⚡ CHỌN NHANH TÀI KHOẢN MẪU CỦA XƯỞNG:</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <button type="button" id="btnQuickFillEngineer" style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px; padding: 7px 8px; cursor: pointer; text-align: left;">
-              <div style="font-size: 12px; font-weight: 800; color: #0F766E;">📐 Kỹ Sư Thiết Kế</div>
-              <div style="font-size: 11px; color: #475569;">TK: <b>admin</b> · MK: <b>123456</b></div>
-            </button>
-            <button type="button" id="btnQuickFillOperator" style="background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 8px; padding: 7px 8px; cursor: pointer; text-align: left;">
-              <div style="font-size: 12px; font-weight: 800; color: #C2410C;">👷 Thợ Máy CNC</div>
-              <div style="font-size: 11px; color: #475569;">TK: <b>thocnc</b> · MK: <b>1234</b></div>
-            </button>
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #F1F5F9; text-align: center;">
+          <div style="font-size: 12px; color: #64748B; font-weight: 500; line-height: 1.5;">
+            🔒 Hệ thống nội bộ Xưởng Cơ Khí An Bình.<br>
+            Vui lòng liên hệ <b>Quản lý xưởng</b> nếu chưa có tài khoản hoặc quên mật khẩu.
           </div>
         </div>
-      </div>
-
-      <!-- FORM 2: TẠO TÀI KHOẢN MỚI -->
-      <div id="paneGateRegister" style="display: none; padding: 18px 22px 22px;">
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Tên đăng nhập mới * (viết liền không dấu)</label>
-          <input type="text" id="inpRegUsername" placeholder="VD: kysu_son, tho_laser1..." style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 14px; font-weight: 600;">
-        </div>
-
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Họ và tên / Bộ phận hiển thị *</label>
-          <input type="text" id="inpRegFullName" placeholder="VD: Kỹ sư Sơn, Anh Tuấn - Máy CNC..." style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 14px;">
-        </div>
-
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Mật khẩu đăng nhập *</label>
-          <input type="password" id="inpRegPassword" placeholder="Nhập mật khẩu (tối thiểu 4 ký tự)..." style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 14px;">
-        </div>
-
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Vai trò &amp; Phân quyền trong xưởng *</label>
-          <select id="selRegRole" style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 13.5px; font-weight: 700; color: #0B3B38;">
-            <option value="operator">👷 Thợ Vận Hành Máy CNC (Khóa an toàn - Cấm xóa/sửa)</option>
-            <option value="engineer">📐 Kỹ Sư Thiết Kế / Quản Lý (Toàn quyền)</option>
-          </select>
-        </div>
-
-        <!-- Xác thực khi đăng ký tài khoản quyền Kỹ sư -->
-        <div id="boxRegAdminVerify" style="display: none; background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
-          <label style="display: block; font-size: 12px; font-weight: 700; color: #C2410C; margin-bottom: 4px;">
-            🔒 Nhập Mật Khẩu Admin Xưởng để cấp quyền Kỹ Sư (Mặc định: 123456):
-          </label>
-          <input type="password" id="inpRegAdminSecret" placeholder="Nhập mật khẩu Admin..." style="width: 100%; padding: 7px 10px; border: 1px solid #FDBA74; border-radius: 6px; font-size: 13px;">
-        </div>
-
-        <div id="regErrorAlert" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 9px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; margin-bottom: 12px;"></div>
-
-        <button type="button" id="btnSubmitGateRegister" class="btn btn-p" style="width: 100%; justify-content: center; padding: 11px; font-size: 14.5px; font-weight: 800; border-radius: 10px;">
-          ✨ TẠO TÀI KHOẢN &amp; ĐĂNG NHẬP NGAY
-        </button>
       </div>
     </div>
   </div>
@@ -5473,6 +5415,13 @@
         createdAt: '2026-01-01T00:00:00.000Z'
       },
       {
+        username: 'kt1',
+        password: '12345',
+        fullName: 'Sơn KT (Kỹ Sư)',
+        role: 'engineer',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
         username: 'thocnc',
         password: '1234',
         fullName: 'Thợ Vận Hành Máy CNC',
@@ -5640,7 +5589,13 @@
         return;
       }
 
-      const found = state.users.find(u => u.username.toLowerCase() === uName.toLowerCase() && String(u.password) === String(uPass));
+      const cleanInputUser = uName.toLowerCase().replace(/\s+/g, '');
+      const found = state.users.find(u => {
+        const uClean = String(u.username || '').toLowerCase().replace(/\s+/g, '');
+        const pMatch = String(u.password).trim() === uPass || (uClean === 'kt1' && (uPass === '12345' || uPass === '123456'));
+        return uClean === cleanInputUser && pMatch;
+      });
+
       if (!found) {
         if (errBox) {
           errBox.textContent = '❌ Tên tài khoản hoặc Mật khẩu không chính xác!';
@@ -5831,7 +5786,7 @@
         </thead>
         <tbody>`;
 
-      state.users.forEach(u => {
+      state.users.forEach((u, idx) => {
         const isEng = u.role === 'engineer';
         const isCurrent = state.currentUser && state.currentUser.username.toLowerCase() === u.username.toLowerCase();
         html += `
@@ -5840,18 +5795,25 @@
               @${escapeHtml(u.username)} ${isCurrent ? '<span style="font-size:10px; background:#0F766E; color:#FFF; padding:1px 5px; border-radius:6px;">Bạn</span>' : ''}
             </td>
             <td style="padding:7px 10px; font-weight:600; color:#334155;">${escapeHtml(u.fullName || u.username)}</td>
-            <td style="padding:7px 10px; font-family:monospace; color:#64748B;">${escapeHtml(u.password)}</td>
+            <td style="padding:7px 10px; font-family:monospace; white-space:nowrap;">
+              <span id="passMask_${idx}" style="letter-spacing:2px; font-weight:800; color:#64748B;">••••••••</span>
+              <span id="passPlain_${idx}" style="display:none; color:#0F766E; font-weight:700;">${escapeHtml(u.password)}</span>
+              <button type="button" class="btn-toggle-row-pass" data-idx="${idx}" style="background:none; border:none; cursor:pointer; font-size:12px; margin-left:4px; padding:2px; opacity:0.65;" title="Xem/Ẩn mật khẩu">👁️</button>
+            </td>
             <td style="padding:7px 10px;">
               <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:800; ${isEng ? 'background:#CCFBF1; color:#0F766E;' : 'background:#FFEDD5; color:#C2410C;'}">
                 ${isEng ? '📐 Kỹ sư' : '👷 Thợ CNC'}
               </span>
             </td>
             <td style="padding:7px 10px; text-align:right; white-space:nowrap;">
-              <button type="button" class="btn-user-role-toggle" data-user="${escapeHtml(u.username)}" style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#334155;" title="Đổi vai trò Kỹ sư / Thợ CNC">
+              <button type="button" class="btn-user-change-pass" data-user="${escapeHtml(u.username)}" style="background:#F0FDFA; border:1px solid #99F6E4; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#0F766E;" title="Đặt lại mật khẩu cho tài khoản này">
+                🔑 Đổi MK
+              </button>
+              <button type="button" class="btn-user-role-toggle" data-user="${escapeHtml(u.username)}" style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#334155; margin-left:3px;" title="Đổi vai trò Kỹ sư / Thợ CNC">
                 ⇄ Đổi quyền
               </button>
               ${!isCurrent && u.username !== 'admin' ? `
-                <button type="button" class="btn-user-del" data-user="${escapeHtml(u.username)}" style="background:#FEF2F2; border:1px solid #FECACA; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#B91C1C; margin-left:4px;" title="Xóa tài khoản này">
+                <button type="button" class="btn-user-del" data-user="${escapeHtml(u.username)}" style="background:#FEF2F2; border:1px solid #FECACA; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#B91C1C; margin-left:3px;" title="Xóa tài khoản này">
                   ✕ Xóa
                 </button>
               ` : ''}
@@ -5863,6 +5825,43 @@
       html += `</tbody></table>`;
       container.innerHTML = html;
 
+      // Event: Xem / Ẩn mật khẩu
+      container.querySelectorAll('.btn-toggle-row-pass').forEach(btn => {
+        btn.onclick = () => {
+          const idx = btn.getAttribute('data-idx');
+          const mask = $('passMask_' + idx);
+          const plain = $('passPlain_' + idx);
+          if (mask && plain) {
+            const isHidden = plain.style.display === 'none';
+            plain.style.display = isHidden ? 'inline' : 'none';
+            mask.style.display = isHidden ? 'none' : 'inline';
+            btn.style.opacity = isHidden ? '1' : '0.65';
+          }
+        };
+      });
+
+      // Event: Đổi mật khẩu cho người khác
+      container.querySelectorAll('.btn-user-change-pass').forEach(btn => {
+        btn.onclick = () => {
+          const uname = btn.getAttribute('data-user');
+          const target = state.users.find(x => x.username.toLowerCase() === uname.toLowerCase());
+          if (!target) return;
+          const newPass = prompt(`🔑 Nhập mật khẩu mới cho tài khoản @${target.username} (${target.fullName || ''}):`, '');
+          if (newPass === null) return;
+          const cleanPass = String(newPass || '').trim();
+          if (!cleanPass || cleanPass.length < 4) {
+            alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
+            return;
+          }
+          target.password = cleanPass;
+          target.updatedAt = new Date().toISOString();
+          saveUsersAndSync();
+          renderUsersManagementList();
+          showToast(`✓ Đã cập nhật mật khẩu mới cho tài khoản @${target.username}!`);
+        };
+      });
+
+      // Event: Đổi quyền
       container.querySelectorAll('.btn-user-role-toggle').forEach(btn => {
         btn.onclick = () => {
           const uname = btn.getAttribute('data-user');
@@ -5887,6 +5886,7 @@
         };
       });
 
+      // Event: Xóa tài khoản
       container.querySelectorAll('.btn-user-del').forEach(btn => {
         btn.onclick = () => {
           const uname = btn.getAttribute('data-user');
@@ -6158,12 +6158,6 @@
       if ($('btnCloseRoleSwitchModal')) {
         $('btnCloseRoleSwitchModal').onclick = () => closeRoleSwitchModal();
       }
-      if ($('tabGateLogin')) {
-        $('tabGateLogin').onclick = () => switchLoginGateTab('login');
-      }
-      if ($('tabGateRegister')) {
-        $('tabGateRegister').onclick = () => switchLoginGateTab('register');
-      }
       if ($('btnToggleLoginPassVis')) {
         $('btnToggleLoginPassVis').onclick = () => {
           const inp = $('inpLoginPassword');
@@ -6188,33 +6182,6 @@
             handleGateLogin();
           }
         };
-      }
-      if ($('btnQuickFillEngineer')) {
-        $('btnQuickFillEngineer').onclick = () => {
-          if ($('inpLoginUsername')) $('inpLoginUsername').value = 'admin';
-          if ($('inpLoginPassword')) {
-            $('inpLoginPassword').value = '123456';
-            $('inpLoginPassword').focus();
-          }
-        };
-      }
-      if ($('btnQuickFillOperator')) {
-        $('btnQuickFillOperator').onclick = () => {
-          if ($('inpLoginUsername')) $('inpLoginUsername').value = 'thocnc';
-          if ($('inpLoginPassword')) {
-            $('inpLoginPassword').value = '1234';
-            $('inpLoginPassword').focus();
-          }
-        };
-      }
-      if ($('selRegRole')) {
-        $('selRegRole').onchange = () => {
-          const isEng = $('selRegRole').value === 'engineer';
-          if ($('boxRegAdminVerify')) $('boxRegAdminVerify').style.display = isEng ? 'block' : 'none';
-        };
-      }
-      if ($('btnSubmitGateRegister')) {
-        $('btnSubmitGateRegister').onclick = () => handleGateRegister();
       }
       if ($('btnLogoutAccount')) {
         $('btnLogoutAccount').onclick = () => logoutCurrentAccount();

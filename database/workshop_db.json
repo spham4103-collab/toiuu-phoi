@@ -372,5 +372,25 @@
       "totalCount": 1,
       "status": "done"
     }
-  }
+  },
+  "users": [
+    {
+      "username": "admin",
+      "password": "123456",
+      "fullName": "Kỹ Sư Thiết Kế (Admin)",
+      "role": "engineer"
+    },
+    {
+      "username": "kt1",
+      "password": "12345",
+      "fullName": "Sơn KT (Kỹ Sư)",
+      "role": "engineer"
+    },
+    {
+      "username": "thocnc",
+      "password": "1234",
+      "fullName": "Thợ Vận Hành Máy CNC",
+      "role": "operator"
+    }
+  ]
 }
