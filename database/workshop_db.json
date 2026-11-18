@@ -1,6 +1,6 @@
 {
   "workspaceId": "ANBINH",
-  "updatedAt": "2026-11-18T16:18:32.206Z",
+  "updatedAt": "2026-11-18T16:19:14.033Z",
   "savedProfiles": [
     "Hộp 20x20x1.4",
     "Hộp 25x25x1.4",
@@ -12,9 +12,29 @@
     "Hộp 30x60x1.8",
     "Hộp 40x80x2.0",
     "Ống Ø27x1.4",
-    "Ống Ø34x1.4"
+    "Ống Ø34x1.4",
+    "Hộp 90x90x3.0 (VerifyTemp)"
   ],
   "savedProjects": [
+    {
+      "id": "proj_verify_temp_123",
+      "name": "Test Cửa Sắt (Verify)",
+      "customer": "Test",
+      "updatedAt": "2026-11-18T16:19:14.024Z",
+      "data": {
+        "parts": [
+          {
+            "name": "Thanh 1",
+            "length": 1000,
+            "qty": 2,
+            "profile": "Hộp 30x30x1.8"
+          }
+        ],
+        "activeProfiles": [
+          "Hộp 30x30x1.8"
+        ]
+      }
+    },
     {
       "id": "proj_1795011503972_l3qw",
       "name": "Dự án #3 (18/11/2026)",
