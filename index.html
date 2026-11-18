@@ -3106,7 +3106,7 @@
 
         // Calculate bars needed for this profile from current result
         let barsNeededText = '';
-        if (state.result && state.result.summaryByProfile) {
+        if (totalPcs > 0 && state.result && state.result.summaryByProfile) {
           const sp = state.result.summaryByProfile.find(s => s.profile === prof);
           if (sp && sp.totalBars > 0) {
             barsNeededText = `<span class="profile-tab-bars-needed">Cần ${sp.totalBars} cây</span>`;
@@ -3140,7 +3140,7 @@
 
       if (cur === 'ALL') {
         const totalPcs = state.parts.reduce((a, b) => a + (+b.qty || 0), 0);
-        let totalBars = state.result ? state.result.bars.length : 0;
+        let totalBars = (totalPcs > 0 && state.result && state.result.bars) ? state.result.bars.length : 0;
         container.innerHTML = `
           <div class="active-profile-header-banner" style="background:#F8FAFC;border-color:#CBD5E1;">
             <div class="active-profile-title" style="color:var(--dark);">
@@ -3163,8 +3163,8 @@
       const totalPcs = partsOfProf.reduce((a, b) => a + (+b.qty || 0), 0);
       const miterPcs = partsOfProf.filter(p => p.style === 'ke' || p.style === 'ke1').reduce((a, b) => a + (+b.qty || 0), 0);
 
-      let barKpiHTML = 'Chưa có chi tiết';
-      if (state.result && state.result.summaryByProfile) {
+      let barKpiHTML = '<span style="color:#64748B;">Chưa có chi tiết</span>';
+      if (totalPcs > 0 && state.result && state.result.summaryByProfile) {
         const sp = state.result.summaryByProfile.find(s => s.profile === cur);
         if (sp && sp.totalBars > 0) {
           const wasteM = (sp.usageStats.totalWasteLength / 1000).toFixed(2);
@@ -3469,6 +3469,11 @@
     function calculateOptimization(shouldScroll = false) {
       const validParts = state.parts.filter(p => p.length > 0 && p.qty > 0);
       if (!validParts.length) {
+        state.result = null;
+        renderResults(null);
+        renderProfileTabs();
+        renderActiveProfileBanner();
+        saveActiveProject();
         if (shouldScroll) showToast('Vui lòng nhập ít nhất 1 chi tiết có chiều dài và số lượng!');
         return;
       }
@@ -3552,14 +3557,49 @@
     function autoRecalc() {
       clearTimeout(recalcTimeout);
       recalcTimeout = setTimeout(() => {
-        if ($('resultsSection').style.display !== 'none') {
-          calculateOptimization(false); // DO NOT SCROLL on autoRecalc
-        }
-      }, 300);
+        calculateOptimization(false); // DO NOT SCROLL on autoRecalc - luôn tính toán Live Preview trực tiếp!
+      }, 100);
     }
 
     // Render Results View
     function renderResults(res) {
+      $('resultsSection').style.display = 'block';
+
+      if (!res || !res.bars || !res.bars.length) {
+        $('kpiContainer').innerHTML = `
+          <div class="kpi-card highlight">
+            <div class="kpi-val">0</div>
+            <div class="kpi-label">tổng số cây cần dùng</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val">0</div>
+            <div class="kpi-label">0 loại hộp · 0 mục</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val">0</div>
+            <div class="kpi-label">cây mua mới</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val">0</div>
+            <div class="kpi-label">cây tồn kho dùng</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val">0.0%</div>
+            <div class="kpi-label">hiệu suất · dư 0.00 m</div>
+          </div>
+          <div class="kpi-card interlock">
+            <div class="kpi-val">${state.interlock ? '0 m' : 'Tắt'}</div>
+            <div class="kpi-label">xếp xen kẽ ke 45°</div>
+          </div>
+        `;
+        $('warningsContainer').innerHTML = '';
+        $('materialsContainer').innerHTML = '<div style="padding:24px;text-align:center;color:var(--mut);font-size:14px;background:#F8FAFC;border-radius:8px;">Chưa có dữ liệu vật tư.</div>';
+        $('resultFilterTabs').innerHTML = '';
+        $('patternsContainer').innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--mut);background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:12px;margin:15px 0;font-size:14px;">Chưa có sơ đồ cắt nào. Vui lòng nhập chi tiết ở trên để hiển thị sơ đồ trực tiếp (Live Preview).</div>';
+        $('printDate').textContent = '';
+        return;
+      }
+
       const u = res.usageStats;
       const efficiency = u.totalNominalLength > 0 ? (u.totalCutLength / u.totalNominalLength * 100) : 0;
       const savingM = (u.totalInterlockSaving || 0) / 1000;
@@ -3860,8 +3900,18 @@
           const safeProf = prof.replace(/\s+/g, '_');
           const defaultFileName = `Cay_${letter}_${safeProf}_L${Math.round(len)}_SL_${count}.igs`;
 
-          // 1. Tải trực tiếp nội dung 3D Solid Fusion 360 nếu có sẵn trong bộ nhớ (Blob không bị CORS)
-          if (fusionBar && fusionBar.igs_content && fusionBar.igs_content.length > 100) {
+          // Kiểm tra tính đồng bộ: fusionBar có khớp chính xác cấu trúc chi tiết đang hiển thị không
+          let isMatch = false;
+          if (fusionBar && pieces && Array.isArray(fusionBar.pieces) && fusionBar.pieces.length === pieces.length) {
+            isMatch = fusionBar.pieces.every((fb, i) => {
+              const cp = pieces[i];
+              const cpLen = cp.c ? cp.c.length : cp.length;
+              return Math.abs(fb.length - cpLen) < 1.0;
+            });
+          }
+
+          // 1. Tải trực tiếp nội dung 3D Solid Fusion 360 nếu có sẵn trong bộ nhớ VÀ đúng cấu trúc chi tiết hiện tại
+          if (isMatch && fusionBar && fusionBar.igs_content && fusionBar.igs_content.length > 100) {
             const blob = new Blob([fusionBar.igs_content], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -3875,8 +3925,8 @@
             return;
           }
 
-          // 2. Thử fetch file nếu đang chạy HTTP / Web Server
-          if (fusionBar && fusionBar.name) {
+          // 2. Thử fetch file nếu đang chạy HTTP / Web Server VÀ đúng cấu trúc chi tiết hiện tại
+          if (isMatch && fusionBar && fusionBar.name) {
             const targetName = `${fusionBar.name}.igs`.replace(/\.igs\.igs$/, '.igs');
             fetch(targetName)
               .then(res => {
@@ -4690,10 +4740,13 @@
       $('btnClearAll').onclick = () => {
         if (confirm('Bạn có chắc muốn xóa toàn bộ danh sách chi tiết của tất cả các loại hộp?')) {
           state.parts = [];
+          state.result = null;
           renderProfileTabs();
           renderActiveProfileBanner();
           renderPartsList();
-          autoRecalc();
+          calculateOptimization(false);
+          saveActiveProject();
+          showToast('Đã xóa sạch toàn bộ chi tiết bản vẽ!');
         }
       };
 

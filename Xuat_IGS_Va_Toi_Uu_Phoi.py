@@ -322,7 +322,7 @@ def solve_optimal_bars_for_profile(items_dict, usable_len=5920.0, kerf=0.0):
 
     return bars
 
-def solve_bars_with_engine(parts_by_prof, engine_dirs, stock_len=6000.0, clamp_tail=100.0, kerf=0.0):
+def solve_bars_with_engine(parts_by_prof, engine_dirs, stock_len=6000.0, clamp_tail=80.0, kerf=0.0):
     """
     Chạy engine toi-uu-engine.js thông qua Node.js để giải bài toán xếp phôi.
     Đảm bảo kết quả (thứ tự, thành phần chi tiết, góc cắt mòi) của file 3D .igs
@@ -678,8 +678,8 @@ def run(context):
 
         # 4. XUẤT ĐẦY ĐỦ TẤT CẢ FILE .IGS CÁC CÂY GHÉP 6M CHO MỌI LOẠI HỘP
         stock_len = 6000.0
-        clamp_len = 100.0  # Chuẩn kẹp đuôi 100mm đồng bộ 100% với Web
-        usable_len = stock_len - clamp_len  # 5900mm
+        clamp_len = 80.0  # Chuẩn kẹp đuôi 80mm đồng bộ 100% với Laser CNC trên Web
+        usable_len = stock_len - clamp_len  # 5920mm
         kerf = 0.0  # Common-line cut liền mạch
         bar_exports = []
         alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
