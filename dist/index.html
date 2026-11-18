@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống · An Bình</title>
   <meta name="description" content="Ứng dụng tối ưu xếp phôi cắt thép hộp, ống tròn, thanh nhôm 1D. Bộ nhớ lưu quy cách hộp, xếp riêng từng loại hộp và tính toán số cây cần dùng chính xác.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1E3A8A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -502,6 +506,92 @@
       align-items: center;
       gap: 8px;
       margin-top: 14px;
+    }
+
+    /* Phân quyền thông minh: Thợ đứng máy CNC (role-operator / operator-mode) */
+    body.role-operator #btnReset,
+    body.role-operator #btnDeleteCurrentProject,
+    body.role-operator #btnDelActiveProfile,
+    body.role-operator #btnCleanAllParts,
+    body.role-operator #btnClearAll,
+    body.role-operator #btnRemoveCurrentProfile,
+    body.role-operator #btnProjModalNewBlank,
+    body.role-operator #btnOpenSaveModal,
+    body.role-operator #btnBannerSave,
+    body.role-operator #btnBannerToggleLock,
+    body.role-operator #btnProjModalImport,
+    body.role-operator #btnAddPart,
+    body.role-operator #btnAddStock,
+    body.role-operator #btnAddCustomProfile,
+    body.role-operator #inpCustomProfile,
+    body.role-operator #dropdownImport,
+    body.role-operator #dropdownSamples,
+    body.role-operator #btnResetCutProgress,
+    body.role-operator .btn-del-proj,
+    body.role-operator .btn-del,
+    body.role-operator .btn-perm-del-proj,
+    body.operator-mode #btnReset,
+    body.operator-mode #btnDeleteCurrentProject,
+    body.operator-mode #btnDelActiveProfile,
+    body.operator-mode #btnCleanAllParts,
+    body.operator-mode #btnClearAll,
+    body.operator-mode #btnRemoveCurrentProfile,
+    body.operator-mode #btnProjModalNewBlank,
+    body.operator-mode #btnOpenSaveModal,
+    body.operator-mode #btnBannerSave,
+    body.operator-mode #btnBannerToggleLock,
+    body.operator-mode #btnProjModalImport,
+    body.operator-mode .btn-del-proj,
+    body.operator-mode .btn-del,
+    body.operator-mode .btn-perm-del-proj {
+      display: none !important;
+    }
+    body.role-operator .parts-row input,
+    body.role-operator .parts-row select,
+    body.role-operator .stock-row input,
+    body.role-operator #inpKerf,
+    body.role-operator #inpClamp,
+    body.role-operator #inpGap {
+      pointer-events: none !important;
+      background: #F8FAFC !important;
+      color: #334155 !important;
+    }
+    body.role-operator .miter-btns button {
+      pointer-events: none !important;
+      opacity: 0.65;
+    }
+    body.role-operator .btn-cut-toggle,
+    body.role-operator .btn-export-bar,
+    body.role-operator .btn-export-all-bars,
+    body.role-operator #btnRoleSelector,
+    body.role-operator #btnBannerUnlockRole,
+    body.role-operator #btnProjectsManager,
+    body.role-operator #btnCloudSync,
+    body.role-operator .modal-close,
+    body.role-operator .btn-load-proj,
+    body.role-operator #loginOverlayGate *,
+    body.role-operator #modalRoleSwitch * {
+      pointer-events: auto !important;
+    }
+    body.operator-mode .bar-piece-txt,
+    body.operator-mode .bar-piece-inner {
+      font-size: 20px !important;
+      font-weight: 900 !important;
+      letter-spacing: 0.5px !important;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+    }
+    body.operator-mode .bar-title {
+      font-size: 17px !important;
+      font-weight: 800 !important;
+    }
+    body.operator-mode .btn-save-bar-igs {
+      padding: 9px 18px !important;
+      font-size: 14.5px !important;
+      font-weight: 800 !important;
+      background: #059669 !important;
+      color: #FFF !important;
+      border: 1.5px solid #047857 !important;
+      box-shadow: 0 3px 10px rgba(5, 150, 105, 0.4) !important;
     }
 
     /* Stock Table */
@@ -1098,6 +1188,19 @@
         </div>
       </a>
       <div class="top-actions">
+        <!-- Trạng Thái Mạng (Online/Offline PWA) -->
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0;" title="Trạng thái kết nối máy chủ">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;" id="networkDot"></span>
+          <span id="networkStatusText">Trực tuyến 24/7</span>
+        </div>
+
+        <!-- Nút Phân Quyền Thông Minh (Thợ CNC vs Kỹ Sư Thiết Kế) -->
+        <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Nhấn để đổi vai trò hoặc nhập mã PIN Kỹ sư">
+          <span id="roleBadgeIcon">👷</span>
+          <span id="roleBadgeText">Thợ CNC [Khóa an toàn]</span>
+          <span id="roleLockStatus" style="font-size:12px;">🔒</span>
+        </button>
+
         <!-- Nút Đồng Bộ Đám Mây Mã Xưởng -->
         <button class="btn btn-soft btn-sm" id="btnCloudSync" title="Đồng bộ tự động qua đám mây giữa các thiết bị bằng Mã Xưởng">
           <span class="cloud-status-dot dot-gray" id="cloudStatusDot"></span>
@@ -1177,6 +1280,9 @@
         </div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn btn-sm btn-soft" id="btnBannerToggleLock" title="Khóa bảo vệ dự án chống xóa hoặc chỉnh sửa nhầm">
+          <span id="bannerLockIcon">🔓</span> <span id="bannerLockText">Khóa bảo vệ</span>
+        </button>
         <button class="btn btn-sm btn-soft" id="btnBannerSave" title="Lưu nhanh các thay đổi vào dự án này">
           <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Lưu cập nhật
         </button>
@@ -1204,6 +1310,20 @@
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Banner Thông Báo Chế Độ Thợ CNC -->
+    <div id="operatorModeBanner" style="display:none; background:#FFF7ED; border:2px solid #F97316; border-radius:12px; padding:12px 18px; margin-bottom:16px; align-items:center; justify-content:space-between; gap:12px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:24px;">👷</span>
+        <div>
+          <div style="font-size:15px; font-weight:800; color:#C2410C;">ĐANG BẬT CHẾ ĐỘ THỢ ĐỨNG MÁY CNC / CƯA</div>
+          <div style="font-size:13px; color:#9A3412;">Kích thước hiển thị to rõ, bảo vệ dữ liệu chống bấm nhầm xóa dự án. Bấm nút màu xanh lá ở từng cây để tải file .IGS về máy CNC.</div>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-soft" id="btnExitOperatorMode" style="background:#FFF; border:1px solid #EA580C; color:#EA580C; font-weight:700;">
+        ✕ Thoát chế độ thợ
+      </button>
     </div>
 
     <!-- Main Form Grid -->
@@ -1390,6 +1510,52 @@
         <div id="materialsContainer"></div>
       </section>
 
+      
+      <!-- Card Tiến Độ Cắt Thực Tế Tại Xưởng (Realtime Live Tracking) -->
+      <section class="card" id="liveCuttingProgressCard" style="border: 2px solid #0F766E; background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); margin-bottom: 24px; box-shadow: 0 4px 14px rgba(15,118,110,0.08); padding: 18px 20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:26px;">📊</span>
+            <div>
+              <h2 style="font-size:18px; color:#0F766E; margin:0;">Tiến Độ Cắt Thực Tế Tại Xưởng</h2>
+              <div style="font-size:12.5px; color:#475569;">Đồng bộ tức thì (Realtime) khi thợ bấm hoàn thành trên máy cắt Laser CNC</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span id="liveProgressPercentBadge" style="font-size:18px; font-weight:800; color:#0F766E; background:#CCFBF1; padding:4px 14px; border-radius:20px; border:1px solid #99F6E4;">0%</span>
+            <span id="liveProgressRatioText" style="font-size:13px; font-weight:700; color:#334155;">Đã cắt: 0/0 cây</span>
+          </div>
+        </div>
+
+        <!-- Thanh tiến độ lớn -->
+        <div style="width:100%; height:16px; background:#E2E8F0; border-radius:10px; overflow:hidden; position:relative; margin-bottom:14px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.1);">
+          <div id="liveProgressBarFill" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease; border-radius:10px;"></div>
+        </div>
+
+        <!-- Các thông số chi tiết -->
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:13px;">
+          <div style="display:flex; gap:14px; flex-wrap:wrap;">
+            <span style="display:inline-flex; align-items:center; gap:5px; color:#15803D; font-weight:700;">
+              <span style="width:9px; height:9px; border-radius:50%; background:#10B981;"></span>
+              Đã cắt xong: <b id="statCutCompleted">0</b> cây
+            </span>
+            <span style="display:inline-flex; align-items:center; gap:5px; color:#C2410C; font-weight:700;">
+              <span style="width:9px; height:9px; border-radius:50%; background:#F97316;"></span>
+              Đang cắt dở: <b id="statCutInProgress">0</b> cây
+            </span>
+            <span style="display:inline-flex; align-items:center; gap:5px; color:#475569; font-weight:600;">
+              <span style="width:9px; height:9px; border-radius:50%; background:#94A3B8;"></span>
+              Còn lại: <b id="statCutRemaining">0</b> cây
+            </span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button type="button" class="btn btn-soft btn-sm" id="btnResetCutProgress" style="font-size:11.5px; padding:3px 9px; color:#64748B;" title="Đặt lại toàn bộ tiến độ cắt về 0%">
+              🔄 Đặt lại tiến độ
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- Filter Cutting Layout by Profile -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
         <h2>Sơ đồ cắt chi tiết theo từng loại hộp</h2>
@@ -1521,6 +1687,15 @@
         <button class="btn btn-soft btn-sm" id="btnProjModalBackupAll" title="Tải file sao lưu toàn bộ danh sách dự án">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Sao lưu tất cả
         </button>
+
+        <div style="display:flex; align-items:center; gap:6px; margin: 0 4px;">
+          <button class="btn btn-sm btn-p btn-tab-proj" id="btnTabActiveProjects" type="button" style="font-weight:700;">
+            📁 Danh mục (<span id="countActiveProjects">0</span>)
+          </button>
+          <button class="btn btn-sm btn-soft btn-tab-proj" id="btnTabTrashProjects" type="button" style="color:#DC2626;" title="Thùng rác chứa các dự án đã xóa (có thể khôi phục lại)">
+            🗑️ Thùng rác (<span id="countTrashProjects">0</span>)
+          </button>
+        </div>
         
         <div class="projects-search">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -1615,6 +1790,204 @@
     </div>
   </div>
 
+  <!-- Modal Quản Lý Tài Khoản & Phân Quyền Hệ Thống -->
+  <div class="modal-backdrop" id="modalRoleSwitch" style="display: none;">
+    <div class="modal-box" style="max-width: 640px;">
+      <div class="modal-head">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">👤</span>
+          <h3 style="margin:0; font-size:18px;">Quản Lý Tài Khoản &amp; Phân Quyền Xưởng</h3>
+        </div>
+        <button class="modal-close" id="btnCloseRoleModal">&times;</button>
+      </div>
+
+      <div style="margin: 14px 0;">
+        <!-- Khối 1: Thông tin Tài khoản đang đăng nhập -->
+        <div id="currentAccountCard" style="border:2px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div>
+              <div style="font-size:12px; color:#475569; font-weight:600; margin-bottom:2px;">ĐANG ĐĂNG NHẬP VỚI TÀI KHOẢN:</div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span id="accModalUserIcon" style="font-size:22px;">📐</span>
+                <strong id="accModalFullName" style="font-size:16px; color:#0B3B38;">Kỹ Sư Thiết Kế</strong>
+                <span id="accModalUsername" style="font-size:13px; color:#0F766E; font-family:monospace; background:#CCFBF1; padding:2px 8px; border-radius:6px; font-weight:700;">@admin</span>
+                <span id="accModalRoleBadge" style="font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:12px; background:#0F766E; color:#FFF;">TOÀN QUYỀN KỸ SƯ</span>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm" id="btnLogoutAccount" style="background:#B4232C; color:#FFF; font-weight:700; padding:7px 14px;">
+              🚪 Đăng xuất / Đổi tài khoản
+            </button>
+          </div>
+
+          <div id="accModalRoleDesc" style="font-size:12.5px; color:#134E4A; margin-top:10px; line-height:1.45; border-top:1px dashed #99F6E4; padding-top:8px;">
+            Toàn quyền tính toán tối ưu, thêm/sửa/xóa quy cách hộp, xóa dự án, xuất nhập Fusion 360 và quản lý tài khoản nhân sự trong xưởng.
+          </div>
+
+          <!-- Đổi mật khẩu cá nhân -->
+          <details style="margin-top:10px; font-size:12.5px; color:#0F766E;">
+            <summary style="cursor:pointer; font-weight:700;">🔑 Đổi mật khẩu tài khoản của tôi</summary>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+              <input type="password" id="inpNewSelfPassword" placeholder="Nhập mật khẩu mới (tối thiểu 4 ký tự)..." style="flex:1; min-width:200px; padding:7px 12px; border:1.5px solid #CBD5E1; border-radius:8px; font-size:13px;">
+              <button type="button" class="btn btn-p btn-sm" id="btnSaveSelfPassword" style="font-weight:700;">Lưu mật khẩu mới</button>
+            </div>
+          </details>
+        </div>
+
+        <!-- Khối 2: Quản lý Danh sách Tài khoản Xưởng (Chỉ hiện khi là Kỹ sư / Admin) -->
+        <div id="adminUsersManagerBox" style="border:1.5px solid #CBD5E1; background:#FFFFFF; border-radius:12px; padding:14px 16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+            <strong style="font-size:14.5px; color:#0B3B38;">👥 Danh Sách Tài Khoản Truy Cập Xưởng</strong>
+            <span style="font-size:11.5px; color:#64748B;">Đồng bộ tự động trên mọi thiết bị</span>
+          </div>
+
+          <div id="usersListContainer" style="max-height:210px; overflow-y:auto; border:1px solid #E2E8F0; border-radius:8px; margin-bottom:14px;">
+            <!-- Render bằng JS -->
+          </div>
+
+          <!-- Form tạo tài khoản mới -->
+          <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px;">
+            <div style="font-size:13px; font-weight:800; color:#0F766E; margin-bottom:8px;">➕ Tạo Tài Khoản Mới Cho Kỹ Sư Hoặc Thợ CNC</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-bottom:8px;">
+              <div>
+                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Tên đăng nhập *</label>
+                <input type="text" id="inpAdminAddUser" placeholder="VD: tho_laser1" style="width:100%; padding:7px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px;">
+              </div>
+              <div>
+                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Mật khẩu *</label>
+                <input type="text" id="inpAdminAddPass" placeholder="VD: 1234" style="width:100%; padding:7px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px;">
+              </div>
+              <div>
+                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Họ tên / Vị trí</label>
+                <input type="text" id="inpAdminAddName" placeholder="VD: Anh Tuấn CNC" style="width:100%; padding:7px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px;">
+              </div>
+              <div>
+                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Phân quyền *</label>
+                <select id="selAdminAddRole" style="width:100%; padding:7px 8px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px; font-weight:700;">
+                  <option value="operator">👷 Thợ CNC (Khóa xóa/sửa)</option>
+                  <option value="engineer">📐 Kỹ Sư Thiết Kế (Toàn quyền)</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" class="btn btn-p btn-sm" id="btnAdminCreateAccount" style="width:100%; justify-content:center; font-weight:700;">
+              ✨ Tạo Tài Khoản Ngay
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+        <button class="btn btn-soft btn-sm" id="btnCloseRoleSwitchModal">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Màn Hình Đăng Nhập & Tạo Tài Khoản Toàn Màn Hình (Login Gate) -->
+  <div id="loginOverlayGate" style="display: none; position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg, #072725 0%, #0F766E 55%, #134E4A 100%); align-items: center; justify-content: center; padding: 16px; overflow-y: auto;">
+    <div style="background: #FFFFFF; width: 100%; max-width: 460px; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden; border: 1px solid rgba(255,255,255,0.2); margin: auto;">
+      <!-- Header Đăng Nhập -->
+      <div style="background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); padding: 22px 24px 14px; text-align: center; border-bottom: 1px solid #E2E8F0;">
+        <img src="logo_an_binh.jpg" alt="An Bình" style="height: 52px; object-fit: contain; border-radius: 6px; margin-bottom: 8px;" onerror="this.style.display='none'">
+        <h2 style="font-size: 20px; font-weight: 800; color: #0B3B38; margin: 0 0 4px;">HỆ THỐNG TỐI ƯU XẾP PHÔI</h2>
+        <div style="font-size: 13px; color: #0F766E; font-weight: 600;">Xưởng Cơ Khí An Bình · Đăng nhập phân quyền an toàn</div>
+      </div>
+
+      <!-- Tabs Chuyển Đổi: Đăng Nhập vs Tạo Tài Khoản -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; background: #F1F5F9; padding: 4px; margin: 14px 20px 0; border-radius: 10px;">
+        <button type="button" id="tabGateLogin" style="padding: 8px 12px; border: none; border-radius: 8px; font-weight: 800; font-size: 13.5px; cursor: pointer; background: #FFFFFF; color: #0F766E; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          🔐 Đăng Nhập
+        </button>
+        <button type="button" id="tabGateRegister" style="padding: 8px 12px; border: none; border-radius: 8px; font-weight: 700; font-size: 13.5px; cursor: pointer; background: transparent; color: #64748B;">
+          ➕ Tạo Tài Khoản
+        </button>
+      </div>
+
+      <!-- FORM 1: ĐĂNG NHẬP -->
+      <div id="paneGateLogin" style="padding: 18px 22px 22px;">
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 5px;">Tên tài khoản đăng nhập</label>
+          <input type="text" id="inpLoginUsername" placeholder="Nhập tên tài khoản (VD: admin hoặc thocnc)" autocomplete="username" style="width: 100%; padding: 10px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600;">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 5px;">Mật khẩu</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="inpLoginPassword" placeholder="Nhập mật khẩu..." autocomplete="current-password" style="width: 100%; padding: 10px 42px 10px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600;">
+            <button type="button" id="btnToggleLoginPassVis" title="Hiện/Ẩn mật khẩu" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px;">👁️</button>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; font-size: 13px;">
+          <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: #475569; font-weight: 600;">
+            <input type="checkbox" id="chkRememberLogin" checked style="width: 16px; height: 16px; accent-color: #0F766E;">
+            Ghi nhớ đăng nhập trên máy này
+          </label>
+        </div>
+
+        <div id="loginErrorAlert" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 9px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; margin-bottom: 12px;"></div>
+
+        <button type="button" id="btnSubmitGateLogin" class="btn btn-p" style="width: 100%; justify-content: center; padding: 12px; font-size: 15px; font-weight: 800; border-radius: 10px;">
+          🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
+        </button>
+
+        <!-- Gợi ý điền nhanh tài khoản mặc định -->
+        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed #E2E8F0;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #64748B; margin-bottom: 8px; text-align: center;">⚡ CHỌN NHANH TÀI KHOẢN MẪU CỦA XƯỞNG:</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button type="button" id="btnQuickFillEngineer" style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px; padding: 7px 8px; cursor: pointer; text-align: left;">
+              <div style="font-size: 12px; font-weight: 800; color: #0F766E;">📐 Kỹ Sư Thiết Kế</div>
+              <div style="font-size: 11px; color: #475569;">TK: <b>admin</b> · MK: <b>123456</b></div>
+            </button>
+            <button type="button" id="btnQuickFillOperator" style="background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 8px; padding: 7px 8px; cursor: pointer; text-align: left;">
+              <div style="font-size: 12px; font-weight: 800; color: #C2410C;">👷 Thợ Máy CNC</div>
+              <div style="font-size: 11px; color: #475569;">TK: <b>thocnc</b> · MK: <b>1234</b></div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORM 2: TẠO TÀI KHOẢN MỚI -->
+      <div id="paneGateRegister" style="display: none; padding: 18px 22px 22px;">
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Tên đăng nhập mới * (viết liền không dấu)</label>
+          <input type="text" id="inpRegUsername" placeholder="VD: kysu_son, tho_laser1..." style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 14px; font-weight: 600;">
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Họ và tên / Bộ phận hiển thị *</label>
+          <input type="text" id="inpRegFullName" placeholder="VD: Kỹ sư Sơn, Anh Tuấn - Máy CNC..." style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 14px;">
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Mật khẩu đăng nhập *</label>
+          <input type="password" id="inpRegPassword" placeholder="Nhập mật khẩu (tối thiểu 4 ký tự)..." style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 14px;">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 4px;">Vai trò &amp; Phân quyền trong xưởng *</label>
+          <select id="selRegRole" style="width: 100%; padding: 9px 12px; border: 1.5px solid #CBD5E1; border-radius: 8px; font-size: 13.5px; font-weight: 700; color: #0B3B38;">
+            <option value="operator">👷 Thợ Vận Hành Máy CNC (Khóa an toàn - Cấm xóa/sửa)</option>
+            <option value="engineer">📐 Kỹ Sư Thiết Kế / Quản Lý (Toàn quyền)</option>
+          </select>
+        </div>
+
+        <!-- Xác thực khi đăng ký tài khoản quyền Kỹ sư -->
+        <div id="boxRegAdminVerify" style="display: none; background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+          <label style="display: block; font-size: 12px; font-weight: 700; color: #C2410C; margin-bottom: 4px;">
+            🔒 Nhập Mật Khẩu Admin Xưởng để cấp quyền Kỹ Sư (Mặc định: 123456):
+          </label>
+          <input type="password" id="inpRegAdminSecret" placeholder="Nhập mật khẩu Admin..." style="width: 100%; padding: 7px 10px; border: 1px solid #FDBA74; border-radius: 6px; font-size: 13px;">
+        </div>
+
+        <div id="regErrorAlert" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 9px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; margin-bottom: 12px;"></div>
+
+        <button type="button" id="btnSubmitGateRegister" class="btn btn-p" style="width: 100%; justify-content: center; padding: 11px; font-size: 14.5px; font-weight: 800; border-radius: 10px;">
+          ✨ TẠO TÀI KHOẢN &amp; ĐĂNG NHẬP NGAY
+        </button>
+      </div>
+    </div>
+  </div>
+
+
   <!-- Toast Notification -->
   <div id="toast">Thông báo</div>
 
@@ -1662,6 +2035,8 @@
       currentProjectCustomer: '',
       currentProjectNotes: '',
       savedProjects: [],
+      trashProjects: [],
+      activeProjectsTab: 'active',
       editingProjectId: null,
       fusionProject: null,
       // Đồng bộ Đám mây Mã Xưởng
@@ -1671,7 +2046,12 @@
       cloudSyncStatus: 'disconnected',
       cloudUnsubscribe: null,
       firebaseDb: null,
-      isApplyingRemoteChange: false
+      isApplyingRemoteChange: false,
+      userRole: "engineer",
+      adminPin: "1234",
+      cutStatuses: {},
+      users: [],
+      currentUser: null
     };
 
     let HINH_CACHE = [];
@@ -2008,6 +2388,14 @@
       }
 
       try {
+        const rawTrash = localStorage.getItem('toiuu_trash_projects_v1');
+        state.trashProjects = rawTrash ? JSON.parse(rawTrash) : [];
+        if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
+      } catch (e) {
+        state.trashProjects = [];
+      }
+
+      try {
         const rawDel = localStorage.getItem('toiuu_deleted_proj_ids_v1');
         state.deletedProjectIds = rawDel ? JSON.parse(rawDel) : [];
         if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
@@ -2030,6 +2418,43 @@
 
       updateProjectsBadge();
       updateProjectActiveBanner();
+      fetchCloudProjects();
+    }
+
+    function saveTrashProjectsToStorage() {
+      try {
+        localStorage.setItem('toiuu_trash_projects_v1', JSON.stringify(state.trashProjects || []));
+      } catch (e) {}
+      updateProjectsBadge();
+    }
+
+    async function fetchCloudProjects() {
+      try {
+        const res = await fetch(`${SERVER_API_BASE}/api/projects`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.projects)) {
+            const localMap = new Map();
+            state.savedProjects.forEach(p => localMap.set(p.id, p));
+            let changed = false;
+            data.projects.forEach(cp => {
+              const inTrash = Array.isArray(state.trashProjects) && state.trashProjects.some(tp => tp.id === cp.id);
+              if (!state.deletedProjectIds?.includes(cp.id) && !localMap.has(cp.id) && !inTrash) {
+                state.savedProjects.push(cp);
+                changed = true;
+              }
+            });
+            if (changed) {
+              updateProjectsBadge();
+              try {
+                localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects));
+              } catch (e) {}
+              const inp = $('inpSearchProjects');
+              if (inp) renderProjectsList(inp.value.trim());
+            }
+          }
+        }
+      } catch (e) {}
     }
 
     function saveProjectsListToStorage() {
@@ -2041,14 +2466,26 @@
       } catch (e) {}
       updateProjectsBadge();
       scheduleSyncToServer('projects_list');
+      try {
+        fetch(`${SERVER_API_BASE}/api/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ savedProjects: state.savedProjects })
+        }).catch(() => {});
+      } catch (e) {}
     }
 
     function updateProjectsBadge() {
-      const count = Array.isArray(state.savedProjects) ? state.savedProjects.length : 0;
+      const countActive = Array.isArray(state.savedProjects) ? state.savedProjects.length : 0;
+      const countTrash = Array.isArray(state.trashProjects) ? state.trashProjects.length : 0;
       const b1 = $('badgeProjectCount');
       const b2 = $('projCountBadge');
-      if (b1) b1.textContent = count;
-      if (b2) b2.textContent = count;
+      const cntA = $('countActiveProjects');
+      const cntT = $('countTrashProjects');
+      if (b1) b1.textContent = countActive;
+      if (b2) b2.textContent = countActive;
+      if (cntA) cntA.textContent = countActive;
+      if (cntT) cntT.textContent = countTrash;
     }
 
     function updateProjectActiveBanner() {
@@ -2056,7 +2493,13 @@
       const nameDisp = $('dispCurrentProjName');
       const custDisp = $('dispCurrentProjCustomer');
       const btnSave = $('btnBannerSave');
+      const btnLock = $('btnBannerToggleLock');
+      const lockIcon = $('bannerLockIcon');
+      const lockText = $('bannerLockText');
       if (!bar || !nameDisp) return;
+
+      const currentProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+      const isLocked = Boolean(currentProj && currentProj.isLocked);
 
       if (state.currentProjectId && state.currentProjectName) {
         nameDisp.textContent = state.currentProjectName;
@@ -2073,13 +2516,79 @@
           btnSave.title = 'Lưu dữ liệu hiện tại thành một dự án mới';
         }
       }
+
+      if (btnLock) {
+        if (!state.currentProjectId) {
+          btnLock.style.display = 'none';
+        } else {
+          btnLock.style.display = 'inline-flex';
+          if (isLocked) {
+            if (lockIcon) lockIcon.textContent = '🔒';
+            if (lockText) lockText.textContent = 'ĐÃ KHÓA SẢN XUẤT';
+            btnLock.style.background = '#FEF3C7';
+            btnLock.style.color = '#B45309';
+            btnLock.style.borderColor = '#FCD34D';
+            btnLock.title = 'Dự án đang KHÓA BẢO VỆ SẢN XUẤT. Bấm để MỞ KHÓA nếu cần chỉnh sửa!';
+            bar.style.background = '#FFFBEB';
+            bar.style.borderColor = '#FCD34D';
+          } else {
+            if (lockIcon) lockIcon.textContent = '🔓';
+            if (lockText) lockText.textContent = 'Khóa bảo vệ';
+            btnLock.style.background = '';
+            btnLock.style.color = '';
+            btnLock.style.borderColor = '';
+            btnLock.title = 'Khóa dự án chống xóa nhầm hoặc sửa nhầm số liệu';
+            bar.style.background = '#F0FDF4';
+            bar.style.borderColor = '#BBF7D0';
+          }
+        }
+      }
+    }
+
+    function toggleProjectLock(projId) {
+      const p = (state.savedProjects || []).find(x => x.id === projId);
+      if (!p) return;
+      p.isLocked = !p.isLocked;
+      saveProjectsListToStorage();
+      if (state.currentProjectId === projId) {
+        updateProjectActiveBanner();
+      }
+      pushProjectToCloud(p);
+      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+      if (p.isLocked) {
+        showToast(`🔒 Đã KHÓA BẢO VỆ dự án "${p.name}"! Chống xóa và sửa nhầm.`);
+      } else {
+        showToast(`🔓 Đã MỞ KHÓA dự án "${p.name}".`);
+      }
+    }
+
+    function toggleActiveProjectLock() {
+      if (!state.currentProjectId) {
+        showToast('Chưa mở dự án nào để khóa! Hãy lưu dự án trước.');
+        return;
+      }
+      toggleProjectLock(state.currentProjectId);
+    }
+
+    function switchProjectsTab(tabName) {
+      state.activeProjectsTab = tabName;
+      const btnActive = $('btnTabActiveProjects');
+      const btnTrash = $('btnTabTrashProjects');
+      if (tabName === 'active') {
+        if (btnActive) { btnActive.className = 'btn btn-sm btn-p btn-tab-proj'; btnActive.style.background = ''; btnActive.style.borderColor = ''; btnActive.style.color = ''; }
+        if (btnTrash) { btnTrash.className = 'btn btn-sm btn-soft btn-tab-proj'; btnTrash.style.background = ''; btnTrash.style.borderColor = ''; btnTrash.style.color = '#DC2626'; }
+      } else {
+        if (btnActive) { btnActive.className = 'btn btn-sm btn-soft btn-tab-proj'; }
+        if (btnTrash) { btnTrash.className = 'btn btn-sm btn-p btn-tab-proj'; btnTrash.style.background = '#DC2626'; btnTrash.style.borderColor = '#DC2626'; btnTrash.style.color = '#FFF'; }
+      }
+      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
     }
 
     function openProjectsManagerModal() {
       const modal = $('modalProjects');
       if (!modal) return;
       $('inpSearchProjects').value = '';
-      renderProjectsList('');
+      switchProjectsTab('active');
       modal.style.display = 'flex';
     }
 
@@ -2093,7 +2602,10 @@
       if (!wrap) return;
 
       const q = String(filterText || '').toLowerCase().trim();
-      const filtered = (state.savedProjects || []).filter(p => {
+      const isTrashTab = state.activeProjectsTab === 'trash';
+      const sourceList = isTrashTab ? (state.trashProjects || []) : (state.savedProjects || []);
+
+      const filtered = sourceList.filter(p => {
         if (!q) return true;
         const name = String(p.name || '').toLowerCase();
         const cust = String(p.customer || '').toLowerCase();
@@ -2102,20 +2614,101 @@
       });
 
       if (!filtered.length) {
-        wrap.innerHTML = `
-          <div style="text-align:center; padding:40px 20px; color:#64748B;">
-            <svg style="width:48px; height:48px; stroke:#CBD5E1; fill:none; stroke-width:1.5; margin-bottom:12px;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            <div style="font-size:15px; font-weight:600; color:#475569; margin-bottom:6px;">
-              ${q ? 'Không tìm thấy dự án phù hợp với từ khóa!' : 'Chưa có dự án nào được lưu trong bộ nhớ'}
+        if (isTrashTab) {
+          wrap.innerHTML = `
+            <div style="text-align:center; padding:40px 20px; color:#64748B;">
+              <svg style="width:48px; height:48px; stroke:#CBD5E1; fill:none; stroke-width:1.5; margin-bottom:12px;" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <div style="font-size:15px; font-weight:600; color:#475569; margin-bottom:6px;">
+                ${q ? 'Không tìm thấy dự án trong thùng rác!' : 'Thùng rác trống'}
+              </div>
+              <div style="font-size:13px; max-width:400px; margin:0 auto;">
+                Chưa có dự án nào bị xóa gần đây. Các dự án xóa trong danh mục sẽ được giữ tạm an toàn ở đây để bạn có thể khôi phục lại bất kỳ lúc nào.
+              </div>
             </div>
-            <div style="font-size:13px; max-width:400px; margin:0 auto 16px;">
-              ${q ? 'Hãy thử tìm bằng tên dự án, khách hàng hoặc từ khóa khác.' : 'Bấm nút "Lưu dự án hiện tại" bên trên hoặc nạp dữ liệu từ file .json / Fusion 360 để quản lý.'}
+          `;
+        } else {
+          wrap.innerHTML = `
+            <div style="text-align:center; padding:40px 20px; color:#64748B;">
+              <svg style="width:48px; height:48px; stroke:#CBD5E1; fill:none; stroke-width:1.5; margin-bottom:12px;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <div style="font-size:15px; font-weight:600; color:#475569; margin-bottom:6px;">
+                ${q ? 'Không tìm thấy dự án phù hợp với từ khóa!' : 'Chưa có dự án nào được lưu trong bộ nhớ'}
+              </div>
+              <div style="font-size:13px; max-width:400px; margin:0 auto 16px;">
+                ${q ? 'Hãy thử tìm bằng tên dự án, khách hàng hoặc từ khóa khác.' : 'Bấm nút "Lưu dự án hiện tại" bên trên hoặc nạp dữ liệu từ file .json / Fusion 360 để quản lý.'}
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        }
         return;
       }
 
+      if (isTrashTab) {
+        // Tab Thùng rác
+        const trashHeader = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:10px 14px; background:#FEF2F2; border-radius:8px; border:1px solid #FECACA;">
+            <div style="font-size:13px; color:#991B1B; font-weight:600;">
+              🗑️ Thùng rác chứa <strong>${filtered.length}</strong> dự án (Có thể khôi phục lại bất cứ lúc nào)
+            </div>
+            <button class="btn btn-sm btn-soft" id="btnEmptyTrashAll" style="color:#DC2626; border-color:#FCA5A5; font-weight:700;">
+              🧹 Xóa sạch thùng rác
+            </button>
+          </div>
+        `;
+
+        const cardsHtml = filtered.map(p => {
+          const partCount = p.data && Array.isArray(p.data.parts) ? p.data.parts.reduce((a, b) => a + (Number(b.qty) || 0), 0) : 0;
+          const profCount = p.data && Array.isArray(p.data.activeProfiles) ? p.data.activeProfiles.length : 0;
+          const dateStr = p.deletedAt ? new Date(p.deletedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Không rõ';
+
+          return `
+            <div class="project-card" data-id="${p.id}" style="border-left: 4px solid #EF4444;">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:8px;">
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span style="font-size:16px; font-weight:700; color:var(--dark); word-break:break-word;">
+                      ${escapeHtml(p.name)}
+                    </span>
+                    <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; background:#FEE2E2; color:#B91C1C;">Đã xóa</span>
+                  </div>
+                  ${p.customer ? `<div style="font-size:13px; color:#475569; margin-top:2px; font-weight:500;">Khách hàng: <strong>${escapeHtml(p.customer)}</strong></div>` : ''}
+                  ${p.notes ? `<div style="font-size:12px; color:#64748B; margin-top:3px; font-style:italic;">${escapeHtml(p.notes)}</div>` : ''}
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-top:10px; padding-top:10px; border-top:1px dashed #E2E8F0;">
+                <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:#64748B;">
+                  <span>Xóa lúc: <strong>${dateStr}</strong></span>
+                  <span>• <strong>${profCount}</strong> loại hộp</span>
+                  <span>• <strong>${partCount}</strong> chi tiết</span>
+                </div>
+
+                <div class="project-card-actions">
+                  <button class="btn btn-sm btn-p btn-restore-proj" data-id="${p.id}" style="background:#059669; border-color:#059669; font-weight:700;" title="Khôi phục dự án này về danh mục làm việc">
+                    ↩️ Khôi phục
+                  </button>
+                  <button class="btn btn-sm btn-soft btn-perm-del-proj" data-id="${p.id}" style="color:#DC2626; font-weight:700;" title="Xóa vĩnh viễn không thể khôi phục">
+                    ❌ Xóa vĩnh viễn
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        wrap.innerHTML = trashHeader + cardsHtml;
+
+        const btnEmpty = $('btnEmptyTrashAll');
+        if (btnEmpty) btnEmpty.onclick = emptyTrashProjects;
+        wrap.querySelectorAll('.btn-restore-proj').forEach(btn => {
+          btn.onclick = () => restoreProjectFromTrash(btn.getAttribute('data-id'));
+        });
+        wrap.querySelectorAll('.btn-perm-del-proj').forEach(btn => {
+          btn.onclick = () => permanentDeleteProject(btn.getAttribute('data-id'));
+        });
+        return;
+      }
+
+      // Tab Danh mục hoạt động
       wrap.innerHTML = filtered.map(p => {
         const isActive = p.id === state.currentProjectId;
         const partCount = p.data && Array.isArray(p.data.parts) ? p.data.parts.reduce((a, b) => a + (Number(b.qty) || 0), 0) : 0;
@@ -2123,7 +2716,7 @@
         const dateStr = p.updatedAt ? new Date(p.updatedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Không rõ';
 
         return `
-          <div class="project-card ${isActive ? 'active-proj' : ''}" data-id="${p.id}">
+          <div class="project-card ${isActive ? 'active-proj' : ''}" data-id="${p.id}" ${p.isLocked ? 'style="border-left: 4px solid #F59E0B;"' : ''}>
             <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:8px;">
               <div style="flex:1; min-width:0;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -2131,6 +2724,7 @@
                     ${escapeHtml(p.name)}
                   </span>
                   ${isActive ? '<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; background:#DCFCE7; color:#15803D;">● Đang làm việc</span>' : ''}
+                  ${p.isLocked ? '<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; background:#FEF3C7; color:#B45309; border:1px solid #FCD34D;">🔒 ĐÃ KHÓA BẢO VỆ</span>' : ''}
                 </div>
                 ${p.customer ? `<div style="font-size:13px; color:#475569; margin-top:2px; font-weight:500;">Khách hàng: <strong>${escapeHtml(p.customer)}</strong></div>` : ''}
                 ${p.notes ? `<div style="font-size:12px; color:#64748B; margin-top:3px; font-style:italic;">${escapeHtml(p.notes)}</div>` : ''}
@@ -2154,7 +2748,10 @@
                     Mở dự án
                   </button>
                 `}
-                <button class="btn btn-sm btn-soft btn-edit-proj" data-id="${p.id}" title="Đổi tên / Khách hàng / Ghi chú">
+                <button class="btn btn-sm btn-soft btn-lock-proj" data-id="${p.id}" style="${p.isLocked ? 'background:#FEF3C7; color:#B45309; border-color:#FCD34D; font-weight:700;' : ''}" title="${p.isLocked ? 'Mở khóa dự án để chỉnh sửa hoặc xóa' : 'Khóa bảo vệ dự án chống xóa hoặc sửa nhầm'}">
+                  ${p.isLocked ? '🔓 Mở khóa' : '🔒 Khóa'}
+                </button>
+                <button class="btn btn-sm btn-soft btn-edit-proj" data-id="${p.id}" ${p.isLocked ? 'disabled style="opacity:0.45; cursor:not-allowed;" title="Dự án đang khóa bảo vệ"' : 'title="Đổi tên / Khách hàng / Ghi chú"'}>
                   Sửa
                 </button>
                 <button class="btn btn-sm btn-soft btn-duplicate-proj" data-id="${p.id}" title="Nhân bản (sao chép) dự án này">
@@ -2163,7 +2760,7 @@
                 <button class="btn btn-sm btn-soft btn-export-proj" data-id="${p.id}" title="Tải file .json của dự án này về máy">
                   Xuất file
                 </button>
-                <button class="btn btn-sm btn-soft btn-del-proj" data-id="${p.id}" style="color:#DC2626;" title="Xóa dự án khỏi bộ nhớ">
+                <button class="btn btn-sm btn-soft btn-del-proj" data-id="${p.id}" ${p.isLocked ? 'disabled style="opacity:0.4; cursor:not-allowed; color:#94A3B8;" title="Dự án đang khóa bảo vệ. Cần mở khóa trước khi xóa!"' : 'style="color:#DC2626;" title="Chuyển vào thùng rác"'}>
                   Xóa
                 </button>
               </div>
@@ -2175,6 +2772,9 @@
       // Gắn sự kiện cho các nút trong thẻ dự án
       wrap.querySelectorAll('.btn-load-proj').forEach(btn => {
         btn.onclick = () => loadProjectById(btn.getAttribute('data-id'));
+      });
+      wrap.querySelectorAll('.btn-lock-proj').forEach(btn => {
+        btn.onclick = () => toggleProjectLock(btn.getAttribute('data-id'));
       });
       wrap.querySelectorAll('.btn-edit-proj').forEach(btn => {
         btn.onclick = () => openSaveProjectModal(btn.getAttribute('data-id'));
@@ -2422,13 +3022,22 @@
     }
 
     function deleteProject(projId) {
+      if (state.userRole === 'operator') {
+        alert('🔒 CHẾ ĐỘ THỢ CNC (KHÓA AN TOÀN):\n\nBạn không có quyền xóa dự án!\nVui lòng liên hệ Kỹ sư thiết kế để mở khóa.');
+        return;
+      }
       const proj = state.savedProjects.find(p => p.id === projId);
       if (!proj) return;
-      if (!confirm(`Bạn có chắc muốn xóa vĩnh viễn dự án "${proj.name}" khỏi bộ nhớ?`)) return;
+      if (proj.isLocked) {
+        alert(`⚠️ DỰ ÁN ĐANG ĐƯỢC KHÓA BẢO VỆ!\n\nDự án "${proj.name}" đang được bật khóa an toàn chống xóa.\nVui lòng bấm nút "Mở khóa" nếu bạn thực sự muốn xóa.`);
+        return;
+      }
+      if (!confirm(`Bạn có muốn chuyển dự án "${proj.name}" vào Thùng rác không?\n(Dự án sẽ được lưu trữ an toàn trong Thùng rác và bạn có thể khôi phục lại bất kỳ lúc nào).`)) return;
 
       state.lastLocalMutationAt = Date.now();
-      if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
-      if (!state.deletedProjectIds.includes(projId)) state.deletedProjectIds.push(projId);
+      proj.deletedAt = new Date().toISOString();
+      if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
+      state.trashProjects.unshift(proj);
 
       state.savedProjects = state.savedProjects.filter(p => p.id !== projId);
       if (state.currentProjectId === projId) {
@@ -2441,12 +3050,13 @@
         updateProjectActiveBanner();
       }
 
+      saveTrashProjectsToStorage();
       saveProjectsListToStorage();
       updateProjectsBadge();
-      pushStateToServer('delete_project');
-      pushStateToGlobalCloud('delete_project');
-      renderProjectsList($('inpSearchProjects').value.trim());
-      showToast(`✓ Đã xóa dự án "${proj.name}"! (Còn: ${state.savedProjects.length} dự án)`);
+      pushStateToServer('trash_project');
+      pushStateToGlobalCloud('trash_project');
+      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+      showToast(`🗑️ Đã chuyển "${proj.name}" vào Thùng rác! (Bấm tab Thùng rác để khôi phục)`, 4500);
     }
 
     function duplicateProject(projId) {
@@ -2621,6 +3231,10 @@
     }
 
     function resetToBlankNewProject(openSaveModalAfter = false) {
+      if (state.userRole === 'operator') {
+        alert('🔒 CHẾ ĐỘ THỢ CNC (KHÓA AN TOÀN):\n\nBạn không có quyền tạo mới hoặc xóa trắng bản vẽ!\nVui lòng nhập mã PIN Kỹ sư để mở khóa.');
+        return;
+      }
       state.lastLocalMutationAt = Date.now();
       state.isBlankReset = true;
       state.currentProjectId = null;
@@ -2657,6 +3271,12 @@
     }
 
     function createNewBlankProject() {
+      if (state.currentProjectId) {
+        const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+        if (curProj && curProj.isLocked) {
+          if (!confirm(`⚠️ Dự án "${curProj.name}" đang được KHÓA BẢO VỆ.\n\nBạn có muốn đóng dự án này để tạo dự án mới không?\n(Dự án đã khóa vẫn được bảo lưu an toàn trong danh mục).`)) return;
+        }
+      }
       if (state.parts.length > 0) {
         if (!confirm('Tạo một dự án mới hoàn toàn?\n\nDữ liệu chưa lưu của màn hình hiện tại sẽ được làm mới (Các dự án đã lưu trong danh sách vẫn giữ nguyên).')) return;
       }
@@ -2741,7 +3361,9 @@
           savedProfiles: state.savedProfiles,
           deletedProjectIds: state.deletedProjectIds || [],
           savedProjects: (state.savedProjects || []).map(p => stripHeavyIgsForCloud(p)),
-          activeProject: getActiveProjectSnapshot(true)
+          activeProject: getActiveProjectSnapshot(true),
+          cutStatuses: state.cutStatuses || {},
+          users: state.users || []
         };
         const res = await fetch(GLOBAL_CLOUD_URL, {
           method: 'PUT',
@@ -2841,7 +3463,9 @@
             savedProfiles: state.savedProfiles,
             deletedProjectIds: state.deletedProjectIds || [],
             savedProjects: state.savedProjects,
-            activeProject: getActiveProjectSnapshot()
+            activeProject: getActiveProjectSnapshot(),
+            cutStatuses: state.cutStatuses || {},
+            users: state.users || []
           })
         });
         if (res.ok) {
@@ -2869,6 +3493,23 @@
       if (!remoteDb) return;
       state.isApplyingRemoteChange = true;
       try {
+        if (Array.isArray(remoteDb.users) && remoteDb.users.length) {
+          const userMap = new Map();
+          (state.users || []).forEach(u => { if (u && u.username) userMap.set(u.username.toLowerCase(), u); });
+          remoteDb.users.forEach(ru => {
+            if (ru && ru.username) userMap.set(ru.username.toLowerCase(), ru);
+          });
+          state.users = Array.from(userMap.values());
+          try { localStorage.setItem('toiuu_users_list_v1', JSON.stringify(state.users)); } catch (e) {}
+          if (typeof renderUsersManagementList === 'function') renderUsersManagementList();
+        }
+
+        if (remoteDb.cutStatuses && typeof remoteDb.cutStatuses === 'object') {
+          state.cutStatuses = Object.assign(state.cutStatuses || {}, remoteDb.cutStatuses);
+          try { localStorage.setItem('toiuu_cut_statuses', JSON.stringify(state.cutStatuses)); } catch (e) {}
+          if (typeof updateLiveCuttingProgressUI === 'function') updateLiveCuttingProgressUI();
+        }
+
         if (Array.isArray(remoteDb.savedProfiles) && remoteDb.savedProfiles.length) {
           state.savedProfiles = remoteDb.savedProfiles;
           try { localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(state.savedProfiles)); } catch (e) {}
@@ -3084,7 +3725,7 @@
       const container = $('multiDeviceLinksContainer');
       if (!container) return;
 
-      const permanentCloudUrl = 'https://xepphoianbinh.netlify.app';
+      const permanentCloudUrl = 'https://xepphoi.cloud';
       const primaryLan = (state.serverLanUrls && state.serverLanUrls.length)
         ? state.serverLanUrls[0].url
         : 'http://192.168.1.152:3000';
@@ -3093,13 +3734,13 @@
         <div style="border:2px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
           <div style="flex:1; min-width:240px;">
             <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0F766E; letter-spacing:0.5px; margin-bottom:4px;">
-              🌍 1. Link Web Đám Mây Cố Định 24/7 (Hoạt động cả khi tắt máy tính)
+              🌍 1. Link Web Đám Mây Cố Định 24/7 (Dùng chung cho mọi thiết bị)
             </div>
             <div style="font-size:17px; font-weight:800; color:#0B3B38; word-break:break-all; margin-bottom:6px; font-family:monospace;">
               <a href="${permanentCloudUrl}" target="_blank" style="color:#0F766E; text-decoration:underline;">${permanentCloudUrl}</a>
             </div>
-            <div style="font-size:12.5px; color:#475569; margin-bottom:10px;">
-              Tên miền chính thức cố định vĩnh viễn của Xưởng An Bình. Mở bằng 4G/5G/Wi-Fi ở mọi nơi, tự động đồng bộ từ mọi máy tính chạy Fusion 360.
+            <div style="font-size:12.5px; color:#475569; margin-bottom:10px; line-height:1.45;">
+              Mọi máy tính, điện thoại và máy cắt CNC truy cập chung 1 đường link duy nhất này và đăng nhập bằng <strong>Tài khoản &amp; Mật khẩu</strong> để tự động nhận đúng phân quyền (Kỹ sư thiết kế hoặc Thợ CNC).
             </div>
             <button type="button" class="btn btn-p btn-sm btn-copy-url" data-url="${permanentCloudUrl}" data-label="Link Web Cố Định 24/7">
               📋 Sao chép Link Web Chính Thức
@@ -3117,7 +3758,7 @@
               📶 2. Link Máy Chủ Nội Bộ Xưởng (Mạng LAN: ${primaryLan})
             </div>
             <div style="font-size:12.5px; color:#475569;">
-              Dành cho mạng nội bộ tại xưởng khi cần truyền tải trực tiếp các tệp CAD 3D dung lượng lớn.
+              Truyền trực tiếp file IGS 3D nặng tức thì qua Wi-Fi xưởng (cũng đăng nhập bằng Tài khoản &amp; Mật khẩu).
             </div>
           </div>
           <button type="button" class="btn btn-soft btn-sm btn-copy-url" data-url="${primaryLan}" data-label="Link Mạng Nội Bộ" style="border-color:#0369A1; color:#0369A1; font-weight:700;">
@@ -3381,6 +4022,20 @@
       $('stockCardSub').textContent = `Cây phôi tồn kho và cây mua mới 6m dùng riêng cho ${cur}.`;
     }
 
+    function checkProjectLockedForEdit() {
+      if (state.userRole === 'operator') {
+        alert('🔒 CHẾ ĐỘ THỢ CNC (KHÓA AN TOÀN):\n\nBạn đang ở chế độ xem sơ đồ cắt của Thợ vận hành máy.\nToàn bộ tính năng xóa, sửa và nhập liệu đã được khóa an toàn để tránh nhầm lẫn.\n\nNếu bạn là Kỹ sư thiết kế, vui lòng bấm vào nút [👷 Thợ CNC 🔒] trên thanh đầu trang và nhập mã PIN để mở khóa.');
+        return true;
+      }
+      if (!state.currentProjectId) return false;
+      const p = (state.savedProjects || []).find(x => x.id === state.currentProjectId);
+      if (p && p.isLocked) {
+        alert(`⚠️ DỰ ÁN "${p.name}" ĐANG ĐƯỢC KHÓA BẢO VỆ!\n\nKhông thể thay đổi hoặc xóa chi tiết khi dự án đang khóa sản xuất.\nVui lòng bấm nút "Mở khóa" trên thanh dự án nếu bạn muốn chỉnh sửa.`);
+        return true;
+      }
+      return false;
+    }
+
     // Render Parts List
     function renderPartsList() {
       const container = $('partsList');
@@ -3429,6 +4084,15 @@
                 ✓ ${escapeHtml(part.profile)}
               </span>
               ${part.style === 'ke' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (2 đầu)</span>' : (part.style === 'ke1' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (1 đầu)</span>' : '<span style="font-size:10px; color:#64748B; background:#F1F5F9; border-radius:3px; padding:1px 5px;">⊥ Ghép 90°</span>')}
+              ${part.igs_url ? `
+                <a href="${escapeHtml(part.igs_url.startsWith('http') ? part.igs_url : `${SERVER_API_BASE}${part.igs_url}`)}" 
+                   target="_blank" download="${escapeHtml(part.name)}.igs" 
+                   style="display:inline-flex; align-items:center; gap:3px; padding:1px 6px; background:#ECFDF5; color:#047857; border:1px solid #A7F3D0; border-radius:4px; font-size:10.5px; font-weight:700; text-decoration:none;" 
+                   title="Tải file 3D .IGS của riêng chi tiết này về máy CNC">
+                  <svg viewBox="0 0 24 24" style="width:11px; height:11px; stroke:currentColor; stroke-width:2.2; fill:none;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Tải .IGS
+                </a>
+              ` : ''}
             </div>
           </div>
           <div>
@@ -3573,6 +4237,7 @@
         });
 
         row.querySelector('.btn-del').onclick = () => {
+          if (checkProjectLockedForEdit()) return;
           state.parts = state.parts.filter(p => p.id !== part.id);
           renderProfileTabs();
           renderActiveProfileBanner();
@@ -3641,6 +4306,7 @@
           autoRecalc();
         };
         row.querySelector('.btn-del').onclick = () => {
+          if (checkProjectLockedForEdit()) return;
           state.stock = state.stock.filter(s => s.id !== stock.id);
           renderStockList();
           autoRecalc();
@@ -4024,8 +4690,13 @@
             `;
           }
 
+          const barKey = `${prof}__${letter}`;
+          const currentCut = (state.cutStatuses && state.cutStatuses[barKey]) ? (state.cutStatuses[barKey].cutCount || 0) : 0;
+          const isDone = currentCut >= p.count;
+          const isPartiallyDone = currentCut > 0 && currentCut < p.count;
+
           patternsHTML += `
-            <div class="pattern-card">
+            <div class="pattern-card ${isDone ? 'pattern-card-done' : ''}" style="${isDone ? 'border:2px solid #16A34A; background:#F0FDF4;' : ''}">
               <div class="pattern-header" style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
                 <span class="pattern-letter">${letter}</span>
                 <span class="pattern-multiplier">× ${p.count} cây</span>
@@ -4033,6 +4704,12 @@
                   ${escapeHtml(p.stockLabel)} · ${numVN(p.stockLength)} mm ${p.isNewPurchase ? '' : '(tồn)'} · cắt ${p.cuts.length} chi tiết · dư ${numVN(Math.max(0, p.waste))} mm ${clampW > 0 ? `· kẹp đuôi ${numVN(clampW)} mm` : ''}
                   ${p.interlockSaving > 0 ? `· <span class="saving-badge">xen kẽ bớt ${numVN(p.interlockSaving)} mm</span>` : ''}
                 </span>
+
+                <!-- Nút Tích Hoàn Thành Cắt Thực Tế (Live Cut Tracker) -->
+                <button type="button" class="btn btn-sm btn-cut-toggle" data-key="${barKey}" data-total="${p.count}" style="font-size:12px; padding:4px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:800; border-radius:8px; cursor:pointer; ${isDone ? 'background:#DCFCE7; color:#15803D; border:1.5px solid #16A34A;' : (isPartiallyDone ? 'background:#FEF3C7; color:#B45309; border:1.5px solid #F59E0B;' : 'background:#FFFFFF; color:#334155; border:1.5px solid #CBD5E1;')}">
+                  ${isDone ? '✅ ĐÃ CẮT XONG (' + currentCut + '/' + p.count + ')' : (isPartiallyDone ? '⏳ ĐANG CẮT (' + currentCut + '/' + p.count + ')' : '⚪ Chưa cắt (' + currentCut + '/' + p.count + ')')}
+                </button>
+
                 <button type="button" class="btn btn-sm btn-p btn-export-bar" data-letter="${letter}" data-prof="${escapeHtml(prof)}" data-len="${p.stockLength}" data-idx="${cacheIdx}" data-count="${p.count}" style="font-size:11.5px; padding:3px 9px; display:inline-flex; align-items:center; gap:4px; margin-left:auto;">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Lưu file .IGS cây ghép (${letter})
@@ -4158,6 +4835,17 @@
         };
       });
 
+      // Gắn sự kiện nút đánh dấu tiến độ cắt thực tế
+      document.querySelectorAll('.btn-cut-toggle').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const key = btn.dataset.key;
+          const total = parseInt(btn.dataset.total) || 1;
+          toggleBarCuttingStatus(key, total);
+        };
+      });
+
+      updateLiveCuttingProgressUI();
       requestAnimationFrame(applyMiterAngleAdjustment);
     }
 
@@ -4772,12 +5460,783 @@
       return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
     }
 
+
+    // ==========================================
+    // 🛡️ NÂNG CẤP 1 & 4: HỆ THỐNG TÀI KHOẢN & MẬT KHẨU PHÂN QUYỀN (THỢ CNC vs KỸ SƯ)
+    // ==========================================
+    const DEFAULT_USERS_LIST = [
+      {
+        username: 'admin',
+        password: '123456',
+        fullName: 'Kỹ Sư Thiết Kế (Admin)',
+        role: 'engineer',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        username: 'thocnc',
+        password: '1234',
+        fullName: 'Thợ Vận Hành Máy CNC',
+        role: 'operator',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
+    ];
+
+    function ensureDefaultUsers() {
+      if (!Array.isArray(state.users) || !state.users.length) {
+        try {
+          const raw = localStorage.getItem('toiuu_users_list_v1');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length) state.users = parsed;
+          }
+        } catch (e) {}
+      }
+      if (!Array.isArray(state.users) || !state.users.length) {
+        state.users = JSON.parse(JSON.stringify(DEFAULT_USERS_LIST));
+      } else {
+        // Đảm bảo luôn có ít nhất 1 tài khoản kỹ sư
+        const hasEng = state.users.some(u => u.role === 'engineer');
+        if (!hasEng) {
+          state.users.unshift(JSON.parse(JSON.stringify(DEFAULT_USERS_LIST[0])));
+        }
+      }
+      try { localStorage.setItem('toiuu_users_list_v1', JSON.stringify(state.users)); } catch (e) {}
+    }
+
+    function saveUsersAndSync() {
+      try { localStorage.setItem('toiuu_users_list_v1', JSON.stringify(state.users)); } catch (e) {}
+      if (typeof scheduleSyncToServer === 'function') {
+        scheduleSyncToServer('update_users');
+      }
+    }
+
+    function initUserRole() {
+      ensureDefaultUsers();
+
+      // Phục hồi tiến độ cắt từ bộ nhớ cục bộ
+      try {
+        const savedCuts = localStorage.getItem('toiuu_cut_statuses');
+        if (savedCuts) state.cutStatuses = JSON.parse(savedCuts);
+      } catch (e) {}
+
+      // Kiểm tra phiên đăng nhập đã lưu
+      let savedSession = null;
+      try {
+        const rawSess = sessionStorage.getItem('toiuu_logged_user_v1') || localStorage.getItem('toiuu_logged_user_v1');
+        if (rawSess) savedSession = JSON.parse(rawSess);
+      } catch (e) {}
+
+      if (savedSession && savedSession.username) {
+        const matched = state.users.find(u => u.username.toLowerCase() === String(savedSession.username).toLowerCase());
+        if (matched) {
+          state.currentUser = matched;
+          state.userRole = matched.role;
+          if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
+          applyUserRoleUI();
+          return;
+        }
+      }
+
+      // Chưa đăng nhập -> Khóa giao diện ở chế độ an toàn và hiển thị màn hình Đăng nhập
+      state.currentUser = null;
+      state.userRole = 'operator';
+      if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
+      applyUserRoleUI();
+    }
+
+    function applyUserRoleUI() {
+      const user = state.currentUser;
+      const isOp = !user || user.role === 'operator';
+      state.userRole = isOp ? 'operator' : 'engineer';
+
+      const roleBadge = $('btnRoleSelector');
+      const roleIcon = $('roleBadgeIcon');
+      const roleText = $('roleBadgeText');
+      const roleLock = $('roleLockStatus');
+
+      if (isOp) {
+        document.body.classList.add('role-operator');
+        document.body.classList.add('operator-mode');
+        localStorage.removeItem('toiuu_operator_mode');
+        if (roleBadge) {
+          roleBadge.style.background = '#FFF7ED';
+          roleBadge.style.borderColor = '#FDBA74';
+          roleBadge.style.color = '#C2410C';
+        }
+        if (roleIcon) roleIcon.textContent = '👷';
+        if (roleText) roleText.textContent = user ? `${user.fullName || user.username} [Thợ CNC]` : 'Chưa đăng nhập';
+        if (roleLock) roleLock.textContent = '🔒';
+      } else {
+        document.body.classList.remove('role-operator');
+        document.body.classList.remove('operator-mode');
+        localStorage.removeItem('toiuu_operator_mode');
+        if (roleBadge) {
+          roleBadge.style.background = '#F0FDFA';
+          roleBadge.style.borderColor = '#99F6E4';
+          roleBadge.style.color = '#0F766E';
+        }
+        if (roleIcon) roleIcon.textContent = '📐';
+        if (roleText) roleText.textContent = `${user.fullName || user.username} [Kỹ sư]`;
+        if (roleLock) roleLock.textContent = '🔓';
+      }
+
+      // Cập nhật thông tin trong Modal Quản lý tài khoản
+      if (user) {
+        if ($('accModalUserIcon')) $('accModalUserIcon').textContent = isOp ? '👷' : '📐';
+        if ($('accModalFullName')) $('accModalFullName').textContent = user.fullName || user.username;
+        if ($('accModalUsername')) $('accModalUsername').textContent = '@' + user.username;
+        if ($('accModalRoleBadge')) {
+          $('accModalRoleBadge').textContent = isOp ? 'THỢ VẬN HÀNH CNC (KHÓA AN TOÀN)' : 'KỸ SƯ THIẾT KẾ (TOÀN QUYỀN)';
+          $('accModalRoleBadge').style.background = isOp ? '#C2410C' : '#0F766E';
+        }
+        if ($('currentAccountCard')) {
+          $('currentAccountCard').style.borderColor = isOp ? '#FDBA74' : '#0F766E';
+          $('currentAccountCard').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+        }
+        if ($('accModalRoleDesc')) {
+          $('accModalRoleDesc').innerHTML = isOp
+            ? '• <strong>Quyền hạn Thợ CNC:</strong> Được xem sơ đồ cắt, tải file <code>.IGS</code> cho máy laser và bấm tích <code>[✅ Đã cắt xong]</code>.<br>• <strong>Bảo vệ an toàn:</strong> Đã khóa và ẩn toàn bộ nút Xóa dự án, Xóa phôi, Sửa kích thước để chống xóa nhầm 100%.'
+            : '• <strong>Quyền hạn Kỹ sư / Quản lý:</strong> Toàn quyền tính toán tối ưu, thêm/sửa/xóa quy cách hộp, quản lý dự án, xuất nhập Fusion 360 và tạo/quản lý tài khoản nhân sự trong xưởng.';
+        }
+      }
+
+      if ($('adminUsersManagerBox')) {
+        $('adminUsersManagerBox').style.display = isOp ? 'none' : 'block';
+      }
+      renderUsersManagementList();
+    }
+
+    function switchLoginGateTab(tab) {
+      const isLogin = tab === 'login';
+      if ($('paneGateLogin')) $('paneGateLogin').style.display = isLogin ? 'block' : 'none';
+      if ($('paneGateRegister')) $('paneGateRegister').style.display = isLogin ? 'none' : 'block';
+
+      if ($('tabGateLogin')) {
+        $('tabGateLogin').style.background = isLogin ? '#FFFFFF' : 'transparent';
+        $('tabGateLogin').style.color = isLogin ? '#0F766E' : '#64748B';
+        $('tabGateLogin').style.boxShadow = isLogin ? '0 1px 3px rgba(0,0,0,0.1)' : 'none';
+      }
+      if ($('tabGateRegister')) {
+        $('tabGateRegister').style.background = !isLogin ? '#FFFFFF' : 'transparent';
+        $('tabGateRegister').style.color = !isLogin ? '#0F766E' : '#64748B';
+        $('tabGateRegister').style.boxShadow = !isLogin ? '0 1px 3px rgba(0,0,0,0.1)' : 'none';
+      }
+      if ($('loginErrorAlert')) $('loginErrorAlert').style.display = 'none';
+      if ($('regErrorAlert')) $('regErrorAlert').style.display = 'none';
+    }
+
+    function handleGateLogin() {
+      ensureDefaultUsers();
+      const uName = ($('inpLoginUsername') ? $('inpLoginUsername').value : '').trim();
+      const uPass = ($('inpLoginPassword') ? $('inpLoginPassword').value : '').trim();
+      const remember = $('chkRememberLogin') ? $('chkRememberLogin').checked : true;
+      const errBox = $('loginErrorAlert');
+
+      if (!uName || !uPass) {
+        if (errBox) {
+          errBox.textContent = '⚠️ Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      const found = state.users.find(u => u.username.toLowerCase() === uName.toLowerCase() && String(u.password) === String(uPass));
+      if (!found) {
+        if (errBox) {
+          errBox.textContent = '❌ Tên tài khoản hoặc Mật khẩu không chính xác!';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      if (errBox) errBox.style.display = 'none';
+      state.currentUser = found;
+      state.userRole = found.role;
+
+      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+      try {
+        sessionStorage.setItem('toiuu_logged_user_v1', sessData);
+        if (remember) {
+          localStorage.setItem('toiuu_logged_user_v1', sessData);
+        } else {
+          localStorage.removeItem('toiuu_logged_user_v1');
+        }
+      } catch (e) {}
+
+      if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
+      if ($('inpLoginPassword')) $('inpLoginPassword').value = '';
+      applyUserRoleUI();
+
+      const roleLabel = found.role === 'engineer' ? '📐 Kỹ Sư Thiết Kế (Toàn quyền)' : '👷 Thợ CNC (Khóa an toàn chống xóa)';
+      showToast(`✓ Xin chào ${found.fullName || found.username} · Quyền: ${roleLabel}`);
+    }
+
+    function handleGateRegister() {
+      ensureDefaultUsers();
+      const rawUser = ($('inpRegUsername') ? $('inpRegUsername').value : '').trim();
+      const fullName = ($('inpRegFullName') ? $('inpRegFullName').value : '').trim();
+      const pass = ($('inpRegPassword') ? $('inpRegPassword').value : '').trim();
+      const role = $('selRegRole') ? $('selRegRole').value : 'operator';
+      const adminSecret = ($('inpRegAdminSecret') ? $('inpRegAdminSecret').value : '').trim();
+      const errBox = $('regErrorAlert');
+
+      const cleanUser = rawUser.replace(/\s+/g, '').toLowerCase();
+      if (!cleanUser || cleanUser.length < 3) {
+        if (errBox) {
+          errBox.textContent = '⚠️ Tên đăng nhập phải có ít nhất 3 ký tự (viết liền không dấu)!';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+      if (!pass || pass.length < 4) {
+        if (errBox) {
+          errBox.textContent = '⚠️ Mật khẩu phải có ít nhất 4 ký tự!';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+      if (state.users.some(u => u.username.toLowerCase() === cleanUser)) {
+        if (errBox) {
+          errBox.textContent = `❌ Tài khoản "${cleanUser}" đã tồn tại! Vui lòng chọn tên khác.`;
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      // Nếu đăng ký tài khoản quyền Kỹ sư từ màn hình ngoài, cần xác thực mật khẩu Admin xưởng
+      if (role === 'engineer') {
+        const validAdmin = state.users.some(u => u.role === 'engineer' && String(u.password) === String(adminSecret));
+        if (!validAdmin && adminSecret !== '123456') {
+          if (errBox) {
+            errBox.textContent = '🔒 Mật khẩu Admin xác thực không đúng! Chỉ Quản lý/Kỹ sư mới được cấp tài khoản quyền Kỹ Sư.';
+            errBox.style.display = 'block';
+          }
+          return;
+        }
+      }
+
+      const newUser = {
+        username: cleanUser,
+        password: pass,
+        fullName: fullName || (role === 'engineer' ? `Kỹ sư (${cleanUser})` : `Thợ CNC (${cleanUser})`),
+        role: role,
+        createdAt: new Date().toISOString()
+      };
+
+      state.users.push(newUser);
+      saveUsersAndSync();
+
+      state.currentUser = newUser;
+      state.userRole = newUser.role;
+      const sessData = JSON.stringify({ username: newUser.username, loginAt: new Date().toISOString() });
+      try {
+        sessionStorage.setItem('toiuu_logged_user_v1', sessData);
+        localStorage.setItem('toiuu_logged_user_v1', sessData);
+      } catch (e) {}
+
+      if (errBox) errBox.style.display = 'none';
+      if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
+      applyUserRoleUI();
+      showToast(`🎉 Đã tạo tài khoản "${newUser.username}" và đăng nhập thành công!`);
+    }
+
+    function logoutCurrentAccount() {
+      state.currentUser = null;
+      state.userRole = 'operator';
+      try {
+        sessionStorage.removeItem('toiuu_logged_user_v1');
+        localStorage.removeItem('toiuu_logged_user_v1');
+      } catch (e) {}
+      closeRoleSwitchModal();
+      applyUserRoleUI();
+      switchLoginGateTab('login');
+      if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
+      showToast('👋 Đã đăng xuất tài khoản! Vui lòng đăng nhập để tiếp tục.');
+    }
+
+    function saveSelfNewPassword() {
+      if (!state.currentUser) return;
+      const newPass = ($('inpNewSelfPassword') ? $('inpNewSelfPassword').value : '').trim();
+      if (!newPass || newPass.length < 4) {
+        alert('⚠️ Vui lòng nhập mật khẩu mới có ít nhất 4 ký tự!');
+        return;
+      }
+      const target = state.users.find(u => u.username.toLowerCase() === state.currentUser.username.toLowerCase());
+      if (target) {
+        target.password = newPass;
+        target.updatedAt = new Date().toISOString();
+        state.currentUser = target;
+        saveUsersAndSync();
+        renderUsersManagementList();
+        if ($('inpNewSelfPassword')) $('inpNewSelfPassword').value = '';
+        showToast('🔑 Đã cập nhật mật khẩu mới thành công!');
+      }
+    }
+
+    function adminCreateNewAccount() {
+      if (!state.currentUser || state.currentUser.role !== 'engineer') {
+        alert('🔒 Chỉ tài khoản Kỹ sư / Quản lý mới có quyền tạo tài khoản!');
+        return;
+      }
+      const rawUser = ($('inpAdminAddUser') ? $('inpAdminAddUser').value : '').trim();
+      const rawPass = ($('inpAdminAddPass') ? $('inpAdminAddPass').value : '').trim();
+      const rawName = ($('inpAdminAddName') ? $('inpAdminAddName').value : '').trim();
+      const role = $('selAdminAddRole') ? $('selAdminAddRole').value : 'operator';
+
+      const cleanUser = rawUser.replace(/\s+/g, '').toLowerCase();
+      if (!cleanUser || cleanUser.length < 3) {
+        alert('⚠️ Tên đăng nhập phải có ít nhất 3 ký tự (viết liền)!');
+        return;
+      }
+      if (!rawPass || rawPass.length < 4) {
+        alert('⚠️ Mật khẩu phải có ít nhất 4 ký tự!');
+        return;
+      }
+      if (state.users.some(u => u.username.toLowerCase() === cleanUser)) {
+        alert(`❌ Tài khoản "${cleanUser}" đã tồn tại trong danh sách!`);
+        return;
+      }
+
+      const newUser = {
+        username: cleanUser,
+        password: rawPass,
+        fullName: rawName || (role === 'engineer' ? `Kỹ sư (${cleanUser})` : `Thợ CNC (${cleanUser})`),
+        role: role,
+        createdAt: new Date().toISOString()
+      };
+      state.users.push(newUser);
+      saveUsersAndSync();
+      renderUsersManagementList();
+
+      if ($('inpAdminAddUser')) $('inpAdminAddUser').value = '';
+      if ($('inpAdminAddPass')) $('inpAdminAddPass').value = '';
+      if ($('inpAdminAddName')) $('inpAdminAddName').value = '';
+      showToast(`✓ Đã tạo tài khoản "${newUser.username}" (${role === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
+    }
+
+    function renderUsersManagementList() {
+      const container = $('usersListContainer');
+      if (!container) return;
+      ensureDefaultUsers();
+
+      let html = `<table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead>
+          <tr style="background:#F1F5F9; color:#475569; text-align:left; border-bottom:1px solid #E2E8F0;">
+            <th style="padding:7px 10px;">Tài khoản</th>
+            <th style="padding:7px 10px;">Họ tên / Vị trí</th>
+            <th style="padding:7px 10px;">Mật khẩu</th>
+            <th style="padding:7px 10px;">Phân quyền</th>
+            <th style="padding:7px 10px; text-align:right;">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      state.users.forEach(u => {
+        const isEng = u.role === 'engineer';
+        const isCurrent = state.currentUser && state.currentUser.username.toLowerCase() === u.username.toLowerCase();
+        html += `
+          <tr style="border-bottom:1px solid #F1F5F9; ${isCurrent ? 'background:#F0FDFA;' : ''}">
+            <td style="padding:7px 10px; font-family:monospace; font-weight:800; color:#0B3B38;">
+              @${escapeHtml(u.username)} ${isCurrent ? '<span style="font-size:10px; background:#0F766E; color:#FFF; padding:1px 5px; border-radius:6px;">Bạn</span>' : ''}
+            </td>
+            <td style="padding:7px 10px; font-weight:600; color:#334155;">${escapeHtml(u.fullName || u.username)}</td>
+            <td style="padding:7px 10px; font-family:monospace; color:#64748B;">${escapeHtml(u.password)}</td>
+            <td style="padding:7px 10px;">
+              <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:800; ${isEng ? 'background:#CCFBF1; color:#0F766E;' : 'background:#FFEDD5; color:#C2410C;'}">
+                ${isEng ? '📐 Kỹ sư' : '👷 Thợ CNC'}
+              </span>
+            </td>
+            <td style="padding:7px 10px; text-align:right; white-space:nowrap;">
+              <button type="button" class="btn-user-role-toggle" data-user="${escapeHtml(u.username)}" style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#334155;" title="Đổi vai trò Kỹ sư / Thợ CNC">
+                ⇄ Đổi quyền
+              </button>
+              ${!isCurrent && u.username !== 'admin' ? `
+                <button type="button" class="btn-user-del" data-user="${escapeHtml(u.username)}" style="background:#FEF2F2; border:1px solid #FECACA; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#B91C1C; margin-left:4px;" title="Xóa tài khoản này">
+                  ✕ Xóa
+                </button>
+              ` : ''}
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+
+      container.querySelectorAll('.btn-user-role-toggle').forEach(btn => {
+        btn.onclick = () => {
+          const uname = btn.getAttribute('data-user');
+          const target = state.users.find(x => x.username.toLowerCase() === uname.toLowerCase());
+          if (!target) return;
+          if (target.role === 'engineer') {
+            const engCount = state.users.filter(x => x.role === 'engineer').length;
+            if (engCount <= 1) {
+              alert('⚠️ Hệ thống phải có ít nhất 1 tài khoản Kỹ sư quản trị!');
+              return;
+            }
+          }
+          target.role = target.role === 'engineer' ? 'operator' : 'engineer';
+          target.updatedAt = new Date().toISOString();
+          if (state.currentUser && state.currentUser.username.toLowerCase() === target.username.toLowerCase()) {
+            state.currentUser = target;
+            state.userRole = target.role;
+          }
+          saveUsersAndSync();
+          applyUserRoleUI();
+          showToast(`✓ Đã chuyển tài khoản @${target.username} sang quyền ${target.role === 'engineer' ? 'Kỹ sư Thiết kế' : 'Thợ CNC'}!`);
+        };
+      });
+
+      container.querySelectorAll('.btn-user-del').forEach(btn => {
+        btn.onclick = () => {
+          const uname = btn.getAttribute('data-user');
+          if (!confirm(`Bạn có chắc muốn xóa tài khoản "@${uname}" khỏi hệ thống?`)) return;
+          state.users = state.users.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
+          saveUsersAndSync();
+          renderUsersManagementList();
+          showToast(`🗑️ Đã xóa tài khoản @${uname}`);
+        };
+      });
+    }
+
+    function openRoleSwitchModal() {
+      if (!state.currentUser) {
+        if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
+        return;
+      }
+      const modal = $('modalRoleSwitch');
+      if (!modal) return;
+      applyUserRoleUI();
+      modal.style.display = 'flex';
+    }
+
+    function closeRoleSwitchModal() {
+      const modal = $('modalRoleSwitch');
+      if (modal) modal.style.display = 'none';
+    }
+
+    // ==========================================
+    // 📊 NÂNG CẤP 2: LIVE PRODUCTION TRACKING (TIẾN ĐỘ CẮT THỜI GIAN THỰC)
+    // ==========================================
+    function playSuccessChime() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now);       // C5
+        osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+        osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+        osc.frequency.setValueAtTime(1046.50, now + 0.3); // C6
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.start(now);
+        osc.stop(now + 0.6);
+      } catch (e) {}
+    }
+
+    function toggleBarCuttingStatus(key, total) {
+      if (!state.cutStatuses) state.cutStatuses = {};
+      const cur = state.cutStatuses[key] ? (state.cutStatuses[key].cutCount || 0) : 0;
+      let next = cur + 1;
+      if (next > total) {
+        next = 0; // Đặt lại
+      }
+      state.cutStatuses[key] = {
+        cutCount: next,
+        totalCount: total,
+        status: next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending'),
+        updatedAt: new Date().toISOString()
+      };
+      try { localStorage.setItem('toiuu_cut_statuses', JSON.stringify(state.cutStatuses)); } catch (e) {}
+
+      const cleanKey = key.replace('__', ' - ');
+      if (next >= total) {
+        playSuccessChime();
+        showToast(`🎉 Đã hoàn thành toàn bộ cây ${cleanKey} (${next}/${total} cây)!`);
+      } else if (next > 0) {
+        showToast(`✂️ Cập nhật: Đã cắt ${next}/${total} cây ${cleanKey}`);
+      } else {
+        showToast(`🔄 Đặt lại trạng thái cây ${cleanKey} về Chưa cắt`);
+      }
+
+      updateLiveCuttingProgressUI();
+      if (state.result) {
+        renderPatternsGrouped(state.result);
+      }
+      pushCutStatusToSync(key, next, total);
+    }
+
+    function updateLiveCuttingProgressUI() {
+      const card = $('liveCuttingProgressCard');
+      if (!card || !state.result || !state.result.patterns) return;
+
+      let totalStockBars = 0;
+      let completedBars = 0;
+      let inProgressBars = 0;
+
+      const profiles = state.result.summaryByProfile ? state.result.summaryByProfile.map(s => s.profile) : ['Chung'];
+      profiles.forEach(prof => {
+        const patternsOfProfile = state.result.patterns.filter(p => (p.profile || 'Chung') === prof);
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        patternsOfProfile.forEach((p, pSubIdx) => {
+          const letter = alphabet[pSubIdx % alphabet.length];
+          const barKey = `${prof}__${letter}`;
+          const count = p.count;
+          totalStockBars += count;
+
+          const cur = state.cutStatuses && state.cutStatuses[barKey] ? (state.cutStatuses[barKey].cutCount || 0) : 0;
+          if (cur >= count) {
+            completedBars += count;
+          } else if (cur > 0) {
+            completedBars += cur;
+            inProgressBars += 1;
+          }
+        });
+      });
+
+      const remainingBars = Math.max(0, totalStockBars - completedBars);
+      const percent = totalStockBars > 0 ? Math.round((completedBars / totalStockBars) * 100) : 0;
+
+      if ($('liveProgressPercentBadge')) $('liveProgressPercentBadge').textContent = percent + '%';
+      if ($('liveProgressRatioText')) $('liveProgressRatioText').textContent = `Đã cắt: ${completedBars}/${totalStockBars} cây`;
+      if ($('liveProgressBarFill')) $('liveProgressBarFill').style.width = percent + '%';
+      if ($('statCutCompleted')) $('statCutCompleted').textContent = completedBars;
+      if ($('statCutInProgress')) $('statCutInProgress').textContent = inProgressBars;
+      if ($('statCutRemaining')) $('statCutRemaining').textContent = remainingBars;
+
+      // Màu sắc theo tiến độ
+      if ($('liveProgressBarFill')) {
+        if (percent === 100) {
+          $('liveProgressBarFill').style.background = 'linear-gradient(90deg, #10B981, #059669)';
+        } else if (percent > 50) {
+          $('liveProgressBarFill').style.background = 'linear-gradient(90deg, #3B82F6, #10B981)';
+        } else {
+          $('liveProgressBarFill').style.background = 'linear-gradient(90deg, #F59E0B, #10B981)';
+        }
+      }
+    }
+
+    function pushCutStatusToSync(key, cutCount, total) {
+      // 1. Gửi lên Máy chủ LAN / Node server
+      fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cutStatuses: state.cutStatuses,
+          event: { type: 'cut_progress', key, cutCount, total }
+        })
+      }).catch(() => {});
+
+      // 2. Bắn thông báo lên ntfy cloud topic để đồng bộ 2 chiều tức thì trên Internet
+      try {
+        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', {
+          method: 'POST',
+          headers: { 'Title': 'Tiến độ cắt xưởng' },
+          body: JSON.stringify({
+            type: 'cut_progress',
+            cutStatuses: state.cutStatuses,
+            key, cutCount, total
+          })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    // ==========================================
+    // ⚡ NÂNG CẤP 1: REALTIME 2-WAY EVENT LISTENERS
+    // ==========================================
+    function initRealtimeListeners() {
+      // 1. Lắng nghe SSE từ Local Server (mạng nội bộ)
+      try {
+        const es = new EventSource('/api/events');
+        es.onmessage = function(e) {
+          try {
+            const data = JSON.parse(e.data);
+            handleRealtimeEvent(data);
+          } catch(err) {}
+        };
+      } catch (e) {}
+
+      // 2. Lắng nghe SSE từ Cloud Topic (24/7 Internet)
+      try {
+        const cloudEs = new EventSource('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/sse');
+        cloudEs.onmessage = function(e) {
+          try {
+            const payload = JSON.parse(e.data);
+            if (payload.message) {
+              const inner = JSON.parse(payload.message);
+              handleRealtimeEvent(inner);
+            }
+          } catch (err) {}
+        };
+      } catch (e) {}
+    }
+
+    function handleRealtimeEvent(data) {
+      if (!data) return;
+      if (data.type === 'cut_progress' && data.cutStatuses) {
+        state.cutStatuses = Object.assign(state.cutStatuses || {}, data.cutStatuses);
+        try { localStorage.setItem('toiuu_cut_statuses', JSON.stringify(state.cutStatuses)); } catch (e) {}
+        updateLiveCuttingProgressUI();
+        if (state.result) renderPatternsGrouped(state.result);
+      } else if (data.type === 'fusion_import' && data.project) {
+        showToast('⚡ Bản vẽ mới vừa được đẩy lên từ Autodesk Fusion 360!');
+        loadFusionDataPayload(data.project);
+      } else if (data.type === 'cloud_sync' && data.activeProject) {
+        if (!state.isApplyingRemoteChange) {
+          applyRemoteDbState({ activeProject: data.activeProject }, true);
+        }
+      }
+    }
+
+    // ==========================================
+    // 📶 NÂNG CẤP 3: PWA & OFFLINE-FIRST
+    // ==========================================
+    function initNetworkAndPWA() {
+      // Đăng ký Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+          console.log('PWA Service Worker registered:', reg.scope);
+        }).catch(err => {
+          console.log('SW registration note:', err);
+        });
+      }
+
+      // Theo dõi trạng thái mạng Trực tuyến / Ngoại tuyến
+      const updateNetBadge = () => {
+        const isOnline = navigator.onLine;
+        const badge = $('networkStatusBadge');
+        const dot = $('networkDot');
+        const text = $('networkStatusText');
+        if (!badge) return;
+
+        if (isOnline) {
+          badge.style.background = '#DCFCE7';
+          badge.style.borderColor = '#BBF7D0';
+          badge.style.color = '#15803D';
+          if (dot) dot.style.background = '#10B981';
+          if (text) text.textContent = 'Trực tuyến 24/7';
+        } else {
+          badge.style.background = '#FEF3C7';
+          badge.style.borderColor = '#FDE68A';
+          badge.style.color = '#B45309';
+          if (dot) dot.style.background = '#F59E0B';
+          if (text) text.textContent = 'Ngoại tuyến (Offline PWA)';
+          showToast('📡 Mạng xưởng ngắt kết nối: Ứng dụng chuyển sang chế độ Ngoại Tuyến (Offline PWA) hoàn toàn tự chủ!');
+        }
+      };
+
+      window.addEventListener('online', () => {
+        updateNetBadge();
+        showToast('🟢 Đã khôi phục mạng! Tự động đồng bộ với máy chủ.');
+        if (typeof forceSyncWithServer === 'function') forceSyncWithServer();
+      });
+      window.addEventListener('offline', updateNetBadge);
+      updateNetBadge();
+    }
+
     // Attach Event Listeners
     window.addEventListener('DOMContentLoaded', () => {
+      initUserRole();
+      initNetworkAndPWA();
+      initRealtimeListeners();
       initSavedProfiles();
       renderMemoryLibraryChips();
       initProjectsManager();
       initCloudSyncSystem();
+
+      // Gắn sự kiện Hệ thống Tài khoản & Mật khẩu Phân quyền
+      if ($('btnRoleSelector')) {
+        $('btnRoleSelector').onclick = () => openRoleSwitchModal();
+      }
+      if ($('btnCloseRoleModal')) {
+        $('btnCloseRoleModal').onclick = () => closeRoleSwitchModal();
+      }
+      if ($('btnCloseRoleSwitchModal')) {
+        $('btnCloseRoleSwitchModal').onclick = () => closeRoleSwitchModal();
+      }
+      if ($('tabGateLogin')) {
+        $('tabGateLogin').onclick = () => switchLoginGateTab('login');
+      }
+      if ($('tabGateRegister')) {
+        $('tabGateRegister').onclick = () => switchLoginGateTab('register');
+      }
+      if ($('btnToggleLoginPassVis')) {
+        $('btnToggleLoginPassVis').onclick = () => {
+          const inp = $('inpLoginPassword');
+          if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+        };
+      }
+      if ($('btnSubmitGateLogin')) {
+        $('btnSubmitGateLogin').onclick = () => handleGateLogin();
+      }
+      if ($('inpLoginUsername')) {
+        $('inpLoginUsername').onkeydown = e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if ($('inpLoginPassword')) $('inpLoginPassword').focus();
+          }
+        };
+      }
+      if ($('inpLoginPassword')) {
+        $('inpLoginPassword').onkeydown = e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleGateLogin();
+          }
+        };
+      }
+      if ($('btnQuickFillEngineer')) {
+        $('btnQuickFillEngineer').onclick = () => {
+          if ($('inpLoginUsername')) $('inpLoginUsername').value = 'admin';
+          if ($('inpLoginPassword')) {
+            $('inpLoginPassword').value = '123456';
+            $('inpLoginPassword').focus();
+          }
+        };
+      }
+      if ($('btnQuickFillOperator')) {
+        $('btnQuickFillOperator').onclick = () => {
+          if ($('inpLoginUsername')) $('inpLoginUsername').value = 'thocnc';
+          if ($('inpLoginPassword')) {
+            $('inpLoginPassword').value = '1234';
+            $('inpLoginPassword').focus();
+          }
+        };
+      }
+      if ($('selRegRole')) {
+        $('selRegRole').onchange = () => {
+          const isEng = $('selRegRole').value === 'engineer';
+          if ($('boxRegAdminVerify')) $('boxRegAdminVerify').style.display = isEng ? 'block' : 'none';
+        };
+      }
+      if ($('btnSubmitGateRegister')) {
+        $('btnSubmitGateRegister').onclick = () => handleGateRegister();
+      }
+      if ($('btnLogoutAccount')) {
+        $('btnLogoutAccount').onclick = () => logoutCurrentAccount();
+      }
+      if ($('btnSaveSelfPassword')) {
+        $('btnSaveSelfPassword').onclick = () => saveSelfNewPassword();
+      }
+      if ($('btnAdminCreateAccount')) {
+        $('btnAdminCreateAccount').onclick = () => adminCreateNewAccount();
+      }
+      if ($('btnResetCutProgress')) {
+        $('btnResetCutProgress').onclick = () => {
+          if (confirm('Đặt lại toàn bộ tiến độ cắt của dự án này về 0% (Chưa cắt)?')) {
+            state.cutStatuses = {};
+            localStorage.removeItem('toiuu_cut_statuses');
+            updateLiveCuttingProgressUI();
+            if (state.result) renderPatternsGrouped(state.result);
+            pushCutStatusToSync('ALL', 0, 0);
+            showToast('Đã đặt lại tiến độ cắt về 0%');
+          }
+        };
+      }
 
       // Dropdown Menus
       const setupDropdown = (toggleId, dropdownId) => {
@@ -4888,6 +6347,7 @@
 
       // Remove current profile from drawing
       $('btnRemoveCurrentProfile').onclick = () => {
+        if (checkProjectLockedForEdit()) return;
         const cur = state.selectedTabProfile;
         if (cur === 'ALL') {
           showToast('Vui lòng chọn một loại hộp cụ thể để xóa khỏi bản vẽ!');
@@ -4911,6 +6371,7 @@
 
       // Clear all
       $('btnClearAll').onclick = () => {
+        if (checkProjectLockedForEdit()) return;
         if (confirm('Bạn có chắc muốn xóa toàn bộ danh sách chi tiết của tất cả các loại hộp?')) {
           state.parts = [];
           state.result = null;
@@ -5050,12 +6511,15 @@
           exportSingleProjectJson(state.currentProjectId);
         };
       }
+      if ($('btnBannerToggleLock')) $('btnBannerToggleLock').onclick = toggleActiveProjectLock;
       if ($('btnBannerOpenManager')) $('btnBannerOpenManager').onclick = openProjectsManagerModal;
 
       // Projects Modal Controls
       if ($('btnCloseProjects')) $('btnCloseProjects').onclick = closeProjectsManagerModal;
       if ($('btnProjModalSaveCurrent')) $('btnProjModalSaveCurrent').onclick = () => openSaveProjectModal();
       if ($('btnProjModalNewBlank')) $('btnProjModalNewBlank').onclick = createNewBlankProject;
+      if ($('btnTabActiveProjects')) $('btnTabActiveProjects').onclick = () => switchProjectsTab('active');
+      if ($('btnTabTrashProjects')) $('btnTabTrashProjects').onclick = () => switchProjectsTab('trash');
       
       const inpProjFile = $('inpImportProjFile');
       if ($('btnProjModalImport') && inpProjFile) {
@@ -5309,6 +6773,7 @@
           qty: p.qty || 1,
           style: p.style || 'thang',
           mat: p.mat || extractMatFromProfile(p.profile),
+          igs_url: p.igs_url || p.pieceIgsUrl || p.igs_path || null,
           _autoDetected: true
         }));
 

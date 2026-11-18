@@ -3,40 +3,47 @@ import shutil, os, json, re, zipfile
 fusion_script_dir = r'C:\Users\Administrator\AppData\Roaming\Autodesk\Autodesk Fusion 360\API\Scripts\Xuat_IGS_Va_Toi_Uu_Phoi'
 toiuu_phoi_dir = r'C:\Users\Administrator\toiuu-phoi'
 fusion_workspace_dir = r'C:\Users\Administrator\Fusion360\toiuu-phoi'
+dist_dir = os.path.join(toiuu_phoi_dir, 'dist')
 
-src_py = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
+src_py = os.path.join(toiuu_phoi_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
 src_html = os.path.join(toiuu_phoi_dir, 'index.html')
 src_engine = os.path.join(toiuu_phoi_dir, 'toi-uu-engine.js')
 src_helper = os.path.join(toiuu_phoi_dir, 'run_engine_helper.js')
 src_logo = os.path.join(toiuu_phoi_dir, 'logo_an_binh.jpg')
 src_server = os.path.join(toiuu_phoi_dir, 'server.js')
+src_cfg = os.path.join(toiuu_phoi_dir, 'workshop_config.json')
+src_manifest = os.path.join(toiuu_phoi_dir, 'manifest.json')
+src_sw = os.path.join(toiuu_phoi_dir, 'sw.js')
+
+all_web_assets = [src_html, src_engine, src_helper, src_logo, src_cfg, src_server, src_manifest, src_sw]
 
 # 1. Đồng bộ script Python sang Fusion Script dir
-py_in_toiuu = os.path.join(toiuu_phoi_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
 py_in_fusion = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
-if os.path.exists(py_in_toiuu):
-    shutil.copy2(py_in_toiuu, py_in_fusion)
+if os.path.exists(src_py):
+    shutil.copy2(src_py, py_in_fusion)
     print('Copied Xuat_IGS_Va_Toi_Uu_Phoi.py to Fusion Script dir')
 
-# 2. Copy helper, engine, index.html, server.js & workshop_config to fusion script dir
-src_cfg = os.path.join(toiuu_phoi_dir, 'workshop_config.json')
-shutil.copy2(src_helper, os.path.join(fusion_script_dir, 'run_engine_helper.js'))
-shutil.copy2(src_engine, os.path.join(fusion_script_dir, 'toi-uu-engine.js'))
-shutil.copy2(src_html, os.path.join(fusion_script_dir, 'index.html'))
-if os.path.exists(src_server):
-    shutil.copy2(src_server, os.path.join(fusion_script_dir, 'server.js'))
-if os.path.exists(src_cfg):
-    shutil.copy2(src_cfg, os.path.join(fusion_script_dir, 'workshop_config.json'))
+# 2. Copy web assets to Fusion Script dir
+for f in all_web_assets:
+    if os.path.exists(f):
+        shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
 print('Copied web assets to Fusion Script dir')
 
 # 3. Copy web assets to Fusion360/toiuu-phoi
 os.makedirs(fusion_workspace_dir, exist_ok=True)
-for f in [src_html, src_engine, src_helper, src_logo, src_cfg, src_server]:
+for f in all_web_assets + [src_py]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
 print('Copied web assets to Fusion360/toiuu-phoi')
 
-# 4. Update export folders on Desktop if they exist
+# 4. Copy web assets to dist directory for Netlify deploy
+os.makedirs(dist_dir, exist_ok=True)
+for f in [src_html, src_engine, src_logo, src_cfg, src_manifest, src_sw]:
+    if os.path.exists(f):
+        shutil.copy2(f, os.path.join(dist_dir, os.path.basename(f)))
+print('Copied web assets to dist dir')
+
+# 5. Update export folders on Desktop if they exist
 with open(src_html, 'r', encoding='utf-8') as f:
     base_html = f.read()
 
@@ -48,7 +55,6 @@ candidate_dirs = [
 
 for desktop_dir in candidate_dirs:
     if os.path.exists(desktop_dir):
-        # copy engine and helper
         shutil.copy2(src_engine, os.path.join(desktop_dir, 'toi-uu-engine.js'))
         shutil.copy2(src_helper, os.path.join(desktop_dir, 'run_engine_helper.js'))
         
@@ -77,7 +83,7 @@ for desktop_dir in candidate_dirs:
             f.write(html_content)
         print('Updated', dest_html)
 
-# 5. Update zip package
+# 6. Update zip package
 zip_path = r'C:\Users\Administrator\Fusion360\toiuu-phoi-an-binh.zip'
 if os.path.exists(zip_path):
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -86,3 +92,4 @@ if os.path.exists(zip_path):
             if os.path.isfile(fp):
                 z.write(fp, f)
     print('Updated toiuu-phoi-an-binh.zip!')
+print('All synchronization completed!')

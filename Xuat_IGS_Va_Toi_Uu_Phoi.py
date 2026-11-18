@@ -666,6 +666,14 @@ def run(context):
             except Exception as e:
                 pass
 
+            igs_text = ''
+            if os.path.exists(igs_path):
+                try:
+                    with open(igs_path, 'r', encoding='utf-8', errors='ignore') as f_in:
+                        igs_text = f_in.read()
+                except Exception:
+                    pass
+
             parts_list.append({
                 'name': clean_part_name,
                 'profile': prof_name,
@@ -673,7 +681,9 @@ def run(context):
                 'qty': qty,
                 'style': style,
                 'mat': p['mat'],
-                'igs_file': igs_path.replace('\\', '/')
+                'igs_file': igs_path.replace('\\', '/'),
+                'igs_content': igs_text,
+                'file_size': os.path.getsize(igs_path) if os.path.exists(igs_path) else 0
             })
 
         # 4. XUẤT ĐẦY ĐỦ TẤT CẢ FILE .IGS CÁC CÂY GHÉP 6M CHO MỌI LOẠI HỘP
@@ -946,24 +956,31 @@ def run(context):
                 except Exception:
                     pass
 
-        # Bắn dữ liệu bản vẽ trực tiếp lên Máy chủ Web qua POST /api/fusion-import
-        try:
-            post_bytes = json.dumps(payload_data, ensure_ascii=False).encode('utf-8')
-            req = urllib.request.Request(
-                f"{server_url}/api/fusion-import",
-                data=post_bytes,
-                headers={'Content-Type': 'application/json; charset=utf-8'},
-                method='POST'
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                resp_data = json.loads(resp.read().decode('utf-8'))
-                if resp_data.get('success'):
-                    pushed_to_server = True
-                    lan_list = resp_data.get('lanUrls') or []
-                    if len(lan_list) > 0 and lan_list[0].get('url'):
-                        lan_url_display = lan_list[0]['url']
-        except Exception:
-            pushed_to_server = False
+        # Bắn dữ liệu bản vẽ và file .IGS trực tiếp lên Đám Mây xepphoi.cloud và Netlify
+        cloud_api_targets = [
+            "https://xepphoi.cloud/api/fusion-import",
+            "https://xepphoianbinh.netlify.app/api/fusion-import",
+            f"{server_url}/api/fusion-import"
+        ]
+        post_bytes = json.dumps(payload_data, ensure_ascii=False).encode('utf-8')
+        for target_ep in cloud_api_targets:
+            try:
+                req = urllib.request.Request(
+                    target_ep,
+                    data=post_bytes,
+                    headers={'Content-Type': 'application/json; charset=utf-8'},
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    resp_data = json.loads(resp.read().decode('utf-8'))
+                    if resp_data.get('success'):
+                        pushed_to_server = True
+                        lan_list = resp_data.get('lanUrls') or []
+                        if len(lan_list) > 0 and lan_list[0].get('url'):
+                            lan_url_display = lan_list[0]['url']
+                        break
+            except Exception:
+                pass
 
         # 6B. Bắn dữ liệu trực tiếp lên ĐÁM MÂY QUỐC TẾ 24/7 (https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2)
         # Giúp mọi máy tính khác chạy Script đều đẩy chung về 1 kho dữ liệu 24/7 và hoạt động kể cả khi tắt máy tính!
@@ -1059,27 +1076,27 @@ def run(context):
         except Exception:
             pushed_to_cloud = False
 
-        permanent_netlify_url = "https://xepphoianbinh.netlify.app"
+        permanent_custom_url = "https://xepphoi.cloud"
         if pushed_to_cloud:
-            target_web_url = permanent_netlify_url
+            target_web_url = permanent_custom_url
         elif pushed_to_server:
             target_web_url = server_url
         else:
-            target_web_url = 'file:///' + os.path.join(export_dir, 'index.html').replace('\\', '/')
+            target_web_url = permanent_custom_url
 
         # 7. Mở trình duyệt Web App chính thức 24/7
         webbrowser.open(target_web_url)
 
         # 8. Hiển thị thông báo kết quả chi tiết
         prof_names_str = ", ".join(parts_by_prof.keys())
-        msg = f"✓ ĐÃ ĐỒNG BỘ LÊN WEB CLOUD 24/7 & XUẤT FILE .IGS: {doc.name}\n\n"
+        msg = f"✓ ĐÃ ĐỒNG BỘ LÊN ĐÁM MÂY XEPPHOI.CLOUD 24/7 & XUẤT FILE .IGS: {doc.name}\n\n"
         msg += f"• Các loại hộp phát hiện ({len(parts_by_prof)} loại): {prof_names_str}\n"
         msg += f"• Tổng số chi tiết bản vẽ: {total_tubes_count} thanh\n\n"
         msg += f"★ CÁC CÂY GHÉP 6M (LIỀN MẠCH - KHÍT MÒI 100%): {len(bar_exports)} file .IGS\n"
         for be in bar_exports:
             msg += f"   ➔ {be['name']}.igs ({be['profile']} · Ghép {be['cuts_count']} ct · SL: {be['bar_count']} cây)\n"
-        msg += f"\n🌍 LINK WEB ĐÁM MÂY CỐ ĐỊNH 24/7 (MỌI THIẾT BỊ & TẮT MÁY VẪN CHẠY):\n"
-        msg += f"   • {permanent_netlify_url}\n"
+        msg += f"\n🌍 LINK WEB ĐÁM MÂY CHÍNH THỨC 24/7 (MỌI THIẾT BỊ & TẮT MÁY VẪN CHẠY):\n"
+        msg += f"   • {permanent_custom_url}\n"
         msg += f"\n📂 Thư mục lưu file .IGS: {export_dir}"
 
         ui.messageBox(msg, 'An Bình - Đồng Bộ Web Cloud 24/7 & Xuất IGS')

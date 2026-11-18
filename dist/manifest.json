@@ -1,0 +1,17 @@
+{
+  "name": "Tối Ưu Xếp Phôi & Cắt CNC An Bình",
+  "short_name": "Xếp Phôi CNC",
+  "description": "Hệ thống tối ưu hóa cắt thép hộp, ống và quản lý sản xuất xưởng cơ khí An Bình",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1E3A8A",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "logo_an_binh.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

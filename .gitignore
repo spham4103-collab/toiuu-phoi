@@ -1,3 +1,6 @@
+node_modules/
+database/igs_files/
+*.zip
 __pycache__/
 *.pyc
 *.tmp

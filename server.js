@@ -11,9 +11,16 @@
  * 5. Tự động mở kênh Cloud Internet (HTTPS Tunnel) để truy cập từ xa qua 4G/5G
  */
 
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const http = require('http');
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 
@@ -33,13 +40,32 @@ const DEFAULT_PROFILES = [
   'Ống Ø27x1.4', 'Ống Ø34x1.4'
 ];
 
+const DEFAULT_USERS = [
+  {
+    username: 'admin',
+    password: '123456',
+    fullName: 'Kỹ Sư Thiết Kế (Admin)',
+    role: 'engineer',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    username: 'thocnc',
+    password: '1234',
+    fullName: 'Thợ Vận Hành Máy CNC',
+    role: 'operator',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }
+];
+
 // Khởi tạo hoặc đọc Database
 let db = {
   workspaceId: 'ANBINH',
   updatedAt: new Date().toISOString(),
   savedProfiles: DEFAULT_PROFILES.slice(),
   savedProjects: [],
-  activeProject: null
+  activeProject: null,
+  cutStatuses: {},
+  users: DEFAULT_USERS.slice()
 };
 
 function saveDb() {
@@ -79,6 +105,17 @@ function processFusionPayload(fusionData) {
     if (!activeProfiles.includes(prof)) activeProfiles.push(prof);
     if (!db.savedProfiles.includes(prof)) db.savedProfiles.push(prof);
 
+    let pieceIgsUrl = null;
+    if (p.igs_content && p.igs_content.length > 50) {
+      const safePartFileName = `${p.name || ('Chi_tiet_' + (idx + 1))}.igs`
+        .replace(/\.igs\.igs$/i, '.igs')
+        .replace(/[\/\\:*?"<>|]/g, '_');
+      try {
+        fs.writeFileSync(path.join(IGS_DIR, safePartFileName), p.igs_content, 'utf8');
+        pieceIgsUrl = `/api/igs/${encodeURIComponent(safePartFileName)}`;
+      } catch (e) {}
+    }
+
     return {
       id: 'p_f360_' + Date.now() + '_' + idx,
       name: p.name || `Chi tiết ${idx + 1}`,
@@ -87,6 +124,7 @@ function processFusionPayload(fusionData) {
       qty: Number(p.qty) || 1,
       style: p.style || 'thang',
       mat: p.mat || extractMatFromProfile(prof),
+      igs_url: pieceIgsUrl,
       _autoDetected: true
     };
   });
@@ -185,7 +223,10 @@ function loadInitialDb() {
       const raw = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
       if (raw && typeof raw === 'object') {
         db = Object.assign(db, raw);
-        console.log(`[DB] Đã nạp ${db.savedProjects.length} dự án từ cơ sở dữ liệu máy chủ.`);
+        if (!Array.isArray(db.users) || !db.users.length) {
+          db.users = DEFAULT_USERS.slice();
+        }
+        console.log(`[DB] Đã nạp ${db.savedProjects.length} dự án và ${db.users.length} tài khoản từ cơ sở dữ liệu máy chủ.`);
         return;
       }
     } catch (e) {
@@ -399,6 +440,12 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const clientId = body.clientId || req.headers['x-client-id'] || null;
 
+      if (body.cutStatuses !== undefined) {
+        db.cutStatuses = body.cutStatuses;
+      }
+      if (Array.isArray(body.users) && body.users.length) {
+        db.users = body.users;
+      }
       if (Array.isArray(body.savedProfiles)) {
         db.savedProfiles = body.savedProfiles;
       }
