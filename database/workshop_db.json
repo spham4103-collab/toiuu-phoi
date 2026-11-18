@@ -1,6 +1,6 @@
 {
   "workspaceId": "ANBINH",
-  "updatedAt": "2026-11-18T16:28:45.085Z",
+  "updatedAt": "2026-11-18T16:28:51.488Z",
   "savedProfiles": [
     "Hộp 20x20x1.4",
     "Hộp 25x25x1.4",
@@ -661,7 +661,8 @@
     "Hộp 30x30x1.8__A": {
       "cutCount": 1,
       "totalCount": 1,
-      "status": "done"
+      "status": "pending",
+      "updatedAt": "2026-11-18T16:28:40.044Z"
     },
     "Hộp 20x40x1.4__C": {
       "cutCount": 0,
