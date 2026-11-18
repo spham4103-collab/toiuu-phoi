@@ -3889,13 +3889,19 @@
           senderId: state.clientId,
           action: actionName,
           updatedAt: new Date().toISOString(),
-          savedProfiles: state.savedProfiles,
-          deletedProjectIds: state.deletedProjectIds || [],
-          savedProjects: (state.savedProjects || []).map(p => stripHeavyIgsForCloud(p)),
           activeProject: getActiveProjectSnapshot(true),
           cutStatuses: state.cutStatuses || {},
           users: state.users || []
         };
+        if (Array.isArray(state.savedProfiles) && state.savedProfiles.length) {
+          cloudPayload.savedProfiles = state.savedProfiles;
+        }
+        if (Array.isArray(state.deletedProjectIds) && state.deletedProjectIds.length) {
+          cloudPayload.deletedProjectIds = state.deletedProjectIds;
+        }
+        if (Array.isArray(state.savedProjects) && state.savedProjects.length > 0) {
+          cloudPayload.savedProjects = state.savedProjects.map(p => stripHeavyIgsForCloud(p));
+        }
         const res = await fetch(GLOBAL_CLOUD_URL, {
           method: 'PUT',
           headers: {
@@ -4080,7 +4086,7 @@
         }
 
         // 5. Đồng bộ danh sách dự án song song (Merge thông minh theo ID và timestamp)
-        if (Array.isArray(remoteDb.savedProjects)) {
+        if (Array.isArray(remoteDb.savedProjects) && remoteDb.savedProjects.length > 0) {
           const delSet = new Set(state.deletedProjectIds || []);
           const mergedMap = new Map();
           (state.savedProjects || []).forEach(p => {
