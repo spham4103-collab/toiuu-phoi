@@ -1155,6 +1155,415 @@
       color: #065F46 !important;
     }
 
+    /* ==========================================================================
+       RESPONSIVE DESIGN SYSTEM (Tối ưu đa thiết bị: Mobile, Tablet / iPad, Laser CNC, Desktop)
+       ========================================================================== */
+
+    /* Scrollbars for touch & overflow containers */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: #CBD5E1 transparent;
+      padding-bottom: 4px;
+    }
+    .table-responsive::-webkit-scrollbar {
+      height: 6px;
+    }
+    .table-responsive::-webkit-scrollbar-track {
+      background: #F1F5F9;
+      border-radius: 4px;
+    }
+    .table-responsive::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 4px;
+    }
+    .table-responsive::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+    .parts-table-wrap .parts-header,
+    .parts-table-wrap .parts-row {
+      min-width: 580px;
+    }
+    .stock-table-wrap .stock-header,
+    .stock-table-wrap .stock-row {
+      min-width: 310px;
+    }
+    #materialsContainer {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #materialsContainer .mat-table {
+      min-width: 460px;
+    }
+
+    /* 1. Màn hình máy tính lớn / Widescreen Desktop (>= 1441px) */
+    @media (min-width: 1441px) {
+      .wrap { max-width: 1440px; }
+      .kpi-cards { grid-template-columns: repeat(6, 1fr) !important; }
+    }
+
+    /* 2. Màn hình máy tính tiêu chuẩn (1061px - 1440px) */
+    @media (min-width: 1061px) and (max-width: 1440px) {
+      .kpi-cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    }
+
+    /* 3. Máy tính bảng (iPad / Tablet) & Màn hình cảm ứng máy cắt CNC Laser (769px - 1060px) */
+    @media (min-width: 769px) and (max-width: 1060px) {
+      :root { --gut: 18px; }
+      .top .wrap {
+        height: auto;
+        min-height: 60px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .brand-sub-title { font-size: 11px; }
+      .top-actions {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .grid-input {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .kpi-cards {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 10px !important;
+      }
+      .btn {
+        min-height: 40px; /* Touch friendly on iPad & CNC touchscreens */
+      }
+      .pattern-header {
+        align-items: center;
+      }
+    }
+
+    /* 4. Điện thoại thông minh (Smartphones: iPhone, Android) (<= 768px) */
+    @media (max-width: 768px) {
+      :root {
+        --gut: 10px;
+        --r: 10px;
+      }
+      body {
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      /* Top Header */
+      .top {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+      }
+      .top .wrap {
+        height: auto;
+        min-height: 52px;
+        padding: 6px 10px;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        justify-content: space-between;
+      }
+      .brand {
+        gap: 6px;
+      }
+      .brand-logo-img {
+        height: 32px;
+        max-width: 95px;
+      }
+      .brand-divider {
+        height: 20px;
+        margin: 0;
+      }
+      .brand-main-title {
+        font-size: 13px;
+        letter-spacing: -0.2px;
+      }
+      .brand-sub-title {
+        display: none; /* Giấu phụ đề để thanh menu gọn gàng trên mobile */
+      }
+      .top-actions {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 4px 6px;
+        justify-content: flex-start;
+      }
+      .top-actions .btn {
+        min-height: 32px;
+        padding: 3px 8px;
+        font-size: 11.5px;
+      }
+      #networkStatusBadge {
+        padding: 2px 7px;
+        font-size: 11px;
+      }
+
+      /* Active Project Banner */
+      .project-active-bar {
+        padding: 8px 10px !important;
+        margin: 8px 0 4px !important;
+        gap: 8px !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+      }
+      .project-active-bar > div:last-child {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        justify-content: flex-start;
+      }
+      .project-active-bar .btn {
+        flex: 1 1 auto;
+        min-height: 32px;
+        font-size: 11.5px;
+        padding: 3px 8px;
+        text-align: center;
+        justify-content: center;
+      }
+
+      /* Hero Section */
+      .hero {
+        padding: 8px 0;
+      }
+      .hero-top {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .hero-top h1 {
+        font-size: 18px !important;
+        line-height: 1.25;
+      }
+      .hero-desc {
+        font-size: 12px !important;
+        line-height: 1.45;
+        margin-top: 3px;
+      }
+      #btnOptimizeHero {
+        width: 100%;
+        justify-content: center;
+        min-height: 44px;
+        font-size: 15px;
+        border-radius: 10px;
+      }
+
+      /* Forms & Cards */
+      .card {
+        padding: 14px 10px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+      }
+      .card-title h2 {
+        font-size: 15px;
+      }
+      .card-subtitle {
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+
+      /* Inputs - 16px font prevents iOS Safari auto-zoom */
+      input[type=text], input[type=number], select, textarea {
+        font-size: 16px !important;
+        min-height: 40px;
+        border-radius: 8px;
+      }
+
+      /* Profile Memory Box */
+      .memory-library-box {
+        padding: 10px;
+        margin-bottom: 12px;
+      }
+      .memory-header-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      .memory-header-row > div {
+        width: 100%;
+        display: flex;
+        gap: 5px;
+      }
+      #inpCustomProfile {
+        flex: 1;
+        max-width: 100% !important;
+        font-size: 14px !important;
+      }
+
+      /* Action Rows */
+      .action-row {
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .action-row .btn {
+        flex: 1 1 auto;
+        min-height: 36px;
+        font-size: 12px;
+        padding: 4px 10px;
+        justify-content: center;
+      }
+      .action-row #btnClearAll {
+        margin-left: 0 !important;
+      }
+
+      /* Settings Grid */
+      .settings-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      /* KPI Cards */
+      .kpi-cards {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+        margin-bottom: 14px !important;
+      }
+      .kpi-card {
+        padding: 10px 8px !important;
+        border-radius: 10px !important;
+      }
+      .kpi-val {
+        font-size: 21px !important;
+      }
+      .kpi-label {
+        font-size: 11px !important;
+        margin-top: 2px !important;
+      }
+
+      /* Results Area Header */
+      .results-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+      .results-header h2 {
+        font-size: 17px;
+      }
+      .results-actions {
+        width: 100%;
+        display: flex;
+        gap: 5px;
+      }
+      .results-actions .btn {
+        flex: 1;
+        min-height: 36px;
+        font-size: 12px;
+        padding: 4px 6px;
+        justify-content: center;
+      }
+
+      /* Live Cutting Progress Card */
+      #liveCuttingProgressCard {
+        padding: 12px 10px !important;
+        margin-bottom: 16px !important;
+      }
+      #liveCuttingProgressCard h2 {
+        font-size: 15px !important;
+      }
+
+      /* Cutting Patterns */
+      .profile-group-section {
+        padding: 12px 10px;
+        border-radius: 12px;
+        margin-bottom: 14px;
+      }
+      .profile-group-title {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding-bottom: 8px;
+        margin-bottom: 10px;
+      }
+      .profile-group-title h3 {
+        font-size: 16px;
+      }
+      .pattern-card {
+        padding: 12px 0;
+      }
+      .pattern-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      .pattern-header .btn-cut-toggle,
+      .pattern-header .btn-export-bar {
+        width: 100%;
+        justify-content: center;
+        min-height: 38px;
+        font-size: 12px !important;
+        margin-left: 0 !important;
+      }
+      .bar-visual-wrap svg {
+        height: 40px;
+      }
+      .cut-label {
+        height: 40px;
+        font-size: 11px;
+      }
+
+      /* Modals */
+      .modal-backdrop {
+        padding: 8px !important;
+        align-items: flex-end; /* Trải nghiệm dạng bottom-sheet hiện đại trên mobile */
+      }
+      .modal-box {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: 90vh !important;
+        padding: 16px 12px !important;
+        border-radius: 16px 16px 0 0 !important;
+        overflow-y: auto !important;
+      }
+      .modal-box-lg {
+        max-height: 92vh !important;
+      }
+      .projects-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      .projects-search {
+        min-width: 100%;
+      }
+      .project-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+      .project-actions {
+        width: 100%;
+        justify-content: flex-end;
+      }
+      #loginOverlayGate {
+        padding: 10px !important;
+      }
+      #loginOverlayGate > div {
+        width: 100% !important;
+        max-width: 380px !important;
+        border-radius: 14px !important;
+      }
+      #toast {
+        bottom: 12px;
+        right: 12px;
+        left: 12px;
+        text-align: center;
+        font-size: 13px;
+        padding: 10px 14px;
+      }
+    }
+
+    /* 5. Màn hình điện thoại nhỏ (<= 420px) */
+    @media (max-width: 420px) {
+      .brand-main-title { font-size: 12px; }
+      .brand-logo-img { height: 28px; }
+      .top-actions .btn { font-size: 11px; padding: 2px 6px; }
+      .kpi-cards { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+      .kpi-val { font-size: 18px !important; }
+      .kpi-label { font-size: 10.5px !important; }
+    }
+
     /* Print styles */
     @media print {
       body { background: #fff; color: #000; font-size: 11pt; }
@@ -1366,18 +1775,20 @@
         <!-- Active Box Banner & Mini KPI for Selected Box -->
         <div id="activeProfileBannerWrap"></div>
 
-        <!-- Parts Table Header -->
-        <div class="parts-header">
-          <span></span>
-          <span>Tên / Vị trí chi tiết</span>
-          <span class="r">Dài (mm)</span>
-          <span class="r">SL</span>
-          <span style="text-align:center;">Đầu cắt</span>
-          <span class="r" title="Bề rộng cạnh bị vát mòi 45° (ví dụ hộp 25x25 thì là 25mm, không phải độ dày 1 ly)">Mặt vát (mm)</span>
-          <span></span>
-        </div>
+        <!-- Parts Table Responsive Wrapper -->
+        <div class="table-responsive parts-table-wrap">
+          <div class="parts-header">
+            <span></span>
+            <span>Tên / Vị trí chi tiết</span>
+            <span class="r">Dài (mm)</span>
+            <span class="r">SL</span>
+            <span style="text-align:center;">Đầu cắt</span>
+            <span class="r" title="Bề rộng cạnh bị vát mòi 45° (ví dụ hộp 25x25 thì là 25mm, không phải độ dày 1 ly)">Mặt vát (mm)</span>
+            <span></span>
+          </div>
 
-        <div id="partsList"></div>
+          <div id="partsList"></div>
+        </div>
 
         <div class="action-row">
           <button class="btn btn-p btn-sm" id="btnAddPart">
@@ -1404,14 +1815,17 @@
             Cây tồn kho nhập số lượng có sẵn (ưu tiên vét trước). Cây mua mới 6m luôn sẵn sàng.
           </p>
 
-          <div class="stock-header">
-            <span>Tên phôi</span>
-            <span class="r">Dài (mm)</span>
-            <span class="r">Số cây</span>
-            <span></span>
-          </div>
+          <!-- Stock Table Responsive Wrapper -->
+          <div class="table-responsive stock-table-wrap">
+            <div class="stock-header">
+              <span>Tên phôi</span>
+              <span class="r">Dài (mm)</span>
+              <span class="r">Số cây</span>
+              <span></span>
+            </div>
 
-          <div id="stockList"></div>
+            <div id="stockList"></div>
+          </div>
 
           <div style="margin-top: 12px; display:flex; gap:8px;">
             <button class="btn btn-soft btn-sm" id="btnAddStock">

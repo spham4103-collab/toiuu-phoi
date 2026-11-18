@@ -1,8 +1,8 @@
 /**
  * Service Worker - Offline-First PWA for Xếp Phôi CNC An Bình
- * Cache Version 5 - Bắt buộc cập nhật ngay lập tức
+ * Cache Version 6 - Giao diện Responsive tối ưu đa thiết bị (Mobile, iPad, Laser CNC, Desktop)
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v5';
+const CACHE_NAME = 'toiuu-phoi-pwa-v6';
 const STATIC_ASSETS = [
   './',
   'index.html',
