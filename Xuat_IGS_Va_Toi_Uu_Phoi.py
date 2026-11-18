@@ -846,6 +846,7 @@ def run(context):
                     'stock_length': stock_len,
                     'cuts_count': len(placed_bodies),
                     'bar_count': bar_count,
+                    'pieces': gb.get('pieces', []),
                     'igs_file': igs_bar_path.replace('\\', '/'),
                     'file_size': os.path.getsize(igs_bar_path) if os.path.exists(igs_bar_path) else 0,
                     'igs_content': igs_text

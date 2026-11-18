@@ -5220,70 +5220,90 @@
           const cache = HINH_CACHE[+btn.dataset.idx];
           const pieces = cache && cache.L ? cache.L.pieces : null;
 
-          const normP = s => String(s || '').toLowerCase().replace(/\s+/g, '');
-          const fusionBar = state.fusionProject && state.fusionProject.nested_bars
+          const normP = s => String(s || '').toLowerCase().replace(/[\s_]+/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const cleanProf = toAscii(prof).replace(/[^\w\.\-]/g, '_');
+          const defaultFileName = `Cay_${letter}_${cleanProf}_L${Math.round(len)}_SL_${count}.igs`;
+
+          const fusionBar = state.fusionProject && Array.isArray(state.fusionProject.nested_bars)
             ? (state.fusionProject.nested_bars.find(b => b.letter === letter && normP(b.profile) === normP(prof)) ||
                state.fusionProject.nested_bars.find(b => b.letter === letter && (normP(b.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(b.profile)))))
             : null;
 
-          const safeProf = prof.replace(/\s+/g, '_');
-          const defaultFileName = `Cay_${letter}_${safeProf}_L${Math.round(len)}_SL_${count}.igs`;
-
-          // Kiểm tra tính đồng bộ: fusionBar có khớp chính xác cấu trúc chi tiết đang hiển thị không
+          // Kiểm tra tính đồng bộ
           let isMatch = false;
-          if (fusionBar && pieces && Array.isArray(fusionBar.pieces) && fusionBar.pieces.length === pieces.length) {
-            isMatch = fusionBar.pieces.every((fb, i) => {
-              const cp = pieces[i];
-              const cpLen = cp.c ? cp.c.length : cp.length;
-              return Math.abs(fb.length - cpLen) < 1.0;
-            });
+          if (fusionBar) {
+            if (Array.isArray(fusionBar.pieces) && fusionBar.pieces.length > 0 && pieces && pieces.length > 0) {
+              isMatch = (fusionBar.pieces.length === pieces.length) && fusionBar.pieces.every((fb, i) => {
+                const cp = pieces[i];
+                const cpLen = cp.c ? cp.c.length : cp.length;
+                return Math.abs(fb.length - cpLen) < 1.0;
+              });
+            } else if (pieces && pieces.length > 0) {
+              isMatch = (!fusionBar.cuts_count || fusionBar.cuts_count === pieces.length || fusionBar.letter === letter);
+            } else {
+              isMatch = true;
+            }
           }
 
-          // 1. Tải trực tiếp nội dung 3D Solid Fusion 360 nếu có sẵn trong bộ nhớ VÀ đúng cấu trúc chi tiết hiện tại
+          const rawBarName = fusionBar && fusionBar.name ? fusionBar.name : defaultFileName;
+          const dlName = (toAscii(rawBarName).replace(/[^\w\.\-]/g, '_') + '.igs').replace(/\.igs\.igs$/i, '.igs');
+
+          // 1. Tải trực tiếp nội dung 3D Solid Fusion 360 nếu có sẵn trong bộ nhớ
           if (isMatch && fusionBar && fusionBar.igs_content && fusionBar.igs_content.length > 100) {
             const blob = new Blob([fusionBar.igs_content], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${fusionBar.name || defaultFileName}.igs`.replace(/\.igs\.igs$/, '.igs');
+            a.download = dlName;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            showToast(`✓ Đã tải file 3D cây ghép Solid: ${a.download}`);
+            showToast(`✓ Đã tải file 3D cây ghép Solid Fusion 360: ${dlName}`);
             return;
           }
 
-          // 2. Thử tải từ Máy chủ Web (/api/igs/...) hoặc fetch file cục bộ VÀ đúng cấu trúc chi tiết hiện tại
+          // 2. Thử tải từ Máy chủ Web (/api/igs/...) hoặc database/igs_files/
           if (isMatch && fusionBar && (fusionBar.igs_url || fusionBar.name)) {
-            const targetName = `${fusionBar.name || defaultFileName}.igs`.replace(/\.igs\.igs$/, '.igs');
-            const fetchUrl = fusionBar.igs_url
-              ? (fusionBar.igs_url.startsWith('http') ? fusionBar.igs_url : `${SERVER_API_BASE}${fusionBar.igs_url}`)
-              : targetName;
-            fetch(fetchUrl)
-              .then(res => {
-                if (!res.ok) throw new Error('Fetch failed');
-                return res.blob();
-              })
-              .then(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = targetName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast(`✓ Đã tải file 3D cây ghép Solid: ${targetName}`);
-              })
-              .catch(() => {
-                // Nếu fetch bị chặn, tự động sinh bề mặt 3D Entity 128 chuẩn xác
-                exportNestedBarIGES(defaultFileName, prof, len, pieces);
-              });
+            const candidateUrls = [];
+            if (fusionBar.igs_url) {
+              candidateUrls.push(fusionBar.igs_url.startsWith('http') ? fusionBar.igs_url : `${SERVER_API_BASE}${fusionBar.igs_url}`);
+            }
+            const rawWithExt = rawBarName.replace(/\.igs$/i, '') + '.igs';
+            candidateUrls.push(`/api/igs/${encodeURIComponent(rawWithExt)}`);
+            candidateUrls.push(`/database/igs_files/${encodeURIComponent(rawWithExt)}`);
+            candidateUrls.push(`/api/igs/${encodeURIComponent(dlName)}`);
+            candidateUrls.push(`/database/igs_files/${encodeURIComponent(dlName)}`);
+
+            const tryFetch = (idx) => {
+              if (idx >= candidateUrls.length) {
+                // Fallback nếu không có file solid trên server: tự sinh file IGES chuẩn xác 80 ký tự ASCII
+                exportNestedBarIGES(dlName, prof, len, pieces);
+                return;
+              }
+              fetch(candidateUrls[idx])
+                .then(res => {
+                  if (!res.ok) throw new Error('Fetch failed');
+                  return res.blob();
+                })
+                .then(blob => {
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = dlName;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  showToast(`✓ Đã tải file 3D cây ghép Solid: ${dlName}`);
+                })
+                .catch(() => tryFetch(idx + 1));
+            };
+            tryFetch(0);
             return;
           }
 
-          // 3. Tự sinh file 3D IGES B-Spline Surfaces (Entity 128)
+          // 3. Tự sinh file 3D IGES B-Spline Surfaces (Entity 128) chuẩn ASCII
           exportNestedBarIGES(defaultFileName, prof, len, pieces);
         };
       });
@@ -5316,10 +5336,20 @@
       requestAnimationFrame(applyMiterAngleAdjustment);
     }
 
-    // Xuất file 3D IGES cho cả cây ghép với Bề mặt 3D (Entity 128 B-Spline Surface) chuẩn xác 100% 80 cột
+    // Chuyển đổi chuỗi tiếng Việt có dấu thành thuần ASCII chuẩn IGES
+    function toAscii(str) {
+      if (!str) return '';
+      return String(str)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+        .replace(/[^\x20-\x7E]/g, '_');
+    }
+
+    // Xuất file 3D IGES cho cả cây ghép với Bề mặt 3D (Entity 128 B-Spline Surface) chuẩn xác 100% 80 ký tự ASCII
     function exportNestedBarIGES(fileName, profile, stockLen, pieces) {
       let w = 20, h = 20, t = 1.2;
-      const mBox = profile.match(/(\d+)\s*[xX\*×]\s*(\d+)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?/);
+      const mBox = String(profile || '').match(/(\d+)\s*[xX\*×]\s*(\d+)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?/);
       if (mBox) {
         w = parseFloat(mBox[1]);
         h = parseFloat(mBox[2]);
@@ -5376,7 +5406,7 @@
         surfaces.push(makeQuad([x0, y0, zt0], [x1, y0, zb0], [x0, y0, zt1], [x1, y0, zb1]));
         surfaces.push(makeQuad([x0, y1, zt0], [x1, y1, zb0], [x0, y1, zt1], [x1, y1, zb1]));
         surfaces.push(makeQuad([x0, y0, zt0], [x0, y1, zt0], [x0, y0, zt1], [x0, y1, zt1]));
-        surfaces.push(makeQuad([x1, y0, zb0], [x1, y1, zb0], [x1, y0, zb1], [x1, y1, zb1]));
+        surfaces.push(makeQuad([x1, y0, zb0], [x1, y1, zb0], [x1, y0, zb1], [x1, y0, zb1]));
 
         // 4 đường gân cạnh ngoài
         addLine([x0, y0, zt0], [x0, y0, zt1]);
@@ -5436,29 +5466,31 @@
         }
       });
 
-      // Tạo các Section IGES với độ dài chuẩn xác 80 ký tự
-      const safeFileName = fileName.replace(/[^\w\.\-]/g, '_');
-      const sLine = (`An Binh nested tube 3D IGES - ${profile} L${stockLen}`).padEnd(72, ' ') + 'S      1\n';
+      // Tạo các Section IGES với độ dài chuẩn xác 80 ký tự thuần ASCII
+      const cleanFileName = toAscii(fileName).replace(/[^\w\.\-]/g, '_');
+      const cleanProf = toAscii(profile).replace(/[^\w\.\-\s]/g, '_');
+      const sDesc = `An Binh nested tube 3D IGES - ${cleanProf} L${stockLen}`;
+      const sLine = sDesc.slice(0, 72).padEnd(72, ' ') + 'S      1\r\n';
 
-      const fnHol = safeFileName.length + 'H' + safeFileName;
+      const fnHol = cleanFileName.length + 'H' + cleanFileName;
       const gFields = [
         '1H,', '1H;', fnHol, fnHol, '7HAn Binh',
-        '10HWeb nesting', '32', '38', '7', '99', '15', '', '1.0', '2', '2HMM', '1', '0.01',
-        '15H20261116.140000', '0.01', String(stockLen) + '.0', '7HAn Binh', '7HAn Binh', '11', '0'
+        '10HWeb nesting', '32', '38', '7', '99', '15', '', '1.0', '2', '2HMM', '1', '0.08',
+        '15H20261118.210000', '0.01', String(stockLen) + '.0', '7HAn Binh', '7HAn Binh', '11', '0'
       ];
       let gLines = [];
       let curG = '';
       for (let i = 0; i < gFields.length; i++) {
         const item = gFields[i] + (i === gFields.length - 1 ? ';' : ',');
         if (curG.length + item.length > 72) {
-          gLines.push(curG.padEnd(72, ' '));
+          gLines.push(curG.slice(0, 72).padEnd(72, ' '));
           curG = item;
         } else {
           curG += item;
         }
       }
-      if (curG.length > 0) gLines.push(curG.padEnd(72, ' '));
-      const gSec = gLines.map((l, idx) => l + 'G' + String(idx + 1).padStart(7, ' ')).join('\n') + '\n';
+      if (curG.length > 0) gLines.push(curG.slice(0, 72).padEnd(72, ' '));
+      const gSec = gLines.map((l, idx) => l.slice(0, 72).padEnd(72, ' ') + 'G' + String(idx + 1).padStart(7, ' ')).join('\r\n') + '\r\n';
 
       let dLines = [];
       let pLines = [];
@@ -5474,16 +5506,16 @@
         for (let k = 0; k < params.length; k++) {
           const tok = String(params[k]) + (k === params.length - 1 ? ';' : ',');
           if (curP.length + tok.length > 64) {
-            entityPLines.push(curP.padEnd(64, ' '));
+            entityPLines.push(curP.slice(0, 64).padEnd(64, ' '));
             curP = tok;
           } else {
             curP += tok;
           }
         }
-        if (curP.length > 0) entityPLines.push(curP.padEnd(64, ' '));
+        if (curP.length > 0) entityPLines.push(curP.slice(0, 64).padEnd(64, ' '));
 
         entityPLines.forEach(pl => {
-          pLines.push(pl + String(dePtr).padStart(8, ' ') + 'P' + String(pSeq++).padStart(7, ' '));
+          pLines.push(pl.slice(0, 64).padEnd(64, ' ') + String(dePtr).padStart(8, ' ') + 'P' + String(pSeq++).padStart(7, ' '));
         });
 
         const pLineCount = entityPLines.length;
@@ -5496,7 +5528,7 @@
         const dePtr = dSeq;
         const pStart = pSeq;
         const pData = params.join(',') + ';';
-        pLines.push(pData.padEnd(64, ' ') + String(dePtr).padStart(8, ' ') + 'P' + String(pSeq++).padStart(7, ' '));
+        pLines.push(pData.slice(0, 64).padEnd(64, ' ') + String(dePtr).padStart(8, ' ') + 'P' + String(pSeq++).padStart(7, ' '));
 
         dLines.push(String(110).padStart(8, ' ') + String(pStart).padStart(8, ' ') + '       0' + '       1' + '       0' + '       0' + '       0' + '       0' + '00000000' + 'D' + String(dSeq++).padStart(7, ' '));
         dLines.push(String(110).padStart(8, ' ') + '       0' + '       1' + String(1).padStart(8, ' ') + '       0' + '        ' + '        ' + '    LINE' + '       0' + 'D' + String(dSeq++).padStart(7, ' '));
@@ -5504,20 +5536,21 @@
 
       const totalD = dLines.length;
       const totalP = pLines.length;
-      const tLine = ('S      1G' + String(gLines.length).padStart(7, ' ') + 'D' + String(totalD).padStart(7, ' ') + 'P' + String(totalP).padStart(7, ' ')).padEnd(72, ' ') + 'T      1\n';
+      const tLine = ('S      1G' + String(gLines.length).padStart(7, ' ') + 'D' + String(totalD).padStart(7, ' ') + 'P' + String(totalP).padStart(7, ' ')).slice(0, 72).padEnd(72, ' ') + 'T      1\r\n';
 
-      const content = sLine + gSec + dLines.join('\n') + '\n' + pLines.join('\n') + '\n' + tLine;
+      const content = sLine + gSec + dLines.join('\r\n') + '\r\n' + pLines.join('\r\n') + '\r\n' + tLine;
 
       const blob = new Blob([content], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      const finalDlName = (cleanFileName.endsWith('.igs') ? cleanFileName : (cleanFileName + '.igs')).replace(/\.igs\.igs$/i, '.igs');
+      a.download = finalDlName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast(`✓ Đã lưu file .IGS 3D cây ghép: ${fileName}`);
+      showToast(`✓ Đã lưu file .IGS 3D cây ghép: ${finalDlName}`);
     }
 
     // Apply Miter visual angles on SVG polygons

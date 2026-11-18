@@ -515,12 +515,28 @@ const server = http.createServer(async (req, res) => {
 
   // 5. Tải file 3D .IGS của cây ghép (/api/igs/:filename)
   if (pathname.startsWith('/api/igs/') && req.method === 'GET') {
-    const fileName = path.basename(pathname.replace('/api/igs/', ''));
-    const filePath = path.join(IGS_DIR, fileName);
+    let fileName = path.basename(decodeURIComponent(pathname.replace('/api/igs/', '')));
+    let filePath = path.join(IGS_DIR, fileName);
+    if (!fs.existsSync(filePath)) {
+      // Thử tìm file tương đương nếu có dấu / không dấu
+      try {
+        const allFiles = fs.readdirSync(IGS_DIR);
+        const norm = s => s.toLowerCase().replace(/[\s_]+/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const targetNorm = norm(fileName);
+        const match = allFiles.find(f => norm(f) === targetNorm);
+        if (match) {
+          filePath = path.join(IGS_DIR, match);
+          fileName = match;
+        }
+      } catch (e) {}
+    }
+
     if (fs.existsSync(filePath)) {
+      const asciiFileName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, '_');
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+        'Access-Control-Allow-Origin': '*',
+        'Content-Disposition': `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
       });
       fs.createReadStream(filePath).pipe(res);
       return;

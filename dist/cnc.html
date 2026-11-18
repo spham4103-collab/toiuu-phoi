@@ -525,9 +525,93 @@
 
       container.querySelectorAll('.btn-cut-toggle').forEach(b => b.onclick = () => toggleCut(b.dataset.key, parseInt(b.dataset.total) || 1));
       container.querySelectorAll('.btn-export-bar').forEach(b => b.onclick = () => {
+        const letter = b.dataset.letter;
+        const prof = b.dataset.prof;
+        const len = parseFloat(b.dataset.len) || 6000;
+        const count = parseInt(b.dataset.count) || 1;
         const c = HINH_CACHE[+b.dataset.idx];
-        const safeP = b.dataset.prof.replace(/\s+/g, '_');
-        exportNestedBarIGES(`Cay_${b.dataset.letter}_${safeP}_L${Math.round(b.dataset.len)}_SL_${b.dataset.count}.igs`, b.dataset.prof, parseFloat(b.dataset.len) || 6000, c && c.L ? c.L.pieces : null);
+        const pieces = c && c.L ? c.L.pieces : null;
+
+        const normP = s => String(s || '').toLowerCase().replace(/[\s_]+/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const cleanProf = toAscii(prof).replace(/[^\w\.\-]/g, '_');
+        const defaultFileName = `Cay_${letter}_${cleanProf}_L${Math.round(len)}_SL_${count}.igs`;
+
+        const fusionBar = activeProject && Array.isArray(activeProject.nested_bars)
+          ? (activeProject.nested_bars.find(nb => nb.letter === letter && normP(nb.profile) === normP(prof)) ||
+             activeProject.nested_bars.find(nb => nb.letter === letter && (normP(nb.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(nb.profile)))))
+          : null;
+
+        let isMatch = false;
+        if (fusionBar) {
+          if (Array.isArray(fusionBar.pieces) && fusionBar.pieces.length > 0 && pieces && pieces.length > 0) {
+            isMatch = (fusionBar.pieces.length === pieces.length) && fusionBar.pieces.every((fb, i) => {
+              const cp = pieces[i];
+              const cpLen = cp.c ? cp.c.length : cp.length;
+              return Math.abs(fb.length - cpLen) < 1.0;
+            });
+          } else if (pieces && pieces.length > 0) {
+            isMatch = (!fusionBar.cuts_count || fusionBar.cuts_count === pieces.length || fusionBar.letter === letter);
+          } else {
+            isMatch = true;
+          }
+        }
+
+        const rawBarName = fusionBar && fusionBar.name ? fusionBar.name : defaultFileName;
+        const dlName = (toAscii(rawBarName).replace(/[^\w\.\-]/g, '_') + '.igs').replace(/\.igs\.igs$/i, '.igs');
+
+        // 1. Tải trực tiếp nội dung Solid từ bộ nhớ nếu có
+        if (isMatch && fusionBar && fusionBar.igs_content && fusionBar.igs_content.length > 100) {
+          const blob = new Blob([fusionBar.igs_content], { type: 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = dlName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast(`✓ Đã tải file 3D cây ghép Solid Fusion 360: ${dlName}`);
+          return;
+        }
+
+        // 2. Thử fetch từ Server
+        if (isMatch && fusionBar && (fusionBar.igs_url || fusionBar.name)) {
+          const rawWithExt = rawBarName.replace(/\.igs$/i, '') + '.igs';
+          const candidateUrls = [];
+          if (fusionBar.igs_url) candidateUrls.push(fusionBar.igs_url);
+          candidateUrls.push(`/api/igs/${encodeURIComponent(rawWithExt)}`);
+          candidateUrls.push(`/database/igs_files/${encodeURIComponent(rawWithExt)}`);
+          candidateUrls.push(`/api/igs/${encodeURIComponent(dlName)}`);
+          candidateUrls.push(`/database/igs_files/${encodeURIComponent(dlName)}`);
+
+          const tryFetch = (idx) => {
+            if (idx >= candidateUrls.length) {
+              exportNestedBarIGES(dlName, prof, len, pieces);
+              return;
+            }
+            fetch(candidateUrls[idx])
+              .then(res => {
+                if (!res.ok) throw new Error('Fetch failed');
+                return res.blob();
+              })
+              .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = dlName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`✓ Đã tải file 3D cây ghép Solid: ${dlName}`);
+              })
+              .catch(() => tryFetch(idx + 1));
+          };
+          tryFetch(0);
+          return;
+        }
+
+        exportNestedBarIGES(defaultFileName, prof, len, pieces);
       });
       container.querySelectorAll('.btn-export-all-bars').forEach(b => b.onclick = () => {
         const btns = container.querySelectorAll(`.btn-export-bar[data-prof="${b.dataset.prof}"]`);
@@ -621,26 +705,49 @@
       } catch (e) {}
     }
 
+    function toAscii(str) {
+      if (!str) return '';
+      return String(str)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+        .replace(/[^\x20-\x7E]/g, '_');
+    }
+
     function exportNestedBarIGES(fileName, profile, stockLen, pieces) {
       let w = 20, h = 20, t = 1.2;
-      const mBox = profile.match(/(\d+)\s*[xX\*×]\s*(\d+)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?/);
-      if (mBox) { w = parseFloat(mBox[1]); h = parseFloat(mBox[2]); if (mBox[3]) t = parseFloat(mBox[3].replace(',', '.')); }
+      const mBox = String(profile || '').match(/(\d+)\s*[xX\*×]\s*(\d+)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?/);
+      if (mBox) {
+        w = parseFloat(mBox[1]);
+        h = parseFloat(mBox[2]);
+        if (mBox[3]) t = parseFloat(mBox[3].replace(',', '.'));
+      }
       if (pieces && pieces.length) {
         const mp = pieces.find(p => (p.eL && p.eL !== 'S') || (p.eR && p.eR !== 'S'));
         if (mp && mp.w && Math.abs(mp.w - h) < Math.abs(mp.w - w)) { const tmp = w; w = h; h = tmp; }
       }
       const surfaces = [], lines = [], round = v => Number(v.toFixed(3));
-      const makeQuad = (p00, p10, p01, p11) => [128,1,1,1,1,0,0,1,0,0,0,0,1,1,0,0,1,1,1,1,1,1,round(p00[0]),round(p00[1]),round(p00[2]),round(p10[0]),round(p10[1]),round(p10[2]),round(p01[0]),round(p01[1]),round(p01[2]),round(p11[0]),round(p11[1]),round(p11[2]),0,1,0,1];
+      const makeQuad = (p00, p10, p01, p11) => [
+        128, 1, 1, 1, 1, 0, 0, 1, 0, 0,
+        0.0, 0.0, 1.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+        1.0, 1.0, 1.0, 1.0,
+        round(p00[0]), round(p00[1]), round(p00[2]),
+        round(p10[0]), round(p10[1]), round(p10[2]),
+        round(p01[0]), round(p01[1]), round(p01[2]),
+        round(p11[0]), round(p11[1]), round(p11[2]),
+        0.0, 1.0, 0.0, 1.0
+      ];
       const addLine = (p0, p1) => lines.push([110, round(p0[0]), round(p0[1]), round(p0[2]), round(p1[0]), round(p1[1]), round(p1[2])]);
       const x0 = -w/2, x1 = w/2, y0 = -h/2, y1 = h/2, hasIn = (w > 2*t && h > 2*t), ix0 = x0+t, ix1 = x1-t, iy0 = y0+t, iy1 = y1-t;
       const tubePieces = (pieces && pieces.length) ? pieces : [{ xt0: 0, xb0: 0, xt1: stockLen, xb1: stockLen }];
       tubePieces.forEach(p => {
-        const zt0 = p.xt0 !== undefined ? p.xt0 : 0, zb0 = p.xb0 !== undefined ? p.xb0 : zt0;
-        const zt1 = p.xt1 !== undefined ? p.xt1 : stockLen, zb1 = p.xb1 !== undefined ? p.xb1 : zt1;
+        const zt0 = p.xt0 !== undefined ? p.xt0 : (p.xL || 0), zb0 = p.xb0 !== undefined ? p.xb0 : zt0;
+        const zt1 = p.xt1 !== undefined ? p.xt1 : (p.xR || (p.length || stockLen)), zb1 = p.xb1 !== undefined ? p.xb1 : zt1;
         surfaces.push(makeQuad([x0,y0,zt0],[x1,y0,zb0],[x0,y0,zt1],[x1,y0,zb1]));
         surfaces.push(makeQuad([x0,y1,zt0],[x1,y1,zb0],[x0,y1,zt1],[x1,y1,zb1]));
         surfaces.push(makeQuad([x0,y0,zt0],[x0,y1,zt0],[x0,y0,zt1],[x0,y1,zt1]));
-        surfaces.push(makeQuad([x1,y0,zb0],[x1,y1,zb0],[x1,y0,zb1],[x1,y1,zb1]));
+        surfaces.push(makeQuad([x1,y0,zb0],[x1,y1,zb0],[x1,y0,zb1],[x1,y0,zb1]));
         addLine([x0,y0,zt0],[x0,y0,zt1]); addLine([x0,y1,zt0],[x0,y1,zt1]); addLine([x1,y0,zb0],[x1,y0,zb1]); addLine([x1,y1,zb0],[x1,y1,zb1]);
         if (hasIn) {
           const izt0 = zt0 + (zb0-zt0)*(t/w), izb0 = zt0 + (zb0-zt0)*((w-t)/w), izt1 = zt1 + (zb1-zt1)*(t/w), izb1 = zt1 + (zb1-zt1)*((w-t)/w);
@@ -648,35 +755,58 @@
           surfaces.push(makeQuad([ix0,iy1,izt0],[ix1,iy1,izb0],[ix0,iy1,izt1],[ix1,iy1,izb1]));
           surfaces.push(makeQuad([ix0,iy0,izt0],[ix0,iy1,izt0],[ix0,iy0,izt1],[ix0,iy1,izt1]));
           surfaces.push(makeQuad([ix1,iy0,izb0],[ix1,iy1,izb0],[ix1,iy0,izb1],[ix1,iy1,izb1]));
+          addLine([ix0,iy0,izt0],[ix0,iy0,izt1]); addLine([ix0,iy1,izt0],[ix0,iy1,izt1]); addLine([ix1,iy0,izb0],[ix1,iy0,izb1]); addLine([ix1,iy1,izb0],[ix1,iy1,izb1]);
+          const addEndFaces = (zt, zb, izt, izb) => {
+            surfaces.push(makeQuad([x0,y0,zt],[x1,y0,zb],[ix0,iy0,izt],[ix1,iy0,izb]));
+            surfaces.push(makeQuad([x0,y1,zt],[x1,y1,zb],[ix0,iy1,izt],[ix1,iy1,izb]));
+            surfaces.push(makeQuad([x0,y0,zt],[x0,y1,zt],[ix0,iy0,izt],[ix0,iy1,izt]));
+            surfaces.push(makeQuad([x1,y0,zb],[x1,y1,zb],[ix1,iy0,izb],[ix1,iy1,izb]));
+            addLine([x0,y0,zt],[x1,y0,zb]); addLine([x1,y0,zb],[x1,y1,zb]); addLine([x1,y1,zb],[x0,y1,zt]); addLine([x0,y1,zt],[x0,y0,zt]);
+            addLine([ix0,iy0,izt],[ix1,iy0,izb]); addLine([ix1,iy0,izb],[ix1,iy1,izb]); addLine([ix1,iy1,izb],[ix0,iy1,izt]); addLine([ix0,iy1,izt],[ix0,iy0,izt]);
+          };
+          addEndFaces(zt0, zb0, izt0, izb0);
+          addEndFaces(zt1, zb1, izt1, izb1);
         }
       });
-      const safeName = fileName.replace(/[^\w\.\-]/g, '_'), sLine = (`An Binh nested tube 3D IGES`).padEnd(72, ' ') + 'S      1\n';
-      const fnHol = safeName.length + 'H' + safeName;
-      const gFields = ['1H,','1H;',fnHol,fnHol,'7HAn Binh','10HWeb CNC','32','38','7','99','15','','1.0','2','2HMM','1','0.01','15H20261118.210000','0.01',stockLen+'.0','7HAn Binh','7HAn Binh','11','0'];
+      const cleanFileName = toAscii(fileName).replace(/[^\w\.\-]/g, '_');
+      const cleanProf = toAscii(profile).replace(/[^\w\.\-\s]/g, '_');
+      const sDesc = `An Binh nested tube 3D IGES - ${cleanProf} L${stockLen}`;
+      const sLine = sDesc.slice(0, 72).padEnd(72, ' ') + 'S      1\r\n';
+      const fnHol = cleanFileName.length + 'H' + cleanFileName;
+      const gFields = ['1H,','1H;',fnHol,fnHol,'7HAn Binh','10HWeb CNC','32','38','7','99','15','','1.0','2','2HMM','1','0.08','15H20261118.210000','0.01',String(stockLen)+'.0','7HAn Binh','7HAn Binh','11','0'];
       let gLines = [], curG = '';
-      gFields.forEach((f, i) => { const it = f + (i === gFields.length - 1 ? ';' : ','); if (curG.length + it.length > 72) { gLines.push(curG.padEnd(72,' ')); curG = it; } else curG += it; });
-      if (curG) gLines.push(curG.padEnd(72,' '));
-      const gSec = gLines.map((l, idx) => l + 'G' + String(idx + 1).padStart(7, ' ')).join('\n') + '\n';
+      gFields.forEach((f, i) => { const it = f + (i === gFields.length - 1 ? ';' : ','); if (curG.length + it.length > 72) { gLines.push(curG.slice(0, 72).padEnd(72,' ')); curG = it; } else curG += it; });
+      if (curG) gLines.push(curG.slice(0, 72).padEnd(72,' '));
+      const gSec = gLines.map((l, idx) => l.slice(0, 72).padEnd(72, ' ') + 'G' + String(idx + 1).padStart(7, ' ')).join('\r\n') + '\r\n';
       let dLines = [], pLines = [], dSeq = 1, pSeq = 1;
       surfaces.forEach(params => {
         const dePtr = dSeq, pStart = pSeq; let eP = [], curP = '';
-        params.forEach((pr, k) => { const tok = pr + (k === params.length - 1 ? ';' : ','); if (curP.length + tok.length > 64) { eP.push(curP.padEnd(64,' ')); curP = tok; } else curP += tok; });
-        if (curP) eP.push(curP.padEnd(64,' '));
-        eP.forEach(pl => pLines.push(pl + String(dePtr).padStart(8,' ') + 'P' + String(pSeq++).padStart(7,' ')));
+        params.forEach((pr, k) => { const tok = pr + (k === params.length - 1 ? ';' : ','); if (curP.length + tok.length > 64) { eP.push(curP.slice(0, 64).padEnd(64,' ')); curP = tok; } else curP += tok; });
+        if (curP) eP.push(curP.slice(0, 64).padEnd(64,' '));
+        eP.forEach(pl => pLines.push(pl.slice(0, 64).padEnd(64, ' ') + String(dePtr).padStart(8,' ') + 'P' + String(pSeq++).padStart(7,' ')));
         dLines.push(String(128).padStart(8,' ') + String(pStart).padStart(8,' ') + '       0       1       0       0       0       000000000D' + String(dSeq++).padStart(7,' '));
-        dLines.push('     128       0       3' + String(eP.length).padStart(8,' ') + '       0                SURF       0D' + String(dSeq++).padStart(7,' '));
+        dLines.push('     128       0       3' + String(eP.length).padStart(8,' ') + '       0                    SURF       0D' + String(dSeq++).padStart(7,' '));
       });
       lines.forEach(params => {
         const dePtr = dSeq, pStart = pSeq;
-        pLines.push((params.join(',') + ';').padEnd(64,' ') + String(dePtr).padStart(8,' ') + 'P' + String(pSeq++).padStart(7,' '));
+        pLines.push((params.join(',') + ';').slice(0, 64).padEnd(64,' ') + String(dePtr).padStart(8,' ') + 'P' + String(pSeq++).padStart(7,' '));
         dLines.push(String(110).padStart(8,' ') + String(pStart).padStart(8,' ') + '       0       1       0       0       0       000000000D' + String(dSeq++).padStart(7,' '));
-        dLines.push('     110       0       1       1       0                LINE       0D' + String(dSeq++).padStart(7,' '));
+        dLines.push('     110       0       1       1       0                    LINE       0D' + String(dSeq++).padStart(7,' '));
       });
-      const tLine = ('S      1G' + String(gLines.length).padStart(7,' ') + 'D' + String(dLines.length).padStart(7,' ') + 'P' + String(pLines.length).padStart(7,' ')).padEnd(72,' ') + 'T      1\n';
-      const blob = new Blob([sLine + gSec + dLines.join('\n') + '\n' + pLines.join('\n') + '\n' + tLine], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-      showToast(`💾 Đã tải file .IGS: ${fileName}`);
+      const totalD = dLines.length, totalP = pLines.length;
+      const tLine = ('S      1G' + String(gLines.length).padStart(7, ' ') + 'D' + String(totalD).padStart(7, ' ') + 'P' + String(totalP).padStart(7, ' ')).slice(0, 72).padEnd(72, ' ') + 'T      1\r\n';
+      const content = sLine + gSec + dLines.join('\r\n') + '\r\n' + pLines.join('\r\n') + '\r\n' + tLine;
+      const blob = new Blob([content], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const finalDlName = (cleanFileName.endsWith('.igs') ? cleanFileName : (cleanFileName + '.igs')).replace(/\.igs\.igs$/i, '.igs');
+      a.download = finalDlName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`✓ Đã lưu file .IGS 3D cây ghép: ${finalDlName}`);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
