@@ -5529,30 +5529,50 @@
         if (roleLock) roleLock.textContent = '🔓';
       }
 
+      const isSuperAdmin = user && user.username && user.username.toLowerCase() === 'admin';
+
       // Cập nhật thông tin trong Modal Quản lý tài khoản
       if (user) {
-        if ($('accModalUserIcon')) $('accModalUserIcon').textContent = isOp ? '👷' : '📐';
+        if ($('accModalUserIcon')) $('accModalUserIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
         if ($('accModalFullName')) $('accModalFullName').textContent = user.fullName || user.username;
         if ($('accModalUsername')) $('accModalUsername').textContent = '@' + user.username;
         if ($('accModalRoleBadge')) {
-          $('accModalRoleBadge').textContent = isOp ? 'THỢ VẬN HÀNH CNC (KHÓA AN TOÀN)' : 'KỸ SƯ THIẾT KẾ (TOÀN QUYỀN)';
-          $('accModalRoleBadge').style.background = isOp ? '#C2410C' : '#0F766E';
+          if (isSuperAdmin) {
+            $('accModalRoleBadge').textContent = 'QUẢN TRỊ VIÊN TỐI CAO (ADMIN)';
+            $('accModalRoleBadge').style.background = '#0F766E';
+          } else if (isOp) {
+            $('accModalRoleBadge').textContent = 'THỢ VẬN HÀNH CNC (KHÓA AN TOÀN)';
+            $('accModalRoleBadge').style.background = '#C2410C';
+          } else {
+            $('accModalRoleBadge').textContent = 'KỸ SƯ THIẾT KẾ (TOÀN QUYỀN KỸ THUẬT)';
+            $('accModalRoleBadge').style.background = '#0369A1';
+          }
         }
         if ($('currentAccountCard')) {
-          $('currentAccountCard').style.borderColor = isOp ? '#FDBA74' : '#0F766E';
-          $('currentAccountCard').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+          $('currentAccountCard').style.borderColor = isOp ? '#FDBA74' : (isSuperAdmin ? '#0F766E' : '#38BDF8');
+          $('currentAccountCard').style.background = isOp ? '#FFF7ED' : (isSuperAdmin ? '#F0FDFA' : '#F0F9FF');
         }
         if ($('accModalRoleDesc')) {
-          $('accModalRoleDesc').innerHTML = isOp
-            ? '• <strong>Quyền hạn Thợ CNC:</strong> Được xem sơ đồ cắt, tải file <code>.IGS</code> cho máy laser và bấm tích <code>[✅ Đã cắt xong]</code>.<br>• <strong>Bảo vệ an toàn:</strong> Đã khóa và ẩn toàn bộ nút Xóa dự án, Xóa phôi, Sửa kích thước để chống xóa nhầm 100%.'
-            : '• <strong>Quyền hạn Kỹ sư / Quản lý:</strong> Toàn quyền tính toán tối ưu, thêm/sửa/xóa quy cách hộp, quản lý dự án, xuất nhập Fusion 360 và tạo/quản lý tài khoản nhân sự trong xưởng.';
+          if (isSuperAdmin) {
+            $('accModalRoleDesc').innerHTML = '• <strong>Quyền Quản trị viên (Admin):</strong> Toàn quyền tối cao quản lý nhân sự, xem danh sách/cấp/đổi mật khẩu cho toàn bộ tài khoản xưởng, tính toán tối ưu và quản lý toàn bộ dự án.';
+          } else if (isOp) {
+            $('accModalRoleDesc').innerHTML = '• <strong>Quyền hạn Thợ CNC:</strong> Được xem sơ đồ cắt, tải file <code>.IGS</code> cho máy laser và bấm tích <code>[✅ Đã cắt xong]</code>.<br>• <strong>Bảo vệ an toàn:</strong> Đã khóa và ẩn toàn bộ nút Xóa dự án, Xóa phôi, Sửa kích thước để chống xóa nhầm 100%.';
+          } else {
+            $('accModalRoleDesc').innerHTML = '• <strong>Quyền hạn Kỹ sư Thiết kế:</strong> Toàn quyền tính toán tối ưu, thêm/sửa/xóa quy cách hộp, quản lý dự án và xuất nhập bản vẽ từ Autodesk Fusion 360.';
+          }
         }
       }
 
+      // CHỈ DUY NHẤT TÀI KHOẢN ADMIN MỚI ĐƯỢC XEM DANH SÁCH TÀI KHOẢN VÀ TẠO MỚI!
       if ($('adminUsersManagerBox')) {
-        $('adminUsersManagerBox').style.display = isOp ? 'none' : 'block';
+        $('adminUsersManagerBox').style.display = isSuperAdmin ? 'block' : 'none';
       }
-      renderUsersManagementList();
+      if (isSuperAdmin) {
+        renderUsersManagementList();
+      } else {
+        const container = $('usersListContainer');
+        if (container) container.innerHTML = '';
+      }
     }
 
     function switchLoginGateTab(tab) {
@@ -5729,8 +5749,8 @@
     }
 
     function adminCreateNewAccount() {
-      if (!state.currentUser || state.currentUser.role !== 'engineer') {
-        alert('🔒 Chỉ tài khoản Kỹ sư / Quản lý mới có quyền tạo tài khoản!');
+      if (!state.currentUser || state.currentUser.username.toLowerCase() !== 'admin') {
+        alert('🔒 Chỉ duy nhất tài khoản Quản trị viên (admin) mới có quyền tạo tài khoản mới!');
         return;
       }
       const rawUser = ($('inpAdminAddUser') ? $('inpAdminAddUser').value : '').trim();
@@ -5772,6 +5792,10 @@
     function renderUsersManagementList() {
       const container = $('usersListContainer');
       if (!container) return;
+      if (!state.currentUser || state.currentUser.username.toLowerCase() !== 'admin') {
+        container.innerHTML = '';
+        return;
+      }
       ensureDefaultUsers();
 
       let html = `<table style="width:100%; border-collapse:collapse; font-size:12.5px;">
