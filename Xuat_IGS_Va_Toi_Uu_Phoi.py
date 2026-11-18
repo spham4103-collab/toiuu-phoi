@@ -1055,31 +1055,34 @@ def run(context):
                 method='PUT'
             )
             urllib.request.urlopen(req_cloud, timeout=8).close()
+            pushed_to_cloud = True
         except Exception:
-            pass
+            pushed_to_cloud = False
 
-        if pushed_to_server:
+        permanent_netlify_url = "https://xepphoianbinh.netlify.app"
+        if pushed_to_cloud:
+            target_web_url = permanent_netlify_url
+        elif pushed_to_server:
             target_web_url = server_url
         else:
             target_web_url = 'file:///' + os.path.join(export_dir, 'index.html').replace('\\', '/')
 
-        # 7. Mở trình duyệt Web App chính thức
+        # 7. Mở trình duyệt Web App chính thức 24/7
         webbrowser.open(target_web_url)
 
         # 8. Hiển thị thông báo kết quả chi tiết
         prof_names_str = ", ".join(parts_by_prof.keys())
-        msg = f"✓ ĐÃ ĐỒNG BỘ LÊN WEB SERVER & XUẤT FILE .IGS: {doc.name}\n\n"
+        msg = f"✓ ĐÃ ĐỒNG BỘ LÊN WEB CLOUD 24/7 & XUẤT FILE .IGS: {doc.name}\n\n"
         msg += f"• Các loại hộp phát hiện ({len(parts_by_prof)} loại): {prof_names_str}\n"
         msg += f"• Tổng số chi tiết bản vẽ: {total_tubes_count} thanh\n\n"
         msg += f"★ CÁC CÂY GHÉP 6M (LIỀN MẠCH - KHÍT MÒI 100%): {len(bar_exports)} file .IGS\n"
         for be in bar_exports:
             msg += f"   ➔ {be['name']}.igs ({be['profile']} · Ghép {be['cuts_count']} ct · SL: {be['bar_count']} cây)\n"
-        msg += f"\n🌐 ĐÃ ĐỒNG BỘ TRỰC TIẾP LÊN MÁY CHỦ WEB ĐA THIẾT BỊ:\n"
-        msg += f"   • Trên máy tính này: {server_url}\n"
-        msg += f"   • Trên Điện thoại / Máy CNC (Wi-Fi Xưởng): {lan_url_display}\n"
+        msg += f"\n🌍 LINK WEB ĐÁM MÂY CỐ ĐỊNH 24/7 (MỌI THIẾT BỊ & TẮT MÁY VẪN CHẠY):\n"
+        msg += f"   • {permanent_netlify_url}\n"
         msg += f"\n📂 Thư mục lưu file .IGS: {export_dir}"
 
-        ui.messageBox(msg, 'An Bình - Đồng Bộ Web Server & Xuất IGS')
+        ui.messageBox(msg, 'An Bình - Đồng Bộ Web Cloud 24/7 & Xuất IGS')
 
     except:
         if ui:

@@ -1561,8 +1561,9 @@
           <textarea id="inpSaveProjNotes" class="input" rows="3" style="width:100%; resize:vertical;" placeholder="Ghi chú thêm về đơn hàng, thời gian giao hàng..."></textarea>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px;">
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap;">
         <button class="btn btn-soft btn-sm" id="btnCancelSaveProjForm">Hủy</button>
+        <button class="btn btn-soft btn-sm" id="btnSaveAsNewProjForm" style="display:none; border-color:var(--p); color:var(--p); font-weight:700;">+ Lưu thành dự án mới</button>
         <button class="btn btn-p btn-sm" id="btnConfirmSaveProjForm">Lưu vào bộ nhớ</button>
       </div>
     </div>
@@ -1952,7 +1953,8 @@
           clamp: state.clamp,
           interlock: state.interlock,
           gap: state.gap,
-          fusionProject: state.fusionProject
+          fusionProject: state.fusionProject,
+          isBlankReset: !!state.isBlankReset
         };
         localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(data));
       } catch (e) {}
@@ -1964,12 +1966,13 @@
         const stored = localStorage.getItem(LS_ACTIVE_PROJECT);
         if (stored) {
           const data = JSON.parse(stored);
-          if (data && Array.isArray(data.parts) && data.parts.length > 0) {
+          if (data && Array.isArray(data.parts) && (data.parts.length > 0 || data.isBlankReset)) {
             state.currentProjectId = data.currentProjectId || null;
             state.currentProjectName = data.currentProjectName || '';
             state.currentProjectCustomer = data.currentProjectCustomer || '';
             state.currentProjectNotes = data.currentProjectNotes || '';
             state.fusionProject = data.fusionProject || null;
+            state.isBlankReset = !!data.isBlankReset;
 
             state.activeProfiles = data.activeProfiles || ['Hộp 30x30x1.8'];
             state.selectedTabProfile = data.selectedTabProfile || state.activeProfiles[0];
@@ -2005,6 +2008,14 @@
       }
 
       try {
+        const rawDel = localStorage.getItem('toiuu_deleted_proj_ids_v1');
+        state.deletedProjectIds = rawDel ? JSON.parse(rawDel) : [];
+        if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
+      } catch (e) {
+        state.deletedProjectIds = [];
+      }
+
+      try {
         const curId = localStorage.getItem(LS_CURRENT_PROJ_ID);
         if (curId && !state.currentProjectId) {
           const found = state.savedProjects.find(p => p.id === curId);
@@ -2024,16 +2035,20 @@
     function saveProjectsListToStorage() {
       try {
         localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects));
+        if (Array.isArray(state.deletedProjectIds)) {
+          localStorage.setItem('toiuu_deleted_proj_ids_v1', JSON.stringify(state.deletedProjectIds));
+        }
       } catch (e) {}
       updateProjectsBadge();
       scheduleSyncToServer('projects_list');
     }
 
     function updateProjectsBadge() {
-      const badge = $('projCountBadge');
-      if (badge) {
-        badge.textContent = state.savedProjects ? state.savedProjects.length : 0;
-      }
+      const count = Array.isArray(state.savedProjects) ? state.savedProjects.length : 0;
+      const b1 = $('badgeProjectCount');
+      const b2 = $('projCountBadge');
+      if (b1) b1.textContent = count;
+      if (b2) b2.textContent = count;
     }
 
     function updateProjectActiveBanner() {
@@ -2183,6 +2198,7 @@
       const inpCust = $('inpSaveProjCustomer');
       const inpNotes = $('inpSaveProjNotes');
       const btnConfirm = $('btnConfirmSaveProjForm');
+      const btnSaveAsNew = $('btnSaveAsNewProjForm');
 
       if (targetId) {
         const found = state.savedProjects.find(p => p.id === targetId);
@@ -2192,14 +2208,26 @@
           inpCust.value = found.customer || '';
           inpNotes.value = found.notes || '';
           btnConfirm.textContent = 'Cập nhật';
+          if (btnSaveAsNew) btnSaveAsNew.style.display = 'none';
         }
       } else {
-        title.textContent = 'Lưu Dự Án Vào Bộ Nhớ';
-        // Điền tên gợi ý nếu đang có sẵn tên dự án hoặc gợi ý theo ngày
-        inpName.value = state.currentProjectName || `Dự án ngày ${new Date().toLocaleDateString('vi-VN')}`;
-        inpCust.value = state.currentProjectCustomer || '';
-        inpNotes.value = state.currentProjectNotes || '';
-        btnConfirm.textContent = 'Lưu vào bộ nhớ';
+        const hasOpenSavedProj = state.currentProjectId && state.savedProjects.some(p => p.id === state.currentProjectId);
+        if (hasOpenSavedProj) {
+          title.textContent = 'Lưu Dự Án (Cập nhật hoặc Tạo mới)';
+          inpName.value = state.currentProjectName || '';
+          inpCust.value = state.currentProjectCustomer || '';
+          inpNotes.value = state.currentProjectNotes || '';
+          btnConfirm.textContent = 'Lưu (Đổi tên = Tạo mới)';
+          if (btnSaveAsNew) btnSaveAsNew.style.display = 'inline-flex';
+        } else {
+          title.textContent = 'Lưu Dự Án Mới Vào Bộ Nhớ';
+          const nextNum = (state.savedProjects ? state.savedProjects.length : 0) + 1;
+          inpName.value = state.currentProjectName || `Dự án #${nextNum} (${new Date().toLocaleDateString('vi-VN')})`;
+          inpCust.value = state.currentProjectCustomer || '';
+          inpNotes.value = state.currentProjectNotes || '';
+          btnConfirm.textContent = 'Lưu vào bộ nhớ';
+          if (btnSaveAsNew) btnSaveAsNew.style.display = 'none';
+        }
       }
 
       modal.style.display = 'flex';
@@ -2212,7 +2240,39 @@
       state.editingProjectId = null;
     }
 
-    function confirmSaveProjectForm() {
+    function quickSaveActiveProject() {
+      if (!state.currentProjectId) {
+        openSaveProjectModal();
+        return;
+      }
+      const targetProj = state.savedProjects.find(p => p.id === state.currentProjectId);
+      if (!targetProj) {
+        openSaveProjectModal();
+        return;
+      }
+      state.lastLocalMutationAt = Date.now();
+      state.isBlankReset = false;
+      targetProj.updatedAt = new Date().toISOString();
+      targetProj.data = {
+        activeProfiles: [...state.activeProfiles],
+        selectedTabProfile: state.selectedTabProfile,
+        parts: JSON.parse(JSON.stringify(state.parts)),
+        stock: JSON.parse(JSON.stringify(state.stock)),
+        method: state.method,
+        kerf: state.kerf,
+        clamp: state.clamp,
+        interlock: state.interlock,
+        gap: state.gap,
+        fusionProject: state.fusionProject
+      };
+      saveProjectsListToStorage();
+      saveActiveProject();
+      pushStateToServer('save_project');
+      pushStateToGlobalCloud('save_project');
+      showToast(`✓ Đã lưu cập nhật vào dự án "${targetProj.name}"!`);
+    }
+
+    function confirmSaveProjectForm(forceNew = false) {
       const name = $('inpSaveProjName').value.trim();
       if (!name) {
         showToast('Vui lòng nhập tên dự án!');
@@ -2222,16 +2282,17 @@
       const customer = $('inpSaveProjCustomer').value.trim();
       const notes = $('inpSaveProjNotes').value.trim();
       const nowStr = new Date().toISOString();
+      state.lastLocalMutationAt = Date.now();
+      state.isBlankReset = false;
 
       if (state.editingProjectId) {
-        // Cập nhật thông tin dự án có sẵn
+        // Cập nhật thông tin dự án có sẵn từ danh sách
         const target = state.savedProjects.find(p => p.id === state.editingProjectId);
         if (target) {
           target.name = name;
           target.customer = customer;
           target.notes = notes;
           target.updatedAt = nowStr;
-          // Nếu chính là dự án đang mở, cập nhật thông tin hiển thị
           if (state.currentProjectId === target.id) {
             state.currentProjectName = name;
             state.currentProjectCustomer = customer;
@@ -2239,11 +2300,9 @@
             updateProjectActiveBanner();
             saveActiveProject();
           }
-          pushProjectToCloud(target);
         }
         showToast(`✓ Đã cập nhật dự án "${name}"!`);
       } else {
-        // Lưu dữ liệu hiện hành thành dự án mới (hoặc cập nhật đè nếu đã có ID)
         const projectDataPayload = {
           activeProfiles: [...state.activeProfiles],
           selectedTabProfile: state.selectedTabProfile,
@@ -2257,13 +2316,22 @@
           fusionProject: state.fusionProject
         };
 
-        let targetProj = state.currentProjectId ? state.savedProjects.find(p => p.id === state.currentProjectId) : null;
+        let targetProj = (!forceNew && state.currentProjectId)
+          ? state.savedProjects.find(p => p.id === state.currentProjectId)
+          : null;
+
+        // Nếu người dùng đặt tên khác với tên dự án đang mở -> Tự động tạo thành Dự án mới (không ghi đè dự án cũ!)
+        if (targetProj && String(targetProj.name || '').trim().toLowerCase() !== name.toLowerCase()) {
+          targetProj = null;
+        }
+
         if (targetProj) {
           targetProj.name = name;
           targetProj.customer = customer;
           targetProj.notes = notes;
           targetProj.updatedAt = nowStr;
           targetProj.data = projectDataPayload;
+          showToast(`✓ Đã lưu cập nhật dự án "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
         } else {
           const newId = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
           targetProj = {
@@ -2278,6 +2346,7 @@
           state.savedProjects.unshift(targetProj);
           state.currentProjectId = newId;
           localStorage.setItem(LS_CURRENT_PROJ_ID, newId);
+          showToast(`✓ Đã thêm dự án mới "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
         }
 
         state.currentProjectName = name;
@@ -2285,11 +2354,12 @@
         state.currentProjectNotes = notes;
         updateProjectActiveBanner();
         saveActiveProject();
-        pushProjectToCloud(targetProj);
-        showToast(`✓ Đã lưu dự án "${name}" vào bộ nhớ!`);
       }
 
       saveProjectsListToStorage();
+      updateProjectsBadge();
+      pushStateToServer('save_project');
+      pushStateToGlobalCloud('save_project');
       closeSaveProjectModal();
 
       // Nếu modal quản lý dự án đang mở, render lại danh sách
@@ -2356,6 +2426,10 @@
       if (!proj) return;
       if (!confirm(`Bạn có chắc muốn xóa vĩnh viễn dự án "${proj.name}" khỏi bộ nhớ?`)) return;
 
+      state.lastLocalMutationAt = Date.now();
+      if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
+      if (!state.deletedProjectIds.includes(projId)) state.deletedProjectIds.push(projId);
+
       state.savedProjects = state.savedProjects.filter(p => p.id !== projId);
       if (state.currentProjectId === projId) {
         state.currentProjectId = null;
@@ -2367,10 +2441,12 @@
         updateProjectActiveBanner();
       }
 
-      deleteProjectFromCloud(projId);
       saveProjectsListToStorage();
+      updateProjectsBadge();
+      pushStateToServer('delete_project');
+      pushStateToGlobalCloud('delete_project');
       renderProjectsList($('inpSearchProjects').value.trim());
-      showToast(`✓ Đã xóa dự án "${proj.name}"!`);
+      showToast(`✓ Đã xóa dự án "${proj.name}"! (Còn: ${state.savedProjects.length} dự án)`);
     }
 
     function duplicateProject(projId) {
@@ -2544,33 +2620,47 @@
       reader.readAsText(file);
     }
 
-    function createNewBlankProject() {
-      if (state.parts.length > 0) {
-        if (!confirm('Tạo một dự án mới hoàn toàn?\n\nDữ liệu chưa lưu của màn hình hiện tại sẽ được làm mới.')) return;
-      }
+    function resetToBlankNewProject(openSaveModalAfter = false) {
+      state.lastLocalMutationAt = Date.now();
+      state.isBlankReset = true;
       state.currentProjectId = null;
       state.currentProjectName = '';
       state.currentProjectCustomer = '';
       state.currentProjectNotes = '';
+      state.fusionProject = null;
+      state.result = null;
       localStorage.removeItem(LS_CURRENT_PROJ_ID);
 
       state.activeProfiles = ['Hộp 30x30x1.8'];
       state.selectedTabProfile = 'Hộp 30x30x1.8';
       state.parts = [];
       state.stock = [
-        { id: 's1', name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: state.clamp }
+        { id: 's_' + Date.now(), name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: state.clamp }
       ];
       renderProfileTabs();
       renderActiveProfileBanner();
       renderPartsList();
       renderStockList();
       calculateOptimization(false);
-      saveActiveProject();
       updateProjectActiveBanner();
+      updateProjectsBadge();
+      saveActiveProject();
+      pushStateToServer('reset_new');
+      pushStateToGlobalCloud('reset_new');
       closeProjectsManagerModal();
 
-      // Mở modal đặt tên dự án ngay cho người dùng
-      openSaveProjectModal();
+      if (openSaveModalAfter) {
+        openSaveProjectModal();
+      } else {
+        showToast('✓ Đã tạo bản vẽ mới hoàn toàn (Dự án nháp mới)!');
+      }
+    }
+
+    function createNewBlankProject() {
+      if (state.parts.length > 0) {
+        if (!confirm('Tạo một dự án mới hoàn toàn?\n\nDữ liệu chưa lưu của màn hình hiện tại sẽ được làm mới (Các dự án đã lưu trong danh sách vẫn giữ nguyên).')) return;
+      }
+      resetToBlankNewProject(true);
     }
 
     // ==========================================
@@ -2621,7 +2711,8 @@
         clamp: state.clamp,
         interlock: state.interlock,
         gap: state.gap,
-        fusionProject: state.fusionProject
+        fusionProject: state.fusionProject,
+        isBlankReset: !!state.isBlankReset
       };
       return forCloud ? stripHeavyIgsForCloud(snap) : snap;
     }
@@ -2648,6 +2739,7 @@
           action: actionName,
           updatedAt: new Date().toISOString(),
           savedProfiles: state.savedProfiles,
+          deletedProjectIds: state.deletedProjectIds || [],
           savedProjects: (state.savedProjects || []).map(p => stripHeavyIgsForCloud(p)),
           activeProject: getActiveProjectSnapshot(true)
         };
@@ -2747,6 +2839,7 @@
             clientId: state.clientId,
             action: actionName,
             savedProfiles: state.savedProfiles,
+            deletedProjectIds: state.deletedProjectIds || [],
             savedProjects: state.savedProjects,
             activeProject: getActiveProjectSnapshot()
           })
@@ -2782,8 +2875,34 @@
           renderMemoryLibraryChips();
         }
 
+        if (Array.isArray(remoteDb.deletedProjectIds)) {
+          if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
+          remoteDb.deletedProjectIds.forEach(did => {
+            if (!state.deletedProjectIds.includes(did)) state.deletedProjectIds.push(did);
+          });
+          try { localStorage.setItem('toiuu_deleted_proj_ids_v1', JSON.stringify(state.deletedProjectIds)); } catch (e) {}
+        }
+
         if (Array.isArray(remoteDb.savedProjects)) {
-          state.savedProjects = remoteDb.savedProjects;
+          const delSet = new Set(state.deletedProjectIds || []);
+          const mergedMap = new Map();
+          (state.savedProjects || []).forEach(p => {
+            if (p && p.id && !delSet.has(p.id)) mergedMap.set(p.id, p);
+          });
+          remoteDb.savedProjects.forEach(rp => {
+            if (!rp || !rp.id || delSet.has(rp.id)) return;
+            const loc = mergedMap.get(rp.id);
+            if (!loc) {
+              mergedMap.set(rp.id, rp);
+            } else {
+              const rTime = new Date(rp.updatedAt || 0).getTime();
+              const lTime = new Date(loc.updatedAt || 0).getTime();
+              if (rTime >= lTime) mergedMap.set(rp.id, rp);
+            }
+          });
+          state.savedProjects = Array.from(mergedMap.values()).sort((a, b) => {
+            return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+          });
           try { localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects)); } catch (e) {}
           updateProjectsBadge();
           if ($('modalProjects') && $('modalProjects').style.display === 'flex') {
@@ -2792,12 +2911,13 @@
         }
 
         const ap = remoteDb.activeProject;
-        if (ap && Array.isArray(ap.parts)) {
+        if (ap && Array.isArray(ap.parts) && !(isInitial && state.lastLocalMutationAt)) {
           state.currentProjectId = ap.currentProjectId || null;
           state.currentProjectName = ap.currentProjectName || '';
           state.currentProjectCustomer = ap.currentProjectCustomer || '';
           state.currentProjectNotes = ap.currentProjectNotes || '';
           state.fusionProject = ap.fusionProject || null;
+          state.isBlankReset = !!ap.isBlankReset;
 
           state.activeProfiles = (ap.activeProfiles && ap.activeProfiles.length) ? ap.activeProfiles : ['Hộp 30x30x1.8'];
           state.selectedTabProfile = ap.selectedTabProfile || state.activeProfiles[0];
@@ -2812,6 +2932,8 @@
           try { localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(ap)); } catch (e) {}
           if (state.currentProjectId) {
             try { localStorage.setItem(LS_CURRENT_PROJ_ID, state.currentProjectId); } catch (e) {}
+          } else {
+            try { localStorage.removeItem(LS_CURRENT_PROJ_ID); } catch (e) {}
           }
 
           updateInputsFromState();
@@ -2822,6 +2944,7 @@
           renderStockList();
           calculateOptimization(false);
           updateProjectActiveBanner();
+          updateProjectsBadge();
         }
       } finally {
         setTimeout(() => { state.isApplyingRemoteChange = false; }, 100);
@@ -2961,65 +3084,47 @@
       const container = $('multiDeviceLinksContainer');
       if (!container) return;
 
+      const permanentCloudUrl = 'https://xepphoianbinh.netlify.app';
       const primaryLan = (state.serverLanUrls && state.serverLanUrls.length)
         ? state.serverLanUrls[0].url
-        : SERVER_API_BASE;
-
-      const pubUrl = state.serverPublicUrl;
+        : 'http://192.168.1.152:3000';
 
       let html = `
-        <div style="border:1.5px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div style="border:2px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
           <div style="flex:1; min-width:240px;">
             <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0F766E; letter-spacing:0.5px; margin-bottom:4px;">
-              📶 1. Link Mạng Nội Bộ Xưởng (Wi-Fi / LAN Tốc Độ Cao)
+              🌍 1. Link Web Đám Mây Cố Định 24/7 (Hoạt động cả khi tắt máy tính)
             </div>
             <div style="font-size:17px; font-weight:800; color:#0B3B38; word-break:break-all; margin-bottom:6px; font-family:monospace;">
-              <a href="${primaryLan}" target="_blank" style="color:#0F766E; text-decoration:underline;">${primaryLan}</a>
+              <a href="${permanentCloudUrl}" target="_blank" style="color:#0F766E; text-decoration:underline;">${permanentCloudUrl}</a>
             </div>
             <div style="font-size:12.5px; color:#475569; margin-bottom:10px;">
-              Dùng cho Điện thoại, iPad, Máy tính văn phòng và Máy cắt Laser CNC kết nối chung Wi-Fi/mạng dây tại xưởng.
+              Tên miền chính thức cố định vĩnh viễn của Xưởng An Bình. Mở bằng 4G/5G/Wi-Fi ở mọi nơi, tự động đồng bộ từ mọi máy tính chạy Fusion 360.
             </div>
-            <button type="button" class="btn btn-p btn-sm btn-copy-url" data-url="${primaryLan}" data-label="Link Mạng Xưởng">
-              📋 Sao chép Link Xưởng
+            <button type="button" class="btn btn-p btn-sm btn-copy-url" data-url="${permanentCloudUrl}" data-label="Link Web Cố Định 24/7">
+              📋 Sao chép Link Web Chính Thức
             </button>
           </div>
           <div style="text-align:center; background:#FFF; padding:8px; border-radius:10px; border:1px solid #CBD5E1; flex-shrink:0;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=${encodeURIComponent(primaryLan)}" alt="QR LAN" style="width:115px; height:115px; display:block;" onerror="this.style.display='none'">
-            <div style="font-size:11px; font-weight:700; color:#475569; margin-top:4px;">Quét mở trên Điện thoại</div>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=${encodeURIComponent(permanentCloudUrl)}" alt="QR Cloud 24/7" style="width:115px; height:115px; display:block;" onerror="this.style.display='none'">
+            <div style="font-size:11px; font-weight:700; color:#0F766E; margin-top:4px;">Quét mở 24/7 mọi nơi</div>
           </div>
         </div>
-      `;
 
-      if (pubUrl) {
-        html += `
-          <div style="border:1.5px solid #0369A1; background:#F0F9FF; border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-            <div style="flex:1; min-width:240px;">
-              <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0369A1; letter-spacing:0.5px; margin-bottom:4px;">
-                🌍 2. Link Cloud Internet Toàn Cầu (4G / 5G Mọi Nơi)
-              </div>
-              <div style="font-size:16px; font-weight:800; color:#0C4A6E; word-break:break-all; margin-bottom:6px; font-family:monospace;">
-                <a href="${pubUrl}" target="_blank" style="color:#0369A1; text-decoration:underline;">${pubUrl}</a>
-              </div>
-              <div style="font-size:12.5px; color:#475569; margin-bottom:10px;">
-                Dùng khi bạn đi công trình hoặc mở trên điện thoại bằng mạng 4G/5G bên ngoài xưởng.
-              </div>
-              <button type="button" class="btn btn-soft btn-sm btn-copy-url" data-url="${pubUrl}" data-label="Link Cloud Internet" style="border-color:#0369A1; color:#0369A1; font-weight:700;">
-                📋 Sao chép Link Internet
-              </button>
+        <div style="border:1.5px solid #0369A1; background:#F0F9FF; border-radius:12px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px;">
+            <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0369A1; letter-spacing:0.5px; margin-bottom:4px;">
+              📶 2. Link Máy Chủ Nội Bộ Xưởng (Mạng LAN: ${primaryLan})
             </div>
-            <div style="text-align:center; background:#FFF; padding:8px; border-radius:10px; border:1px solid #CBD5E1; flex-shrink:0;">
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=${encodeURIComponent(pubUrl)}" alt="QR Cloud" style="width:115px; height:115px; display:block;" onerror="this.style.display='none'">
-              <div style="font-size:11px; font-weight:700; color:#0369A1; margin-top:4px;">Quét bằng 4G/5G</div>
+            <div style="font-size:12.5px; color:#475569;">
+              Dành cho mạng nội bộ tại xưởng khi cần truyền tải trực tiếp các tệp CAD 3D dung lượng lớn.
             </div>
           </div>
-        `;
-      } else {
-        html += `
-          <div style="border:1px dashed #CBD5E1; background:#F8FAFC; border-radius:10px; padding:10px 14px; font-size:12.5px; color:#64748B;">
-            🌍 <strong>Link Cloud Internet (4G/5G):</strong> Đang khởi tạo đường truyền Cloud Tunnel... (Link Mạng Nội Bộ Xưởng bên trên đã sẵn sàng 100%).
-          </div>
-        `;
-      }
+          <button type="button" class="btn btn-soft btn-sm btn-copy-url" data-url="${primaryLan}" data-label="Link Mạng Nội Bộ" style="border-color:#0369A1; color:#0369A1; font-weight:700;">
+            📋 Copy Link LAN
+          </button>
+        </div>
+      `;
 
       container.innerHTML = html;
       container.querySelectorAll('.btn-copy-url').forEach(btn => {
@@ -4735,25 +4840,10 @@
         }
       };
 
-      // Reset
+      // Reset (Nút "🔄 Tạo mới" trên thanh đầu trang)
       $('btnReset').onclick = () => {
-        if (confirm('Bạn có chắc muốn đặt lại dự án mới? (Bộ nhớ các loại hộp đã lưu vẫn được giữ nguyên)')) {
-          state.activeProfiles = ['Hộp 30x30x1.8'];
-          state.selectedTabProfile = 'Hộp 30x30x1.8';
-          state.parts = [
-            { id: 'p1', name: '', profile: 'Hộp 30x30x1.8', length: 1200, qty: 4, style: 'ke', mat: 30 },
-            { id: 'p2', name: '', profile: 'Hộp 30x30x1.8', length: 600, qty: 6, style: 'thang', mat: 0 }
-          ];
-          state.stock = [
-            { id: 's1', name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: 0 }
-          ];
-          renderProfileTabs();
-          renderActiveProfileBanner();
-          renderPartsList();
-          renderStockList();
-          calculateOptimization(false);
-          saveActiveProject();
-          showToast('Đã đặt lại dữ liệu mới!');
+        if (confirm('Tạo bản vẽ mới hoàn toàn?\n\nMàn hình sẽ được làm sạch về Dự án nháp mới (Các dự án đã lưu và bộ nhớ quy cách hộp vẫn được giữ nguyên).')) {
+          resetToBlankNewProject(false);
         }
       };
 
@@ -4949,7 +5039,7 @@
       if ($('btnBannerSave')) {
         $('btnBannerSave').onclick = () => {
           if (state.currentProjectId) {
-            confirmSaveProjectForm();
+            quickSaveActiveProject();
           } else {
             openSaveProjectModal();
           }
@@ -4989,12 +5079,13 @@
       // Save/Edit Project Form Modal Controls
       if ($('btnCloseSaveProjForm')) $('btnCloseSaveProjForm').onclick = closeSaveProjectModal;
       if ($('btnCancelSaveProjForm')) $('btnCancelSaveProjForm').onclick = closeSaveProjectModal;
-      if ($('btnConfirmSaveProjForm')) $('btnConfirmSaveProjForm').onclick = confirmSaveProjectForm;
+      if ($('btnConfirmSaveProjForm')) $('btnConfirmSaveProjForm').onclick = () => confirmSaveProjectForm(false);
+      if ($('btnSaveAsNewProjForm')) $('btnSaveAsNewProjForm').onclick = () => confirmSaveProjectForm(true);
       if ($('inpSaveProjName')) {
         $('inpSaveProjName').onkeydown = e => {
           if (e.key === 'Enter') {
             e.preventDefault();
-            confirmSaveProjectForm();
+            confirmSaveProjectForm(false);
           }
         };
       }
