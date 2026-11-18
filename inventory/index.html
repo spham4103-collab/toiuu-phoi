@@ -1,785 +1,820 @@
-<!doctype html>
-<html lang="vi">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kho Phôi, Vật Tư &amp; Quy Cách Hộp · An Bình</title>
-  <meta name="description" content="Thư viện quy cách thép hộp/ống, quản lý cây phôi tồn kho lẻ và bảng tổng hợp vật tư đặt hàng (BOM) xưởng Cơ Khí An Bình.">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0F766E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="/toi-uu-engine.js"></script>
-  <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
-  <style>
-    :root {
-      --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
-      --edge: #D5E9E5; --p: #0F766E; --p-h: #0D635D; --p3: #CCFBF1;
-      --cta: #C2410C; --cta-h: #9A3412; --dark: #0B3B38; --bad: #B4232C;
-      --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-      --r: 14px; --gut: 28px;
-      --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: #F8FAFC; color: #1E293B; font: 400 15px/1.55 var(--font); -webkit-font-smoothing: antialiased; min-height: 100vh; }
-    a { color: var(--p); text-decoration: none; }
-    h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
-    h1 { font-size: clamp(20px, 2.8vw, 26px); }
-    h2 { font-size: 18px; }
-    .wrap { max-width: 1260px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
-
-    /* Top Header 2 tầng */
-    .top { position: sticky; top: 0; z-index: 40; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--edge); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-    .top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 58px; height: auto; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 10px 16px; }
-    .brand { display: flex; align-items: center; gap: 10px; color: var(--dark); flex-shrink: 0; white-space: nowrap; }
-    .brand-logo-img { height: 40px; max-width: 130px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
-    .brand-divider { width: 1.5px; height: 26px; background: var(--edge); margin: 0 2px; flex-shrink: 0; }
-    .brand-text-col { display: flex; flex-direction: column; justify-content: center; white-space: nowrap; }
-    .brand-main-title { font-weight: 800; font-size: 15.5px; color: var(--dark); line-height: 1.15; }
-    .brand-sub-title { font-weight: 600; color: var(--p); font-size: 11.5px; line-height: 1.15; margin-top: 2px; }
-    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
-
-    /* Subnav */
-    .subnav-bar { background: #F8FAFC; border-top: 1px solid var(--edge); }
-    .subnav-inner { max-width: 1260px; margin: 0 auto; padding: 6px var(--gut); display: flex; align-items: center; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-    .subnav-inner::-webkit-scrollbar { display: none; }
-    .subnav-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--mut); background: #FFFFFF; border: 1px solid #E2E8F0; white-space: nowrap; flex-shrink: 0; transition: all 0.15s ease; }
-    .subnav-link:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
-    .subnav-link.active { background: var(--dark); color: #FFFFFF; border-color: var(--dark); box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22); }
-    .subnav-link.subnav-admin { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
-
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid transparent; font: 700 13px/1.2 var(--font); cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
-    .btn-p { background: var(--p); color: #fff; }
-    .btn-p:hover { background: var(--p-h); }
-    .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
-    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
-    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
-    .btn-sm { min-height: 32px; padding: 4px 11px; font-size: 12px; }
-
-    .kpi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 18px 0 22px; }
-    .kpi-card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 15px 18px; display: flex; align-items: center; gap: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
-    .kpi-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: #F0FDFA; color: var(--p); flex-shrink: 0; }
-    .kpi-val { font-size: 23px; font-weight: 800; line-height: 1.15; color: #0F172A; }
-    .kpi-label { font-size: 12px; font-weight: 600; color: var(--mut); margin-top: 2px; }
-
-    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 20px; box-shadow: var(--sh); margin-bottom: 20px; }
-    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
-    .card-sub { font-size: 13px; color: var(--mut); margin-bottom: 14px; }
-
-    input[type=text], input[type=number], input[type=password], select {
-      width: 100%; min-height: 38px; padding: 7px 11px; border-radius: 8px; border: 1.5px solid #CBD5E1; font: 500 14px var(--font); color: #0F172A; background: #fff;
-    }
-    input:focus, select:focus { outline: none; border-color: var(--p); box-shadow: 0 0 0 3px var(--p3); }
-
-    .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #E2E8F0; border-radius: 10px; }
-    .inv-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 620px; }
-    .inv-table th { background: #F8FAFC; color: #475569; font-weight: 700; text-align: left; padding: 10px 14px; border-bottom: 1.5px solid #E2E8F0; }
-    .inv-table td { padding: 10px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
-    .inv-table th.r, .inv-table td.r { text-align: right; }
-    .inv-table tr:last-child td { border-bottom: none; }
-    .inv-table tr:hover { background: #F8FAFC; }
-
-    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
-    .pill-teal { background: #CCFBF1; color: #0F766E; }
-    .pill-blue { background: #E0F2FE; color: #0369A1; }
-    .pill-orange { background: #FFEDD5; color: #C2410C; }
-    .pill-slate { background: #F1F5F9; color: #475569; }
-
-    #toast {
-      position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff;
-      padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 14px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1000; opacity: 0; transform: translateY(12px);
-      transition: all 0.25s ease; pointer-events: none;
-    }
-    #toast.show { opacity: 1; transform: translateY(0); }
-
-    body.role-operator .eng-only { display: none !important; }
-    body.role-operator .stock-inp { pointer-events: none !important; background: #F8FAFC !important; color: #475569 !important; }
-
-    @media (min-width: 1441px) { .wrap, .subnav-inner { max-width: 1440px; } }
-    @media (max-width: 768px) {
-      :root { --gut: 10px; }
-      .brand-sub-title { display: none; }
-      .top .wrap { padding: 6px 10px; gap: 6px; }
-      .top-actions { width: 100%; justify-content: flex-start; gap: 4px; }
-      .subnav-inner { padding: 5px 10px; }
-      .kpi-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-      input[type=text], input[type=number], input[type=password], select { font-size: 16px !important; }
-    }
-  </style>
-</head>
-<body>
-
-  <header class="top">
-    <div class="wrap">
-      <a class="brand" href="/index.html" title="Quay về Bàn Xếp Phôi Chính">
-        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
-        <div class="brand-divider"></div>
-        <div class="brand-text-col">
-          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
-          <div class="brand-sub-title">Kho Phôi, Vật Tư &amp; Thư Viện Quy Cách</div>
-        </div>
-      </a>
-      <div class="top-actions">
-        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap;">
-          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
-          <span>Trực tuyến 24/7</span>
-        </div>
-        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4; white-space:nowrap;">
-          <span id="userIcon">👷</span>
-          <span id="userNameDisp">Chưa đăng nhập</span>
-        </div>
-        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
-      </div>
-    </div>
-
-    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
-      <div class="subnav-inner">
-        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
-        <a href="/projects.html" class="subnav-link">📁 Quản Lý Dự Án</a>
-        <a href="/inventory.html" class="subnav-link active">📦 Kho Phôi &amp; Quy Cách</a>
-        <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
-        <a href="/admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
-      </div>
-    </nav>
-  </header>
-
-  <!-- Inline Login Gate -->
-  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
-    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
-      <div style="text-align:center; margin-bottom:16px;">
-        <div style="font-size:36px;">🔐</div>
-        <h2 style="font-size:20px; margin:6px 0 4px;">ĐĂNG NHẬP KHO PHÔI &amp; QUY CÁCH</h2>
-        <p style="font-size:13px; color:var(--mut); margin:0;">Vui lòng đăng nhập tài khoản xưởng Cơ Khí An Bình</p>
-      </div>
-      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Tên đăng nhập *</label>
-        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản...">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Mật khẩu *</label>
-        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
-      </div>
-      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">
-        🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
-      </button>
-    </div>
-  </div>
-
-  <!-- Main Content -->
-  <main class="wrap" id="mainContent" style="display:none; padding-top:18px; padding-bottom:60px;">
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:6px;">
-      <div>
-        <h1>Kho Phôi Vật Tư &amp; Thư Viện Quy Cách Hộp</h1>
-        <p style="color:var(--mut); font-size:13.5px; margin:3px 0 0;">
-          Dự án đang mở: <strong id="activeProjTitle" style="color:var(--dark);">Dự án hiện hành</strong> · Quản lý bộ nhớ quy cách hộp, cây tồn kho lẻ và bảng vật tư cần đặt hàng.
-        </p>
-      </div>
-      <a href="/index.html" class="btn btn-p btn-sm">📐 Quay lại Bàn Xếp Phôi</a>
-    </div>
-
-    <!-- KPI Cards -->
-    <div class="kpi-cards">
-      <div class="kpi-card">
-        <div class="kpi-icon">📏</div>
-        <div>
-          <div class="kpi-val" id="kpiTotalProfiles">0</div>
-          <div class="kpi-label">Quy cách trong bộ nhớ</div>
-        </div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">🧩</div>
-        <div>
-          <div class="kpi-val" id="kpiProjProfiles">0</div>
-          <div class="kpi-label">Loại hộp của dự án này</div>
-        </div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon" style="background:#FFF7ED; color:#C2410C;">🪵</div>
-        <div>
-          <div class="kpi-val" id="kpiNewBarsNeeded">0</div>
-          <div class="kpi-label">Cây mua mới cần đặt</div>
-        </div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">♻️</div>
-        <div>
-          <div class="kpi-val" id="kpiExistingStockCount">0</div>
-          <div class="kpi-label">Cây tồn kho lẻ trong kho</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section 1: Thư viện Quy cách Hộp & Ống -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>1. Thư Viện Bộ Nhớ Quy Cách Hộp &amp; Ống</h2>
-          <div class="card-sub" style="margin-bottom:0;">Lưu trữ danh sách quy cách thép hộp, ống tròn dùng chung cho toàn bộ các bản vẽ trong xưởng.</div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <input type="text" id="inpSearchProf" placeholder="🔍 Lọc quy cách..." style="max-width:200px; min-height:34px; font-size:13px;">
-          <button type="button" class="btn btn-soft btn-sm eng-only" id="btnResetDefaultProfs">🔄 Khôi phục mặc định</button>
-        </div>
-      </div>
-
-      <!-- Form thêm quy cách mới -->
-      <div class="eng-only" style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; align-items:center;">
-        <input type="text" id="inpNewProfName" placeholder="Nhập quy cách mới (vd: Hộp 40x80x2.0, Ống Ø42x1.8...)" style="flex:1; min-width:240px;">
-        <button type="button" class="btn btn-p btn-sm" id="btnAddProfToLib">+ Lưu vào bộ nhớ xưởng</button>
-      </div>
-
-      <div class="table-responsive" style="margin-top:10px;">
-        <table class="inv-table">
-          <thead>
-            <tr>
-              <th>Tên quy cách thép hộp / ống</th>
-              <th>Loại tiết diện</th>
-              <th class="r">Mặt vát 45° mặc định</th>
-              <th class="r">Chi tiết trong dự án</th>
-              <th class="r">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody id="profilesTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Section 2: Quản lý Cây Phôi Nguyên & Phôi Tồn Kho Lẻ -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>2. Cây Phôi Nguyên &amp; Phôi Tồn Kho Lẻ (Dự Án Đang Mở)</h2>
-          <div class="card-sub" style="margin-bottom:0;">Khai báo các đoạn cây thừa, tồn kho lẻ trong xưởng để thuật toán ưu tiên vét cạn trước khi tính mua cây 6m mới.</div>
-        </div>
-      </div>
-
-      <!-- Form thêm cây tồn kho -->
-      <div class="eng-only" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; margin:12px 0; padding:12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; align-items:end;">
-        <div>
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Loại hộp *</label>
-          <select id="selNewStockProf"></select>
-        </div>
-        <div>
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Tên gọi phôi</label>
-          <input type="text" id="inpNewStockName" placeholder="Vd: Cây tồn kệ cũ">
-        </div>
-        <div>
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Chiều dài (mm) *</label>
-          <input type="number" id="inpNewStockLen" value="3500" min="100">
-        </div>
-        <div>
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Số cây tồn (trống = mua mới)</label>
-          <input type="number" id="inpNewStockQty" value="2" min="1" placeholder="Không giới hạn">
-        </div>
-        <button type="button" class="btn btn-p" id="btnAddStockBar" style="min-height:38px;">+ Thêm phôi</button>
-      </div>
-
-      <div class="table-responsive" style="margin-top:10px;">
-        <table class="inv-table">
-          <thead>
-            <tr>
-              <th>Loại hộp</th>
-              <th>Tên phôi / Cây vật tư</th>
-              <th class="r">Chiều dài (mm)</th>
-              <th class="r">Số cây có sẵn</th>
-              <th class="r eng-only">Xóa</th>
-            </tr>
-          </thead>
-          <tbody id="stockTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Section 3: Bảng Tổng Hợp Vật Tư Cần Đặt Hàng (BOM) -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>3. Bảng Tổng Hợp Vật Tư Cần Đặt Hàng (BOM)</h2>
-          <div class="card-sub" style="margin-bottom:0;">Kết quả tính toán tự động từ bộ tối ưu xếp phôi cho dự án hiện hành.</div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="btn btn-soft btn-sm" id="btnCopyBomZalo">📋 Chép bảng vật tư Zalo</button>
-          <button type="button" class="btn btn-p btn-sm" id="btnExportBomCsv">📊 Xuất Excel (.CSV)</button>
-        </div>
-      </div>
-
-      <div id="bomContainer" style="margin-top:12px;"></div>
-    </section>
-  </main>
-
-  <div id="toast"></div>
-
-  <script>
-    const LS_USERS = 'toiuu_users_list_v1';
-    const LS_SESSION = 'toiuu_logged_user_v1';
-    const LS_SAVED_PROFILES = 'toiuu_saved_box_profiles_v2';
-    const LS_ACTIVE_PROJECT = 'toiuu_active_project_v2';
-    const LS_SAVED_PROJECTS = 'toiuu_saved_projects_list_v1';
-
-    const DEFAULT_USERS = [
-      { username: 'admin', password: '123456', fullName: 'Kỹ Sư Thiết Kế (Admin)', role: 'engineer' },
-      { username: 'kt1', password: '12345', fullName: 'Sơn KT (Kỹ Sư)', role: 'engineer' },
-      { username: 'thocnc', password: '1234', fullName: 'Thợ Vận Hành Máy CNC', role: 'operator' }
-    ];
-
-    const DEFAULT_PROFILES = [
-      'Hộp 20x20x1.4', 'Hộp 25x25x1.4', 'Hộp 30x30x1.8', 'Hộp 40x40x1.8', 'Hộp 50x50x2.0',
-      'Hộp 20x40x1.4', 'Hộp 25x50x1.8', 'Hộp 30x60x1.8', 'Hộp 40x80x2.0', 'Ống Ø27x1.4', 'Ống Ø34x1.4'
-    ];
-
-    let usersList = [];
-    let currentUser = null;
-    let savedProfiles = [];
-    let activeProject = null;
-    let lastSolveResult = null;
-
-    const $ = id => document.getElementById(id);
-
-    function showToast(msg) {
-      const t = $('toast');
-      if (!t) return;
-      t.textContent = msg;
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 3000);
-    }
-
-    function escapeHtml(str) {
-      return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
-    }
-
-    function numVN(n, dec) {
-      if (n == null || isNaN(n)) return '0';
-      const num = Number(n);
-      if (dec !== undefined && dec !== null) return num.toLocaleString('vi-VN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
-      return Number.isInteger(num) ? num.toLocaleString('vi-VN') : num.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-    }
-
-    function extractMatFromProfile(pName) {
-      if (!pName) return 30;
-      const m = pName.match(/(?:Hộp|Ống|V|U)?\s*(\d+)(?:x|X|\*)(\d+)/);
-      if (m) return Math.max(parseInt(m[1]), parseInt(m[2]));
-      const mR = pName.match(/(?:Ø|D|Phi)\s*(\d+)/i);
-      if (mR) return parseInt(mR[1]);
-      return 30;
-    }
-
-    function classifyProfile(pName) {
-      if (/ống|phi|ø/i.test(pName)) return { label: 'Ống tròn', cls: 'pill-blue' };
-      const m = pName.match(/(\d+)\s*[xX\*×]\s*(\d+)/);
-      if (m) {
-        return parseInt(m[1]) === parseInt(m[2])
-          ? { label: 'Hộp vuông', cls: 'pill-teal' }
-          : { label: 'Hộp chữ nhật', cls: 'pill-orange' };
-      }
-      return { label: 'Khác', cls: 'pill-slate' };
-    }
-
-    function loadUsers() {
-      try {
-        const raw = localStorage.getItem(LS_USERS);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length) usersList = parsed;
-        }
-      } catch (e) {}
-      if (!usersList.length) usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
-    }
-
-    function checkAuth() {
-      loadUsers();
-      let sess = null;
-      try {
-        const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
-        if (raw) sess = JSON.parse(raw);
-      } catch (e) {}
-
-      if (sess && sess.username) {
-        const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
-        if (found) {
-          currentUser = found;
-          const isOp = found.role === 'operator';
-          const isSuperAdmin = found.username.toLowerCase() === 'admin';
-          document.body.classList.toggle('role-operator', isOp);
-          $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
-          $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
-          $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
-          $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
-          $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
-          if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
-          $('loginGateWrap').style.display = 'none';
-          $('mainContent').style.display = 'block';
-          loadInventoryData();
-          return;
-        }
-      }
-      currentUser = null;
-      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
-      $('loginGateWrap').style.display = 'block';
-      $('mainContent').style.display = 'none';
-    }
-
-    function handleLogin() {
-      loadUsers();
-      const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
-      const p = ($('inpLoginPass').value || '').trim();
-      const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
-      if (!found) {
-        $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!';
-        $('loginErr').style.display = 'block';
-        return;
-      }
-      $('loginErr').style.display = 'none';
-      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
-      sessionStorage.setItem(LS_SESSION, sessData);
-      localStorage.setItem(LS_SESSION, sessData);
-      $('inpLoginPass').value = '';
-      checkAuth();
-    }
-
-    function loadInventoryData() {
-      try {
-        const sp = localStorage.getItem(LS_SAVED_PROFILES);
-        savedProfiles = sp ? JSON.parse(sp) : DEFAULT_PROFILES.slice();
-      } catch (e) { savedProfiles = DEFAULT_PROFILES.slice(); }
-      if (!Array.isArray(savedProfiles) || !savedProfiles.length) savedProfiles = DEFAULT_PROFILES.slice();
-
-      try {
-        const ap = localStorage.getItem(LS_ACTIVE_PROJECT);
-        activeProject = ap ? JSON.parse(ap) : null;
-      } catch (e) { activeProject = null; }
-
-      if (!activeProject) {
-        activeProject = {
-          activeProfiles: ['Hộp 30x30x1.8'],
-          selectedTabProfile: 'Hộp 30x30x1.8',
-          parts: [],
-          stock: [{ id: 's_def_' + Date.now(), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
-          method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
-        };
-      }
-      if (!Array.isArray(activeProject.stock)) activeProject.stock = [];
-      if (!Array.isArray(activeProject.parts)) activeProject.parts = [];
-      if (!Array.isArray(activeProject.activeProfiles)) activeProject.activeProfiles = ['Hộp 30x30x1.8'];
-
-      $('activeProjTitle').textContent = activeProject.currentProjectName || 'Dự án hiện hành (Nháp)';
-      renderAll();
-    }
-
-    function saveProfilesAndSync() {
-      localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(savedProfiles));
-      try {
-        fetch('/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ savedProfiles })
-        }).catch(() => {});
-      } catch (e) {}
-    }
-
-    function saveActiveProjectAndSync() {
-      localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(activeProject));
-      if (activeProject.currentProjectId) {
-        try {
-          const allProjs = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]');
-          const idx = allProjs.findIndex(p => p.id === activeProject.currentProjectId);
-          if (idx >= 0) {
-            allProjs[idx].updatedAt = new Date().toISOString();
-            allProjs[idx].data = Object.assign(allProjs[idx].data || {}, {
-              activeProfiles: activeProject.activeProfiles,
-              stock: activeProject.stock
-            });
-            localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(allProjs));
-          }
-        } catch (e) {}
-      }
-      try {
-        fetch('/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ activeProject })
-        }).catch(() => {});
-      } catch (e) {}
-    }
-
-    function solveBOM() {
-      lastSolveResult = null;
-      const validParts = (activeProject.parts || []).filter(p => Number(p.length) > 0 && Number(p.qty) > 0);
-      if (!validParts.length || typeof RC === 'undefined') return null;
-
-      const kerf = Number(activeProject.kerf) || 0;
-      const clampTail = activeProject.clamp != null ? Number(activeProject.clamp) : 80;
-      const interlock = activeProject.interlock != null ? !!activeProject.interlock : true;
-      const gap = Number(activeProject.gap) || 0;
-
-      const partProfiles = new Set(validParts.map(p => p.profile || 'Chung'));
-      const stockForEngine = activeProject.stock.filter(s => Number(s.length) > 0).map((s, idx) => ({
-        label: s.name || (s.qty === null ? `Cây mới ${numVN(s.length)}` : `Cây tồn ${numVN(s.length)}`),
-        length: Number(s.length),
-        clampTail,
-        qty: (s.qty === '' || s.qty == null) ? null : Number(s.qty),
-        priority: idx,
-        profile: s.profile || 'Chung'
-      }));
-      partProfiles.forEach(prof => {
-        if (!stockForEngine.some(s => s.profile === prof)) {
-          stockForEngine.push({ label: `Cây mới 6m (${prof})`, length: 6000, clampTail, qty: null, priority: 99, profile: prof });
-        }
-      });
-
-      try {
-        lastSolveResult = RC.solve({
-          kerf, interlock, gap,
-          stock: stockForEngine,
-          parts: validParts.map(p => ({
-            label: p.id,
-            length: Number(p.length),
-            qty: Number(p.qty),
-            end_style: p.style || 'thang',
-            mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? Number(p.mat) : extractMatFromProfile(p.profile)),
-            profile: p.profile || 'Chung'
-          }))
-        });
-      } catch (e) {
-        console.warn('Solve error:', e);
-      }
-      return lastSolveResult;
-    }
-
-    function renderAll() {
-      const res = solveBOM();
-      $('kpiTotalProfiles').textContent = savedProfiles.length;
-      $('kpiProjProfiles').textContent = (activeProject.activeProfiles || []).length;
-      $('kpiNewBarsNeeded').textContent = res ? numVN(res.totalNewBars) : '0';
-      const existingCount = (activeProject.stock || []).filter(s => s.qty != null && s.qty !== '').reduce((a, b) => a + (Number(b.qty) || 0), 0);
-      $('kpiExistingStockCount').textContent = numVN(existingCount);
-
-      renderProfilesTable();
-      renderStockSelectAndTable();
-      renderBOM(res);
-    }
-
-    function renderProfilesTable() {
-      const q = ($('inpSearchProf').value || '').trim().toLowerCase();
-      const tbody = $('profilesTableBody');
-      const filtered = savedProfiles.filter(p => !q || p.toLowerCase().includes(q));
-
-      if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:#64748B;">Không tìm thấy quy cách phù hợp.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = filtered.map(pName => {
-        const cls = classifyProfile(pName);
-        const matW = extractMatFromProfile(pName);
-        const pcsCount = (activeProject.parts || []).filter(pt => pt.profile === pName).reduce((a, b) => a + (Number(b.qty) || 0), 0);
-        const inProj = (activeProject.activeProfiles || []).includes(pName);
-
-        return `
-          <tr>
-            <td><strong style="color:var(--dark);">${escapeHtml(pName)}</strong> ${inProj ? '<span class="pill pill-teal" style="margin-left:6px;">Đang trong dự án</span>' : ''}</td>
-            <td><span class="pill ${cls.cls}">${cls.label}</span></td>
-            <td class="r" style="font-weight:700;">${matW} mm</td>
-            <td class="r">${pcsCount > 0 ? `<b>${numVN(pcsCount)}</b> chi tiết` : '<span style="color:#94A3B8;">0</span>'}</td>
-            <td class="r" style="white-space:nowrap;">
-              <button type="button" class="btn btn-sm btn-p btn-use-prof eng-only" data-prof="${escapeHtml(pName)}">+ Đưa vào dự án</button>
-              <button type="button" class="btn btn-sm btn-danger btn-del-prof eng-only" data-prof="${escapeHtml(pName)}" style="margin-left:4px;">✕ Xóa</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      tbody.querySelectorAll('.btn-use-prof').forEach(b => b.onclick = () => {
-        const prof = b.dataset.prof;
-        if (!activeProject.activeProfiles.includes(prof)) activeProject.activeProfiles.push(prof);
-        if (!activeProject.stock.some(s => s.profile === prof)) {
-          activeProject.stock.push({ id: 's_auto_' + Date.now(), profile: prof, name: `Cây mới 6.000 (${prof})`, length: 6000, qty: null, clamp: activeProject.clamp || 80 });
-        }
-        activeProject.selectedTabProfile = prof;
-        saveActiveProjectAndSync();
-        renderAll();
-        showToast(`✓ Đã đưa "${prof}" vào dự án hiện hành!`);
-      });
-
-      tbody.querySelectorAll('.btn-del-prof').forEach(b => b.onclick = () => {
-        const prof = b.dataset.prof;
-        if (!confirm(`Xóa quy cách "${prof}" khỏi bộ nhớ thư viện xưởng?`)) return;
-        savedProfiles = savedProfiles.filter(x => x !== prof);
-        saveProfilesAndSync();
-        renderAll();
-        showToast(`🗑️ Đã xóa "${prof}" khỏi thư viện`);
-      });
-    }
-
-    function renderStockSelectAndTable() {
-      const sel = $('selNewStockProf');
-      const allProfs = Array.from(new Set([...(activeProject.activeProfiles || []), ...savedProfiles]));
-      sel.innerHTML = allProfs.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
-
-      const tbody = $('stockTableBody');
-      if (!activeProject.stock.length) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:#64748B;">Chưa có cây phôi nào được khai báo.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = activeProject.stock.map(st => `
-        <tr>
-          <td><span class="pill pill-teal">${escapeHtml(st.profile || 'Chung')}</span></td>
-          <td><input type="text" class="stock-inp" data-id="${st.id}" data-f="name" value="${escapeHtml(st.name || '')}" style="min-height:34px; font-size:13px;"></td>
-          <td class="r"><input type="number" class="stock-inp" data-id="${st.id}" data-f="length" value="${st.length || 6000}" style="min-height:34px; width:100px; text-align:right; font-size:13px;"></td>
-          <td class="r"><input type="number" class="stock-inp" data-id="${st.id}" data-f="qty" value="${st.qty != null ? st.qty : ''}" placeholder="Không giới hạn" style="min-height:34px; width:130px; text-align:right; font-size:13px;"></td>
-          <td class="r eng-only">
-            <button type="button" class="btn btn-sm btn-danger btn-del-stock" data-id="${st.id}">✕</button>
-          </td>
-        </tr>
-      `).join('');
-
-      tbody.querySelectorAll('.stock-inp').forEach(inp => {
-        inp.onchange = () => {
-          const id = inp.dataset.id;
-          const field = inp.dataset.f;
-          const item = activeProject.stock.find(s => s.id === id);
-          if (!item) return;
-          if (field === 'name') item.name = inp.value;
-          else if (field === 'length') item.length = parseFloat(inp.value) || 6000;
-          else if (field === 'qty') item.qty = inp.value.trim() === '' ? null : Math.max(0, parseInt(inp.value) || 0);
-          saveActiveProjectAndSync();
-          renderAll();
-        };
-      });
-
-      tbody.querySelectorAll('.btn-del-stock').forEach(b => b.onclick = () => {
-        activeProject.stock = activeProject.stock.filter(s => s.id !== b.dataset.id);
-        saveActiveProjectAndSync();
-        renderAll();
-        showToast('🗑️ Đã xóa cây phôi');
-      });
-    }
-
-    function renderBOM(res) {
-      const container = $('bomContainer');
-      if (!res || !res.byStockType || !res.byStockType.some(s => s.usedQty > 0)) {
-        container.innerHTML = `<div style="padding:26px; text-align:center; color:#64748B; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:10px;">Chưa có chi tiết cắt trong dự án hiện tại. Hãy nhập chi tiết ở trang <b>Bàn Xếp Phôi</b> để tự động tính bảng vật tư cần đặt!</div>`;
-        return;
-      }
-
-      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
-      let html = `<div class="table-responsive"><table class="inv-table"><thead><tr>
-        <th>Loại hộp / Quy cách</th><th>Cây vật tư</th><th class="r">Dài (mm)</th><th class="r">Đang có</th><th class="r">Cần dùng</th><th class="r">Đặt hàng / Lấy kho</th>
-      </tr></thead><tbody>`;
-
-      profiles.forEach(prof => {
-        const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === prof && s.usedQty > 0);
-        stocks.forEach((st, idx) => {
-          const isNew = st.availableQty === null;
-          const status = isNew
-            ? `<span style="color:var(--cta); font-weight:700;">Mua mới ${st.usedQty} cây</span>`
-            : `<span style="color:var(--p); font-weight:700;">Lấy tồn ${st.usedQty} cây</span>`;
-          html += `<tr>
-            ${idx === 0 ? `<td rowspan="${stocks.length}" style="font-weight:800; color:var(--dark); background:#F8FAFC; vertical-align:top;">${escapeHtml(prof)}</td>` : ''}
-            <td><b>${escapeHtml(st.label)}</b></td>
-            <td class="r">${numVN(st.length)}</td>
-            <td class="r">${isNew ? 'Không giới hạn' : numVN(st.availableQty)}</td>
-            <td class="r"><b>${numVN(st.usedQty)}</b></td>
-            <td class="r">${status}</td>
-          </tr>`;
-        });
-      });
-
-      const u = res.usageStats;
-      const eff = u.totalNominalLength > 0 ? (u.totalCutLength / u.totalNominalLength * 100) : 0;
-      html += `</tbody></table></div>
-        <div style="margin-top:12px; font-size:13.5px; color:var(--mut); line-height:1.6;">
-          Tổng mét cắt: <b>${numVN(u.totalCutLength / 1000, 2)} m</b> ·
-          Hao mạch: <b>${numVN(u.totalKerfLength / 1000, 2)} m</b> ·
-          Kẹp đuôi: <b>${numVN(u.totalClampTailLength / 1000, 2)} m</b> ·
-          Phôi dư: <b>${numVN(u.totalWasteLength / 1000, 2)} m</b> ·
-          Hiệu suất: <b style="color:var(--p);">${numVN(eff, 1)}%</b>
-        </div>`;
-      container.innerHTML = html;
-    }
-
-    function copyBomZalo() {
-      if (!lastSolveResult) { showToast('Chưa có bảng vật tư để chép!'); return; }
-      const res = lastSolveResult;
-      const lines = [`📦 BẢNG VẬT TƯ XƯỞNG AN BÌNH · ${activeProject.currentProjectName || 'Dự án hiện hành'} (${new Date().toLocaleDateString('vi-VN')})`, `Tổng cộng: ${res.bars.length} cây (Mua mới: ${res.totalNewBars}, Tồn kho: ${res.totalExistingUsed})`, ''];
-      (res.summaryByProfile || []).forEach(sp => {
-        const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === sp.profile && s.usedQty > 0);
-        if (stocks.length) {
-          lines.push(`▶ ${sp.profile}:`);
-          stocks.forEach(s => lines.push(`  - ${s.label} (${numVN(s.length)} mm): ${s.availableQty === null ? `MUA MỚI ${s.usedQty} cây` : `Lấy tồn ${s.usedQty}/${s.availableQty} cây`}`));
-        }
-      });
-      const text = lines.join('\n');
-      if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast('✓ Đã chép bảng vật tư! Dán vào Zalo ngay.'));
-      else showToast('Đã chuẩn bị nội dung BOM');
-    }
-
-    function exportBomCsv() {
-      if (!lastSolveResult) { showToast('Chưa có dữ liệu BOM để xuất CSV!'); return; }
-      const rows = [['Loại hộp', 'Cây vật tư', 'Chiều dài (mm)', 'Số lượng có sẵn', 'Cần dùng', 'Ghi chú']];
-      lastSolveResult.byStockType.filter(s => s.usedQty > 0).forEach(s => {
-        rows.push([s.profile || 'Chung', s.label, s.length, s.availableQty === null ? 'Vô hạn' : s.availableQty, s.usedQty, s.availableQty === null ? 'Mua mới' : 'Lấy tồn kho']);
-      });
-      const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `vat_tu_${new Date().toISOString().slice(0,10)}.csv`;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a); URL.revokeObjectURL(url);
-      showToast('📊 Đã xuất file Excel CSV bảng vật tư!');
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      $('btnSubmitLogin').onclick = handleLogin;
-      $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-      $('btnLogout').onclick = () => { sessionStorage.removeItem(LS_SESSION); localStorage.removeItem(LS_SESSION); checkAuth(); };
-
-      $('inpSearchProf').oninput = renderProfilesTable;
-      $('btnAddProfToLib').onclick = () => {
-        const val = ($('inpNewProfName').value || '').trim();
-        if (!val) return;
-        if (!savedProfiles.includes(val)) {
-          savedProfiles.push(val);
-          saveProfilesAndSync();
-          $('inpNewProfName').value = '';
-          renderAll();
-          showToast(`✓ Đã lưu "${val}" vào bộ nhớ xưởng!`);
-        } else {
-          showToast(`Quy cách "${val}" đã có sẵn trong bộ nhớ!`);
-        }
-      };
-
-      $('btnResetDefaultProfs').onclick = () => {
-        if (!confirm('Khôi phục danh sách quy cách mặc định ban đầu (vẫn giữ thêm nếu bạn gõ mới)?')) return;
-        DEFAULT_PROFILES.forEach(p => { if (!savedProfiles.includes(p)) savedProfiles.push(p); });
-        saveProfilesAndSync();
-        renderAll();
-        showToast('🔄 Đã khôi phục danh sách quy cách mặc định!');
-      };
-
-      $('btnAddStockBar').onclick = () => {
-        const prof = $('selNewStockProf').value || 'Hộp 30x30x1.8';
-        const name = ($('inpNewStockName').value || '').trim() || `Cây tồn (${prof})`;
-        const len = parseFloat($('inpNewStockLen').value) || 6000;
-        const qtyRaw = ($('inpNewStockQty').value || '').trim();
-        const qty = qtyRaw === '' ? null : Math.max(1, parseInt(qtyRaw) || 1);
-        activeProject.stock.push({ id: 's_inv_' + Date.now(), profile: prof, name, length: len, qty, clamp: activeProject.clamp || 80 });
-        if (!activeProject.activeProfiles.includes(prof)) activeProject.activeProfiles.push(prof);
-        $('inpNewStockName').value = '';
-        saveActiveProjectAndSync();
-        renderAll();
-        showToast(`✓ Đã thêm cây phôi "${name}" (${numVN(len)} mm)!`);
-      };
-
-      $('btnCopyBomZalo').onclick = copyBomZalo;
-      $('btnExportBomCsv').onclick = exportBomCsv;
-
-      checkAuth();
-    });
-  </script>
-</body>
-</html>
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kho Phôi, Vật Tư &amp; Quy Cách Hộp · An Bình</title>
+  <meta name="description" content="Thư viện quy cách thép hộp/ống, quản lý cây phôi tồn kho lẻ và bảng tổng hợp vật tư đặt hàng (BOM) xưởng Cơ Khí An Bình.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="/toi-uu-engine.js"></script>
+  <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
+  <style>
+    :root {
+      --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
+      --edge: #D5E9E5; --p: #0F766E; --p-h: #0D635D; --p3: #CCFBF1;
+      --cta: #C2410C; --cta-h: #9A3412; --dark: #0B3B38; --bad: #B4232C;
+      --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --r: 14px; --gut: 28px;
+      --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F8FAFC; color: #1E293B; font: 400 15px/1.55 var(--font); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+    a { color: var(--p); text-decoration: none; }
+    h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
+    h1 { font-size: clamp(20px, 2.8vw, 26px); }
+    h2 { font-size: 18px; }
+    .wrap { max-width: 1260px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
+
+    /* Top Header 2 tầng */
+    .top { position: sticky; top: 0; z-index: 40; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--edge); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 58px; height: auto; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 10px 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--dark); flex-shrink: 0; white-space: nowrap; }
+    .brand-logo-img { height: 40px; max-width: 130px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+    .brand-divider { width: 1.5px; height: 26px; background: var(--edge); margin: 0 2px; flex-shrink: 0; }
+    .brand-text-col { display: flex; flex-direction: column; justify-content: center; white-space: nowrap; }
+    .brand-main-title { font-weight: 800; font-size: 15.5px; color: var(--dark); line-height: 1.15; }
+    .brand-sub-title { font-weight: 600; color: var(--p); font-size: 11.5px; line-height: 1.15; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
+
+    /* Subnav */
+    .subnav-bar { background: #F8FAFC; border-top: 1px solid var(--edge); }
+    .subnav-inner { max-width: 1260px; margin: 0 auto; padding: 6px var(--gut); display: flex; align-items: center; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .subnav-inner::-webkit-scrollbar { display: none; }
+    .subnav-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--mut); background: #FFFFFF; border: 1px solid #E2E8F0; white-space: nowrap; flex-shrink: 0; transition: all 0.15s ease; }
+    .subnav-link:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .subnav-link.active { background: var(--dark); color: #FFFFFF; border-color: var(--dark); box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22); }
+    .subnav-link.subnav-admin { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid transparent; font: 700 13px/1.2 var(--font); cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
+    .btn-p { background: var(--p); color: #fff; }
+    .btn-p:hover { background: var(--p-h); }
+    .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+    .btn-sm { min-height: 32px; padding: 4px 11px; font-size: 12px; }
+
+    .kpi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 18px 0 22px; }
+    .kpi-card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 15px 18px; display: flex; align-items: center; gap: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+    .kpi-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: #F0FDFA; color: var(--p); flex-shrink: 0; }
+    .kpi-val { font-size: 23px; font-weight: 800; line-height: 1.15; color: #0F172A; }
+    .kpi-label { font-size: 12px; font-weight: 600; color: var(--mut); margin-top: 2px; }
+
+    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 20px; box-shadow: var(--sh); margin-bottom: 20px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+    .card-sub { font-size: 13px; color: var(--mut); margin-bottom: 14px; }
+
+    input[type=text], input[type=number], input[type=password], select {
+      width: 100%; min-height: 38px; padding: 7px 11px; border-radius: 8px; border: 1.5px solid #CBD5E1; font: 500 14px var(--font); color: #0F172A; background: #fff;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--p); box-shadow: 0 0 0 3px var(--p3); }
+
+    .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #E2E8F0; border-radius: 10px; }
+    .inv-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 620px; }
+    .inv-table th { background: #F8FAFC; color: #475569; font-weight: 700; text-align: left; padding: 10px 14px; border-bottom: 1.5px solid #E2E8F0; }
+    .inv-table td { padding: 10px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+    .inv-table th.r, .inv-table td.r { text-align: right; }
+    .inv-table tr:last-child td { border-bottom: none; }
+    .inv-table tr:hover { background: #F8FAFC; }
+
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+    .pill-teal { background: #CCFBF1; color: #0F766E; }
+    .pill-blue { background: #E0F2FE; color: #0369A1; }
+    .pill-orange { background: #FFEDD5; color: #C2410C; }
+    .pill-slate { background: #F1F5F9; color: #475569; }
+
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff;
+      padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1000; opacity: 0; transform: translateY(12px);
+      transition: all 0.25s ease; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    body.role-operator .eng-only { display: none !important; }
+    body.role-operator .stock-inp { pointer-events: none !important; background: #F8FAFC !important; color: #475569 !important; }
+
+    @media (min-width: 1441px) { .wrap, .subnav-inner { max-width: 1440px; } }
+    @media (max-width: 768px) {
+      :root { --gut: 10px; }
+      .brand-sub-title { display: none; }
+      .top .wrap { padding: 6px 10px; gap: 6px; }
+      .top-actions { width: 100%; justify-content: flex-start; gap: 4px; }
+      .subnav-inner { padding: 5px 10px; }
+      .kpi-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      input[type=text], input[type=number], input[type=password], select { font-size: 16px !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/index.html" title="Quay về Bàn Xếp Phôi Chính">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
+          <div class="brand-sub-title">Kho Phôi, Vật Tư &amp; Thư Viện Quy Cách</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span>Trực tuyến 24/7</span>
+        </div>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4; white-space:nowrap;">
+          <span id="userIcon">👷</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </div>
+
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects.html" class="subnav-link">📁 Quản Lý Dự Án</a>
+        <a href="/inventory.html" class="subnav-link active">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Inline Login Gate -->
+  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">🔐</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">ĐĂNG NHẬP KHO PHÔI &amp; QUY CÁCH</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Vui lòng đăng nhập tài khoản xưởng Cơ Khí An Bình</p>
+      </div>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Tên đăng nhập *</label>
+        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản...">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Mật khẩu *</label>
+        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
+      </div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">
+        🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="wrap" id="mainContent" style="display:none; padding-top:18px; padding-bottom:60px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:6px;">
+      <div>
+        <h1>Kho Phôi Vật Tư &amp; Thư Viện Quy Cách Hộp</h1>
+        <p style="color:var(--mut); font-size:13.5px; margin:3px 0 0;">
+          Dự án đang mở: <strong id="activeProjTitle" style="color:var(--dark);">Dự án hiện hành</strong> · Quản lý bộ nhớ quy cách hộp, cây tồn kho lẻ và bảng vật tư cần đặt hàng.
+        </p>
+      </div>
+      <a href="/index.html" class="btn btn-p btn-sm">📐 Quay lại Bàn Xếp Phôi</a>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-cards">
+      <div class="kpi-card">
+        <div class="kpi-icon">📏</div>
+        <div>
+          <div class="kpi-val" id="kpiTotalProfiles">0</div>
+          <div class="kpi-label">Quy cách trong bộ nhớ</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">🧩</div>
+        <div>
+          <div class="kpi-val" id="kpiProjProfiles">0</div>
+          <div class="kpi-label">Loại hộp của dự án này</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#FFF7ED; color:#C2410C;">🪵</div>
+        <div>
+          <div class="kpi-val" id="kpiNewBarsNeeded">0</div>
+          <div class="kpi-label">Cây mua mới cần đặt</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">♻️</div>
+        <div>
+          <div class="kpi-val" id="kpiExistingStockCount">0</div>
+          <div class="kpi-label">Cây tồn kho lẻ trong kho</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: Thư viện Quy cách Hộp & Ống -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>1. Thư Viện Bộ Nhớ Quy Cách Hộp &amp; Ống</h2>
+          <div class="card-sub" style="margin-bottom:0;">Lưu trữ danh sách quy cách thép hộp, ống tròn dùng chung cho toàn bộ các bản vẽ trong xưởng.</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" id="inpSearchProf" placeholder="🔍 Lọc quy cách..." style="max-width:200px; min-height:34px; font-size:13px;">
+          <button type="button" class="btn btn-soft btn-sm eng-only" id="btnResetDefaultProfs">🔄 Khôi phục mặc định</button>
+        </div>
+      </div>
+
+      <!-- Form thêm quy cách mới -->
+      <div class="eng-only" style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; align-items:center;">
+        <input type="text" id="inpNewProfName" placeholder="Nhập quy cách mới (vd: Hộp 40x80x2.0, Ống Ø42x1.8...)" style="flex:1; min-width:240px;">
+        <button type="button" class="btn btn-p btn-sm" id="btnAddProfToLib">+ Lưu vào bộ nhớ xưởng</button>
+      </div>
+
+      <div class="table-responsive" style="margin-top:10px;">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Tên quy cách thép hộp / ống</th>
+              <th>Loại tiết diện</th>
+              <th class="r">Mặt vát 45° mặc định</th>
+              <th class="r">Chi tiết trong dự án</th>
+              <th class="r">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="profilesTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 2: Quản lý Cây Phôi Nguyên & Phôi Tồn Kho Lẻ -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>2. Cây Phôi Nguyên &amp; Phôi Tồn Kho Lẻ (Dự Án Đang Mở)</h2>
+          <div class="card-sub" style="margin-bottom:0;">Khai báo các đoạn cây thừa, tồn kho lẻ trong xưởng để thuật toán ưu tiên vét cạn trước khi tính mua cây 6m mới.</div>
+        </div>
+      </div>
+
+      <!-- Form thêm cây tồn kho -->
+      <div class="eng-only" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; margin:12px 0; padding:12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; align-items:end;">
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Loại hộp *</label>
+          <select id="selNewStockProf"></select>
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Tên gọi phôi</label>
+          <input type="text" id="inpNewStockName" placeholder="Vd: Cây tồn kệ cũ">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Chiều dài (mm) *</label>
+          <input type="number" id="inpNewStockLen" value="3500" min="100">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Số cây tồn (trống = mua mới)</label>
+          <input type="number" id="inpNewStockQty" value="2" min="1" placeholder="Không giới hạn">
+        </div>
+        <button type="button" class="btn btn-p" id="btnAddStockBar" style="min-height:38px;">+ Thêm phôi</button>
+      </div>
+
+      <div class="table-responsive" style="margin-top:10px;">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Loại hộp</th>
+              <th>Tên phôi / Cây vật tư</th>
+              <th class="r">Chiều dài (mm)</th>
+              <th class="r">Số cây có sẵn</th>
+              <th class="r eng-only">Xóa</th>
+            </tr>
+          </thead>
+          <tbody id="stockTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 3: Bảng Tổng Hợp Vật Tư Cần Đặt Hàng (BOM) -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>3. Bảng Tổng Hợp Vật Tư Cần Đặt Hàng (BOM)</h2>
+          <div class="card-sub" style="margin-bottom:0;">Kết quả tính toán tự động từ bộ tối ưu xếp phôi cho dự án hiện hành.</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-soft btn-sm" id="btnCopyBomZalo">📋 Chép bảng vật tư Zalo</button>
+          <button type="button" class="btn btn-p btn-sm" id="btnExportBomCsv">📊 Xuất Excel (.CSV)</button>
+        </div>
+      </div>
+
+      <div id="bomContainer" style="margin-top:12px;"></div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    const LS_USERS = 'toiuu_users_list_v1';
+    const LS_SESSION = 'toiuu_logged_user_v1';
+    const LS_SAVED_PROFILES = 'toiuu_saved_box_profiles_v2';
+    const LS_ACTIVE_PROJECT = 'toiuu_active_project_v2';
+    const LS_SAVED_PROJECTS = 'toiuu_saved_projects_list_v1';
+
+    const DEFAULT_USERS = [
+      { username: 'admin', password: '123456', fullName: 'Kỹ Sư Thiết Kế (Admin)', role: 'engineer' },
+      { username: 'kt1', password: '12345', fullName: 'Sơn KT (Kỹ Sư)', role: 'engineer' },
+      { username: 'thocnc', password: '1234', fullName: 'Thợ Vận Hành Máy CNC', role: 'operator' }
+    ];
+
+    const DEFAULT_PROFILES = [
+      'Hộp 20x20x1.4', 'Hộp 25x25x1.4', 'Hộp 30x30x1.8', 'Hộp 40x40x1.8', 'Hộp 50x50x2.0',
+      'Hộp 20x40x1.4', 'Hộp 25x50x1.8', 'Hộp 30x60x1.8', 'Hộp 40x80x2.0', 'Ống Ø27x1.4', 'Ống Ø34x1.4'
+    ];
+
+    let usersList = [];
+    let currentUser = null;
+    let savedProfiles = [];
+    let activeProject = null;
+    let lastSolveResult = null;
+
+    const $ = id => document.getElementById(id);
+
+    function showToast(msg) {
+      const t = $('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    function numVN(n, dec) {
+      if (n == null || isNaN(n)) return '0';
+      const num = Number(n);
+      if (dec !== undefined && dec !== null) return num.toLocaleString('vi-VN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+      return Number.isInteger(num) ? num.toLocaleString('vi-VN') : num.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+    }
+
+    function extractMatFromProfile(pName) {
+      if (!pName) return 30;
+      const m = pName.match(/(?:Hộp|Ống|V|U)?\s*(\d+)(?:x|X|\*)(\d+)/);
+      if (m) return Math.max(parseInt(m[1]), parseInt(m[2]));
+      const mR = pName.match(/(?:Ø|D|Phi)\s*(\d+)/i);
+      if (mR) return parseInt(mR[1]);
+      return 30;
+    }
+
+    function classifyProfile(pName) {
+      if (/ống|phi|ø/i.test(pName)) return { label: 'Ống tròn', cls: 'pill-blue' };
+      const m = pName.match(/(\d+)\s*[xX\*×]\s*(\d+)/);
+      if (m) {
+        return parseInt(m[1]) === parseInt(m[2])
+          ? { label: 'Hộp vuông', cls: 'pill-teal' }
+          : { label: 'Hộp chữ nhật', cls: 'pill-orange' };
+      }
+      return { label: 'Khác', cls: 'pill-slate' };
+    }
+
+    function loadUsers() {
+      try {
+        const raw = localStorage.getItem(LS_USERS);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length) usersList = parsed;
+        }
+      } catch (e) {}
+      if (!usersList.length) usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
+    }
+
+    function checkAuth() {
+      loadUsers();
+      let sess = null;
+      try {
+        const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
+        if (raw) sess = JSON.parse(raw);
+      } catch (e) {}
+
+      if (sess && sess.username) {
+        const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
+        if (found) {
+          currentUser = found;
+          const isOp = found.role === 'operator';
+          const isSuperAdmin = found.username.toLowerCase() === 'admin';
+          document.body.classList.toggle('role-operator', isOp);
+          $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+          $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
+          $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+          $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
+          $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
+          if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+          $('loginGateWrap').style.display = 'none';
+          $('mainContent').style.display = 'block';
+          loadInventoryData();
+          return;
+        }
+      }
+      currentUser = null;
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+      $('loginGateWrap').style.display = 'block';
+      $('mainContent').style.display = 'none';
+    }
+
+    function handleLogin() {
+      loadUsers();
+      const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
+      const p = ($('inpLoginPass').value || '').trim();
+      const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
+      if (!found) {
+        $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!';
+        $('loginErr').style.display = 'block';
+        return;
+      }
+      $('loginErr').style.display = 'none';
+      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+      sessionStorage.setItem(LS_SESSION, sessData);
+      localStorage.setItem(LS_SESSION, sessData);
+      $('inpLoginPass').value = '';
+      checkAuth();
+    }
+
+    function loadInventoryData() {
+      try {
+        const sp = localStorage.getItem(LS_SAVED_PROFILES);
+        savedProfiles = sp ? JSON.parse(sp) : DEFAULT_PROFILES.slice();
+      } catch (e) { savedProfiles = DEFAULT_PROFILES.slice(); }
+      if (!Array.isArray(savedProfiles) || !savedProfiles.length) savedProfiles = DEFAULT_PROFILES.slice();
+
+      try {
+        const ap = localStorage.getItem(LS_ACTIVE_PROJECT);
+        activeProject = ap ? JSON.parse(ap) : null;
+      } catch (e) { activeProject = null; }
+
+      if (!activeProject) {
+        activeProject = {
+          activeProfiles: ['Hộp 30x30x1.8'],
+          selectedTabProfile: 'Hộp 30x30x1.8',
+          parts: [],
+          stock: [{ id: 's_def_' + Date.now(), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
+          method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
+        };
+      }
+      if (!Array.isArray(activeProject.stock)) activeProject.stock = [];
+      if (!Array.isArray(activeProject.parts)) activeProject.parts = [];
+      if (!Array.isArray(activeProject.activeProfiles)) activeProject.activeProfiles = ['Hộp 30x30x1.8'];
+
+      $('activeProjTitle').textContent = activeProject.currentProjectName || 'Dự án hiện hành (Nháp)';
+      renderAll();
+      initRealtime();
+    }
+
+    function saveProfilesAndSync() {
+      localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(savedProfiles));
+      try {
+        fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'profiles', savedProfiles })
+        }).catch(() => {});
+      } catch (e) {}
+      try {
+        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', {
+          method: 'PUT',
+          headers: { 'Filename': 'workshop_db.json' },
+          body: JSON.stringify({ action: 'profiles', savedProfiles })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    function saveActiveProjectAndSync() {
+      localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(activeProject));
+      let allProjs = [];
+      if (activeProject.currentProjectId) {
+        try {
+          allProjs = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]');
+          const idx = allProjs.findIndex(p => p.id === activeProject.currentProjectId);
+          if (idx >= 0) {
+            allProjs[idx].updatedAt = new Date().toISOString();
+            allProjs[idx].data = Object.assign(allProjs[idx].data || {}, {
+              activeProfiles: activeProject.activeProfiles,
+              stock: activeProject.stock
+            });
+            localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(allProjs));
+          }
+        } catch (e) {}
+      }
+      if (allProjs.length) {
+        try {
+          fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'save_project', savedProjects: allProjs })
+          }).catch(() => {});
+        } catch (e) {}
+      }
+    }
+
+    function initRealtime() {
+      try {
+        const es = new EventSource('/api/events');
+        es.onmessage = e => {
+          try {
+            const d = JSON.parse(e.data);
+            if (d.type === 'state_updated' && d.db && Array.isArray(d.db.savedProfiles)) {
+              const profSet = new Set(savedProfiles);
+              let changed = false;
+              d.db.savedProfiles.forEach(p => {
+                if (p && !profSet.has(p)) { profSet.add(p); changed = true; }
+              });
+              if (changed) {
+                savedProfiles = Array.from(profSet);
+                localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(savedProfiles));
+                renderAll();
+                showToast('🔔 Đã cập nhật quy cách mới từ thiết bị khác!');
+              }
+            }
+          } catch (err) {}
+        };
+      } catch (e) {}
+    }
+
+    function solveBOM() {
+      lastSolveResult = null;
+      const validParts = (activeProject.parts || []).filter(p => Number(p.length) > 0 && Number(p.qty) > 0);
+      if (!validParts.length || typeof RC === 'undefined') return null;
+
+      const kerf = Number(activeProject.kerf) || 0;
+      const clampTail = activeProject.clamp != null ? Number(activeProject.clamp) : 80;
+      const interlock = activeProject.interlock != null ? !!activeProject.interlock : true;
+      const gap = Number(activeProject.gap) || 0;
+
+      const partProfiles = new Set(validParts.map(p => p.profile || 'Chung'));
+      const stockForEngine = activeProject.stock.filter(s => Number(s.length) > 0).map((s, idx) => ({
+        label: s.name || (s.qty === null ? `Cây mới ${numVN(s.length)}` : `Cây tồn ${numVN(s.length)}`),
+        length: Number(s.length),
+        clampTail,
+        qty: (s.qty === '' || s.qty == null) ? null : Number(s.qty),
+        priority: idx,
+        profile: s.profile || 'Chung'
+      }));
+      partProfiles.forEach(prof => {
+        if (!stockForEngine.some(s => s.profile === prof)) {
+          stockForEngine.push({ label: `Cây mới 6m (${prof})`, length: 6000, clampTail, qty: null, priority: 99, profile: prof });
+        }
+      });
+
+      try {
+        lastSolveResult = RC.solve({
+          kerf, interlock, gap,
+          stock: stockForEngine,
+          parts: validParts.map(p => ({
+            label: p.id,
+            length: Number(p.length),
+            qty: Number(p.qty),
+            end_style: p.style || 'thang',
+            mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? Number(p.mat) : extractMatFromProfile(p.profile)),
+            profile: p.profile || 'Chung'
+          }))
+        });
+      } catch (e) {
+        console.warn('Solve error:', e);
+      }
+      return lastSolveResult;
+    }
+
+    function renderAll() {
+      const res = solveBOM();
+      $('kpiTotalProfiles').textContent = savedProfiles.length;
+      $('kpiProjProfiles').textContent = (activeProject.activeProfiles || []).length;
+      $('kpiNewBarsNeeded').textContent = res ? numVN(res.totalNewBars) : '0';
+      const existingCount = (activeProject.stock || []).filter(s => s.qty != null && s.qty !== '').reduce((a, b) => a + (Number(b.qty) || 0), 0);
+      $('kpiExistingStockCount').textContent = numVN(existingCount);
+
+      renderProfilesTable();
+      renderStockSelectAndTable();
+      renderBOM(res);
+    }
+
+    function renderProfilesTable() {
+      const q = ($('inpSearchProf').value || '').trim().toLowerCase();
+      const tbody = $('profilesTableBody');
+      const filtered = savedProfiles.filter(p => !q || p.toLowerCase().includes(q));
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:#64748B;">Không tìm thấy quy cách phù hợp.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(pName => {
+        const cls = classifyProfile(pName);
+        const matW = extractMatFromProfile(pName);
+        const pcsCount = (activeProject.parts || []).filter(pt => pt.profile === pName).reduce((a, b) => a + (Number(b.qty) || 0), 0);
+        const inProj = (activeProject.activeProfiles || []).includes(pName);
+
+        return `
+          <tr>
+            <td><strong style="color:var(--dark);">${escapeHtml(pName)}</strong> ${inProj ? '<span class="pill pill-teal" style="margin-left:6px;">Đang trong dự án</span>' : ''}</td>
+            <td><span class="pill ${cls.cls}">${cls.label}</span></td>
+            <td class="r" style="font-weight:700;">${matW} mm</td>
+            <td class="r">${pcsCount > 0 ? `<b>${numVN(pcsCount)}</b> chi tiết` : '<span style="color:#94A3B8;">0</span>'}</td>
+            <td class="r" style="white-space:nowrap;">
+              <button type="button" class="btn btn-sm btn-p btn-use-prof eng-only" data-prof="${escapeHtml(pName)}">+ Đưa vào dự án</button>
+              <button type="button" class="btn btn-sm btn-danger btn-del-prof eng-only" data-prof="${escapeHtml(pName)}" style="margin-left:4px;">✕ Xóa</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('.btn-use-prof').forEach(b => b.onclick = () => {
+        const prof = b.dataset.prof;
+        if (!activeProject.activeProfiles.includes(prof)) activeProject.activeProfiles.push(prof);
+        if (!activeProject.stock.some(s => s.profile === prof)) {
+          activeProject.stock.push({ id: 's_auto_' + Date.now(), profile: prof, name: `Cây mới 6.000 (${prof})`, length: 6000, qty: null, clamp: activeProject.clamp || 80 });
+        }
+        activeProject.selectedTabProfile = prof;
+        saveActiveProjectAndSync();
+        renderAll();
+        showToast(`✓ Đã đưa "${prof}" vào dự án hiện hành!`);
+      });
+
+      tbody.querySelectorAll('.btn-del-prof').forEach(b => b.onclick = () => {
+        const prof = b.dataset.prof;
+        if (!confirm(`Xóa quy cách "${prof}" khỏi bộ nhớ thư viện xưởng?`)) return;
+        savedProfiles = savedProfiles.filter(x => x !== prof);
+        saveProfilesAndSync();
+        renderAll();
+        showToast(`🗑️ Đã xóa "${prof}" khỏi thư viện`);
+      });
+    }
+
+    function renderStockSelectAndTable() {
+      const sel = $('selNewStockProf');
+      const allProfs = Array.from(new Set([...(activeProject.activeProfiles || []), ...savedProfiles]));
+      sel.innerHTML = allProfs.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+
+      const tbody = $('stockTableBody');
+      if (!activeProject.stock.length) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:#64748B;">Chưa có cây phôi nào được khai báo.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = activeProject.stock.map(st => `
+        <tr>
+          <td><span class="pill pill-teal">${escapeHtml(st.profile || 'Chung')}</span></td>
+          <td><input type="text" class="stock-inp" data-id="${st.id}" data-f="name" value="${escapeHtml(st.name || '')}" style="min-height:34px; font-size:13px;"></td>
+          <td class="r"><input type="number" class="stock-inp" data-id="${st.id}" data-f="length" value="${st.length || 6000}" style="min-height:34px; width:100px; text-align:right; font-size:13px;"></td>
+          <td class="r"><input type="number" class="stock-inp" data-id="${st.id}" data-f="qty" value="${st.qty != null ? st.qty : ''}" placeholder="Không giới hạn" style="min-height:34px; width:130px; text-align:right; font-size:13px;"></td>
+          <td class="r eng-only">
+            <button type="button" class="btn btn-sm btn-danger btn-del-stock" data-id="${st.id}">✕</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.stock-inp').forEach(inp => {
+        inp.onchange = () => {
+          const id = inp.dataset.id;
+          const field = inp.dataset.f;
+          const item = activeProject.stock.find(s => s.id === id);
+          if (!item) return;
+          if (field === 'name') item.name = inp.value;
+          else if (field === 'length') item.length = parseFloat(inp.value) || 6000;
+          else if (field === 'qty') item.qty = inp.value.trim() === '' ? null : Math.max(0, parseInt(inp.value) || 0);
+          saveActiveProjectAndSync();
+          renderAll();
+        };
+      });
+
+      tbody.querySelectorAll('.btn-del-stock').forEach(b => b.onclick = () => {
+        activeProject.stock = activeProject.stock.filter(s => s.id !== b.dataset.id);
+        saveActiveProjectAndSync();
+        renderAll();
+        showToast('🗑️ Đã xóa cây phôi');
+      });
+    }
+
+    function renderBOM(res) {
+      const container = $('bomContainer');
+      if (!res || !res.byStockType || !res.byStockType.some(s => s.usedQty > 0)) {
+        container.innerHTML = `<div style="padding:26px; text-align:center; color:#64748B; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:10px;">Chưa có chi tiết cắt trong dự án hiện tại. Hãy nhập chi tiết ở trang <b>Bàn Xếp Phôi</b> để tự động tính bảng vật tư cần đặt!</div>`;
+        return;
+      }
+
+      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
+      let html = `<div class="table-responsive"><table class="inv-table"><thead><tr>
+        <th>Loại hộp / Quy cách</th><th>Cây vật tư</th><th class="r">Dài (mm)</th><th class="r">Đang có</th><th class="r">Cần dùng</th><th class="r">Đặt hàng / Lấy kho</th>
+      </tr></thead><tbody>`;
+
+      profiles.forEach(prof => {
+        const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === prof && s.usedQty > 0);
+        stocks.forEach((st, idx) => {
+          const isNew = st.availableQty === null;
+          const status = isNew
+            ? `<span style="color:var(--cta); font-weight:700;">Mua mới ${st.usedQty} cây</span>`
+            : `<span style="color:var(--p); font-weight:700;">Lấy tồn ${st.usedQty} cây</span>`;
+          html += `<tr>
+            ${idx === 0 ? `<td rowspan="${stocks.length}" style="font-weight:800; color:var(--dark); background:#F8FAFC; vertical-align:top;">${escapeHtml(prof)}</td>` : ''}
+            <td><b>${escapeHtml(st.label)}</b></td>
+            <td class="r">${numVN(st.length)}</td>
+            <td class="r">${isNew ? 'Không giới hạn' : numVN(st.availableQty)}</td>
+            <td class="r"><b>${numVN(st.usedQty)}</b></td>
+            <td class="r">${status}</td>
+          </tr>`;
+        });
+      });
+
+      const u = res.usageStats;
+      const eff = u.totalNominalLength > 0 ? (u.totalCutLength / u.totalNominalLength * 100) : 0;
+      html += `</tbody></table></div>
+        <div style="margin-top:12px; font-size:13.5px; color:var(--mut); line-height:1.6;">
+          Tổng mét cắt: <b>${numVN(u.totalCutLength / 1000, 2)} m</b> ·
+          Hao mạch: <b>${numVN(u.totalKerfLength / 1000, 2)} m</b> ·
+          Kẹp đuôi: <b>${numVN(u.totalClampTailLength / 1000, 2)} m</b> ·
+          Phôi dư: <b>${numVN(u.totalWasteLength / 1000, 2)} m</b> ·
+          Hiệu suất: <b style="color:var(--p);">${numVN(eff, 1)}%</b>
+        </div>`;
+      container.innerHTML = html;
+    }
+
+    function copyBomZalo() {
+      if (!lastSolveResult) { showToast('Chưa có bảng vật tư để chép!'); return; }
+      const res = lastSolveResult;
+      const lines = [`📦 BẢNG VẬT TƯ XƯỞNG AN BÌNH · ${activeProject.currentProjectName || 'Dự án hiện hành'} (${new Date().toLocaleDateString('vi-VN')})`, `Tổng cộng: ${res.bars.length} cây (Mua mới: ${res.totalNewBars}, Tồn kho: ${res.totalExistingUsed})`, ''];
+      (res.summaryByProfile || []).forEach(sp => {
+        const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === sp.profile && s.usedQty > 0);
+        if (stocks.length) {
+          lines.push(`▶ ${sp.profile}:`);
+          stocks.forEach(s => lines.push(`  - ${s.label} (${numVN(s.length)} mm): ${s.availableQty === null ? `MUA MỚI ${s.usedQty} cây` : `Lấy tồn ${s.usedQty}/${s.availableQty} cây`}`));
+        }
+      });
+      const text = lines.join('\n');
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast('✓ Đã chép bảng vật tư! Dán vào Zalo ngay.'));
+      else showToast('Đã chuẩn bị nội dung BOM');
+    }
+
+    function exportBomCsv() {
+      if (!lastSolveResult) { showToast('Chưa có dữ liệu BOM để xuất CSV!'); return; }
+      const rows = [['Loại hộp', 'Cây vật tư', 'Chiều dài (mm)', 'Số lượng có sẵn', 'Cần dùng', 'Ghi chú']];
+      lastSolveResult.byStockType.filter(s => s.usedQty > 0).forEach(s => {
+        rows.push([s.profile || 'Chung', s.label, s.length, s.availableQty === null ? 'Vô hạn' : s.availableQty, s.usedQty, s.availableQty === null ? 'Mua mới' : 'Lấy tồn kho']);
+      });
+      const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `vat_tu_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+      showToast('📊 Đã xuất file Excel CSV bảng vật tư!');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('btnSubmitLogin').onclick = handleLogin;
+      $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+      $('btnLogout').onclick = () => { sessionStorage.removeItem(LS_SESSION); localStorage.removeItem(LS_SESSION); checkAuth(); };
+
+      $('inpSearchProf').oninput = renderProfilesTable;
+      $('btnAddProfToLib').onclick = () => {
+        const val = ($('inpNewProfName').value || '').trim();
+        if (!val) return;
+        if (!savedProfiles.includes(val)) {
+          savedProfiles.push(val);
+          saveProfilesAndSync();
+          $('inpNewProfName').value = '';
+          renderAll();
+          showToast(`✓ Đã lưu "${val}" vào bộ nhớ xưởng!`);
+        } else {
+          showToast(`Quy cách "${val}" đã có sẵn trong bộ nhớ!`);
+        }
+      };
+
+      $('btnResetDefaultProfs').onclick = () => {
+        if (!confirm('Khôi phục danh sách quy cách mặc định ban đầu (vẫn giữ thêm nếu bạn gõ mới)?')) return;
+        DEFAULT_PROFILES.forEach(p => { if (!savedProfiles.includes(p)) savedProfiles.push(p); });
+        saveProfilesAndSync();
+        renderAll();
+        showToast('🔄 Đã khôi phục danh sách quy cách mặc định!');
+      };
+
+      $('btnAddStockBar').onclick = () => {
+        const prof = $('selNewStockProf').value || 'Hộp 30x30x1.8';
+        const name = ($('inpNewStockName').value || '').trim() || `Cây tồn (${prof})`;
+        const len = parseFloat($('inpNewStockLen').value) || 6000;
+        const qtyRaw = ($('inpNewStockQty').value || '').trim();
+        const qty = qtyRaw === '' ? null : Math.max(1, parseInt(qtyRaw) || 1);
+        activeProject.stock.push({ id: 's_inv_' + Date.now(), profile: prof, name, length: len, qty, clamp: activeProject.clamp || 80 });
+        if (!activeProject.activeProfiles.includes(prof)) activeProject.activeProfiles.push(prof);
+        $('inpNewStockName').value = '';
+        saveActiveProjectAndSync();
+        renderAll();
+        showToast(`✓ Đã thêm cây phôi "${name}" (${numVN(len)} mm)!`);
+      };
+
+      $('btnCopyBomZalo').onclick = copyBomZalo;
+      $('btnExportBomCsv').onclick = exportBomCsv;
+
+      checkAuth();
+    });
+  </script>
+</body>
+</html>

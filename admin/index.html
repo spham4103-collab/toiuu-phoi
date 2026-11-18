@@ -1,1151 +1,2355 @@
 <!doctype html>
+
 <html lang="vi">
+
 <head>
+
   <meta charset="utf-8">
+
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <title>Quản Trị Hệ Thống &amp; Nhân Sự Xưởng · An Bình</title>
+
   <meta name="description" content="Trang quản trị hệ thống, danh sách tài khoản nhân sự xưởng, phân quyền kỹ sư và thợ máy CNC, sao lưu dữ liệu xưởng cơ khí An Bình.">
+
   <link rel="manifest" href="manifest.json">
+
   <meta name="theme-color" content="#0F766E">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
+
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <style>
+
     :root {
+
       --bg: #FFFFFF;
+
       --tint: #F0FDFA;
+
       --mu: #EEF4F6;
+
       --ink: #134E4A;
+
       --mut: #475569;
+
       --edge: #D5E9E5;
+
       --w: #FFFFFF;
+
       --p: #0F766E;
+
       --p-h: #0D635D;
+
       --p3: #CCFBF1;
+
       --cta: #C2410C;
+
       --cta-h: #9A3412;
+
       --dark: #0B3B38;
+
       --bad: #B4232C;
+
       --bad2: #FBE3E3;
+
       --ok: #1D7A46;
+
       --ok2: #DCFCE7;
+
       --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
       --r: 14px;
+
       --gut: 28px;
+
       --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+
     }
+
     * { box-sizing: border-box; }
+
     body {
+
       margin: 0;
+
       background: #F8FAFC;
+
       color: #1E293B;
+
       font: 400 15px/1.55 var(--font);
+
       -webkit-font-smoothing: antialiased;
+
       min-height: 100vh;
+
       display: flex;
+
       flex-direction: column;
+
     }
+
     a { color: var(--p); text-decoration: none; }
+
     h1, h2, h3, h4 { margin: 0; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
+
     h1 { font-size: clamp(20px, 2.8vw, 26px); }
+
     h2 { font-size: 18px; }
+
     h3 { font-size: 15px; }
+
+
 
     .wrap { max-width: 1260px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
 
+
+
     /* Top Nav */
+
     .top {
+
       position: sticky;
+
       top: 0;
+
       z-index: 50;
+
       background: rgba(255, 255, 255, 0.98);
+
       backdrop-filter: blur(8px);
+
       border-bottom: 1.5px solid var(--edge);
+
       box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+
     }
+
     .top .wrap {
+
       display: flex;
+
       align-items: center;
+
       justify-content: space-between;
+
       min-height: 58px;
+
       height: auto;
+
       padding-top: 8px;
+
       padding-bottom: 8px;
+
       flex-wrap: wrap;
+
       gap: 10px 16px;
+
     }
+
     .brand {
+
       display: flex;
+
       align-items: center;
+
       gap: 10px;
+
       color: var(--dark);
+
       text-decoration: none;
+
       flex-shrink: 0;
+
       white-space: nowrap;
+
     }
+
     .brand-logo-img {
+
       height: 40px;
+
       max-width: 130px;
+
       object-fit: contain;
+
       border-radius: 4px;
+
       flex-shrink: 0;
+
     }
+
     .brand-divider {
+
       width: 1.5px;
+
       height: 26px;
+
       background: var(--edge);
+
       margin: 0 2px;
+
       flex-shrink: 0;
+
     }
+
     .brand-text-col {
+
       display: flex;
+
       flex-direction: column;
+
       justify-content: center;
+
       white-space: nowrap;
+
     }
+
     .brand-main-title {
+
       font-weight: 800;
+
       font-size: 15.5px;
+
       color: var(--dark);
+
       line-height: 1.15;
+
     }
+
     .brand-sub-title {
+
       font-weight: 600;
+
       color: var(--p);
+
       font-size: 11.5px;
+
       line-height: 1.15;
+
       margin-top: 2px;
+
     }
+
     .top-actions {
+
       display: flex;
+
       align-items: center;
+
       justify-content: flex-end;
+
       gap: 6px;
+
       flex-wrap: wrap;
+
       flex: 1 1 auto;
+
     }
+
+
 
     /* Subnav Bar */
+
     .subnav-bar { background: #F8FAFC; border-top: 1px solid var(--edge); }
+
     .subnav-inner {
+
       max-width: 1260px;
+
       margin: 0 auto;
+
       padding: 6px var(--gut);
+
       display: flex;
+
       align-items: center;
+
       gap: 6px;
+
       overflow-x: auto;
+
       -webkit-overflow-scrolling: touch;
+
       scrollbar-width: none;
+
     }
+
     .subnav-inner::-webkit-scrollbar { display: none; }
+
     .subnav-link {
+
       display: inline-flex;
+
       align-items: center;
+
       gap: 6px;
+
       padding: 6px 13px;
+
       border-radius: 999px;
+
       font-size: 12.5px;
+
       font-weight: 700;
+
       color: var(--mut);
+
       background: #FFFFFF;
+
       border: 1px solid #E2E8F0;
+
       text-decoration: none;
+
       white-space: nowrap;
+
       flex-shrink: 0;
+
       transition: all 0.15s ease;
+
     }
+
     .subnav-link:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+
     .subnav-link.active { background: var(--dark); color: #FFFFFF; border-color: var(--dark); box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22); }
+
     .subnav-link.subnav-admin { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+
     .subnav-link.subnav-admin.active { background: #0F766E; color: #FFFFFF; border-color: #0F766E; }
 
+
+
     /* Buttons */
+
     .btn {
+
       display: inline-flex;
+
       align-items: center;
+
       justify-content: center;
+
       gap: 6px;
+
       min-height: 38px;
+
       padding: 7px 15px;
+
       border-radius: 8px;
+
       border: 1px solid transparent;
+
       font: 700 13px/1.2 var(--font);
+
       cursor: pointer;
+
       white-space: nowrap;
+
       transition: all 0.15s ease;
+
       text-decoration: none;
+
     }
+
     .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.2; flex: none; }
+
     .btn-p { background: var(--p); color: #fff; }
+
     .btn-p:hover { background: var(--p-h); box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25); }
+
     .btn-cta { background: var(--cta); color: #fff; }
+
     .btn-cta:hover { background: var(--cta-h); box-shadow: 0 4px 12px rgba(194, 65, 12, 0.25); }
+
     .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
+
     .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+
     .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+
     .btn-danger:hover { background: #FEE2E2; }
+
     .btn-sm { min-height: 32px; padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 
+
+
     /* Cards */
+
     .card {
+
       background: #fff;
+
       border: 1px solid #E2E8F0;
+
       border-radius: var(--r);
+
       padding: 22px;
+
       box-shadow: var(--sh);
+
       margin-bottom: 20px;
+
     }
+
     .card-title-row {
+
       display: flex;
+
       align-items: center;
+
       justify-content: space-between;
+
       gap: 12px;
+
       margin-bottom: 6px;
+
       flex-wrap: wrap;
+
     }
+
     .card-sub { font-size: 13px; color: var(--mut); margin-bottom: 16px; }
 
+
+
     /* Inputs */
+
     input[type=text], input[type=password], select, textarea {
+
       width: 100%;
+
       min-height: 38px;
+
       padding: 7px 12px;
+
       border-radius: 8px;
+
       border: 1.5px solid #CBD5E1;
+
       font: 500 14px var(--font);
+
       color: #0F172A;
+
       background: #fff;
+
       transition: all 0.15s ease;
+
     }
+
     input:focus, select:focus, textarea:focus {
+
       outline: none;
+
       border-color: var(--p);
+
       box-shadow: 0 0 0 3px var(--p3);
+
     }
+
     label {
+
       font-size: 12px;
+
       font-weight: 700;
+
       color: #475569;
+
       display: block;
+
       margin-bottom: 4px;
+
     }
+
+
 
     /* KPI Cards */
+
     .kpi-cards {
+
       display: grid;
+
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+
       gap: 14px;
+
       margin: 20px 0 24px;
+
     }
+
     .kpi-card {
+
       background: #fff;
+
       border: 1.5px solid #E2E8F0;
+
       border-radius: var(--r);
+
       padding: 16px 18px;
+
       display: flex;
+
       align-items: center;
+
       gap: 14px;
+
       box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+
       transition: all 0.2s;
+
     }
+
     .kpi-card:hover { transform: translateY(-2px); border-color: var(--p); }
+
     .kpi-icon {
+
       width: 46px;
+
       height: 46px;
+
       border-radius: 12px;
+
       display: flex;
+
       align-items: center;
+
       justify-content: center;
+
       font-size: 22px;
+
       background: #F0FDFA;
+
       color: var(--p);
+
       flex-shrink: 0;
+
     }
+
     .kpi-val {
+
       font-size: 24px;
+
       font-weight: 800;
+
       line-height: 1.1;
+
       color: #0F172A;
+
     }
+
     .kpi-label {
+
       font-size: 12px;
+
       font-weight: 600;
+
       color: var(--mut);
+
       margin-top: 3px;
+
     }
+
+
 
     /* Table */
+
     .table-responsive {
+
       width: 100%;
+
       overflow-x: auto;
+
       -webkit-overflow-scrolling: touch;
+
       border: 1px solid #E2E8F0;
+
       border-radius: 10px;
+
     }
+
     .admin-table {
+
       width: 100%;
+
       border-collapse: collapse;
+
       font-size: 13.5px;
+
       min-width: 680px;
+
     }
+
     .admin-table th {
+
       background: #F8FAFC;
+
       color: #475569;
+
       font-weight: 700;
+
       text-align: left;
+
       padding: 10px 14px;
+
       border-bottom: 1.5px solid #E2E8F0;
+
     }
+
     .admin-table td {
+
       padding: 11px 14px;
+
       border-bottom: 1px solid #F1F5F9;
+
       vertical-align: middle;
+
     }
+
     .admin-table tr:last-child td { border-bottom: none; }
+
     .admin-table tr:hover { background: #F8FAFC; }
 
+
+
     /* Badge */
+
     .role-pill {
+
       display: inline-flex;
+
       align-items: center;
+
       gap: 4px;
+
       padding: 3px 10px;
+
       border-radius: 999px;
+
       font-size: 11.5px;
+
       font-weight: 800;
+
     }
+
     .role-eng { background: #CCFBF1; color: #0F766E; border: 1px solid #99F6E4; }
+
     .role-op { background: #FFEDD5; color: #C2410C; border: 1px solid #FED7AA; }
+
     .role-admin { background: #0F766E; color: #FFFFFF; }
 
+
+
     /* Toast */
+
     #toast {
+
       position: fixed;
+
       bottom: 24px;
+
       right: 24px;
+
       background: var(--dark);
+
       color: #fff;
+
       padding: 12px 22px;
+
       border-radius: 12px;
+
       font-weight: 600;
+
       font-size: 14px;
+
       box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+
       z-index: 1000;
+
       transition: all 0.25s ease;
+
       opacity: 0;
+
       transform: translateY(12px);
+
       pointer-events: none;
+
     }
+
     #toast.show { opacity: 1; transform: translateY(0); }
 
+
+
     /* Responsive */
+
     @media (min-width: 1441px) {
+
       .wrap, .subnav-inner { max-width: 1440px; }
+
     }
+
     @media (max-width: 768px) {
+
       :root { --gut: 10px; }
+
       .top .wrap {
+
         height: auto;
+
         min-height: 54px;
+
         padding: 6px 10px;
+
         flex-wrap: wrap;
+
         gap: 6px;
+
       }
+
       .brand-sub-title { display: none; }
+
       .top-actions {
+
         width: 100%;
+
         justify-content: flex-start;
+
         gap: 4px;
+
       }
+
       .subnav-inner { padding: 5px 10px; }
+
       .kpi-cards {
+
         grid-template-columns: repeat(2, 1fr);
+
         gap: 8px;
+
       }
+
       .card {
+
         padding: 16px 12px;
+
       }
+
       input[type=text], input[type=password], select {
+
         font-size: 16px !important; /* Prevent iOS Safari auto-zoom */
+
       }
+
     }
+
   </style>
+
 </head>
+
 <body>
 
+
+
   <!-- Top Header Navigation 2 Tầng -->
+
   <header class="top">
+
     <div class="wrap">
+
       <a class="brand" href="/index.html" title="Quay về Trang Chủ Xếp Phôi">
+
         <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+
         <div class="brand-divider"></div>
+
         <div class="brand-text-col">
+
           <div class="brand-main-title">QUẢN TRỊ HỆ THỐNG &amp; NHÂN SỰ</div>
+
           <div class="brand-sub-title">Cơ Khí An Bình · Trung Tâm Điều Hành</div>
+
         </div>
+
       </a>
+
       <div class="top-actions">
+
         <div id="topAdminBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px; background:#F0FDFA; color:#0F766E; border:1px solid #99F6E4; white-space:nowrap;">
+
           <span>👑 Admin:</span> <strong id="topAdminUser">@admin</strong>
+
         </div>
+
         <button class="btn btn-danger btn-sm" id="btnAdminLogout" title="Đăng xuất khỏi tài khoản Quản trị">
+
           🚪 Đăng xuất
+
         </button>
+
       </div>
+
     </div>
+
+
 
     <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+
       <div class="subnav-inner">
+
         <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
+
         <a href="/projects.html" class="subnav-link">📁 Quản Lý Dự Án</a>
+
         <a href="/inventory.html" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+
         <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+
         <a href="/admin.html" class="subnav-link subnav-admin active">⚙️ Quản Trị &amp; Nhân Sự</a>
+
       </div>
+
     </nav>
+
   </header>
 
+
+
   <!-- Màn hình Đăng Nhập Dành Riêng Cho Quản Trị Viên (Hiển thị khi chưa đăng nhập) -->
+
   <div id="adminLoginGate" style="display: none; padding: 40px 14px; margin: auto;">
+
     <div style="max-width: 420px; margin: 0 auto; background: #fff; border-radius: 18px; border: 1.5px solid #CBD5E1; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); padding: 28px 24px; text-align: center;">
+
       <div style="font-size: 40px; margin-bottom: 8px;">🔐</div>
+
       <h2 style="font-size: 20px; color: var(--dark); margin-bottom: 6px;">ĐĂNG NHẬP QUẢN TRỊ VIÊN</h2>
+
       <p style="font-size: 13px; color: var(--mut); margin-bottom: 20px;">Vui lòng nhập tài khoản và mật khẩu Quản Trị Viên (Admin) để mở khóa trung tâm quản trị nhân sự xưởng.</p>
+
       
+
       <div id="loginGateError" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; margin-bottom: 14px; text-align: left;"></div>
 
+
+
       <div style="text-align: left; margin-bottom: 12px;">
+
         <label for="inpAdminLoginUser">Tên tài khoản Admin *</label>
+
         <input type="text" id="inpAdminLoginUser" placeholder="Nhập tên tài khoản (vd: admin)..." value="admin">
+
       </div>
+
       <div style="text-align: left; margin-bottom: 18px;">
+
         <label for="inpAdminLoginPass">Mật khẩu Admin *</label>
+
         <input type="password" id="inpAdminLoginPass" placeholder="Nhập mật khẩu Admin...">
+
       </div>
+
       <button class="btn btn-p" id="btnSubmitAdminLogin" style="width: 100%; min-height: 44px; font-size: 15px; border-radius: 10px;">
+
         🚀 ĐĂNG NHẬP HỆ THỐNG
+
       </button>
+
       <div style="margin-top: 16px;">
+
         <a href="/" style="font-size: 13px; font-weight: 600; color: #64748B;">← Quay về trang ứng dụng xếp phôi</a>
+
       </div>
+
     </div>
+
   </div>
+
+
 
   <!-- Màn hình Báo Lỗi Quyền Truy Cập (Nếu người dùng đăng nhập tài khoản khác không phải admin) -->
+
   <div id="accessDeniedGate" style="display: none; padding: 40px 14px; margin: auto;">
+
     <div style="max-width: 500px; margin: 0 auto; background: #fff; border-radius: 18px; border: 2px solid #FCA5A5; box-shadow: 0 20px 40px -10px rgba(185, 28, 28, 0.12); padding: 32px 26px; text-align: center;">
+
       <div style="font-size: 48px; margin-bottom: 8px;">⛔</div>
+
       <h2 style="font-size: 21px; color: #B91C1C; margin-bottom: 8px;">TRUY CẬP BỊ TỪ CHỐI</h2>
+
       <p style="font-size: 14px; color: #475569; line-height: 1.6; margin-bottom: 18px;">
+
         Trang Quản Trị Hệ Thống này là <strong>khu vực tuyệt mật</strong> chỉ dành riêng cho tài khoản Quản trị viên (<strong>Admin</strong>).<br>
+
         Tài khoản hiện tại của bạn: <strong id="deniedUsername" style="color:#0F172A;"></strong> (<span id="deniedRoleName"></span>) không có quyền xem thông tin và mật khẩu nhân sự.
+
       </p>
+
       <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+
         <a href="/" class="btn btn-p">
+
           ← Quay về Trang Xếp Phôi
+
         </a>
+
         <button class="btn btn-danger" id="btnDeniedLogout">
+
           Đăng xuất tài khoản này
+
         </button>
+
       </div>
+
     </div>
+
   </div>
 
+
+
   <!-- Nội Dung Chính Bảng Quản Trị (Hiển thị khi Admin đã đăng nhập thành công) -->
+
   <main class="wrap" id="adminMainContent" style="display: none; padding-top: 16px; padding-bottom: 60px;">
+
     
+
     <!-- Tiêu đề trang & lời chào -->
+
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
+
       <div>
+
         <h1 style="color:var(--dark);">Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng</h1>
+
         <p style="color:var(--mut); font-size:13.5px; margin-top:3px;">
+
           Độc quyền Quản Trị Viên: Phân quyền kỹ sư/thợ CNC, cấp tài khoản, đổi mật khẩu và sao lưu dữ liệu toàn xưởng.
+
         </p>
+
       </div>
+
       <div style="display:flex; gap:8px;">
+
         <button class="btn btn-soft btn-sm" id="btnBackupDataJson" title="Tải file backup .json về máy">
+
           💾 Sao Lưu Dữ Liệu Xưởng
+
         </button>
+
         <button class="btn btn-p btn-sm" id="btnScrollToAddUser">
+
           ➕ Cấp Tài Khoản Mới
+
         </button>
+
       </div>
+
     </div>
+
+
 
     <!-- 1. Thẻ Thống Kê Tổng Quan Xưởng -->
+
     <div class="kpi-cards">
+
       <div class="kpi-card">
+
         <div class="kpi-icon">👥</div>
+
         <div>
+
           <div class="kpi-val" id="kpiTotalUsers">3</div>
+
           <div class="kpi-label">Tổng nhân sự xưởng</div>
+
         </div>
+
       </div>
+
       <div class="kpi-card">
+
         <div class="kpi-icon" style="background:#F0FDF4; color:#15803D;">📐</div>
+
         <div>
+
           <div class="kpi-val" id="kpiTotalEngineers">2</div>
+
           <div class="kpi-label">Kỹ sư thiết kế (Toàn quyền)</div>
+
         </div>
+
       </div>
+
       <div class="kpi-card">
+
         <div class="kpi-icon" style="background:#FFF7ED; color:#C2410C;">👷</div>
+
         <div>
+
           <div class="kpi-val" id="kpiTotalOperators">1</div>
+
           <div class="kpi-label">Thợ vận hành máy CNC</div>
+
         </div>
+
       </div>
+
       <div class="kpi-card">
+
         <div class="kpi-icon" style="background:#EFF6FF; color:#2563EB;">☁️</div>
+
         <div>
+
           <div class="kpi-val" style="font-size:18px;" id="kpiWorkshopCode">ANBINH</div>
+
           <div class="kpi-label">Mã Xưởng Cloud Sync</div>
+
         </div>
+
       </div>
+
     </div>
+
+
 
     <!-- 2. Danh Sách Nhân Sự & Phân Quyền Chi Tiết -->
+
     <section class="card">
+
       <div class="card-title-row">
+
         <div>
+
           <h2>Danh Sách Nhân Sự &amp; Tài Khoản Xưởng</h2>
+
           <div class="card-sub" style="margin-bottom:0;">Chỉ duy nhất Quản trị viên mới xem được mật khẩu và quản lý danh sách này.</div>
+
         </div>
+
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+
           <input type="text" id="inpSearchUser" placeholder="🔍 Tìm theo tên hoặc @tài khoản..." style="max-width:240px; min-height:34px; font-size:13px;">
+
           <select id="selFilterRole" style="max-width:160px; min-height:34px; font-size:13px;">
+
             <option value="ALL">Tất cả vai trò</option>
+
             <option value="engineer">📐 Kỹ sư thiết kế</option>
+
             <option value="operator">👷 Thợ máy CNC</option>
+
           </select>
+
         </div>
+
       </div>
+
+
 
       <div class="table-responsive" style="margin-top:14px;">
+
         <table class="admin-table">
+
           <thead>
+
             <tr>
+
               <th style="width: 170px;">Tài khoản</th>
+
               <th>Họ và tên / Bộ phận</th>
+
               <th style="width: 170px;">Phân quyền</th>
+
               <th style="width: 160px;">Mật khẩu</th>
+
               <th style="width: 140px;">Ngày tạo</th>
+
               <th style="width: 180px; text-align:right;">Thao tác quản trị</th>
+
             </tr>
+
           </thead>
+
           <tbody id="adminUsersTableBody">
+
             <!-- Render động bằng JS -->
+
           </tbody>
+
         </table>
+
       </div>
+
     </section>
 
+
+
     <!-- Lưới 2 cột: Thêm tài khoản mới & Đổi mật khẩu Admin -->
+
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:20px;">
+
       
+
       <!-- 3. Form Cấp Tài Khoản Mới Cho Nhân Sự -->
+
       <section class="card" id="cardAddUser">
+
         <div class="card-title-row">
+
           <h2>➕ Cấp Tài Khoản Mới</h2>
+
         </div>
+
         <p class="card-sub">Tạo tài khoản đăng nhập cho Kỹ sư thiết kế hoặc Thợ phụ trách máy cắt Laser CNC.</p>
 
+
+
         <form id="formAddAccount" onsubmit="event.preventDefault(); handleAddNewUser();">
+
           <div style="margin-bottom:12px;">
+
             <label for="inpNewUsername">Tên đăng nhập mới * (viết liền không dấu)</label>
+
             <input type="text" id="inpNewUsername" placeholder="Ví dụ: tho_laser1, kts_an..." required autocomplete="off">
+
           </div>
+
           <div style="margin-bottom:12px;">
+
             <label for="inpNewPassword">Mật khẩu đăng nhập ban đầu *</label>
+
             <input type="text" id="inpNewPassword" placeholder="Nhập mật khẩu (tối thiểu 4 ký tự)..." required>
+
           </div>
+
           <div style="margin-bottom:12px;">
+
             <label for="inpNewFullName">Họ và tên / Vị trí hiển thị *</label>
+
             <input type="text" id="inpNewFullName" placeholder="Ví dụ: Nguyễn Văn Hưng (Tổ Cắt 1)..." required>
+
           </div>
+
           <div style="margin-bottom:16px;">
+
             <label for="selNewRole">Phân quyền trong xưởng *</label>
+
             <select id="selNewRole">
+
               <option value="operator">👷 Thợ Máy CNC (Khóa an toàn chống xóa, chỉ xem &amp; tích hoàn thành)</option>
+
               <option value="engineer">📐 Kỹ Sư Thiết Kế (Toàn quyền tính toán, lưu dự án, xuất file IGS)</option>
+
             </select>
+
           </div>
+
           <button type="submit" class="btn btn-p" style="width:100%; min-height:42px; font-size:14px;">
+
             ✨ CẤP TÀI KHOẢN NGAY
+
           </button>
+
         </form>
+
       </section>
 
+
+
       <!-- 4. Đổi Mật Khẩu Admin Của Tôi & Cài Đặt Hệ Thống -->
+
       <div>
+
         <!-- Đổi Mật Khẩu Admin -->
+
         <section class="card" style="margin-bottom:20px;">
+
           <div class="card-title-row">
+
             <h2>🔑 Đổi Mật Khẩu Admin</h2>
+
           </div>
+
           <p class="card-sub">Cập nhật mật khẩu quản trị viên tối cao (@admin) để bảo vệ an toàn toàn xưởng.</p>
+
           <div style="margin-bottom:12px;">
+
             <label for="inpSelfAdminPass">Mật khẩu Admin mới *</label>
+
             <input type="password" id="inpSelfAdminPass" placeholder="Nhập mật khẩu Admin mới (tối thiểu 4 ký tự)...">
+
           </div>
+
           <button type="button" class="btn btn-cta" id="btnSaveAdminPass" style="width:100%;">
+
             Lưu Mật Khẩu Admin Mới
+
           </button>
+
         </section>
+
+
 
         <!-- Sao Lưu & Khôi Phục Dữ Liệu Toàn Xưởng -->
+
         <section class="card">
+
           <div class="card-title-row">
+
             <h2>⚙️ Sao Lưu &amp; Khôi Phục Dữ Liệu</h2>
+
           </div>
+
           <p class="card-sub">Tải bản sao lưu toàn bộ nhân sự, dự án và quy cách hộp hoặc phục hồi khi đổi máy tính.</p>
 
+
+
           <div style="display:flex; flex-direction:column; gap:10px;">
+
             <button type="button" class="btn btn-soft" id="btnExportFullBackup">
+
               💾 Tải file sao lưu toàn xưởng (.JSON)
+
             </button>
+
             <label class="btn btn-soft" style="margin-bottom:0; cursor:pointer; text-align:center;">
+
               📥 Khôi phục từ file Backup (.JSON)
+
               <input type="file" id="inpRestoreBackupFile" accept=".json" style="display:none;">
+
             </label>
+
             <button type="button" class="btn btn-soft" id="btnResetDefaultAccounts" style="color:#B91C1C;">
+
               🔄 Khôi phục danh sách tài khoản mẫu ban đầu
+
             </button>
+
           </div>
+
         </section>
+
       </div>
 
+
+
     </div>
+
+
 
   </main>
 
+
+
   <div id="toast"></div>
 
+
+
   <script>
+
     // ========================================================
+
     // QUẢN TRỊ VIÊN HỆ THỐNG & NHÂN SỰ XƯỞNG AN BÌNH
+
     // ========================================================
+
     const USERS_STORAGE_KEY = 'toiuu_users_list_v1';
+
     const SESSION_STORAGE_KEY = 'toiuu_logged_user_v1';
 
+
+
     const DEFAULT_USERS = [
+
       {
+
         username: 'admin',
+
         password: '123456',
+
         fullName: 'Kỹ Sư Thiết Kế (Admin)',
+
         role: 'engineer',
+
         createdAt: '2026-01-01T00:00:00.000Z'
+
       },
+
       {
+
         username: 'kt1',
+
         password: '12345',
+
         fullName: 'Sơn KT (Kỹ Sư)',
+
         role: 'engineer',
+
         createdAt: '2026-01-01T00:00:00.000Z'
+
       },
+
       {
+
         username: 'thocnc',
+
         password: '1234',
+
         fullName: 'Thợ Vận Hành Máy CNC',
+
         role: 'operator',
+
         createdAt: '2026-01-01T00:00:00.000Z'
+
       }
+
     ];
 
+
+
     let usersList = [];
+
     let currentUser = null;
+
+
 
     function $(id) { return document.getElementById(id); }
 
+
+
     function showToast(msg) {
+
       const t = $('toast');
+
       if (!t) return;
+
       t.textContent = msg;
+
       t.classList.add('show');
+
       setTimeout(() => t.classList.remove('show'), 3200);
+
     }
+
+
 
     function escapeHtml(str) {
+
       return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+
     }
+
+
 
     function loadUsersFromStorage() {
+
       try {
+
         const raw = localStorage.getItem(USERS_STORAGE_KEY);
+
         if (raw) {
+
           const parsed = JSON.parse(raw);
+
           if (Array.isArray(parsed) && parsed.length) {
+
             usersList = parsed;
+
           }
+
         }
+
       } catch (e) {}
+
+
 
       if (!usersList.length) {
+
         usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
+
         saveUsersToStorage();
+
       }
+
     }
+
+
 
     function saveUsersToStorage() {
+
       try {
+
         localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
+
       } catch (e) {}
+
       // Sync lên server nếu server đang chạy
+
       try {
+
         fetch('/api/sync', {
+
           method: 'POST',
+
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ users: usersList })
+
+          body: JSON.stringify({ action: 'update_users', users: usersList })
+
         }).catch(() => {});
+
       } catch (e) {}
+
+      try {
+
+        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', {
+
+          method: 'PUT',
+
+          headers: { 'Filename': 'workshop_db.json' },
+
+          body: JSON.stringify({ action: 'update_users', users: usersList })
+
+        }).catch(() => {});
+
+      } catch (e) {}
+
     }
 
-    function checkAuthSession() {
-      loadUsersFromStorage();
 
-      let session = null;
+
+    function initRealtime() {
+
       try {
-        const raw = sessionStorage.getItem(SESSION_STORAGE_KEY) || localStorage.getItem(SESSION_STORAGE_KEY);
-        if (raw) session = JSON.parse(raw);
+
+        const es = new EventSource('/api/events');
+
+        es.onmessage = e => {
+
+          try {
+
+            const d = JSON.parse(e.data);
+
+            if (d.type === 'state_updated' && d.db && Array.isArray(d.db.users)) {
+
+              const uMap = new Map();
+
+              usersList.forEach(u => uMap.set(u.username.toLowerCase(), u));
+
+              d.db.users.forEach(ru => uMap.set(ru.username.toLowerCase(), ru));
+
+              usersList = Array.from(uMap.values());
+
+              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
+
+              renderUsersTable();
+
+            }
+
+          } catch (err) {}
+
+        };
+
       } catch (e) {}
 
+    }
+
+
+
+    function checkAuthSession() {
+
+      loadUsersFromStorage();
+      initRealtime();
+
+
+
+      let session = null;
+
+      try {
+
+        const raw = sessionStorage.getItem(SESSION_STORAGE_KEY) || localStorage.getItem(SESSION_STORAGE_KEY);
+
+        if (raw) session = JSON.parse(raw);
+
+      } catch (e) {}
+
+
+
       if (!session || !session.username) {
+
         // Chưa đăng nhập -> Hiện màn hình đăng nhập Admin
+
         $('adminLoginGate').style.display = 'block';
+
         $('accessDeniedGate').style.display = 'none';
+
         $('adminMainContent').style.display = 'none';
+
         $('topAdminBadge').style.display = 'none';
+
         $('btnAdminLogout').style.display = 'none';
+
         return;
+
       }
 
+
+
       const found = usersList.find(u => u.username.toLowerCase() === String(session.username).toLowerCase());
+
       if (!found) {
+
         $('adminLoginGate').style.display = 'block';
+
         $('accessDeniedGate').style.display = 'none';
+
         $('adminMainContent').style.display = 'none';
+
         return;
+
       }
+
+
 
       currentUser = found;
 
+
+
       // KIỂM TRA QUYỀN HẠN TỐI CAO: CHỈ TÀI KHOẢN ADMIN MỚI ĐƯỢC PHÉP TRUY CẬP TRANG NÀY!
+
       if (found.username.toLowerCase() !== 'admin') {
+
         $('adminLoginGate').style.display = 'none';
+
         $('accessDeniedGate').style.display = 'block';
+
         $('adminMainContent').style.display = 'none';
+
         $('deniedUsername').textContent = '@' + found.username;
+
         $('deniedRoleName').textContent = found.role === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Máy CNC';
+
         return;
+
       }
+
+
 
       // Đã đăng nhập đúng quyền Admin -> Hiển thị Bảng Quản Trị
+
       $('adminLoginGate').style.display = 'none';
+
       $('accessDeniedGate').style.display = 'none';
+
       $('adminMainContent').style.display = 'block';
+
       $('topAdminBadge').style.display = 'inline-flex';
+
       $('btnAdminLogout').style.display = 'inline-flex';
+
       $('topAdminUser').textContent = '@' + found.username;
 
+
+
       renderDashboard();
+
     }
+
+
 
     function handleAdminLogin() {
+
       const u = ($('inpAdminLoginUser').value || '').trim().toLowerCase();
+
       const p = ($('inpAdminLoginPass').value || '').trim();
+
       const err = $('loginGateError');
 
+
+
       if (!u || !p) {
+
         err.textContent = '⚠️ Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!';
+
         err.style.display = 'block';
+
         return;
+
       }
 
+
+
       loadUsersFromStorage();
+
       const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
+
       if (!adminAcc || u !== 'admin' || String(adminAcc.password).trim() !== p) {
+
         err.textContent = '❌ Mật khẩu hoặc tài khoản Admin không chính xác!';
+
         err.style.display = 'block';
+
         return;
+
       }
+
+
 
       err.style.display = 'none';
+
       currentUser = adminAcc;
+
       const sessData = JSON.stringify({ username: adminAcc.username, loginAt: new Date().toISOString() });
+
       try {
+
         sessionStorage.setItem(SESSION_STORAGE_KEY, sessData);
+
         localStorage.setItem(SESSION_STORAGE_KEY, sessData);
+
       } catch (e) {}
+
+
 
       $('inpAdminLoginPass').value = '';
+
       showToast('🎉 Đăng nhập Quản Trị Viên thành công!');
+
       checkAuthSession();
+
     }
+
+
 
     function handleAdminLogout() {
+
       currentUser = null;
+
       try {
+
         sessionStorage.removeItem(SESSION_STORAGE_KEY);
+
         localStorage.removeItem(SESSION_STORAGE_KEY);
+
       } catch (e) {}
+
       showToast('👋 Đã đăng xuất khỏi tài khoản Quản trị!');
+
       checkAuthSession();
+
     }
+
+
 
     function renderDashboard() {
+
       loadUsersFromStorage();
 
+
+
       // Cập nhật KPIs
+
       const total = usersList.length;
+
       const engineers = usersList.filter(u => u.role === 'engineer').length;
+
       const operators = usersList.filter(u => u.role === 'operator').length;
 
+
+
       $('kpiTotalUsers').textContent = total;
+
       $('kpiTotalEngineers').textContent = engineers;
+
       $('kpiTotalOperators').textContent = operators;
 
+
+
       let wsCode = 'ANBINH';
+
       try {
+
         const savedCode = localStorage.getItem('toiuu_cloud_workspace_id_v1') || localStorage.getItem('toiuu_cloud_sync_code');
+
         if (savedCode) wsCode = savedCode;
+
       } catch (e) {}
+
       $('kpiWorkshopCode').textContent = wsCode;
 
+
+
       renderUsersTable();
+
     }
 
+
+
     function renderUsersTable() {
+
       const tbody = $('adminUsersTableBody');
+
       if (!tbody) return;
 
+
+
       const search = ($('inpSearchUser').value || '').trim().toLowerCase();
+
       const roleFilter = $('selFilterRole').value;
 
+
+
       let filtered = usersList.filter(u => {
+
         if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
+
         if (search) {
+
           const uName = (u.username || '').toLowerCase();
+
           const fName = (u.fullName || '').toLowerCase();
+
           return uName.includes(search) || fName.includes(search);
+
         }
+
         return true;
+
       });
+
+
 
       if (!filtered.length) {
+
         tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748B;">Không tìm thấy nhân sự nào phù hợp với từ khóa tìm kiếm.</td></tr>`;
+
         return;
+
       }
 
+
+
       let html = '';
+
       filtered.forEach((u, idx) => {
+
         const isCurrentAdmin = u.username.toLowerCase() === 'admin';
+
         const isEng = u.role === 'engineer';
+
         const createdDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mặc định';
 
+
+
         html += `
+
           <tr>
+
             <td>
+
               <div style="display:flex; align-items:center; gap:8px;">
+
                 <span style="width:32px; height:32px; border-radius:50%; background:${isEng ? '#CCFBF1' : '#FFEDD5'}; color:${isEng ? '#0F766E' : '#C2410C'}; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800;">
+
                   ${isCurrentAdmin ? '👑' : (isEng ? '📐' : '👷')}
+
                 </span>
+
                 <div>
+
                   <strong style="font-family:monospace; font-size:14px; color:#0F172A;">@${escapeHtml(u.username)}</strong>
+
                   ${isCurrentAdmin ? '<span class="role-pill role-admin" style="font-size:10px; margin-left:4px;">Admin</span>' : ''}
+
                 </div>
+
               </div>
+
             </td>
+
             <td>
+
               <strong style="color:#1E293B;">${escapeHtml(u.fullName || u.username)}</strong>
+
             </td>
+
             <td>
+
               <span class="role-pill ${isEng ? 'role-eng' : 'role-op'}">
+
                 ${isEng ? '📐 Kỹ Sư Thiết Kế' : '👷 Thợ Máy CNC'}
+
               </span>
+
             </td>
+
             <td>
+
               <div style="display:flex; align-items:center; gap:6px; font-family:monospace;">
+
                 <span id="passMask_${idx}" style="letter-spacing:2px; font-weight:800; color:#64748B;">••••••••</span>
+
                 <span id="passPlain_${idx}" style="display:none; color:#0F766E; font-weight:700;">${escapeHtml(u.password)}</span>
+
                 <button type="button" class="btn-toggle-pass" data-idx="${idx}" style="background:none; border:none; cursor:pointer; font-size:14px; padding:2px;" title="Xem / Ẩn mật khẩu">👁️</button>
+
               </div>
+
             </td>
+
             <td style="color:#64748B; font-size:12.5px;">${createdDate}</td>
+
             <td style="text-align:right; white-space:nowrap;">
+
               <button type="button" class="btn btn-soft btn-sm btn-change-pass" data-user="${escapeHtml(u.username)}" title="Đổi mật khẩu cho tài khoản này">
+
                 🔑 Đổi MK
+
               </button>
+
               <button type="button" class="btn btn-soft btn-sm btn-toggle-role" data-user="${escapeHtml(u.username)}" title="Chuyển đổi vai trò Kỹ sư / Thợ CNC" style="margin-left:4px;">
+
                 ⇄ Đổi quyền
+
               </button>
+
               ${!isCurrentAdmin ? `
+
                 <button type="button" class="btn btn-danger btn-sm btn-del-user" data-user="${escapeHtml(u.username)}" title="Xóa tài khoản này" style="margin-left:4px;">
+
                   ✕ Xóa
+
                 </button>
+
               ` : ''}
+
             </td>
+
           </tr>
+
         `;
+
       });
+
+
 
       tbody.innerHTML = html;
 
+
+
       // Event: Xem / Ẩn mật khẩu
+
       tbody.querySelectorAll('.btn-toggle-pass').forEach(btn => {
+
         btn.onclick = () => {
+
           const idx = btn.getAttribute('data-idx');
+
           const mask = $('passMask_' + idx);
+
           const plain = $('passPlain_' + idx);
+
           if (mask && plain) {
+
             const isHidden = plain.style.display === 'none';
+
             plain.style.display = isHidden ? 'inline' : 'none';
+
             mask.style.display = isHidden ? 'none' : 'inline';
+
             btn.style.opacity = isHidden ? '1' : '0.65';
+
           }
+
         };
+
       });
+
+
 
       // Event: Đổi mật khẩu
+
       tbody.querySelectorAll('.btn-change-pass').forEach(btn => {
+
         btn.onclick = () => {
+
           const uname = btn.getAttribute('data-user');
+
           const target = usersList.find(x => x.username.toLowerCase() === uname.toLowerCase());
+
           if (!target) return;
+
           const newPass = prompt(`🔑 Nhập mật khẩu mới cho tài khoản @${target.username} (${target.fullName || ''}):`, '');
+
           if (newPass === null) return;
+
           const cleanPass = String(newPass || '').trim();
+
           if (!cleanPass || cleanPass.length < 4) {
+
             alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
+
             return;
+
           }
+
           target.password = cleanPass;
+
           target.updatedAt = new Date().toISOString();
+
           saveUsersToStorage();
+
           renderDashboard();
+
           showToast(`✓ Đã cập nhật mật khẩu cho @${target.username}!`);
+
         };
+
       });
+
+
 
       // Event: Chuyển đổi quyền
+
       tbody.querySelectorAll('.btn-toggle-role').forEach(btn => {
+
         btn.onclick = () => {
+
           const uname = btn.getAttribute('data-user');
+
           const target = usersList.find(x => x.username.toLowerCase() === uname.toLowerCase());
+
           if (!target) return;
+
           const newRole = target.role === 'engineer' ? 'operator' : 'engineer';
+
           const roleLabel = newRole === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Vận Hành CNC';
+
           if (!confirm(`Bạn có chắc chắn muốn đổi quyền của @${target.username} thành [${roleLabel}] không?`)) return;
+
           target.role = newRole;
+
           target.updatedAt = new Date().toISOString();
+
           saveUsersToStorage();
+
           renderDashboard();
+
           showToast(`✓ Đã đổi quyền của @${target.username} thành ${roleLabel}!`);
+
         };
+
       });
+
+
 
       // Event: Xóa tài khoản
+
       tbody.querySelectorAll('.btn-del-user').forEach(btn => {
+
         btn.onclick = () => {
+
           const uname = btn.getAttribute('data-user');
+
           if (uname.toLowerCase() === 'admin') {
+
             alert('🔒 Không thể xóa tài khoản Quản trị viên tối cao (Admin)!');
+
             return;
+
           }
+
           if (!confirm(`⚠️ CẢNH BÁO: Bạn có chắc chắn muốn XÓA vĩnh viễn tài khoản [@${uname}] khỏi xưởng không?`)) return;
+
           usersList = usersList.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
+
           saveUsersToStorage();
+
           renderDashboard();
+
           showToast(`🗑️ Đã xóa tài khoản @${uname} thành công!`);
+
         };
+
       });
+
     }
+
+
 
     function handleAddNewUser() {
+
       const u = ($('inpNewUsername').value || '').trim().toLowerCase().replace(/\s+/g, '');
+
       const p = ($('inpNewPassword').value || '').trim();
+
       const fn = ($('inpNewFullName').value || '').trim();
+
       const r = $('selNewRole').value;
 
+
+
       if (!u || u.length < 3) {
+
         alert('⚠️ Tên đăng nhập phải có ít nhất 3 ký tự (viết liền không dấu)!');
+
         return;
+
       }
+
       if (!p || p.length < 4) {
+
         alert('⚠️ Mật khẩu phải có ít nhất 4 ký tự!');
+
         return;
+
       }
+
       if (usersList.some(x => x.username.toLowerCase() === u)) {
+
         alert(`❌ Tài khoản [@${u}] đã tồn tại trong xưởng! Vui lòng chọn tên khác.`);
+
         return;
+
       }
+
+
 
       const newUser = {
+
         username: u,
+
         password: p,
+
         fullName: fn || (r === 'engineer' ? `Kỹ sư (${u})` : `Thợ CNC (${u})`),
+
         role: r,
+
         createdAt: new Date().toISOString()
+
       };
+
+
 
       usersList.push(newUser);
+
       saveUsersToStorage();
+
       renderDashboard();
+
+
 
       $('inpNewUsername').value = '';
+
       $('inpNewPassword').value = '';
+
       $('inpNewFullName').value = '';
 
+
+
       showToast(`🎉 Đã cấp tài khoản [@${u}] (${r === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
+
     }
+
+
 
     function handleSaveAdminPass() {
+
       const newPass = ($('inpSelfAdminPass').value || '').trim();
+
       if (!newPass || newPass.length < 4) {
+
         alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
+
         return;
+
       }
+
       const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
+
       if (adminAcc) {
+
         adminAcc.password = newPass;
+
         adminAcc.updatedAt = new Date().toISOString();
+
         saveUsersToStorage();
+
         renderDashboard();
+
         $('inpSelfAdminPass').value = '';
+
         showToast('🔑 Đã cập nhật mật khẩu Admin mới thành công!');
+
       }
+
     }
+
+
 
     function handleBackupDataJson() {
+
       loadUsersFromStorage();
+
       let projects = [];
+
       try {
+
         const rawP = localStorage.getItem('toiuu_saved_projects_list_v1');
+
         if (rawP) projects = JSON.parse(rawP);
+
       } catch (e) {}
+
+
 
       let profiles = [];
+
       try {
+
         const rawProf = localStorage.getItem('toiuu_saved_box_profiles_v2');
+
         if (rawProf) profiles = JSON.parse(rawProf);
+
       } catch (e) {}
+
+
 
       let activeProject = null;
+
       try {
+
         const rawActive = localStorage.getItem('toiuu_active_project_v2');
+
         if (rawActive) activeProject = JSON.parse(rawActive);
+
       } catch (e) {}
+
+
 
       let cutStatuses = {};
+
       try {
+
         const rawCuts = localStorage.getItem('toiuu_cut_statuses');
+
         if (rawCuts) cutStatuses = JSON.parse(rawCuts);
+
       } catch (e) {}
 
+
+
       const backupObj = {
+
         version: 'toiuu-phoi-backup-v2',
+
         exportedAt: new Date().toISOString(),
+
         workshopCode: localStorage.getItem('toiuu_cloud_workspace_id_v1') || 'ANBINH',
+
         users: usersList,
+
         profiles: profiles,
+
         projects: projects,
+
         activeProject: activeProject,
+
         cutStatuses: cutStatuses
+
       };
+
+
 
       const jsonStr = JSON.stringify(backupObj, null, 2);
+
       const blob = new Blob([jsonStr], { type: 'application/json' });
+
       const url = URL.createObjectURL(blob);
+
       const a = document.createElement('a');
+
       const dateStr = new Date().toISOString().slice(0, 10);
+
       a.href = url;
+
       a.download = `sao_luu_xuong_an_binh_${dateStr}.json`;
+
       document.body.appendChild(a);
+
       a.click();
+
       document.body.removeChild(a);
+
       URL.revokeObjectURL(url);
+
       showToast('💾 Đã xuất file sao lưu dữ liệu toàn xưởng thành công!');
+
     }
+
+
 
     function handleRestoreBackupFile(event) {
+
       const file = event.target.files && event.target.files[0];
+
       if (!file) return;
 
+
+
       const reader = new FileReader();
+
       reader.onload = (e) => {
+
         try {
+
           const data = JSON.parse(e.target.result);
+
           if (!data || (!Array.isArray(data.users) && !Array.isArray(data.projects))) {
+
             alert('❌ File không đúng định dạng sao lưu của hệ thống Xếp Phôi An Bình!');
+
             return;
+
           }
+
           if (!confirm(`⚠️ Bạn có chắc chắn muốn khôi phục dữ liệu từ file backup ngày [${data.exportedAt || 'không rõ'}] không? Dữ liệu hiện tại sẽ được cập nhật.`)) return;
 
+
+
           if (Array.isArray(data.users) && data.users.length) {
+
             usersList = data.users;
+
             saveUsersToStorage();
+
           }
+
           if (Array.isArray(data.projects)) {
+
             localStorage.setItem('toiuu_saved_projects_list_v1', JSON.stringify(data.projects));
+
           }
+
           if (Array.isArray(data.profiles)) {
+
             localStorage.setItem('toiuu_saved_box_profiles_v2', JSON.stringify(data.profiles));
+
           }
+
           if (data.activeProject) {
+
             localStorage.setItem('toiuu_active_project_v2', JSON.stringify(data.activeProject));
+
           }
+
           if (data.cutStatuses) {
+
             localStorage.setItem('toiuu_cut_statuses', JSON.stringify(data.cutStatuses));
+
           }
+
           if (data.workshopCode) {
+
             localStorage.setItem('toiuu_cloud_workspace_id_v1', data.workshopCode);
+
           }
+
+
 
           renderDashboard();
+
           showToast('🎉 Đã khôi phục dữ liệu toàn xưởng từ file backup thành công!');
+
         } catch (err) {
+
           alert('❌ Lỗi đọc file backup JSON: ' + err.message);
+
         }
+
       };
+
       reader.readAsText(file);
+
       event.target.value = '';
+
     }
+
+
 
     function handleResetDefaultAccounts() {
+
       if (!confirm('⚠️ Bạn có chắc chắn muốn đặt lại danh sách nhân sự về 3 tài khoản mặc định (admin, kt1, thocnc) không?')) return;
+
       usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
+
       saveUsersToStorage();
+
       renderDashboard();
+
       showToast('🔄 Đã khôi phục danh sách tài khoản mẫu ban đầu!');
+
     }
 
+
+
     // Gắn sự kiện khi DOM tải xong
+
     document.addEventListener('DOMContentLoaded', () => {
+
       $('btnSubmitAdminLogin').onclick = handleAdminLogin;
+
       $('btnAdminLogout').onclick = handleAdminLogout;
+
       $('btnDeniedLogout').onclick = handleAdminLogout;
 
+
+
       $('inpAdminLoginPass').addEventListener('keydown', (e) => {
+
         if (e.key === 'Enter') handleAdminLogin();
+
       });
 
+
+
       $('inpSearchUser').oninput = renderUsersTable;
+
       $('selFilterRole').onchange = renderUsersTable;
 
+
+
       $('btnSaveAdminPass').onclick = handleSaveAdminPass;
+
       $('btnBackupDataJson').onclick = handleBackupDataJson;
+
       $('btnExportFullBackup').onclick = handleBackupDataJson;
+
       $('inpRestoreBackupFile').onchange = handleRestoreBackupFile;
+
       $('btnResetDefaultAccounts').onclick = handleResetDefaultAccounts;
 
+
+
       $('btnScrollToAddUser').onclick = () => {
+
         $('cardAddUser').scrollIntoView({ behavior: 'smooth' });
+
         $('inpNewUsername').focus();
+
       };
 
+
+
       // Kiểm tra phiên đăng nhập
+
       checkAuthSession();
+
     });
+
   </script>
+
 </body>
+
 </html>
+

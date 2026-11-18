@@ -63,6 +63,7 @@ let db = {
   updatedAt: new Date().toISOString(),
   savedProfiles: DEFAULT_PROFILES.slice(),
   savedProjects: [],
+  deletedProjectIds: [],
   activeProject: null,
   cutStatuses: {},
   users: DEFAULT_USERS.slice()
@@ -226,6 +227,18 @@ function loadInitialDb() {
         if (!Array.isArray(db.users) || !db.users.length) {
           db.users = DEFAULT_USERS.slice();
         }
+        if (!Array.isArray(db.savedProfiles) || !db.savedProfiles.length) {
+          db.savedProfiles = DEFAULT_PROFILES.slice();
+        }
+        if (!Array.isArray(db.savedProjects)) {
+          db.savedProjects = [];
+        }
+        if (!Array.isArray(db.deletedProjectIds)) {
+          db.deletedProjectIds = [];
+        }
+        if (!db.cutStatuses || typeof db.cutStatuses !== 'object') {
+          db.cutStatuses = {};
+        }
         console.log(`[DB] Đã nạp ${db.savedProjects.length} dự án và ${db.users.length} tài khoản từ cơ sở dữ liệu máy chủ.`);
         return;
       }
@@ -247,6 +260,95 @@ function loadInitialDb() {
 }
 
 loadInitialDb();
+
+// =========================================================================
+// HỆ THỐNG MERGE DỮ LIỆU ĐỒNG BỘ SONG SONG (NON-DESTRUCTIVE CRDT-LIKE MERGE)
+// Thiết bị hoạt động độc lập - Dữ liệu đồng bộ song song không ghi đè
+// =========================================================================
+
+function mergeSavedProjects(existing = [], incoming = [], deletedIds = []) {
+  if (!Array.isArray(incoming)) return existing || [];
+  const delSet = new Set([
+    ...(Array.isArray(deletedIds) ? deletedIds : []),
+    ...(Array.isArray(db.deletedProjectIds) ? db.deletedProjectIds : [])
+  ]);
+  const map = new Map();
+
+  // Đưa các dự án hiện có vào map (bỏ qua những ID đã bị xóa)
+  (existing || []).forEach(p => {
+    if (p && p.id && !delSet.has(p.id)) {
+      map.set(p.id, p);
+    }
+  });
+
+  // Hợp nhất các dự án mới gửi lên: nếu trùng ID thì giữ bản có timestamp mới hơn
+  incoming.forEach(p => {
+    if (!p || !p.id || delSet.has(p.id)) return;
+    const cur = map.get(p.id);
+    if (!cur) {
+      map.set(p.id, p);
+    } else {
+      const incTime = new Date(p.updatedAt || p.createdAt || 0).getTime();
+      const curTime = new Date(cur.updatedAt || cur.createdAt || 0).getTime();
+      if (incTime >= curTime) {
+        map.set(p.id, p);
+      }
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+  });
+}
+
+function mergeProfiles(existing = [], incoming = []) {
+  if (!Array.isArray(incoming)) return existing || [];
+  const set = new Set(existing || []);
+  incoming.forEach(p => {
+    if (p && typeof p === 'string' && p.trim()) {
+      set.add(p.trim());
+    }
+  });
+  return Array.from(set);
+}
+
+function mergeCutStatuses(existing = {}, incoming = {}) {
+  if (!incoming || typeof incoming !== 'object') return existing || {};
+  const merged = Object.assign({}, existing || {});
+  Object.keys(incoming).forEach(k => {
+    const incVal = incoming[k];
+    const curVal = merged[k];
+    if (!curVal) {
+      merged[k] = incVal;
+    } else {
+      const incCount = (typeof incVal === 'object' && incVal.cutCount != null) ? incVal.cutCount : (typeof incVal === 'number' ? incVal : 0);
+      const curCount = (typeof curVal === 'object' && curVal.cutCount != null) ? curVal.cutCount : (typeof curVal === 'number' ? curVal : 0);
+      const maxCount = Math.max(incCount, curCount);
+
+      if (typeof incVal === 'object') {
+        merged[k] = Object.assign({}, curVal, incVal, { cutCount: maxCount });
+      } else {
+        merged[k] = maxCount;
+      }
+    }
+  });
+  return merged;
+}
+
+function mergeUsers(existing = [], incoming = []) {
+  if (!Array.isArray(incoming)) return existing || [];
+  const map = new Map();
+  (existing || []).forEach(u => {
+    if (u && u.username) map.set(u.username.toLowerCase(), u);
+  });
+  incoming.forEach(u => {
+    if (u && u.username) {
+      const k = u.username.toLowerCase();
+      map.set(k, Object.assign({}, map.get(k) || {}, u));
+    }
+  });
+  return Array.from(map.values());
+}
 
 // Lấy danh sách địa chỉ IP mạng LAN của máy chủ
 function getLanAddresses() {
@@ -434,40 +536,89 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 3. Đồng bộ trạng thái từ bất kỳ thiết bị nào (/api/sync)
+  // 2b. Lấy danh sách dự án dùng chung cho các nhánh web (/api/projects)
+  if (pathname === '/api/projects' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      projects: db.savedProjects || [],
+      deletedProjectIds: db.deletedProjectIds || [],
+      updatedAt: db.updatedAt
+    }));
+    return;
+  }
+
+  // 3. Đồng bộ trạng thái song song từ bất kỳ thiết bị nào (/api/sync)
+  // Quy tắc: Thiết bị hoạt động độc lập - Dữ liệu dùng chung đồng bộ song song không ghi đè
   if (pathname === '/api/sync' && req.method === 'POST') {
     try {
       const body = await readJsonBody(req);
       const clientId = body.clientId || req.headers['x-client-id'] || null;
+      const action = body.action || 'sync';
 
-      if (body.cutStatuses !== undefined) {
-        db.cutStatuses = body.cutStatuses;
+      // 1. Quản lý danh sách ID dự án đã xóa (tombstones)
+      if (Array.isArray(body.deletedProjectIds) && body.deletedProjectIds.length) {
+        if (!Array.isArray(db.deletedProjectIds)) db.deletedProjectIds = [];
+        body.deletedProjectIds.forEach(did => {
+          if (did && !db.deletedProjectIds.includes(did)) db.deletedProjectIds.push(did);
+        });
       }
-      if (Array.isArray(body.users) && body.users.length) {
-        db.users = body.users;
-      }
-      if (Array.isArray(body.savedProfiles)) {
-        db.savedProfiles = body.savedProfiles;
-      }
+
+      // 2. Đồng bộ danh sách dự án song song (merge thông minh theo ID và timestamp)
       if (Array.isArray(body.savedProjects)) {
-        db.savedProjects = body.savedProjects;
+        db.savedProjects = mergeSavedProjects(db.savedProjects, body.savedProjects, body.deletedProjectIds);
       }
-      if (body.activeProject !== undefined) {
+
+      // 3. Đồng bộ quy cách hộp (Hợp tập hợp các quy cách)
+      if (Array.isArray(body.savedProfiles) && body.savedProfiles.length) {
+        db.savedProfiles = mergeProfiles(db.savedProfiles, body.savedProfiles);
+      }
+
+      // 4. Đồng bộ tiến độ cắt (giữ số lượng cắt cao nhất)
+      if (body.cutStatuses && typeof body.cutStatuses === 'object') {
+        db.cutStatuses = mergeCutStatuses(db.cutStatuses, body.cutStatuses);
+      }
+
+      // 5. Đồng bộ tài khoản người dùng
+      if (Array.isArray(body.users) && body.users.length) {
+        db.users = mergeUsers(db.users, body.users);
+      }
+
+      // 6. activeProject CHỈ ĐƯỢC CẬP NHẬT KHI LÀ FUSION IMPORT
+      // Tuyệt đối không để màn hình gõ nháp của thiết bị A ghi đè màn hình thiết bị B!
+      if (action === 'fusion_import' && body.activeProject) {
         db.activeProject = body.activeProject;
       }
+
       saveDb();
 
-      // Phát sóng tức thì tới tất cả các thiết bị khác đang mở
-      broadcastEvent({
+      // Phát sóng trạng thái dữ liệu dùng chung (Không phát tán activeProject nháp của người khác)
+      const broadcastPayload = {
         type: 'state_updated',
         senderId: clientId,
         updatedAt: db.updatedAt,
-        action: body.action || 'sync',
-        db
-      }, clientId);
+        action: action,
+        db: {
+          workspaceId: db.workspaceId,
+          updatedAt: db.updatedAt,
+          savedProfiles: db.savedProfiles,
+          savedProjects: db.savedProjects,
+          deletedProjectIds: db.deletedProjectIds,
+          cutStatuses: db.cutStatuses,
+          users: db.users,
+          activeProject: (action === 'fusion_import') ? db.activeProject : undefined
+        }
+      };
+
+      broadcastEvent(broadcastPayload, clientId);
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, updatedAt: db.updatedAt, clientsCount: sseClients.size }));
+      res.end(JSON.stringify({
+        success: true,
+        updatedAt: db.updatedAt,
+        clientsCount: sseClients.size,
+        savedProjectsCount: (db.savedProjects || []).length
+      }));
     } catch (err) {
       res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: false, error: err.message }));
