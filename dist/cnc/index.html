@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sơ Đồ Cắt &amp; Tiến Độ Xưởng CNC · An Bình</title>
+  <meta name="description" content="Màn hình xưởng sản xuất &amp; máy cắt Laser CNC: theo dõi tiến độ cắt Realtime, xem sơ đồ cắt trực quan và tải file 3D .IGS từng cây ghép.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="/toi-uu-engine.js"></script>
+  <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
+  <style>
+    :root {
+      --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
+      --edge: #D5E9E5; --p: #0F766E; --p-h: #0D635D; --p3: #CCFBF1;
+      --cta: #C2410C; --cta-h: #9A3412; --dark: #0B3B38; --bad: #B4232C;
+      --steel: #9AA6B2; --steel2: #DCE2E8; --steel3: #B8C2CC;
+      --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --r: 14px; --gut: 28px;
+      --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F8FAFC; color: #1E293B; font: 400 15px/1.55 var(--font); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+    a { color: var(--p); text-decoration: none; }
+    h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
+    h1 { font-size: clamp(20px, 2.8vw, 26px); }
+    .wrap { max-width: 1260px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
+
+    /* Top Header 2 tầng */
+    .top { position: sticky; top: 0; z-index: 40; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--edge); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 58px; height: auto; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 10px 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--dark); flex-shrink: 0; white-space: nowrap; }
+    .brand-logo-img { height: 40px; max-width: 130px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+    .brand-divider { width: 1.5px; height: 26px; background: var(--edge); margin: 0 2px; flex-shrink: 0; }
+    .brand-text-col { display: flex; flex-direction: column; justify-content: center; white-space: nowrap; }
+    .brand-main-title { font-weight: 800; font-size: 15.5px; color: var(--dark); line-height: 1.15; }
+    .brand-sub-title { font-weight: 600; color: var(--p); font-size: 11.5px; line-height: 1.15; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
+
+    /* Subnav */
+    .subnav-bar { background: #F8FAFC; border-top: 1px solid var(--edge); }
+    .subnav-inner { max-width: 1260px; margin: 0 auto; padding: 6px var(--gut); display: flex; align-items: center; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .subnav-inner::-webkit-scrollbar { display: none; }
+    .subnav-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--mut); background: #FFFFFF; border: 1px solid #E2E8F0; white-space: nowrap; flex-shrink: 0; transition: all 0.15s ease; }
+    .subnav-link:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .subnav-link.active { background: var(--dark); color: #FFFFFF; border-color: var(--dark); box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22); }
+    .subnav-link.subnav-admin { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 7px 14px; border-radius: 999px; border: 1px solid transparent; font: 700 13px/1.2 var(--font); cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
+    .btn-p { background: var(--p); color: #fff; }
+    .btn-p:hover { background: var(--p-h); }
+    .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+    .btn-sm { min-height: 34px; padding: 5px 12px; font-size: 12.5px; }
+
+    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 20px; box-shadow: var(--sh); margin-bottom: 18px; }
+    input[type=text], input[type=password], select { width: 100%; min-height: 38px; padding: 7px 12px; border-radius: 8px; border: 1.5px solid #CBD5E1; font: 600 14px var(--font); color: #0F172A; background: #fff; }
+
+    .profile-tabs-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; border-bottom: 2px solid var(--edge); }
+    .profile-tab { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--edge); font-size: 13px; font-weight: 700; color: var(--mut); cursor: pointer; white-space: nowrap; }
+    .profile-tab.active { background: var(--dark); color: #fff; border-color: var(--dark); }
+
+    .profile-group-section { background: #fff; border: 1px solid var(--edge); border-radius: var(--r); padding: 20px; margin-bottom: 20px; box-shadow: var(--sh); }
+    .profile-group-title { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid var(--edge); padding-bottom: 12px; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+    .profile-badge-pill { background: var(--p3); color: var(--p); padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+
+    .pattern-card { border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; margin-bottom: 12px; background: #fff; }
+    .pattern-card-done { border: 2px solid #16A34A !important; background: #F0FDF4 !important; }
+    .pattern-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+    .pattern-letter { width: 34px; height: 34px; border-radius: 8px; background: var(--dark); color: #fff; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+    .pattern-multiplier { font-size: 17px; font-weight: 800; color: var(--dark); }
+    .pattern-meta { font-size: 13px; color: var(--mut); flex: 1; }
+
+    /* SVG Bar */
+    .bar-visual-wrap { position: relative; margin-top: 6px; }
+    .bar-visual-wrap svg { display: block; width: 100%; height: 52px; border-radius: 6px; background: var(--steel2); overflow: hidden; }
+    .bar-labels-layer { position: absolute; top: 0; left: 0; right: 0; height: 52px; pointer-events: none; }
+    .cut-label { position: absolute; top: 0; height: 52px; display: flex; align-items: center; justify-content: center; font-size: 13.5px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.65); overflow: hidden; white-space: nowrap; }
+    .cut-label.waste-label { color: var(--mut); text-shadow: none; font-size: 12px; font-weight: 700; }
+    .bar-ruler { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--mut); margin-top: 3px; }
+    .pattern-items-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .pattern-item-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 7px; border-radius: 999px; background: var(--mu); font-size: 12.5px; font-weight: 600; }
+    .pattern-item-pill i { width: 11px; height: 11px; border-radius: 50%; background: var(--c); flex: none; }
+
+    /* Nút cảm ứng to cho thợ CNC */
+    .btn-cut-toggle { min-height: 44px; padding: 8px 16px !important; font-size: 13.5px !important; font-weight: 800 !important; border-radius: 10px !important; }
+    .btn-export-bar { min-height: 44px; padding: 8px 14px !important; font-size: 13px !important; font-weight: 800 !important; border-radius: 10px !important; }
+
+    #toast { position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff; padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1000; opacity: 0; transform: translateY(12px); transition: all 0.25s ease; pointer-events: none; }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    body.role-operator .eng-only { display: none !important; }
+
+    @media print {
+      .top, .no-print, .btn-cut-toggle, .btn-export-bar, .btn-export-all-bars { display: none !important; }
+      body { background: #fff; }
+      .pattern-card, .profile-group-section { box-shadow: none !important; page-break-inside: avoid; }
+    }
+    @media (min-width: 1441px) { .wrap, .subnav-inner { max-width: 1440px; } }
+    @media (max-width: 768px) {
+      :root { --gut: 10px; }
+      .brand-sub-title { display: none; }
+      .top .wrap { padding: 6px 10px; gap: 6px; }
+      .top-actions { width: 100%; justify-content: flex-start; gap: 4px; }
+      .subnav-inner { padding: 5px 10px; }
+      .pattern-header { flex-direction: column; align-items: stretch; }
+      .btn-cut-toggle, .btn-export-bar { width: 100%; justify-content: center; }
+      input[type=text], input[type=password], select { font-size: 16px !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="top no-print">
+    <div class="wrap">
+      <a class="brand" href="/index.html" title="Quay về Bàn Xếp Phôi Chính">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
+          <div class="brand-sub-title">Sơ Đồ Cắt &amp; Tiến Độ Xưởng CNC</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span>Trực tuyến 24/7</span>
+        </div>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; white-space:nowrap;">
+          <span id="userIcon">👷</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </div>
+
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects.html" class="subnav-link">📁 Quản Lý Dự Án</a>
+        <a href="/inventory.html" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/cnc.html" class="subnav-link active">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Inline Login Gate -->
+  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">⚡</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">ĐĂNG NHẬP MÁY CẮT LASER CNC</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Vui lòng đăng nhập tài khoản thợ CNC hoặc kỹ sư</p>
+      </div>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Tên đăng nhập *</label>
+        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản (vd: thocnc, admin)...">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Mật khẩu *</label>
+        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
+      </div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:44px; font-size:15px; border-radius:10px;">
+        🚀 ĐĂNG NHẬP VÀO XƯỞNG
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="wrap" id="mainContent" style="display:none; padding-top:16px; padding-bottom:60px;">
+    <!-- Thanh chọn nhanh dự án sản xuất -->
+    <div class="card no-print" style="padding:14px 18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; border-left:5px solid #0F766E;">
+      <div style="flex:1; min-width:240px;">
+        <div style="font-size:12px; font-weight:700; color:var(--p);">CHỌN DỰ ÁN SẢN XUẤT TẠI MÁY CNC:</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:4px; flex-wrap:wrap;">
+          <select id="selCncProject" style="max-width:420px; font-weight:700;"></select>
+          <a href="/index.html" class="btn btn-soft btn-sm">📐 Chỉnh chi tiết cắt</a>
+          <button type="button" class="btn btn-soft btn-sm" onclick="window.print()">🖨️ In phiếu cắt</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card Tiến Độ Cắt Thực Tế Realtime -->
+    <section class="card" id="liveCuttingProgressCard" style="border:2px solid #0F766E; background:linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%);">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:28px;">📊</span>
+          <div>
+            <h2 style="font-size:19px; color:#0F766E;">Tiến Độ Cắt Thực Tế Tại Xưởng</h2>
+            <div style="font-size:12.5px; color:#475569;">Bấm nút trạng thái trên từng cây để đồng bộ tức thì tiến độ cắt với máy kỹ sư.</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span id="liveProgressPercentBadge" style="font-size:20px; font-weight:800; color:#0F766E; background:#CCFBF1; padding:4px 16px; border-radius:20px; border:1px solid #99F6E4;">0%</span>
+          <span id="liveProgressRatioText" style="font-size:13.5px; font-weight:700; color:#334155;">Đã cắt: 0/0 cây</span>
+        </div>
+      </div>
+
+      <div style="width:100%; height:18px; background:#E2E8F0; border-radius:10px; overflow:hidden; margin-bottom:14px;">
+        <div id="liveProgressBarFill" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease;"></div>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:13.5px;">
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+          <span style="color:#15803D; font-weight:700;">🟢 Đã cắt xong: <b id="statCutCompleted">0</b> cây</span>
+          <span style="color:#C2410C; font-weight:700;">🟠 Đang cắt dở: <b id="statCutInProgress">0</b> cây</span>
+          <span style="color:#475569; font-weight:600;">⚪ Còn lại: <b id="statCutRemaining">0</b> cây</span>
+        </div>
+        <button type="button" class="btn btn-soft btn-sm eng-only" id="btnResetProgress">🔄 Đặt lại tiến độ 0%</button>
+      </div>
+    </section>
+
+    <!-- Bộ lọc Trạng thái + Loại hộp -->
+    <div class="no-print" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-sm btn-p filter-status" data-st="ALL">Tất cả cây</button>
+        <button type="button" class="btn btn-sm btn-soft filter-status" data-st="pending">⚪ Chưa cắt</button>
+        <button type="button" class="btn btn-sm btn-soft filter-status" data-st="cutting">⏳ Đang cắt</button>
+        <button type="button" class="btn btn-sm btn-soft filter-status" data-st="done">✅ Đã xong</button>
+      </div>
+      <div class="profile-tabs-bar" id="profFilterTabs" style="margin-bottom:0; border:0; padding-bottom:0;"></div>
+    </div>
+
+    <!-- Sơ đồ cắt chi tiết từng cây -->
+    <div id="patternsContainer"></div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    const COLORS = ['#0F766E', '#C2410C', '#3A5BA0', '#A21CAF', '#4D7C0F', '#B4232C', '#0369A1', '#7C3AED', '#A16207', '#BE185D', '#15803D', '#475569'];
+    const getColor = i => COLORS[Math.abs(i) % COLORS.length];
+
+    const LS_USERS = 'toiuu_users_list_v1';
+    const LS_SESSION = 'toiuu_logged_user_v1';
+    const LS_ACTIVE_PROJ = 'toiuu_active_project_v2';
+    const LS_SAVED_PROJECTS = 'toiuu_saved_projects_list_v1';
+    const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
+    const LS_CUT_STATUSES = 'toiuu_cut_statuses';
+
+    const DEFAULT_USERS = [
+      { username: 'admin', password: '123456', fullName: 'Kỹ Sư Thiết Kế (Admin)', role: 'engineer' },
+      { username: 'kt1', password: '12345', fullName: 'Sơn KT (Kỹ Sư)', role: 'engineer' },
+      { username: 'thocnc', password: '1234', fullName: 'Thợ Vận Hành Máy CNC', role: 'operator' }
+    ];
+
+    let usersList = [];
+    let activeProject = null;
+    let savedProjects = [];
+    let cutStatuses = {};
+    let currentResult = null;
+    let filterProf = 'ALL';
+    let filterStatus = 'ALL';
+    let HINH_CACHE = [];
+
+    const $ = id => document.getElementById(id);
+    function showToast(msg) {
+      const t = $('toast'); if (!t) return;
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+    function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s])); }
+    function numVN(n, dec) {
+      if (n == null || isNaN(n)) return '0';
+      const num = Number(n);
+      if (dec !== undefined) return num.toLocaleString('vi-VN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+      return Number.isInteger(num) ? num.toLocaleString('vi-VN') : num.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+    }
+    function extractMatFromProfile(pName) {
+      if (!pName) return 30;
+      const m = pName.match(/(?:Hộp|Ống|V|U)?\s*(\d+)(?:x|X|\*)(\d+)/);
+      if (m) return Math.max(parseInt(m[1]), parseInt(m[2]));
+      const mR = pName.match(/(?:Ø|D|Phi)\s*(\d+)/i);
+      return mR ? parseInt(mR[1]) : 30;
+    }
+
+    function loadUsers() {
+      try {
+        const raw = localStorage.getItem(LS_USERS);
+        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length) usersList = p; }
+      } catch (e) {}
+      if (!usersList.length) usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
+    }
+
+    function checkAuth() {
+      loadUsers();
+      let sess = null;
+      try { sess = JSON.parse(sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION) || 'null'); } catch (e) {}
+      if (sess && sess.username) {
+        const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
+        if (found) {
+          const isOp = found.role === 'operator';
+          const isSuperAdmin = found.username.toLowerCase() === 'admin';
+          document.body.classList.toggle('role-operator', isOp);
+          $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+          $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
+          $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+          $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
+          $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
+          if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+          $('loginGateWrap').style.display = 'none';
+          $('mainContent').style.display = 'block';
+          loadWorkshopData();
+          initRealtime();
+          return;
+        }
+      }
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+      $('loginGateWrap').style.display = 'block';
+      $('mainContent').style.display = 'none';
+    }
+
+    function handleLogin() {
+      loadUsers();
+      const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
+      const p = ($('inpLoginPass').value || '').trim();
+      const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
+      if (!found) { $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!'; $('loginErr').style.display = 'block'; return; }
+      $('loginErr').style.display = 'none';
+      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+      sessionStorage.setItem(LS_SESSION, sessData);
+      localStorage.setItem(LS_SESSION, sessData);
+      $('inpLoginPass').value = '';
+      checkAuth();
+    }
+
+    function loadWorkshopData() {
+      try { cutStatuses = JSON.parse(localStorage.getItem(LS_CUT_STATUSES) || '{}') || {}; } catch (e) { cutStatuses = {}; }
+      try { savedProjects = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]') || []; } catch (e) { savedProjects = []; }
+      try { activeProject = JSON.parse(localStorage.getItem(LS_ACTIVE_PROJ) || 'null'); } catch (e) { activeProject = null; }
+
+      const sel = $('selCncProject');
+      const curName = activeProject && activeProject.currentProjectName ? activeProject.currentProjectName : 'Dự án hiện hành trên bàn';
+      let opts = `<option value="ACTIVE">📌 ${escapeHtml(curName)}</option>`;
+      savedProjects.forEach(p => {
+        if (!activeProject || p.id !== activeProject.currentProjectId) {
+          opts += `<option value="${escapeHtml(p.id)}">📁 ${escapeHtml(p.name)}</option>`;
+        }
+      });
+      sel.innerHTML = opts;
+
+      solveAndRender();
+    }
+
+    function solveAndRender() {
+      HINH_CACHE = [];
+      currentResult = null;
+      const validParts = (activeProject && Array.isArray(activeProject.parts)) ? activeProject.parts.filter(p => Number(p.length) > 0 && Number(p.qty) > 0) : [];
+
+      if (!validParts.length || typeof RC === 'undefined') {
+        $('patternsContainer').innerHTML = `<div class="card" style="text-align:center; padding:40px 20px; color:#64748B;">
+          Chưa có chi tiết nào trong dự án hiện tại. Hãy quay lại <a href="/index.html" style="font-weight:700; text-decoration:underline;">Bàn Xếp Phôi</a> để nhập chi tiết hoặc chọn dự án khác ở ô phía trên!
+        </div>`;
+        updateProgressUI();
+        return;
+      }
+
+      const kerf = Number(activeProject.kerf) || 0;
+      const clampTail = activeProject.clamp != null ? Number(activeProject.clamp) : 80;
+      const interlock = activeProject.interlock != null ? !!activeProject.interlock : true;
+      const gap = Number(activeProject.gap) || 0;
+
+      const partProfiles = new Set(validParts.map(p => p.profile || 'Chung'));
+      const stockForEngine = (activeProject.stock || []).filter(s => Number(s.length) > 0).map((s, idx) => ({
+        label: s.name || (s.qty === null ? `Cây mới ${numVN(s.length)}` : `Cây tồn ${numVN(s.length)}`),
+        length: Number(s.length),
+        clampTail,
+        qty: (s.qty === '' || s.qty == null) ? null : Number(s.qty),
+        priority: idx,
+        profile: s.profile || 'Chung'
+      }));
+      partProfiles.forEach(prof => {
+        if (!stockForEngine.some(s => s.profile === prof)) {
+          stockForEngine.push({ label: `Cây mới 6m (${prof})`, length: 6000, clampTail, qty: null, priority: 99, profile: prof });
+        }
+      });
+
+      currentResult = RC.solve({
+        kerf, interlock, gap,
+        stock: stockForEngine,
+        parts: validParts.map(p => ({
+          label: p.id, length: Number(p.length), qty: Number(p.qty),
+          end_style: p.style || 'thang',
+          mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? Number(p.mat) : extractMatFromProfile(p.profile)),
+          profile: p.profile || 'Chung'
+        }))
+      });
+
+      renderProfileTabs();
+      renderPatterns();
+      updateProgressUI();
+    }
+
+    function renderProfileTabs() {
+      const container = $('profFilterTabs');
+      if (!currentResult || !currentResult.summaryByProfile) { container.innerHTML = ''; return; }
+      const profiles = currentResult.summaryByProfile.map(s => s.profile);
+      let html = `<button type="button" class="profile-tab ${filterProf === 'ALL' ? 'active' : ''}" data-p="ALL">Tất cả (${currentResult.bars.length} cây)</button>`;
+      profiles.forEach(p => {
+        const cnt = currentResult.bars.filter(b => (b.profile || 'Chung') === p).length;
+        html += `<button type="button" class="profile-tab ${filterProf === p ? 'active' : ''}" data-p="${escapeHtml(p)}">${escapeHtml(p)} (${cnt})</button>`;
+      });
+      container.innerHTML = html;
+      container.querySelectorAll('.profile-tab').forEach(b => b.onclick = () => {
+        filterProf = b.dataset.p;
+        renderProfileTabs();
+        renderPatterns();
+      });
+    }
+
+    function renderPatterns() {
+      const container = $('patternsContainer');
+      if (!currentResult || !currentResult.patterns) return;
+      container.innerHTML = '';
+      HINH_CACHE = [];
+
+      const profiles = currentResult.summaryByProfile ? currentResult.summaryByProfile.map(s => s.profile) : ['Chung'];
+      const displayProfiles = filterProf === 'ALL' ? profiles : profiles.filter(p => p === filterProf);
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let globalIdx = 0;
+
+      displayProfiles.forEach(prof => {
+        const pats = currentResult.patterns.filter(p => (p.profile || 'Chung') === prof);
+        if (!pats.length) return;
+        const totalBars = pats.reduce((a, b) => a + b.count, 0);
+
+        let cardsHtml = '';
+        pats.forEach((p, idx) => {
+          const letter = alphabet[idx % alphabet.length];
+          const barKey = `${prof}__${letter}`;
+          const curCut = cutStatuses[barKey] ? (cutStatuses[barKey].cutCount || 0) : 0;
+          const st = curCut >= p.count ? 'done' : (curCut > 0 ? 'cutting' : 'pending');
+
+          if (filterStatus !== 'ALL' && st !== filterStatus) return;
+
+          const cacheIdx = globalIdx++;
+          const L = RC.layoutBar(p, currentResult.kerf, currentResult.gap, extractMatFromProfile(prof));
+          const ke = L.pieces.filter(g => g.eL !== 'S' || g.eR !== 'S');
+          L.H = Math.max(40, ...ke.map(g => g.w));
+          HINH_CACHE[cacheIdx] = { p, L };
+
+          const grouped = new Map();
+          L.pieces.forEach(g => {
+            const pid = g.c.label;
+            const ex = grouped.get(pid);
+            if (ex) ex.count++;
+            else {
+              const origIdx = activeProject.parts.findIndex(x => x.id === pid);
+              grouped.set(pid, { part: activeProject.parts[origIdx], length: g.c.length, style: g.c.endStyle, count: 1, color: getColor(origIdx >= 0 ? origIdx : 0) });
+            }
+          });
+          const pillsHtml = Array.from(grouped.values()).map(it => {
+            const stN = it.style === 'ke1' ? 'ke 1 đầu' : (it.style === 'ke' ? 'ke 2 đầu' : '');
+            return `<span class="pattern-item-pill"><i style="--c:${it.color};"></i>${it.part && it.part.name ? escapeHtml(it.part.name) + ' ' : ''}${numVN(it.length)}${stN ? ' · ' + stN : ''} <b>× ${it.count}</b></span>`;
+          }).join('');
+
+          const stockW = p.stockLength, usableW = p.usableLength, clampW = p.clampTail || 0, H = L.H;
+          let svgPolys = '', labelsHtml = '';
+          L.pieces.forEach((g, kIdx) => {
+            const origIdx = activeProject.parts.findIndex(x => x.id === g.c.label);
+            const col = getColor(origIdx >= 0 ? origIdx : 0);
+            svgPolys += `<polygon data-k="${kIdx}" points="${g.xt0},0 ${g.xt1},0 ${g.xb1},${H} ${g.xb0},${H}" fill="${col}" stroke="#FFF" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+            const minX = Math.min(g.xb0, g.xt0), maxX = Math.max(g.xb1, g.xt1);
+            const leftPct = (minX / stockW) * 100, wPct = ((maxX - minX) / stockW) * 100;
+            if (wPct > 3.5) labelsHtml += `<div class="cut-label" style="left:${leftPct}%;width:${wPct}%;">${numVN(g.c.length)}</div>`;
+          });
+          const wasteW = Math.max(0, p.waste);
+          if ((wasteW / stockW) * 100 > 5) labelsHtml += `<div class="cut-label waste-label" style="left:${(L.end/stockW)*100}%;width:${(wasteW/stockW)*100}%;">dư ${numVN(wasteW)}</div>`;
+          if (clampW > 0 && (clampW / stockW) * 100 > 1.2) labelsHtml += `<div class="cut-label waste-label" style="left:${(usableW/stockW)*100}%;width:${(clampW/stockW)*100}%;">kẹp ${numVN(clampW)}</div>`;
+
+          cardsHtml += `
+            <div class="pattern-card ${st === 'done' ? 'pattern-card-done' : ''}">
+              <div class="pattern-header">
+                <span class="pattern-letter">${letter}</span>
+                <span class="pattern-multiplier">× ${p.count} cây</span>
+                <span class="pattern-meta">${escapeHtml(p.stockLabel)} · ${numVN(p.stockLength)} mm · cắt ${p.cuts.length} chi tiết · dư ${numVN(wasteW)} mm</span>
+                <button type="button" class="btn btn-cut-toggle" data-key="${escapeHtml(barKey)}" data-total="${p.count}" style="border:1.5px solid ${st === 'done' ? '#16A34A;background:#DCFCE7;color:#15803D' : (st === 'cutting' ? '#F59E0B;background:#FEF3C7;color:#B45309' : '#CBD5E1;background:#FFF;color:#334155')};">
+                  ${st === 'done' ? `✅ ĐÃ CẮT XONG (${curCut}/${p.count})` : (st === 'cutting' ? `⏳ ĐANG CẮT (${curCut}/${p.count})` : `⚪ Chưa cắt (${curCut}/${p.count})`)}
+                </button>
+                <button type="button" class="btn btn-p btn-export-bar" data-letter="${letter}" data-prof="${escapeHtml(prof)}" data-len="${p.stockLength}" data-idx="${cacheIdx}" data-count="${p.count}">
+                  💾 Lưu file .IGS (${letter})
+                </button>
+              </div>
+              <div class="bar-visual-wrap" data-i="${cacheIdx}">
+                <svg viewBox="0 0 ${stockW} ${H}" preserveAspectRatio="none">
+                  <rect x="0" y="0" width="${usableW}" height="${H}" fill="var(--steel2)"/>
+                  ${clampW > 0 ? `<rect x="${usableW}" y="0" width="${clampW}" height="${H}" fill="var(--steel3)"/>` : ''}
+                  ${svgPolys}
+                </svg>
+                <div class="bar-labels-layer">${labelsHtml}</div>
+              </div>
+              <div class="bar-ruler"><span>0</span><span>${numVN(p.stockLength)} mm</span></div>
+              <div class="pattern-items-list">${pillsHtml}</div>
+            </div>
+          `;
+        });
+
+        if (!cardsHtml) return;
+        const sec = document.createElement('div');
+        sec.className = 'profile-group-section';
+        sec.innerHTML = `
+          <div class="profile-group-title">
+            <h3 style="font-size:18px;">📦 ${escapeHtml(prof)}</h3>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span class="profile-badge-pill">Tổng ${totalBars} cây</span>
+              <button type="button" class="btn btn-soft btn-sm btn-export-all-bars" data-prof="${escapeHtml(prof)}" style="border-color:var(--p); color:var(--p);">
+                📥 Tải tất cả file .IGS (${escapeHtml(prof)})
+              </button>
+            </div>
+          </div>
+          ${cardsHtml}
+        `;
+        container.appendChild(sec);
+      });
+
+      if (!container.innerHTML.trim()) {
+        container.innerHTML = `<div class="card" style="text-align:center; padding:32px; color:#64748B;">Không có cây cắt nào khớp với bộ lọc hiện tại.</div>`;
+      }
+
+      container.querySelectorAll('.btn-cut-toggle').forEach(b => b.onclick = () => toggleCut(b.dataset.key, parseInt(b.dataset.total) || 1));
+      container.querySelectorAll('.btn-export-bar').forEach(b => b.onclick = () => {
+        const c = HINH_CACHE[+b.dataset.idx];
+        const safeP = b.dataset.prof.replace(/\s+/g, '_');
+        exportNestedBarIGES(`Cay_${b.dataset.letter}_${safeP}_L${Math.round(b.dataset.len)}_SL_${b.dataset.count}.igs`, b.dataset.prof, parseFloat(b.dataset.len) || 6000, c && c.L ? c.L.pieces : null);
+      });
+      container.querySelectorAll('.btn-export-all-bars').forEach(b => b.onclick = () => {
+        const btns = container.querySelectorAll(`.btn-export-bar[data-prof="${b.dataset.prof}"]`);
+        btns.forEach((btn, i) => setTimeout(() => btn.click(), i * 400));
+      });
+
+      requestAnimationFrame(applyMiterAngleAdjustment);
+    }
+
+    function applyMiterAngleAdjustment() {
+      document.querySelectorAll('.bar-visual-wrap[data-i]').forEach(wrap => {
+        const svg = wrap.querySelector('svg');
+        const cache = HINH_CACHE[+wrap.dataset.i];
+        if (!svg || !cache || !svg.clientWidth) return;
+        const { p, L } = cache;
+        const H = L.H, ps = L.pieces, mmPx = p.stockLength / svg.clientWidth, cao = svg.clientHeight;
+        const chung = k => k > 0 && k < ps.length && ps[k].run >= 0 && ps[k].run === ps[k - 1].run && ps[k].c.pos > 0;
+        const X = ps.map(g => Math.min(cao * mmPx, Math.abs((g.xt1 + g.xb1) / 2 - (g.xt0 + g.xb0) / 2) * 0.45));
+        ps.forEach((g, k) => {
+          let t0 = g.xt0, b0 = g.xb0, t1 = g.xt1, b1 = g.xb1;
+          const dL = Math.sign(b0 - t0), dR = Math.sign(b1 - t1);
+          if (dL && chung(k)) { const m = (t0 + b0) / 2, h = Math.min(X[k], X[k - 1]) / 2; t0 = m - dL * h; b0 = m + dL * h; }
+          else if (dL > 0) b0 = t0 + X[k]; else if (dL < 0) t0 = b0 + X[k];
+          if (dR && chung(k + 1)) { const m = (t1 + b1) / 2, h = Math.min(X[k], X[k + 1]) / 2; t1 = m - dR * h; b1 = m + dR * h; }
+          else if (dR > 0) t1 = b1 - X[k]; else if (dR < 0) b1 = t1 - X[k];
+          const po = svg.querySelector(`polygon[data-k="${k}"]`);
+          if (po) po.setAttribute('points', `${t0},0 ${t1},0 ${b1},${H} ${b0},${H}`);
+        });
+      });
+    }
+
+    function toggleCut(key, total) {
+      const cur = cutStatuses[key] ? (cutStatuses[key].cutCount || 0) : 0;
+      const next = cur + 1 > total ? 0 : cur + 1;
+      cutStatuses[key] = { cutCount: next, totalCount: total, status: next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending'), updatedAt: new Date().toISOString() };
+      localStorage.setItem(LS_CUT_STATUSES, JSON.stringify(cutStatuses));
+      showToast(next >= total ? `✅ Đã hoàn thành ${key.replace('__', ' - ')} (${next}/${total})` : `✂️ Cập nhật: ${next}/${total} cây`);
+      updateProgressUI();
+      renderPatterns();
+      pushCutSync(key, next, total);
+    }
+
+    function updateProgressUI() {
+      if (!currentResult || !currentResult.patterns) {
+        $('liveProgressPercentBadge').textContent = '0%';
+        $('liveProgressRatioText').textContent = 'Đã cắt: 0/0 cây';
+        $('liveProgressBarFill').style.width = '0%';
+        $('statCutCompleted').textContent = '0'; $('statCutInProgress').textContent = '0'; $('statCutRemaining').textContent = '0';
+        return;
+      }
+      let total = 0, done = 0, cutting = 0;
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      (currentResult.summaryByProfile || [{ profile: 'Chung' }]).forEach(sp => {
+        currentResult.patterns.filter(p => (p.profile || 'Chung') === sp.profile).forEach((p, idx) => {
+          const barKey = `${sp.profile}__${alphabet[idx % alphabet.length]}`;
+          const cur = cutStatuses[barKey] ? (cutStatuses[barKey].cutCount || 0) : 0;
+          total += p.count;
+          if (cur >= p.count) done += p.count;
+          else if (cur > 0) { done += cur; cutting += 1; }
+        });
+      });
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      $('liveProgressPercentBadge').textContent = pct + '%';
+      $('liveProgressRatioText').textContent = `Đã cắt: ${done}/${total} cây`;
+      $('liveProgressBarFill').style.width = pct + '%';
+      $('statCutCompleted').textContent = done;
+      $('statCutInProgress').textContent = cutting;
+      $('statCutRemaining').textContent = Math.max(0, total - done);
+    }
+
+    function pushCutSync(key, cutCount, total) {
+      fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cutStatuses }) }).catch(() => {});
+      try {
+        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', { method: 'POST', body: JSON.stringify({ type: 'cut_progress', cutStatuses, key, cutCount, total }) }).catch(() => {});
+      } catch (e) {}
+    }
+
+    function initRealtime() {
+      try {
+        const es = new EventSource('/api/events');
+        es.onmessage = e => {
+          try {
+            const d = JSON.parse(e.data);
+            if (d.type === 'cut_progress' && d.cutStatuses) {
+              cutStatuses = Object.assign(cutStatuses, d.cutStatuses);
+              localStorage.setItem(LS_CUT_STATUSES, JSON.stringify(cutStatuses));
+              updateProgressUI(); renderPatterns();
+            }
+          } catch (err) {}
+        };
+      } catch (e) {}
+    }
+
+    function exportNestedBarIGES(fileName, profile, stockLen, pieces) {
+      let w = 20, h = 20, t = 1.2;
+      const mBox = profile.match(/(\d+)\s*[xX\*×]\s*(\d+)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?/);
+      if (mBox) { w = parseFloat(mBox[1]); h = parseFloat(mBox[2]); if (mBox[3]) t = parseFloat(mBox[3].replace(',', '.')); }
+      if (pieces && pieces.length) {
+        const mp = pieces.find(p => (p.eL && p.eL !== 'S') || (p.eR && p.eR !== 'S'));
+        if (mp && mp.w && Math.abs(mp.w - h) < Math.abs(mp.w - w)) { const tmp = w; w = h; h = tmp; }
+      }
+      const surfaces = [], lines = [], round = v => Number(v.toFixed(3));
+      const makeQuad = (p00, p10, p01, p11) => [128,1,1,1,1,0,0,1,0,0,0,0,1,1,0,0,1,1,1,1,1,1,round(p00[0]),round(p00[1]),round(p00[2]),round(p10[0]),round(p10[1]),round(p10[2]),round(p01[0]),round(p01[1]),round(p01[2]),round(p11[0]),round(p11[1]),round(p11[2]),0,1,0,1];
+      const addLine = (p0, p1) => lines.push([110, round(p0[0]), round(p0[1]), round(p0[2]), round(p1[0]), round(p1[1]), round(p1[2])]);
+      const x0 = -w/2, x1 = w/2, y0 = -h/2, y1 = h/2, hasIn = (w > 2*t && h > 2*t), ix0 = x0+t, ix1 = x1-t, iy0 = y0+t, iy1 = y1-t;
+      const tubePieces = (pieces && pieces.length) ? pieces : [{ xt0: 0, xb0: 0, xt1: stockLen, xb1: stockLen }];
+      tubePieces.forEach(p => {
+        const zt0 = p.xt0 !== undefined ? p.xt0 : 0, zb0 = p.xb0 !== undefined ? p.xb0 : zt0;
+        const zt1 = p.xt1 !== undefined ? p.xt1 : stockLen, zb1 = p.xb1 !== undefined ? p.xb1 : zt1;
+        surfaces.push(makeQuad([x0,y0,zt0],[x1,y0,zb0],[x0,y0,zt1],[x1,y0,zb1]));
+        surfaces.push(makeQuad([x0,y1,zt0],[x1,y1,zb0],[x0,y1,zt1],[x1,y1,zb1]));
+        surfaces.push(makeQuad([x0,y0,zt0],[x0,y1,zt0],[x0,y0,zt1],[x0,y1,zt1]));
+        surfaces.push(makeQuad([x1,y0,zb0],[x1,y1,zb0],[x1,y0,zb1],[x1,y1,zb1]));
+        addLine([x0,y0,zt0],[x0,y0,zt1]); addLine([x0,y1,zt0],[x0,y1,zt1]); addLine([x1,y0,zb0],[x1,y0,zb1]); addLine([x1,y1,zb0],[x1,y1,zb1]);
+        if (hasIn) {
+          const izt0 = zt0 + (zb0-zt0)*(t/w), izb0 = zt0 + (zb0-zt0)*((w-t)/w), izt1 = zt1 + (zb1-zt1)*(t/w), izb1 = zt1 + (zb1-zt1)*((w-t)/w);
+          surfaces.push(makeQuad([ix0,iy0,izt0],[ix1,iy0,izb0],[ix0,iy0,izt1],[ix1,iy0,izb1]));
+          surfaces.push(makeQuad([ix0,iy1,izt0],[ix1,iy1,izb0],[ix0,iy1,izt1],[ix1,iy1,izb1]));
+          surfaces.push(makeQuad([ix0,iy0,izt0],[ix0,iy1,izt0],[ix0,iy0,izt1],[ix0,iy1,izt1]));
+          surfaces.push(makeQuad([ix1,iy0,izb0],[ix1,iy1,izb0],[ix1,iy0,izb1],[ix1,iy1,izb1]));
+        }
+      });
+      const safeName = fileName.replace(/[^\w\.\-]/g, '_'), sLine = (`An Binh nested tube 3D IGES`).padEnd(72, ' ') + 'S      1\n';
+      const fnHol = safeName.length + 'H' + safeName;
+      const gFields = ['1H,','1H;',fnHol,fnHol,'7HAn Binh','10HWeb CNC','32','38','7','99','15','','1.0','2','2HMM','1','0.01','15H20261118.210000','0.01',stockLen+'.0','7HAn Binh','7HAn Binh','11','0'];
+      let gLines = [], curG = '';
+      gFields.forEach((f, i) => { const it = f + (i === gFields.length - 1 ? ';' : ','); if (curG.length + it.length > 72) { gLines.push(curG.padEnd(72,' ')); curG = it; } else curG += it; });
+      if (curG) gLines.push(curG.padEnd(72,' '));
+      const gSec = gLines.map((l, idx) => l + 'G' + String(idx + 1).padStart(7, ' ')).join('\n') + '\n';
+      let dLines = [], pLines = [], dSeq = 1, pSeq = 1;
+      surfaces.forEach(params => {
+        const dePtr = dSeq, pStart = pSeq; let eP = [], curP = '';
+        params.forEach((pr, k) => { const tok = pr + (k === params.length - 1 ? ';' : ','); if (curP.length + tok.length > 64) { eP.push(curP.padEnd(64,' ')); curP = tok; } else curP += tok; });
+        if (curP) eP.push(curP.padEnd(64,' '));
+        eP.forEach(pl => pLines.push(pl + String(dePtr).padStart(8,' ') + 'P' + String(pSeq++).padStart(7,' ')));
+        dLines.push(String(128).padStart(8,' ') + String(pStart).padStart(8,' ') + '       0       1       0       0       0       000000000D' + String(dSeq++).padStart(7,' '));
+        dLines.push('     128       0       3' + String(eP.length).padStart(8,' ') + '       0                SURF       0D' + String(dSeq++).padStart(7,' '));
+      });
+      lines.forEach(params => {
+        const dePtr = dSeq, pStart = pSeq;
+        pLines.push((params.join(',') + ';').padEnd(64,' ') + String(dePtr).padStart(8,' ') + 'P' + String(pSeq++).padStart(7,' '));
+        dLines.push(String(110).padStart(8,' ') + String(pStart).padStart(8,' ') + '       0       1       0       0       0       000000000D' + String(dSeq++).padStart(7,' '));
+        dLines.push('     110       0       1       1       0                LINE       0D' + String(dSeq++).padStart(7,' '));
+      });
+      const tLine = ('S      1G' + String(gLines.length).padStart(7,' ') + 'D' + String(dLines.length).padStart(7,' ') + 'P' + String(pLines.length).padStart(7,' ')).padEnd(72,' ') + 'T      1\n';
+      const blob = new Blob([sLine + gSec + dLines.join('\n') + '\n' + pLines.join('\n') + '\n' + tLine], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      showToast(`💾 Đã tải file .IGS: ${fileName}`);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('btnSubmitLogin').onclick = handleLogin;
+      $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+      $('btnLogout').onclick = () => { sessionStorage.removeItem(LS_SESSION); localStorage.removeItem(LS_SESSION); checkAuth(); };
+
+      $('selCncProject').onchange = e => {
+        const val = e.target.value;
+        if (val === 'ACTIVE') return;
+        const p = savedProjects.find(x => x.id === val);
+        if (p && p.data) {
+          activeProject = Object.assign({}, p.data, { currentProjectId: p.id, currentProjectName: p.name, currentProjectCustomer: p.customer || '', currentProjectNotes: p.notes || '' });
+          localStorage.setItem(LS_CUR_PROJ_ID, p.id);
+          localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activeProject));
+          filterProf = 'ALL';
+          solveAndRender();
+          showToast(`✓ Đã chuyển sang dự án "${p.name}"`);
+        }
+      };
+
+      document.querySelectorAll('.filter-status').forEach(b => b.onclick = () => {
+        filterStatus = b.dataset.st;
+        document.querySelectorAll('.filter-status').forEach(x => x.className = x === b ? 'btn btn-sm btn-p filter-status' : 'btn btn-sm btn-soft filter-status');
+        renderPatterns();
+      });
+
+      $('btnResetProgress').onclick = () => {
+        if (!confirm('Đặt lại toàn bộ tiến độ cắt về 0%?')) return;
+        cutStatuses = {};
+        localStorage.removeItem(LS_CUT_STATUSES);
+        updateProgressUI();
+        renderPatterns();
+        pushCutSync('ALL', 0, 0);
+        showToast('🔄 Đã đặt lại tiến độ cắt về 0%');
+      };
+
+      checkAuth();
+    });
+  </script>
+</body>
+</html>

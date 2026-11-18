@@ -78,8 +78,12 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 64px;
-      gap: 14px;
+      min-height: 58px;
+      height: auto;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 10px 16px;
     }
     .brand {
       display: flex;
@@ -87,29 +91,34 @@
       gap: 10px;
       color: var(--dark);
       text-decoration: none;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .brand-logo-img {
-      height: 44px;
-      max-width: 140px;
+      height: 40px;
+      max-width: 130px;
       object-fit: contain;
       border-radius: 4px;
+      flex-shrink: 0;
       transition: transform 0.15s ease;
     }
     .brand-logo-img:hover { transform: scale(1.02); }
     .brand-divider {
       width: 1.5px;
-      height: 28px;
+      height: 26px;
       background: var(--edge);
       margin: 0 2px;
+      flex-shrink: 0;
     }
     .brand-text-col {
       display: flex;
       flex-direction: column;
       justify-content: center;
+      white-space: nowrap;
     }
     .brand-main-title {
       font-weight: 800;
-      font-size: 16px;
+      font-size: 15.5px;
       color: var(--dark);
       line-height: 1.15;
       letter-spacing: -0.01em;
@@ -117,15 +126,76 @@
     .brand-sub-title {
       font-weight: 600;
       color: var(--p);
-      font-size: 12px;
+      font-size: 11.5px;
       line-height: 1.15;
       margin-top: 2px;
     }
     .top-actions {
       display: flex;
       align-items: center;
+      justify-content: flex-end;
       gap: 6px;
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
+      flex: 1 1 auto;
+    }
+    #networkStatusBadge {
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* Tầng 2 Header: Thanh Điều Hướng Các Nhánh Web Con */
+    .subnav-bar {
+      background: #F8FAFC;
+      border-top: 1px solid var(--edge);
+    }
+    .subnav-inner {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 6px var(--gut);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .subnav-inner::-webkit-scrollbar { display: none; }
+    .subnav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--mut);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .subnav-link:hover {
+      border-color: var(--p);
+      color: var(--p);
+      background: var(--tint);
+    }
+    .subnav-link.active {
+      background: var(--dark);
+      color: #FFFFFF;
+      border-color: var(--dark);
+      box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22);
+    }
+    .subnav-link.subnav-admin {
+      background: #F0FDFA;
+      color: #0F766E;
+      border-color: #99F6E4;
+    }
+    .subnav-link.subnav-admin:hover {
+      background: #0F766E;
+      color: #FFFFFF;
+      border-color: #0F766E;
     }
 
     /* Dropdown Menus in Header */
@@ -1200,7 +1270,7 @@
 
     /* 1. Màn hình máy tính lớn / Widescreen Desktop (>= 1441px) */
     @media (min-width: 1441px) {
-      .wrap { max-width: 1440px; }
+      .wrap, .subnav-inner { max-width: 1440px; }
       .kpi-cards { grid-template-columns: repeat(6, 1fr) !important; }
     }
 
@@ -1297,6 +1367,14 @@
       #networkStatusBadge {
         padding: 2px 7px;
         font-size: 11px;
+      }
+      .subnav-inner {
+        padding: 5px 10px;
+        gap: 5px;
+      }
+      .subnav-link {
+        padding: 5px 10px;
+        font-size: 11.5px;
       }
 
       /* Active Project Banner */
@@ -1585,10 +1663,10 @@
 </head>
 <body>
 
-  <!-- Top bar -->
+  <!-- Top bar (2 tầng chống chồng chéo chữ + Điều hướng đa nhánh web con) -->
   <header class="top no-print">
     <div class="wrap">
-      <a class="brand" href="#" title="An Bình - Tối Ưu Xếp Phôi Thép Hộp">
+      <a class="brand" href="index.html" title="An Bình - Tối Ưu Xếp Phôi Thép Hộp">
         <img src="logo_an_binh.jpg" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
@@ -1598,27 +1676,10 @@
       </a>
       <div class="top-actions">
         <!-- Trạng Thái Mạng (Online/Offline PWA) -->
-        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0;" title="Trạng thái kết nối máy chủ">
-          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;" id="networkDot"></span>
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap; flex-shrink:0;" title="Trạng thái kết nối máy chủ">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block; flex-shrink:0;" id="networkDot"></span>
           <span id="networkStatusText">Trực tuyến 24/7</span>
         </div>
-
-        <!-- Nút Phân Quyền Thông Minh (Thợ CNC vs Kỹ Sư Thiết Kế) -->
-        <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Thông tin người dùng đang đăng nhập">
-          <span id="roleBadgeIcon">👷</span>
-          <span id="roleBadgeText">Thợ CNC [Khóa an toàn]</span>
-          <span id="roleLockStatus" style="font-size:12px;">🔒</span>
-        </button>
-
-        <!-- Nút Trỏ Tới Nhánh Web Con Quản Trị Hệ Thống (CHỈ HIỆN KHI LÀ TÀI KHOẢN ADMIN) -->
-        <a href="admin.html" class="btn btn-sm" id="btnHeaderAdminPanel" style="display:none; background:#0F766E; color:#FFFFFF; font-weight:700; border:1px solid #0D635D; padding:4px 10px; font-size:12px; align-items:center; gap:5px; border-radius:6px; text-decoration:none;" title="Mở nhánh web con: Trung Tâm Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (/admin)">
-          <svg viewBox="0 0 24 24" style="width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2.2;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          ⚙️ Quản Trị Xưởng
-        </a>
-
-        <button class="btn btn-sm" id="btnHeaderQuickLogout" style="background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-weight:700; padding:4px 9px; font-size:12px; display:inline-flex; align-items:center; gap:4px; border-radius:6px; cursor:pointer;" title="Đăng xuất khỏi tài khoản này">
-          🚪 Đăng xuất
-        </button>
 
         <!-- Nút Đồng Bộ Đám Mây Mã Xưởng -->
         <button class="btn btn-soft btn-sm" id="btnCloudSync" title="Đồng bộ tự động qua đám mây giữa các thiết bị bằng Mã Xưởng">
@@ -1627,10 +1688,15 @@
           <span id="cloudStatusText" style="font-weight:700;">Mã Xưởng</span>
         </button>
 
-        <!-- Quản lý Dự án -->
-        <button class="btn btn-p btn-sm" id="btnProjectsManager" title="Quản lý danh sách các dự án đã lưu, mở lại dự án cũ, xuất/nhập file">
-          <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          Dự án <span id="badgeProjectCount" style="margin-left:3px;background:#fff;color:var(--p);padding:1px 5px;border-radius:10px;font-size:11px;font-weight:700;">0</span>
+        <!-- Nút Phân Quyền Thông Minh (Thợ CNC vs Kỹ Sư Thiết Kế) -->
+        <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Thông tin người dùng đang đăng nhập">
+          <span id="roleBadgeIcon">👷</span>
+          <span id="roleBadgeText">Thợ CNC [Khóa an toàn]</span>
+          <span id="roleLockStatus" style="font-size:12px;">🔒</span>
+        </button>
+
+        <button class="btn btn-sm" id="btnHeaderQuickLogout" style="background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-weight:700; padding:4px 9px; font-size:12px; display:inline-flex; align-items:center; gap:4px; border-radius:999px; cursor:pointer;" title="Đăng xuất khỏi tài khoản này">
+          🚪 Đăng xuất
         </button>
 
         <!-- Lưu Dự án -->
@@ -1683,6 +1749,27 @@
         </button>
       </div>
     </div>
+
+    <!-- Tầng 2: Thanh Điều Hướng Các Nhánh Web Con -->
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="index.html" class="subnav-link active" title="Trang tính toán &amp; xếp phôi chính">
+          📐 Bàn Xếp Phôi
+        </a>
+        <a href="projects.html" class="subnav-link" title="Quản lý danh sách dự án, đơn hàng &amp; thùng rác">
+          📁 Quản Lý Dự Án <span id="badgeProjectCount" style="background:#0F766E;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
+        </a>
+        <a href="inventory.html" class="subnav-link" title="Thư viện quy cách thép hộp, phôi tồn kho lẻ &amp; bảng vật tư BOM">
+          📦 Kho Phôi &amp; Quy Cách
+        </a>
+        <a href="cnc.html" class="subnav-link" title="Sơ đồ cắt trực quan, tích tiến độ xưởng &amp; xuất file .IGS cho máy Laser CNC">
+          ⚡ Sơ Đồ &amp; Tiến Độ CNC
+        </a>
+        <a href="admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;" title="Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Độc quyền Admin)">
+          ⚙️ Quản Trị &amp; Nhân Sự
+        </a>
+      </div>
+    </nav>
   </header>
 
   <main class="wrap">
@@ -1708,9 +1795,12 @@
         <button class="btn btn-sm btn-soft" id="btnBannerExportJson" title="Xuất file .json dự án này về máy">
           <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Xuất file .json
         </button>
-        <button class="btn btn-sm btn-p" id="btnBannerOpenManager" title="Mở danh sách tất cả các dự án đã lưu">
+        <button class="btn btn-sm btn-p" id="btnBannerOpenManager" title="Mở nhanh danh sách các dự án">
           Danh sách dự án
         </button>
+        <a href="projects.html" class="btn btn-sm btn-soft" style="border-color:var(--p); color:var(--p); text-decoration:none;" title="Mở nhánh web con Quản Lý Dự Án chuyên sâu">
+          Mở trang Dự án ↗
+        </a>
       </div>
     </div>
     <!-- Hero / Features -->
@@ -1764,9 +1854,10 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
               Bộ nhớ quy cách hộp (Đã lưu trong máy):
             </b>
-            <div style="display:flex;gap:6px;">
-              <input type="text" id="inpCustomProfile" placeholder="Thêm quy cách mới (vd: Hộp 25x25x1, 40x10x1.2...)" style="max-width:270px;min-height:32px;padding:3px 10px;font-size:12.5px;">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="inpCustomProfile" placeholder="Thêm quy cách mới (vd: Hộp 25x25x1, 40x10x1.2...)" style="max-width:250px;min-height:32px;padding:3px 10px;font-size:12.5px;">
               <button class="btn btn-p btn-sm" id="btnAddCustomProfile" type="button">+ Lưu bộ nhớ</button>
+              <a href="inventory.html" style="font-size:12px;font-weight:700;color:var(--p);white-space:nowrap;padding:4px 8px;background:#fff;border:1px solid #99F6E4;border-radius:6px;text-decoration:none;" title="Mở nhánh web con Quản lý Kho Phôi &amp; Quy Cách">📦 Quản lý kho ↗</a>
             </div>
           </div>
           <div class="memory-chips-wrap" id="memoryChipsWrap">
@@ -1972,7 +2063,10 @@
               Còn lại: <b id="statCutRemaining">0</b> cây
             </span>
           </div>
-          <div style="display:flex; align-items:center; gap:6px;">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <a href="cnc.html" class="btn btn-p btn-sm" style="font-size:11.5px; padding:3px 10px; text-decoration:none;" title="Mở nhánh web con dành riêng cho máy cắt Laser CNC">
+              ⚡ Mở màn hình Xưởng CNC ↗
+            </a>
             <button type="button" class="btn btn-soft btn-sm" id="btnResetCutProgress" style="font-size:11.5px; padding:3px 9px; color:#64748B;" title="Đặt lại toàn bộ tiến độ cắt về 0%">
               🔄 Đặt lại tiến độ
             </button>
@@ -5998,6 +6092,9 @@
       if ($('adminUsersManagerBox')) {
         $('adminUsersManagerBox').style.display = isSuperAdmin ? 'block' : 'none';
       }
+      if ($('navLinkAdmin')) {
+        $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+      }
       if ($('btnHeaderAdminPanel')) {
         $('btnHeaderAdminPanel').style.display = isSuperAdmin ? 'inline-flex' : 'none';
       }
@@ -6569,9 +6666,9 @@
     function initNetworkAndPWA() {
       // Đăng ký Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=5').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=8').then(reg => {
           reg.update();
-          console.log('PWA Service Worker registered & updated v5:', reg.scope);
+          console.log('PWA Service Worker registered & updated v8:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
@@ -7293,19 +7390,31 @@
         showToast(`✓ Đã nạp thành công ${newParts.length} mục (${state.activeProfiles.length} loại hộp) ${projName}!`);
       }
 
-      // Kiểm tra URL query ?src=fusion nếu chưa nạp nhúng
-      if (!loadedFromEmbedded) {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('src') === 'fusion') {
-          fetch('fusion_exported_project.json')
-            .then(res => res.json())
-            .then(data => {
-              loadFusionDataPayload(data);
-            })
-            .catch(() => {
-              openFusionModal();
-            });
-        }
+      // Kiểm tra URL query (?project=..., ?open=..., ?src=fusion)
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramProjId = urlParams.get('project');
+      const paramOpen = urlParams.get('open');
+
+      if (paramProjId && !loadedFromEmbedded) {
+        loadProjectById(paramProjId);
+      } else if (!loadedFromEmbedded && urlParams.get('src') === 'fusion') {
+        fetch('fusion_exported_project.json')
+          .then(res => res.json())
+          .then(data => {
+            loadFusionDataPayload(data);
+          })
+          .catch(() => {
+            openFusionModal();
+          });
+      }
+
+      if (paramOpen === 'igs') {
+        openIgsModal();
+      } else if (paramOpen === 'fusion') {
+        openFusionModal();
+      } else if (paramOpen === 'paste') {
+        $('modalPaste').style.display = 'flex';
+        if ($('txtPaste')) $('txtPaste').focus();
       }
     });
   </script>

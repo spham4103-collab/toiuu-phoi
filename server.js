@@ -531,10 +531,20 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 6. Phục vụ các file tĩnh của Web App (index.html, admin.html, toi-uu-engine.js, logo_an_binh.jpg...)
+  // 6. Phục vụ các file tĩnh & nhánh web con (index.html, projects.html, inventory.html, cnc.html, admin.html...)
   let safePath = pathname === '/' ? '/index.html' : pathname;
-  if (safePath === '/admin' || safePath === '/admin/') {
-    safePath = '/admin.html';
+  const cleanRouteMap = {
+    '/admin': '/admin.html',
+    '/admin/': '/admin.html',
+    '/projects': '/projects.html',
+    '/projects/': '/projects.html',
+    '/inventory': '/inventory.html',
+    '/inventory/': '/inventory.html',
+    '/cnc': '/cnc.html',
+    '/cnc/': '/cnc.html'
+  };
+  if (cleanRouteMap[safePath]) {
+    safePath = cleanRouteMap[safePath];
   }
   let fullPath = path.join(ROOT_DIR, safePath);
 

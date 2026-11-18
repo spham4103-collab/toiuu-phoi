@@ -1,11 +1,14 @@
 /**
  * Service Worker - Offline-First PWA for Xếp Phôi CNC An Bình
- * Cache Version 7 - Thêm nhánh web con: Quản trị hệ thống & nhân sự xưởng (/admin)
+ * Cache Version 8 - Sửa lỗi Header chồng chéo & Hệ thống đa nhánh web con (projects, inventory, cnc, admin)
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v7';
+const CACHE_NAME = 'toiuu-phoi-pwa-v8';
 const STATIC_ASSETS = [
   './',
   'index.html',
+  'projects.html',
+  'inventory.html',
+  'cnc.html',
   'admin.html',
   'toi-uu-engine.js',
   'logo_an_binh.jpg',

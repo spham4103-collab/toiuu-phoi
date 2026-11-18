@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quản Lý Dự Án &amp; Đơn Hàng · Xếp Phôi An Bình</title>
+  <meta name="description" content="Nhánh quản lý toàn bộ dự án, đơn hàng cắt thép hộp, thùng rác khôi phục và đồng bộ dữ liệu xưởng cơ khí An Bình.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --tint: #F0FDFA;
+      --mu: #EEF4F6;
+      --ink: #134E4A;
+      --mut: #475569;
+      --edge: #D5E9E5;
+      --p: #0F766E;
+      --p-h: #0D635D;
+      --p3: #CCFBF1;
+      --cta: #C2410C;
+      --cta-h: #9A3412;
+      --dark: #0B3B38;
+      --bad: #B4232C;
+      --bad2: #FBE3E3;
+      --ok: #1D7A46;
+      --ok2: #DCFCE7;
+      --warn: #8A5200;
+      --warn2: #FFF4E5;
+      --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --r: 14px;
+      --gut: 28px;
+      --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #F8FAFC;
+      color: #1E293B;
+      font: 400 15px/1.55 var(--font);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    a { color: var(--p); text-decoration: none; }
+    h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
+    h1 { font-size: clamp(20px, 2.8vw, 26px); }
+    .wrap { max-width: 1260px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
+
+    /* Top Header 2 tầng chống chồng chéo */
+    .top {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(8px);
+      border-bottom: 1.5px solid var(--edge);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+    .top .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 58px;
+      height: auto;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--dark);
+      text-decoration: none;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .brand-logo-img { height: 40px; max-width: 130px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+    .brand-divider { width: 1.5px; height: 26px; background: var(--edge); margin: 0 2px; flex-shrink: 0; }
+    .brand-text-col { display: flex; flex-direction: column; justify-content: center; white-space: nowrap; }
+    .brand-main-title { font-weight: 800; font-size: 15.5px; color: var(--dark); line-height: 1.15; }
+    .brand-sub-title { font-weight: 600; color: var(--p); font-size: 11.5px; line-height: 1.15; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
+
+    /* Subnav Bar */
+    .subnav-bar { background: #F8FAFC; border-top: 1px solid var(--edge); }
+    .subnav-inner {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 6px var(--gut);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .subnav-inner::-webkit-scrollbar { display: none; }
+    .subnav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--mut);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .subnav-link:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .subnav-link.active { background: var(--dark); color: #FFFFFF; border-color: var(--dark); box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22); }
+    .subnav-link.subnav-admin { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 36px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font: 700 13px/1.2 var(--font);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.2; flex: none; }
+    .btn-p { background: var(--p); color: #fff; }
+    .btn-p:hover { background: var(--p-h); }
+    .btn-cta { background: var(--cta); color: #fff; }
+    .btn-cta:hover { background: var(--cta-h); }
+    .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+    .btn-sm { min-height: 32px; padding: 4px 11px; font-size: 12px; }
+
+    /* Cards & KPIs */
+    .kpi-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin: 18px 0 20px;
+    }
+    .kpi-card {
+      background: #fff;
+      border: 1px solid #E2E8F0;
+      border-radius: var(--r);
+      padding: 15px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .kpi-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; background: #F0FDFA; color: var(--p); flex-shrink: 0;
+    }
+    .kpi-val { font-size: 23px; font-weight: 800; line-height: 1.15; color: #0F172A; }
+    .kpi-label { font-size: 12px; font-weight: 600; color: var(--mut); margin-top: 2px; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #E2E8F0;
+      border-radius: var(--r);
+      padding: 20px;
+      box-shadow: var(--sh);
+      margin-bottom: 18px;
+    }
+
+    input[type=text], input[type=password], textarea, select {
+      width: 100%;
+      min-height: 38px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1.5px solid #CBD5E1;
+      font: 500 14px var(--font);
+      color: #0F172A;
+      background: #fff;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p); box-shadow: 0 0 0 3px var(--p3); }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .search-wrap { position: relative; flex: 1; min-width: 240px; max-width: 380px; }
+    .search-wrap input { padding-left: 34px; }
+    .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; stroke: var(--mut); fill: none; stroke-width: 2; }
+
+    .proj-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 14px;
+    }
+    .proj-item {
+      background: #fff;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+      transition: all 0.15s ease;
+    }
+    .proj-item:hover { border-color: var(--p); box-shadow: 0 6px 16px rgba(15, 118, 110, 0.09); }
+    .proj-item.active-proj { border-color: #10B981; background: #F0FDF4; }
+    .proj-item.locked-proj { border-left: 4px solid #F59E0B; }
+    .proj-item.trash-proj { border-left: 4px solid #EF4444; background: #FFFDFD; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .pill-green { background: #DCFCE7; color: #15803D; }
+    .pill-amber { background: #FEF3C7; color: #B45309; border: 1px solid #FCD34D; }
+    .pill-red { background: #FEE2E2; color: #B91C1C; }
+    .pill-slate { background: #F1F5F9; color: #334155; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 520px;
+      padding: 22px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.22);
+    }
+
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--dark); color: #fff;
+      padding: 12px 20px; border-radius: 12px;
+      font-weight: 600; font-size: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      z-index: 1000; opacity: 0; transform: translateY(12px);
+      transition: all 0.25s ease; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    body.role-operator .eng-only { display: none !important; }
+
+    @media (min-width: 1441px) {
+      .wrap, .subnav-inner { max-width: 1440px; }
+    }
+    @media (max-width: 768px) {
+      :root { --gut: 10px; }
+      .brand-sub-title { display: none; }
+      .top .wrap { padding: 6px 10px; gap: 6px; }
+      .top-actions { width: 100%; justify-content: flex-start; gap: 4px; }
+      .subnav-inner { padding: 5px 10px; }
+      .kpi-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .proj-grid { grid-template-columns: 1fr; }
+      input[type=text], input[type=password], textarea, select { font-size: 16px !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/index.html" title="Quay về Bàn Xếp Phôi Chính">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
+          <div class="brand-sub-title">Quản lý Dự án &amp; Đơn hàng Xưởng</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;" id="networkDot"></span>
+          <span id="networkStatusText">Trực tuyến 24/7</span>
+        </div>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4; white-space:nowrap;">
+          <span id="userIcon">👷</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </div>
+
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects.html" class="subnav-link active">
+          📁 Quản Lý Dự Án <span id="subnavProjBadge" style="background:#fff;color:var(--dark);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
+        </a>
+        <a href="/inventory.html" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Inline Login Gate nếu chưa đăng nhập -->
+  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">🔐</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">ĐĂNG NHẬP QUẢN LÝ DỰ ÁN</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Vui lòng đăng nhập tài khoản xưởng Cơ Khí An Bình</p>
+      </div>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Tên đăng nhập *</label>
+        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản (vd: admin, kt1, thocnc)...">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Mật khẩu *</label>
+        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
+      </div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">
+        🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Projects Content -->
+  <main class="wrap" id="mainContent" style="display:none; padding-top:18px; padding-bottom:60px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:6px;">
+      <div>
+        <h1>Quản Lý Danh Mục Dự Án &amp; Đơn Hàng</h1>
+        <p style="color:var(--mut); font-size:13.5px; margin:3px 0 0;">
+          Quản lý, khóa bảo vệ sản xuất, sao lưu và mở nhanh dự án sang Bàn Xếp Phôi hoặc Màn hình Laser CNC.
+        </p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-p btn-sm eng-only" id="btnCreateNewProj">➕ Tạo dự án mới</button>
+        <button type="button" class="btn btn-soft btn-sm eng-only" id="btnImportJsonProj">📥 Nhập file .json / Fusion</button>
+        <input type="file" id="inpImportFile" accept=".json" style="display:none;">
+        <button type="button" class="btn btn-soft btn-sm" id="btnBackupAllProj">💾 Sao lưu tất cả (.json)</button>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-cards">
+      <div class="kpi-card">
+        <div class="kpi-icon">📁</div>
+        <div>
+          <div class="kpi-val" id="kpiTotalProj">0</div>
+          <div class="kpi-label">Tổng dự án đang lưu</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">⚡</div>
+        <div style="min-width:0;">
+          <div class="kpi-val" id="kpiActiveProjName" style="font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dự án nháp</div>
+          <div class="kpi-label">Dự án đang mở trên bàn</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#FFFBEB; color:#D97706;">🔒</div>
+        <div>
+          <div class="kpi-val" id="kpiLockedProj">0</div>
+          <div class="kpi-label">Dự án khóa bảo vệ SX</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#FEF2F2; color:#DC2626;">🗑️</div>
+        <div>
+          <div class="kpi-val" id="kpiTrashProj">0</div>
+          <div class="kpi-label">Dự án trong thùng rác</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar & List -->
+    <section class="card">
+      <div class="toolbar">
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-sm btn-p" id="tabActive">📁 Danh mục (<span id="cntActive">0</span>)</button>
+          <button type="button" class="btn btn-sm btn-soft" id="tabLocked">🔒 Đã khóa (<span id="cntLocked">0</span>)</button>
+          <button type="button" class="btn btn-sm btn-soft" id="tabTrash" style="color:#DC2626;">🗑️ Thùng rác (<span id="cntTrash">0</span>)</button>
+        </div>
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="inpSearch" placeholder="Tìm theo tên dự án, khách hàng, loại hộp...">
+        </div>
+      </div>
+
+      <div id="trashActionsBanner" style="display:none; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 14px; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; margin-bottom:14px;">
+        <span style="font-size:13px; color:#991B1B; font-weight:600;">🗑️ Các dự án trong thùng rác có thể khôi phục bất kỳ lúc nào.</span>
+        <button type="button" class="btn btn-sm btn-danger eng-only" id="btnEmptyTrash">🧹 Xóa sạch thùng rác</button>
+      </div>
+
+      <div class="proj-grid" id="projectsContainer"></div>
+    </section>
+  </main>
+
+  <!-- Modal Tạo / Sửa thông tin dự án -->
+  <div class="modal-backdrop" id="modalProjForm" style="display:none;">
+    <div class="modal-box">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <h3 id="modalFormTitle" style="font-size:18px;">Tạo Dự Án Mới</h3>
+        <button type="button" id="btnCloseModalForm" style="background:none; border:none; font-size:24px; cursor:pointer; color:#64748B;">&times;</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Tên dự án *</label>
+          <input type="text" id="inpFormName" placeholder="Ví dụ: Khung bàn thao tác 1500x600">
+        </div>
+        <div>
+          <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Khách hàng / Công trình</label>
+          <input type="text" id="inpFormCustomer" placeholder="Ví dụ: Công ty Cơ Khí An Bình">
+        </div>
+        <div>
+          <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Ghi chú</label>
+          <textarea id="inpFormNotes" rows="3" placeholder="Ghi chú tiến độ, yêu cầu vật tư..."></textarea>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button type="button" class="btn btn-soft btn-sm" id="btnCancelModalForm">Hủy</button>
+        <button type="button" class="btn btn-p btn-sm" id="btnSaveModalForm">Lưu dự án</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const LS_USERS = 'toiuu_users_list_v1';
+    const LS_SESSION = 'toiuu_logged_user_v1';
+    const LS_PROJECTS = 'toiuu_saved_projects_list_v1';
+    const LS_TRASH = 'toiuu_trash_projects_v1';
+    const LS_DELETED_IDS = 'toiuu_deleted_proj_ids_v1';
+    const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
+    const LS_ACTIVE_PROJ = 'toiuu_active_project_v2';
+
+    const DEFAULT_USERS = [
+      { username: 'admin', password: '123456', fullName: 'Kỹ Sư Thiết Kế (Admin)', role: 'engineer' },
+      { username: 'kt1', password: '12345', fullName: 'Sơn KT (Kỹ Sư)', role: 'engineer' },
+      { username: 'thocnc', password: '1234', fullName: 'Thợ Vận Hành Máy CNC', role: 'operator' }
+    ];
+
+    let usersList = [];
+    let currentUser = null;
+    let projectsList = [];
+    let trashList = [];
+    let deletedIds = [];
+    let currentProjId = null;
+    let activeTab = 'active';
+    let editingId = null;
+
+    const $ = id => document.getElementById(id);
+
+    function showToast(msg) {
+      const t = $('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    function loadUsers() {
+      try {
+        const raw = localStorage.getItem(LS_USERS);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length) usersList = parsed;
+        }
+      } catch (e) {}
+      if (!usersList.length) {
+        usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
+        localStorage.setItem(LS_USERS, JSON.stringify(usersList));
+      }
+    }
+
+    function checkAuth() {
+      loadUsers();
+      let sess = null;
+      try {
+        const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
+        if (raw) sess = JSON.parse(raw);
+      } catch (e) {}
+
+      if (sess && sess.username) {
+        const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
+        if (found) {
+          currentUser = found;
+          const isOp = found.role === 'operator';
+          const isSuperAdmin = found.username.toLowerCase() === 'admin';
+          document.body.classList.toggle('role-operator', isOp);
+          $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+          $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
+          $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+          $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
+          $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
+          if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+          $('loginGateWrap').style.display = 'none';
+          $('mainContent').style.display = 'block';
+          loadData();
+          return;
+        }
+      }
+      currentUser = null;
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+      $('loginGateWrap').style.display = 'block';
+      $('mainContent').style.display = 'none';
+    }
+
+    function handleLogin() {
+      loadUsers();
+      const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
+      const p = ($('inpLoginPass').value || '').trim();
+      const err = $('loginErr');
+      const found = usersList.find(x => {
+        const xc = String(x.username || '').toLowerCase().replace(/\s+/g, '');
+        return xc === u && (String(x.password).trim() === p || (xc === 'kt1' && (p === '12345' || p === '123456')));
+      });
+      if (!found) {
+        err.textContent = '❌ Tên tài khoản hoặc mật khẩu không chính xác!';
+        err.style.display = 'block';
+        return;
+      }
+      err.style.display = 'none';
+      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+      sessionStorage.setItem(LS_SESSION, sessData);
+      localStorage.setItem(LS_SESSION, sessData);
+      $('inpLoginPass').value = '';
+      checkAuth();
+      showToast(`✓ Xin chào ${found.fullName || found.username}!`);
+    }
+
+    function handleLogout() {
+      sessionStorage.removeItem(LS_SESSION);
+      localStorage.removeItem(LS_SESSION);
+      checkAuth();
+      showToast('👋 Đã đăng xuất!');
+    }
+
+    function loadData() {
+      try { projectsList = JSON.parse(localStorage.getItem(LS_PROJECTS) || '[]'); } catch (e) { projectsList = []; }
+      try { trashList = JSON.parse(localStorage.getItem(LS_TRASH) || '[]'); } catch (e) { trashList = []; }
+      try { deletedIds = JSON.parse(localStorage.getItem(LS_DELETED_IDS) || '[]'); } catch (e) { deletedIds = []; }
+      if (!Array.isArray(projectsList)) projectsList = [];
+      if (!Array.isArray(trashList)) trashList = [];
+      currentProjId = localStorage.getItem(LS_CUR_PROJ_ID) || null;
+      try {
+        const ap = JSON.parse(localStorage.getItem(LS_ACTIVE_PROJ) || 'null');
+        if (ap && ap.currentProjectId && !currentProjId) currentProjId = ap.currentProjectId;
+      } catch (e) {}
+      renderAll();
+      fetchCloudProjects();
+    }
+
+    async function fetchCloudProjects() {
+      try {
+        const res = await fetch('/api/projects');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.projects)) {
+            const localMap = new Map(projectsList.map(p => [p.id, p]));
+            let changed = false;
+            data.projects.forEach(cp => {
+              const inTrash = trashList.some(tp => tp.id === cp.id);
+              if (!deletedIds.includes(cp.id) && !localMap.has(cp.id) && !inTrash) {
+                projectsList.push(cp);
+                changed = true;
+              }
+            });
+            if (changed) {
+              localStorage.setItem(LS_PROJECTS, JSON.stringify(projectsList));
+              renderAll();
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    function saveDataAndSync() {
+      localStorage.setItem(LS_PROJECTS, JSON.stringify(projectsList));
+      localStorage.setItem(LS_TRASH, JSON.stringify(trashList));
+      localStorage.setItem(LS_DELETED_IDS, JSON.stringify(deletedIds));
+      try {
+        fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ savedProjects: projectsList })
+        }).catch(() => {});
+      } catch (e) {}
+      renderAll();
+    }
+
+    function activateProjectData(proj) {
+      if (!proj) return;
+      const d = proj.data || {};
+      const activePayload = {
+        currentProjectId: proj.id,
+        currentProjectName: proj.name,
+        currentProjectCustomer: proj.customer || '',
+        currentProjectNotes: proj.notes || '',
+        activeProfiles: Array.isArray(d.activeProfiles) && d.activeProfiles.length ? d.activeProfiles : ['Hộp 30x30x1.8'],
+        selectedTabProfile: d.selectedTabProfile || 'ALL',
+        parts: Array.isArray(d.parts) ? d.parts : [],
+        stock: Array.isArray(d.stock) ? d.stock : [],
+        method: d.method || 'cnc',
+        kerf: d.kerf != null ? d.kerf : 0,
+        clamp: d.clamp != null ? d.clamp : 80,
+        interlock: d.interlock != null ? d.interlock : true,
+        gap: d.gap != null ? d.gap : 0,
+        fusionProject: d.fusionProject || null,
+        isBlankReset: false
+      };
+      localStorage.setItem(LS_CUR_PROJ_ID, proj.id);
+      localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activePayload));
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      $('tabActive').className = tab === 'active' ? 'btn btn-sm btn-p' : 'btn btn-sm btn-soft';
+      $('tabLocked').className = tab === 'locked' ? 'btn btn-sm btn-p' : 'btn btn-sm btn-soft';
+      $('tabTrash').className = tab === 'trash' ? 'btn btn-sm btn-p' : 'btn btn-sm btn-soft';
+      if (tab === 'trash') {
+        $('tabTrash').style.background = '#DC2626';
+        $('tabTrash').style.color = '#FFF';
+      } else {
+        $('tabTrash').style.background = '';
+        $('tabTrash').style.color = '#DC2626';
+      }
+      renderList();
+    }
+
+    function renderAll() {
+      const lockedCount = projectsList.filter(p => p.isLocked).length;
+      const curProj = projectsList.find(p => p.id === currentProjId);
+      $('kpiTotalProj').textContent = projectsList.length;
+      $('kpiLockedProj').textContent = lockedCount;
+      $('kpiTrashProj').textContent = trashList.length;
+      $('kpiActiveProjName').textContent = curProj ? curProj.name : 'Dự án nháp';
+      $('cntActive').textContent = projectsList.length;
+      $('cntLocked').textContent = lockedCount;
+      $('cntTrash').textContent = trashList.length;
+      $('subnavProjBadge').textContent = projectsList.length;
+      renderList();
+    }
+
+    function renderList() {
+      const q = ($('inpSearch').value || '').trim().toLowerCase();
+      const wrap = $('projectsContainer');
+      const isTrash = activeTab === 'trash';
+      $('trashActionsBanner').style.display = (isTrash && trashList.length) ? 'flex' : 'none';
+
+      let list = isTrash ? trashList : (activeTab === 'locked' ? projectsList.filter(p => p.isLocked) : projectsList);
+      if (q) {
+        list = list.filter(p => {
+          const profs = (p.data && Array.isArray(p.data.activeProfiles)) ? p.data.activeProfiles.join(' ') : '';
+          return `${p.name || ''} ${p.customer || ''} ${p.notes || ''} ${profs}`.toLowerCase().includes(q);
+        });
+      }
+
+      if (!list.length) {
+        wrap.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:42px 20px; color:#64748B; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:12px;">
+          ${isTrash ? '🗑️ Thùng rác hiện đang trống.' : (q ? '🔍 Không tìm thấy dự án phù hợp với từ khóa.' : '📁 Chưa có dự án nào được lưu. Bấm "+ Tạo dự án mới" để bắt đầu!')}
+        </div>`;
+        return;
+      }
+
+      wrap.innerHTML = list.map(p => {
+        const isActive = p.id === currentProjId && !isTrash;
+        const parts = (p.data && Array.isArray(p.data.parts)) ? p.data.parts : [];
+        const totalPcs = parts.reduce((a, b) => a + (Number(b.qty) || 0), 0);
+        const profs = (p.data && Array.isArray(p.data.activeProfiles)) ? p.data.activeProfiles : [];
+        const dateStr = (isTrash ? p.deletedAt : p.updatedAt) ? new Date(isTrash ? p.deletedAt : p.updatedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Vừa xong';
+
+        return `
+          <div class="proj-item ${isActive ? 'active-proj' : ''} ${p.isLocked && !isTrash ? 'locked-proj' : ''} ${isTrash ? 'trash-proj' : ''}">
+            <div>
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+                <strong style="font-size:16px; color:var(--dark); word-break:break-word;">${escapeHtml(p.name)}</strong>
+                <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                  ${isActive ? '<span class="pill pill-green">● Đang mở</span>' : ''}
+                  ${p.isLocked && !isTrash ? '<span class="pill pill-amber">🔒 Đã khóa</span>' : ''}
+                  ${isTrash ? '<span class="pill pill-red">Đã xóa</span>' : ''}
+                </div>
+              </div>
+              ${p.customer ? `<div style="font-size:13px; color:#475569; margin-bottom:3px;">Khách hàng: <b>${escapeHtml(p.customer)}</b></div>` : ''}
+              ${p.notes ? `<div style="font-size:12px; color:#64748B; font-style:italic; margin-bottom:6px;">${escapeHtml(p.notes)}</div>` : ''}
+              <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;">
+                <span class="pill pill-slate">📏 ${profs.length} loại hộp</span>
+                <span class="pill pill-slate">🧩 ${totalPcs} chi tiết</span>
+                <span class="pill pill-slate">🕒 ${dateStr}</span>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:6px; padding-top:10px; border-top:1px dashed #E2E8F0;">
+              ${isTrash ? `
+                <button type="button" class="btn btn-sm btn-p btn-restore eng-only" data-id="${p.id}">↩️ Khôi phục</button>
+                <button type="button" class="btn btn-sm btn-danger btn-perm-del eng-only" data-id="${p.id}">❌ Xóa vĩnh viễn</button>
+              ` : `
+                <button type="button" class="btn btn-sm btn-p btn-open-main" data-id="${p.id}">🚀 Mở xếp phôi</button>
+                <button type="button" class="btn btn-sm btn-cta btn-open-cnc" data-id="${p.id}">⚡ Sơ đồ CNC</button>
+                <button type="button" class="btn btn-sm btn-soft btn-lock eng-only" data-id="${p.id}">${p.isLocked ? '🔓 Mở khóa' : '🔒 Khóa'}</button>
+                <button type="button" class="btn btn-sm btn-soft btn-edit eng-only" data-id="${p.id}" ${p.isLocked ? 'disabled style="opacity:0.45;"' : ''}>✏️ Sửa</button>
+                <button type="button" class="btn btn-sm btn-soft btn-dup eng-only" data-id="${p.id}">📋 Nhân bản</button>
+                <button type="button" class="btn btn-sm btn-soft btn-exp" data-id="${p.id}">💾 .json</button>
+                <button type="button" class="btn btn-sm btn-danger btn-del eng-only" data-id="${p.id}" ${p.isLocked ? 'disabled style="opacity:0.4;"' : ''}>🗑️ Xóa</button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      wrap.querySelectorAll('.btn-open-main').forEach(b => b.onclick = () => {
+        const p = projectsList.find(x => x.id === b.dataset.id);
+        if (p) {
+          activateProjectData(p);
+          window.location.href = `/index.html?project=${encodeURIComponent(p.id)}`;
+        }
+      });
+      wrap.querySelectorAll('.btn-open-cnc').forEach(b => b.onclick = () => {
+        const p = projectsList.find(x => x.id === b.dataset.id);
+        if (p) {
+          activateProjectData(p);
+          window.location.href = '/cnc.html';
+        }
+      });
+      wrap.querySelectorAll('.btn-lock').forEach(b => b.onclick = () => {
+        const p = projectsList.find(x => x.id === b.dataset.id);
+        if (!p) return;
+        p.isLocked = !p.isLocked;
+        saveDataAndSync();
+        showToast(p.isLocked ? `🔒 Đã khóa dự án "${p.name}"` : `🔓 Đã mở khóa dự án "${p.name}"`);
+      });
+      wrap.querySelectorAll('.btn-edit').forEach(b => b.onclick = () => openProjModal(b.dataset.id));
+      wrap.querySelectorAll('.btn-dup').forEach(b => b.onclick = () => {
+        const src = projectsList.find(x => x.id === b.dataset.id);
+        if (!src) return;
+        const clone = {
+          id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          name: src.name + ' (Bản sao)',
+          customer: src.customer || '',
+          notes: src.notes || '',
+          isLocked: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          data: JSON.parse(JSON.stringify(src.data || {}))
+        };
+        projectsList.unshift(clone);
+        saveDataAndSync();
+        showToast(`✓ Đã nhân bản "${clone.name}"`);
+      });
+      wrap.querySelectorAll('.btn-exp').forEach(b => b.onclick = () => {
+        const p = projectsList.find(x => x.id === b.dataset.id);
+        if (!p) return;
+        downloadJson(p, `${(p.name || 'du_an').replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
+      });
+      wrap.querySelectorAll('.btn-del').forEach(b => b.onclick = () => {
+        const p = projectsList.find(x => x.id === b.dataset.id);
+        if (!p || p.isLocked) return;
+        if (!confirm(`Chuyển dự án "${p.name}" vào thùng rác?`)) return;
+        p.deletedAt = new Date().toISOString();
+        trashList.unshift(p);
+        projectsList = projectsList.filter(x => x.id !== p.id);
+        if (currentProjId === p.id) {
+          currentProjId = null;
+          localStorage.removeItem(LS_CUR_PROJ_ID);
+        }
+        saveDataAndSync();
+        showToast(`🗑️ Đã chuyển "${p.name}" vào thùng rác`);
+      });
+      wrap.querySelectorAll('.btn-restore').forEach(b => b.onclick = () => {
+        const p = trashList.find(x => x.id === b.dataset.id);
+        if (!p) return;
+        delete p.deletedAt;
+        p.updatedAt = new Date().toISOString();
+        projectsList.unshift(p);
+        trashList = trashList.filter(x => x.id !== p.id);
+        saveDataAndSync();
+        showToast(`↩️ Đã khôi phục "${p.name}"`);
+      });
+      wrap.querySelectorAll('.btn-perm-del').forEach(b => b.onclick = () => {
+        const p = trashList.find(x => x.id === b.dataset.id);
+        if (!p) return;
+        if (!confirm(`Xóa vĩnh viễn "${p.name}"? Thao tác này không thể hoàn tác.`)) return;
+        if (!deletedIds.includes(p.id)) deletedIds.push(p.id);
+        trashList = trashList.filter(x => x.id !== p.id);
+        saveDataAndSync();
+        showToast(`❌ Đã xóa vĩnh viễn "${p.name}"`);
+      });
+    }
+
+    function openProjModal(id = null) {
+      editingId = id;
+      if (id) {
+        const p = projectsList.find(x => x.id === id);
+        if (!p) return;
+        $('modalFormTitle').textContent = 'Cập nhật thông tin Dự án';
+        $('inpFormName').value = p.name || '';
+        $('inpFormCustomer').value = p.customer || '';
+        $('inpFormNotes').value = p.notes || '';
+      } else {
+        $('modalFormTitle').textContent = 'Tạo Dự Án Mới';
+        $('inpFormName').value = `Dự án #${projectsList.length + 1} (${new Date().toLocaleDateString('vi-VN')})`;
+        $('inpFormCustomer').value = '';
+        $('inpFormNotes').value = '';
+      }
+      $('modalProjForm').style.display = 'flex';
+      setTimeout(() => $('inpFormName').focus(), 50);
+    }
+
+    function saveModalForm() {
+      const name = ($('inpFormName').value || '').trim();
+      if (!name) { alert('Vui lòng nhập tên dự án!'); return; }
+      const customer = ($('inpFormCustomer').value || '').trim();
+      const notes = ($('inpFormNotes').value || '').trim();
+      const now = new Date().toISOString();
+
+      if (editingId) {
+        const p = projectsList.find(x => x.id === editingId);
+        if (p) {
+          p.name = name; p.customer = customer; p.notes = notes; p.updatedAt = now;
+        }
+        showToast(`✓ Đã cập nhật "${name}"`);
+      } else {
+        const newProj = {
+          id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          name, customer, notes, isLocked: false,
+          createdAt: now, updatedAt: now,
+          data: {
+            activeProfiles: ['Hộp 30x30x1.8'],
+            selectedTabProfile: 'Hộp 30x30x1.8',
+            parts: [],
+            stock: [{ id: 's_def_' + Date.now(), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
+            method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
+          }
+        };
+        projectsList.unshift(newProj);
+        showToast(`✓ Đã tạo dự án mới "${name}"`);
+      }
+      $('modalProjForm').style.display = 'none';
+      saveDataAndSync();
+    }
+
+    function downloadJson(obj, filename) {
+      const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('btnSubmitLogin').onclick = handleLogin;
+      $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+      $('btnLogout').onclick = handleLogout;
+
+      $('tabActive').onclick = () => switchTab('active');
+      $('tabLocked').onclick = () => switchTab('locked');
+      $('tabTrash').onclick = () => switchTab('trash');
+      $('inpSearch').oninput = renderList;
+
+      $('btnCreateNewProj').onclick = () => openProjModal(null);
+      $('btnCloseModalForm').onclick = () => $('modalProjForm').style.display = 'none';
+      $('btnCancelModalForm').onclick = () => $('modalProjForm').style.display = 'none';
+      $('btnSaveModalForm').onclick = saveModalForm;
+
+      $('btnBackupAllProj').onclick = () => {
+        downloadJson({ exportedAt: new Date().toISOString(), projects: projectsList, trash: trashList }, `du_an_an_binh_${new Date().toISOString().slice(0,10)}.json`);
+        showToast(`💾 Đã xuất sao lưu ${projectsList.length} dự án!`);
+      };
+
+      $('btnImportJsonProj').onclick = () => $('inpImportFile').click();
+      $('inpImportFile').onchange = e => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = ev => {
+          try {
+            const parsed = JSON.parse(ev.target.result);
+            let added = 0;
+            if (Array.isArray(parsed.projects)) {
+              parsed.projects.forEach(p => {
+                if (p && p.name && !projectsList.some(x => x.id === p.id)) { projectsList.unshift(p); added++; }
+              });
+            } else if (parsed && parsed.name && parsed.data) {
+              parsed.id = 'proj_imp_' + Date.now();
+              projectsList.unshift(parsed);
+              added = 1;
+            } else if (parsed && Array.isArray(parsed.parts)) {
+              projectsList.unshift({
+                id: 'proj_f360_' + Date.now(),
+                name: parsed.project_name || f.name.replace(/\.json$/i, ''),
+                customer: 'Nhập từ JSON / Fusion 360',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                data: {
+                  activeProfiles: Array.from(new Set(parsed.parts.map(x => x.profile || 'Hộp 30x30x1.8'))),
+                  parts: parsed.parts,
+                  stock: parsed.stock || [],
+                  method: 'cnc', kerf: parsed.kerf || 0, clamp: parsed.clamp_tail || 80, interlock: true, gap: 0,
+                  fusionProject: parsed
+                }
+              });
+              added = 1;
+            }
+            if (added) { saveDataAndSync(); showToast(`✓ Đã nhập ${added} dự án thành công!`); }
+            else alert('⚠️ File JSON không có dự án mới hoặc không đúng định dạng.');
+          } catch (err) { alert('❌ Lỗi đọc file JSON: ' + err.message); }
+        };
+        r.readAsText(f);
+        e.target.value = '';
+      };
+
+      $('btnEmptyTrash').onclick = () => {
+        if (!trashList.length) return;
+        if (!confirm(`Xóa vĩnh viễn toàn bộ ${trashList.length} dự án trong thùng rác?`)) return;
+        trashList.forEach(p => { if (!deletedIds.includes(p.id)) deletedIds.push(p.id); });
+        trashList = [];
+        saveDataAndSync();
+        showToast('🧹 Đã dọn sạch thùng rác!');
+      };
+
+      checkAuth();
+    });
+  </script>
+</body>
+</html>

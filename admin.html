@@ -67,8 +67,12 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 64px;
-      gap: 14px;
+      min-height: 58px;
+      height: auto;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 10px 16px;
     }
     .brand {
       display: flex;
@@ -76,32 +80,37 @@
       gap: 10px;
       color: var(--dark);
       text-decoration: none;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .brand-logo-img {
-      height: 42px;
+      height: 40px;
       max-width: 130px;
       object-fit: contain;
       border-radius: 4px;
+      flex-shrink: 0;
     }
     .brand-divider {
       width: 1.5px;
-      height: 28px;
+      height: 26px;
       background: var(--edge);
       margin: 0 2px;
+      flex-shrink: 0;
     }
     .brand-text-col {
       display: flex;
       flex-direction: column;
       justify-content: center;
+      white-space: nowrap;
     }
     .brand-main-title {
       font-weight: 800;
-      font-size: 15px;
+      font-size: 15.5px;
       color: var(--dark);
       line-height: 1.15;
     }
     .brand-sub-title {
-      font-weight: 700;
+      font-weight: 600;
       color: var(--p);
       font-size: 11.5px;
       line-height: 1.15;
@@ -110,9 +119,46 @@
     .top-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: flex-end;
+      gap: 6px;
       flex-wrap: wrap;
+      flex: 1 1 auto;
     }
+
+    /* Subnav Bar */
+    .subnav-bar { background: #F8FAFC; border-top: 1px solid var(--edge); }
+    .subnav-inner {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 6px var(--gut);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .subnav-inner::-webkit-scrollbar { display: none; }
+    .subnav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--mut);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .subnav-link:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .subnav-link.active { background: var(--dark); color: #FFFFFF; border-color: var(--dark); box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22); }
+    .subnav-link.subnav-admin { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+    .subnav-link.subnav-admin.active { background: #0F766E; color: #FFFFFF; border-color: #0F766E; }
 
     /* Buttons */
     .btn {
@@ -294,20 +340,25 @@
     #toast.show { opacity: 1; transform: translateY(0); }
 
     /* Responsive */
+    @media (min-width: 1441px) {
+      .wrap, .subnav-inner { max-width: 1440px; }
+    }
     @media (max-width: 768px) {
-      :root { --gut: 12px; }
+      :root { --gut: 10px; }
       .top .wrap {
         height: auto;
         min-height: 54px;
-        padding: 8px 12px;
+        padding: 6px 10px;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 6px;
       }
       .brand-sub-title { display: none; }
       .top-actions {
         width: 100%;
         justify-content: flex-start;
+        gap: 4px;
       }
+      .subnav-inner { padding: 5px 10px; }
       .kpi-cards {
         grid-template-columns: repeat(2, 1fr);
         gap: 8px;
@@ -323,11 +374,11 @@
 </head>
 <body>
 
-  <!-- Top Header Navigation -->
+  <!-- Top Header Navigation 2 Tầng -->
   <header class="top">
     <div class="wrap">
-      <a class="brand" href="/" title="Quay về Trang Chủ Xếp Phôi">
-        <img src="logo_an_binh.jpg" alt="Logo An Bình" class="brand-logo-img" onerror="this.style.display='none'">
+      <a class="brand" href="/index.html" title="Quay về Trang Chủ Xếp Phôi">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
           <div class="brand-main-title">QUẢN TRỊ HỆ THỐNG &amp; NHÂN SỰ</div>
@@ -335,10 +386,7 @@
         </div>
       </a>
       <div class="top-actions">
-        <a href="/" class="btn btn-soft btn-sm" title="Quay về trang tính toán xếp phôi cắt thép hộp">
-          <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Trang Xếp Phôi
-        </a>
-        <div id="topAdminBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px; background:#F0FDFA; color:#0F766E; border:1px solid #99F6E4;">
+        <div id="topAdminBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px; background:#F0FDFA; color:#0F766E; border:1px solid #99F6E4; white-space:nowrap;">
           <span>👑 Admin:</span> <strong id="topAdminUser">@admin</strong>
         </div>
         <button class="btn btn-danger btn-sm" id="btnAdminLogout" title="Đăng xuất khỏi tài khoản Quản trị">
@@ -346,6 +394,16 @@
         </button>
       </div>
     </div>
+
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects.html" class="subnav-link">📁 Quản Lý Dự Án</a>
+        <a href="/inventory.html" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin.html" class="subnav-link subnav-admin active">⚙️ Quản Trị &amp; Nhân Sự</a>
+      </div>
+    </nav>
   </header>
 
   <!-- Màn hình Đăng Nhập Dành Riêng Cho Quản Trị Viên (Hiển thị khi chưa đăng nhập) -->
@@ -749,7 +807,7 @@
 
       let wsCode = 'ANBINH';
       try {
-        const savedCode = localStorage.getItem('toiuu_cloud_sync_code');
+        const savedCode = localStorage.getItem('toiuu_cloud_workspace_id_v1') || localStorage.getItem('toiuu_cloud_sync_code');
         if (savedCode) wsCode = savedCode;
       } catch (e) {}
       $('kpiWorkshopCode').textContent = wsCode;
@@ -962,23 +1020,37 @@
       loadUsersFromStorage();
       let projects = [];
       try {
-        const rawP = localStorage.getItem('toiuu_projects_v2');
+        const rawP = localStorage.getItem('toiuu_saved_projects_list_v1');
         if (rawP) projects = JSON.parse(rawP);
       } catch (e) {}
 
       let profiles = [];
       try {
-        const rawProf = localStorage.getItem('toiuu_profiles_library');
+        const rawProf = localStorage.getItem('toiuu_saved_box_profiles_v2');
         if (rawProf) profiles = JSON.parse(rawProf);
       } catch (e) {}
 
+      let activeProject = null;
+      try {
+        const rawActive = localStorage.getItem('toiuu_active_project_v2');
+        if (rawActive) activeProject = JSON.parse(rawActive);
+      } catch (e) {}
+
+      let cutStatuses = {};
+      try {
+        const rawCuts = localStorage.getItem('toiuu_cut_statuses');
+        if (rawCuts) cutStatuses = JSON.parse(rawCuts);
+      } catch (e) {}
+
       const backupObj = {
-        version: 'toiuu-phoi-backup-v1',
+        version: 'toiuu-phoi-backup-v2',
         exportedAt: new Date().toISOString(),
-        workshopCode: localStorage.getItem('toiuu_cloud_sync_code') || 'ANBINH',
+        workshopCode: localStorage.getItem('toiuu_cloud_workspace_id_v1') || 'ANBINH',
         users: usersList,
         profiles: profiles,
-        projects: projects
+        projects: projects,
+        activeProject: activeProject,
+        cutStatuses: cutStatuses
       };
 
       const jsonStr = JSON.stringify(backupObj, null, 2);
@@ -1014,13 +1086,19 @@
             saveUsersToStorage();
           }
           if (Array.isArray(data.projects)) {
-            localStorage.setItem('toiuu_projects_v2', JSON.stringify(data.projects));
+            localStorage.setItem('toiuu_saved_projects_list_v1', JSON.stringify(data.projects));
           }
           if (Array.isArray(data.profiles)) {
-            localStorage.setItem('toiuu_profiles_library', JSON.stringify(data.profiles));
+            localStorage.setItem('toiuu_saved_box_profiles_v2', JSON.stringify(data.profiles));
+          }
+          if (data.activeProject) {
+            localStorage.setItem('toiuu_active_project_v2', JSON.stringify(data.activeProject));
+          }
+          if (data.cutStatuses) {
+            localStorage.setItem('toiuu_cut_statuses', JSON.stringify(data.cutStatuses));
           }
           if (data.workshopCode) {
-            localStorage.setItem('toiuu_cloud_sync_code', data.workshopCode);
+            localStorage.setItem('toiuu_cloud_workspace_id_v1', data.workshopCode);
           }
 
           renderDashboard();
