@@ -1,7 +1,8 @@
 /**
  * Service Worker - Offline-First PWA for Xếp Phôi CNC An Bình
+ * Cache Version 5 - Bắt buộc cập nhật ngay lập tức
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v3';
+const CACHE_NAME = 'toiuu-phoi-pwa-v5';
 const STATIC_ASSETS = [
   './',
   'index.html',
@@ -12,10 +13,11 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       return cache.addAll(STATIC_ASSETS);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -38,10 +40,16 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Network-First with Cache Fallback cho trang HTML chính
-  if (req.mode === 'navigate') {
+  // Network-First cho trang HTML chính để luôn nhận code mới nhất
+  if (req.mode === 'navigate' || req.destination === 'document') {
     event.respondWith(
-      fetch(req).catch(() => caches.match('index.html'))
+      fetch(req).then(networkRes => {
+        if (networkRes && networkRes.status === 200) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+        }
+        return networkRes;
+      }).catch(() => caches.match('index.html'))
     );
     return;
   }

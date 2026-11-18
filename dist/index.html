@@ -1195,10 +1195,13 @@
         </div>
 
         <!-- Nút Phân Quyền Thông Minh (Thợ CNC vs Kỹ Sư Thiết Kế) -->
-        <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Nhấn để đổi vai trò hoặc nhập mã PIN Kỹ sư">
+        <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Thông tin người dùng đang đăng nhập">
           <span id="roleBadgeIcon">👷</span>
           <span id="roleBadgeText">Thợ CNC [Khóa an toàn]</span>
           <span id="roleLockStatus" style="font-size:12px;">🔒</span>
+        </button>
+        <button class="btn btn-sm" id="btnHeaderQuickLogout" style="background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-weight:700; padding:4px 9px; font-size:12px; display:inline-flex; align-items:center; gap:4px; border-radius:6px; cursor:pointer;" title="Đăng xuất khỏi tài khoản này">
+          🚪 Đăng xuất
         </button>
 
         <!-- Nút Đồng Bộ Đám Mây Mã Xưởng -->
@@ -1790,13 +1793,13 @@
     </div>
   </div>
 
-  <!-- Modal Quản Lý Tài Khoản & Phân Quyền Hệ Thống -->
+  <!-- Modal Quản Lý Tài Khoản & Phân Quyền Hệ Thống (ĐỘC QUYỀN CHO ADMIN) -->
   <div class="modal-backdrop" id="modalRoleSwitch" style="display: none;">
     <div class="modal-box" style="max-width: 640px;">
       <div class="modal-head">
         <div style="display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">👤</span>
-          <h3 style="margin:0; font-size:18px;">Quản Lý Tài Khoản &amp; Phân Quyền Xưởng</h3>
+          <span style="font-size:24px;">👑</span>
+          <h3 style="margin:0; font-size:18px;">Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Admin)</h3>
         </div>
         <button class="modal-close" id="btnCloseRoleModal">&times;</button>
       </div>
@@ -1806,38 +1809,38 @@
         <div id="currentAccountCard" style="border:2px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; margin-bottom:16px;">
           <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <div>
-              <div style="font-size:12px; color:#475569; font-weight:600; margin-bottom:2px;">ĐANG ĐĂNG NHẬP VỚI TÀI KHOẢN:</div>
+              <div style="font-size:12px; color:#475569; font-weight:600; margin-bottom:2px;">TÀI KHOẢN ĐANG ĐĂNG NHẬP:</div>
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                <span id="accModalUserIcon" style="font-size:22px;">📐</span>
-                <strong id="accModalFullName" style="font-size:16px; color:#0B3B38;">Kỹ Sư Thiết Kế</strong>
+                <span id="accModalUserIcon" style="font-size:22px;">👑</span>
+                <strong id="accModalFullName" style="font-size:16px; color:#0B3B38;">Quản Trị Viên (Admin)</strong>
                 <span id="accModalUsername" style="font-size:13px; color:#0F766E; font-family:monospace; background:#CCFBF1; padding:2px 8px; border-radius:6px; font-weight:700;">@admin</span>
-                <span id="accModalRoleBadge" style="font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:12px; background:#0F766E; color:#FFF;">TOÀN QUYỀN KỸ SƯ</span>
+                <span id="accModalRoleBadge" style="font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:12px; background:#0F766E; color:#FFF;">QUẢN TRỊ VIÊN TỐI CAO</span>
               </div>
             </div>
             <button type="button" class="btn btn-sm" id="btnLogoutAccount" style="background:#B4232C; color:#FFF; font-weight:700; padding:7px 14px;">
-              🚪 Đăng xuất / Đổi tài khoản
+              🚪 Đăng xuất
             </button>
           </div>
 
           <div id="accModalRoleDesc" style="font-size:12.5px; color:#134E4A; margin-top:10px; line-height:1.45; border-top:1px dashed #99F6E4; padding-top:8px;">
-            Toàn quyền tính toán tối ưu, thêm/sửa/xóa quy cách hộp, xóa dự án, xuất nhập Fusion 360 và quản lý tài khoản nhân sự trong xưởng.
+            Toàn quyền tối cao: quản lý danh sách tài khoản, đặt lại mật khẩu cho nhân sự và cấp tài khoản mới.
           </div>
 
-          <!-- Đổi mật khẩu cá nhân -->
-          <details style="margin-top:10px; font-size:12.5px; color:#0F766E;">
-            <summary style="cursor:pointer; font-weight:700;">🔑 Đổi mật khẩu tài khoản của tôi</summary>
+          <!-- Đổi mật khẩu Admin -->
+          <details id="boxChangeSelfPassword" style="margin-top:10px; font-size:12.5px; color:#0F766E;">
+            <summary style="cursor:pointer; font-weight:700;">🔑 Đổi mật khẩu Quản trị viên (Admin)</summary>
             <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              <input type="password" id="inpNewSelfPassword" placeholder="Nhập mật khẩu mới (tối thiểu 4 ký tự)..." style="flex:1; min-width:200px; padding:7px 12px; border:1.5px solid #CBD5E1; border-radius:8px; font-size:13px;">
+              <input type="password" id="inpNewSelfPassword" placeholder="Nhập mật khẩu Admin mới (tối thiểu 4 ký tự)..." style="flex:1; min-width:200px; padding:7px 12px; border:1.5px solid #CBD5E1; border-radius:8px; font-size:13px;">
               <button type="button" class="btn btn-p btn-sm" id="btnSaveSelfPassword" style="font-weight:700;">Lưu mật khẩu mới</button>
             </div>
           </details>
         </div>
 
-        <!-- Khối 2: Quản lý Danh sách Tài khoản Xưởng (Chỉ hiện khi là Kỹ sư / Admin) -->
-        <div id="adminUsersManagerBox" style="border:1.5px solid #CBD5E1; background:#FFFFFF; border-radius:12px; padding:14px 16px;">
+        <!-- Khối 2: Quản lý Danh sách Tài khoản Xưởng (CHỈ HIỂN THỊ KHI LÀ TÀI KHOẢN ADMIN) -->
+        <div id="adminUsersManagerBox" style="display: none !important; border:1.5px solid #CBD5E1; background:#FFFFFF; border-radius:12px; padding:14px 16px;">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
             <strong style="font-size:14.5px; color:#0B3B38;">👥 Danh Sách Tài Khoản Truy Cập Xưởng</strong>
-            <span style="font-size:11.5px; color:#64748B;">Đồng bộ tự động trên mọi thiết bị</span>
+            <span style="font-size:11.5px; color:#64748B;">Độc quyền Quản Trị Viên</span>
           </div>
 
           <div id="usersListContainer" style="max-height:210px; overflow-y:auto; border:1px solid #E2E8F0; border-radius:8px; margin-bottom:14px;">
@@ -5928,6 +5931,16 @@
         if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
         return;
       }
+      const isSuperAdmin = state.currentUser.username && state.currentUser.username.toLowerCase() === 'admin';
+      
+      // NẾU KHÔNG PHẢI TÀI KHOẢN ADMIN -> TUYỆT ĐỐI KHÔNG MỞ BẢNG QUẢN LÝ TÀI KHOẢN!
+      if (!isSuperAdmin) {
+        if (confirm(`👤 Bạn đang đăng nhập với tài khoản: @${state.currentUser.username} (${state.currentUser.fullName || ''})\n\nBạn có muốn Đăng Xuất khỏi hệ thống không?`)) {
+          logoutCurrentAccount();
+        }
+        return;
+      }
+
       const modal = $('modalRoleSwitch');
       if (!modal) return;
       applyUserRoleUI();
@@ -6122,8 +6135,9 @@
     function initNetworkAndPWA() {
       // Đăng ký Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').then(reg => {
-          console.log('PWA Service Worker registered:', reg.scope);
+        navigator.serviceWorker.register('./sw.js?v=5').then(reg => {
+          reg.update();
+          console.log('PWA Service Worker registered & updated v5:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
@@ -6175,6 +6189,13 @@
       // Gắn sự kiện Hệ thống Tài khoản & Mật khẩu Phân quyền
       if ($('btnRoleSelector')) {
         $('btnRoleSelector').onclick = () => openRoleSwitchModal();
+      }
+      if ($('btnHeaderQuickLogout')) {
+        $('btnHeaderQuickLogout').onclick = () => {
+          if (confirm('Bạn có chắc muốn Đăng Xuất khỏi hệ thống không?')) {
+            logoutCurrentAccount();
+          }
+        };
       }
       if ($('btnCloseRoleModal')) {
         $('btnCloseRoleModal').onclick = () => closeRoleSwitchModal();
