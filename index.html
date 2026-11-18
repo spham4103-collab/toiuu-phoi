@@ -13,6 +13,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script id="embeddedFusionData" type="application/json"></script>
+  <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
   <style>
     :root {
       --bg: #FFFFFF;
@@ -119,7 +120,58 @@
       line-height: 1.15;
       margin-top: 2px;
     }
-    .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    /* Dropdown Menus in Header */
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 6px;
+      background: #FFFFFF;
+      min-width: 220px;
+      border: 1px solid var(--edge);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.12), 0 8px 10px -6px rgba(0,0,0,0.06);
+      z-index: 1000;
+      padding: 6px 0;
+    }
+    .dropdown.open .dropdown-menu {
+      display: block;
+    }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 15px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--dark);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .dropdown-item:hover {
+      background: var(--tint);
+      color: var(--p);
+    }
+    .dropdown-item svg {
+      width: 15px;
+      height: 15px;
+      stroke: var(--p);
+      stroke-width: 2;
+      flex-shrink: 0;
+    }
 
     /* Buttons */
     .btn {
@@ -1053,34 +1105,61 @@
         <button class="btn btn-soft btn-sm" id="btnCloudSync" title="Đồng bộ tự động qua đám mây giữa các thiết bị bằng Mã Xưởng">
           <span class="cloud-status-dot dot-gray" id="cloudStatusDot"></span>
           <svg viewBox="0 0 24 24" style="width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-          <span id="cloudStatusText" style="font-weight:700;">Mã Xưởng: Chưa kết nối</span>
+          <span id="cloudStatusText" style="font-weight:700;">Mã Xưởng</span>
         </button>
+
+        <!-- Quản lý Dự án -->
         <button class="btn btn-p btn-sm" id="btnProjectsManager" title="Quản lý danh sách các dự án đã lưu, mở lại dự án cũ, xuất/nhập file">
           <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          Quản lý Dự án <span id="badgeProjectCount" style="margin-left:4px;background:#fff;color:var(--p);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:700;">0</span>
+          Dự án <span id="badgeProjectCount" style="margin-left:3px;background:#fff;color:var(--p);padding:1px 5px;border-radius:10px;font-size:11px;font-weight:700;">0</span>
         </button>
-        <button class="btn btn-soft btn-sm" id="btnOpenSaveModal" title="Lưu dự án hiện tại theo tên và khách hàng">
+
+        <!-- Lưu Dự án -->
+        <button class="btn btn-soft btn-sm" id="btnOpenSaveModal" title="Lưu số liệu hiện tại thành dự án">
           <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Lưu Dự án
+          Lưu
         </button>
-        <button class="btn btn-soft btn-sm" id="btnOpenIgs" title="Kéo thả hoặc chọn các file .IGS cho máy cắt laser ống">
-          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Nhập file .IGS
-        </button>
-        <button class="btn btn-soft btn-sm" id="btnLoadFusion" title="Nạp trực tiếp từ bản vẽ Fusion 360 vừa bóc tách">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-          Từ Fusion 360
-        </button>
-        <button class="btn btn-soft btn-sm" id="btnPresetMulti" title="Ví dụ bản vẽ kết cấu gồm nhiều loại hộp (50x50, 30x30, 20x40)">
-          Mẫu đa hộp
-        </button>
-        <button class="btn btn-soft btn-sm" id="btnPresetUser" title="Nạp đúng bộ số liệu Hộp 30x30 từ ảnh mẫu bạn đã gửi">
-          Mẫu ảnh gốc
-        </button>
-        <button class="btn btn-soft btn-sm" id="btnOpenPaste">
-          <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Dán Excel
-        </button>
-        <button class="btn btn-soft btn-sm" id="btnReset">
+
+        <!-- Menu Nhập Dữ Liệu -->
+        <div class="dropdown" id="dropdownImport">
+          <button class="btn btn-soft btn-sm" id="btnDropdownImportToggle" type="button" title="Nhập dữ liệu từ Fusion 360, file .IGS hoặc Excel">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Nhập liệu ▾
+          </button>
+          <div class="dropdown-menu" id="menuImport">
+            <div class="dropdown-item" id="btnLoadFusion">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+              <span>Từ Autodesk Fusion 360</span>
+            </div>
+            <div class="dropdown-item" id="btnOpenIgs">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>File .IGS (Cắt laser ống)</span>
+            </div>
+            <div class="dropdown-item" id="btnOpenPaste">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Dán từ Excel / Bảng tính</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Menu Mẫu Thử -->
+        <div class="dropdown" id="dropdownSamples">
+          <button class="btn btn-soft btn-sm" id="btnDropdownSamplesToggle" type="button" title="Xem các bản vẽ mẫu có sẵn">
+            <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Mẫu thử ▾
+          </button>
+          <div class="dropdown-menu" id="menuSamples">
+            <div class="dropdown-item" id="btnPresetMulti">
+              <span>🏗️ Mẫu khung đa loại hộp</span>
+            </div>
+            <div class="dropdown-item" id="btnPresetUser">
+              <span>📷 Mẫu 18 chi tiết ảnh gốc</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tạo mới -->
+        <button class="btn btn-soft btn-sm" id="btnReset" title="Xóa trắng để tạo bản vẽ mới">
           <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Tạo mới
         </button>
       </div>
@@ -2548,12 +2627,20 @@
 
     function initCloudSyncSystem() {
       try {
-        const savedWs = localStorage.getItem(LS_CLOUD_WORKSPACE);
+        let savedWs = localStorage.getItem(LS_CLOUD_WORKSPACE);
         const savedPin = localStorage.getItem(LS_CLOUD_PIN);
         const customCfg = localStorage.getItem(LS_FIREBASE_CONFIG);
         
         if ($('inpCustomFirebaseConfig') && customCfg) {
           $('inpCustomFirebaseConfig').value = customCfg;
+        }
+
+        const embWs = $('embeddedWorkshopConfig');
+        if (!savedWs && embWs && embWs.textContent.trim()) {
+          try {
+            const parsedWs = JSON.parse(embWs.textContent.trim());
+            if (parsedWs && parsedWs.workspaceId) savedWs = parsedWs.workspaceId;
+          } catch (e) {}
         }
 
         if (savedWs) {
@@ -4454,9 +4541,45 @@
       initProjectsManager();
       initCloudSyncSystem();
 
-      // Try restore from localStorage or load default
-      if (!loadActiveProject()) {
-        loadMultiProfilePreset();
+      // Dropdown Menus
+      const setupDropdown = (toggleId, dropdownId) => {
+        const toggle = $(toggleId);
+        const dropdown = $(dropdownId);
+        if (!toggle || !dropdown) return;
+        toggle.onclick = e => {
+          e.stopPropagation();
+          const isOpen = dropdown.classList.contains('open');
+          document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+          if (!isOpen) dropdown.classList.add('open');
+        };
+      };
+      setupDropdown('btnDropdownImportToggle', 'dropdownImport');
+      setupDropdown('btnDropdownSamplesToggle', 'dropdownSamples');
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+      });
+
+      // 1. Kiểm tra dữ liệu Fusion nhúng sẵn trong file HTML (Ưu tiên hàng đầu khi mở từ Fusion)
+      const embScript = $('embeddedFusionData');
+      let loadedFromEmbedded = false;
+      if (embScript && embScript.textContent.trim()) {
+        try {
+          const safeJson = embScript.textContent.trim().replace(/\\(?![/u"\\bfnrt])/g, '/');
+          const embData = JSON.parse(safeJson);
+          if (embData && (embData.parts || Array.isArray(embData))) {
+            loadFusionDataPayload(embData);
+            loadedFromEmbedded = true;
+          }
+        } catch (e) {
+          console.warn('Lỗi đọc embeddedFusionData:', e);
+        }
+      }
+
+      // 2. Nếu không có dữ liệu Fusion nhúng sẵn, mới phục hồi từ localStorage hoặc nạp preset
+      if (!loadedFromEmbedded) {
+        if (!loadActiveProject()) {
+          loadMultiProfilePreset();
+        }
       }
 
       $('btnPresetMulti').onclick = () => loadMultiProfilePreset();
@@ -5018,11 +5141,6 @@
         ensureProfilesConsistency();
         state.selectedTabProfile = 'ALL';
         state.resultFilterProfile = 'ALL';
-        renderProfileTabs();
-        renderActiveProfileBanner();
-        renderPartsList();
-        renderStockList();
-        calculateOptimization(true);
 
         // Tự động liên kết và lưu thành dự án trong bộ nhớ
         const fProjName = data.project_name || ('Bản vẽ Fusion 360 ' + new Date().toLocaleDateString('vi-VN'));
@@ -5033,6 +5151,12 @@
         state.currentProjectCustomer = 'Autodesk Fusion 360';
         state.currentProjectNotes = `Xuất lúc: ${data.timestamp || new Date().toLocaleString('vi-VN')}`;
         localStorage.setItem(LS_CURRENT_PROJ_ID, projId);
+
+        renderProfileTabs();
+        renderActiveProfileBanner();
+        renderPartsList();
+        renderStockList();
+        calculateOptimization(true);
 
         const projEntry = {
           id: projId,
@@ -5071,23 +5195,7 @@
         showToast(`✓ Đã nạp thành công ${newParts.length} mục (${state.activeProfiles.length} loại hộp) ${projName}!`);
       }
 
-      // 1. Kiểm tra dữ liệu Fusion nhúng sẵn trong file HTML (Offline Portable)
-      const embScript = $('embeddedFusionData');
-      let loadedFromEmbedded = false;
-      if (embScript && embScript.textContent.trim()) {
-        try {
-          const safeJson = embScript.textContent.trim().replace(/\\(?![/u"\\bfnrt])/g, '/');
-          const embData = JSON.parse(safeJson);
-          if (embData && (embData.parts || Array.isArray(embData))) {
-            loadFusionDataPayload(embData);
-            loadedFromEmbedded = true;
-          }
-        } catch (e) {
-          console.warn('Lỗi đọc embeddedFusionData:', e);
-        }
-      }
-
-      // 2. Kiểm tra URL query ?src=fusion nếu chưa nạp nhúng
+      // Kiểm tra URL query ?src=fusion nếu chưa nạp nhúng
       if (!loadedFromEmbedded) {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('src') === 'fusion') {

@@ -878,11 +878,29 @@ def run(context):
 
         if found_web_dir:
             try:
-                for fname in ['index.html', 'logo_an_binh.jpg', 'toi-uu-engine.js', 'run_engine_helper.js']:
+                for fname in ['index.html', 'logo_an_binh.jpg', 'toi-uu-engine.js', 'run_engine_helper.js', 'workshop_config.json']:
                     src_f = os.path.join(found_web_dir, fname)
                     dst_f = os.path.join(export_dir, fname)
                     if os.path.exists(src_f) and (not os.path.exists(dst_f) or os.path.abspath(src_f) != os.path.abspath(dst_f)):
                         shutil.copy2(src_f, dst_f)
+
+                # Đồng bộ cập nhật thẳng vào thư mục Web App chính (C:/Users/Administrator/toiuu-phoi)
+                main_web_dir = 'C:/Users/Administrator/toiuu-phoi'
+                if os.path.exists(main_web_dir):
+                    try:
+                        with open(os.path.join(main_web_dir, 'fusion_exported_project.json'), 'w', encoding='utf-8') as f:
+                            json.dump(payload_data, f, ensure_ascii=False, indent=2)
+                        main_idx_path = os.path.join(main_web_dir, 'index.html')
+                        if os.path.exists(main_idx_path):
+                            with open(main_idx_path, 'r', encoding='utf-8') as f:
+                                m_html = f.read()
+                            embed_tag = f'<script id="embeddedFusionData" type="application/json">{json.dumps(payload_data, ensure_ascii=False)}</script>'
+                            if '<script id="embeddedFusionData"' in m_html:
+                                m_html = re.sub(r'<script id="embeddedFusionData"[^>]*>.*?</script>', lambda m: embed_tag, m_html, flags=re.DOTALL)
+                                with open(main_idx_path, 'w', encoding='utf-8') as f:
+                                    f.write(m_html)
+                    except Exception:
+                        pass
 
                 idx_export_path = os.path.join(export_dir, 'index.html')
                 if os.path.exists(idx_export_path):
@@ -901,6 +919,11 @@ def run(context):
                         )
                     else:
                         html_content = html_content.replace('</head>', f'{embed_tag}\n</head>')
+
+                    # Nhúng sẵn Mã Xưởng ANBINH để khi mở trang là tự kết nối đồng bộ ngay lập tức
+                    if '<script id="embeddedWorkshopConfig"' not in html_content:
+                        ws_tag = '<script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>'
+                        html_content = html_content.replace('</head>', f'{ws_tag}\n</head>')
 
                     with open(idx_export_path, 'w', encoding='utf-8') as f:
                         f.write(html_content)
