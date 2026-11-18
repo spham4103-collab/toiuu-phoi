@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="/toi-uu-engine.js"></script>
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
+  <script src="/database/workshop_db.js"></script>
   <style>
     :root {
       --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
@@ -281,6 +282,13 @@
     }
 
     function loadUsers() {
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        if (Array.isArray(dbInit.users) && dbInit.users.length) {
+          usersList = dbInit.users.slice();
+          return;
+        }
+      }
       try {
         const raw = localStorage.getItem(LS_USERS);
         if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length) usersList = p; }
@@ -331,9 +339,16 @@
     }
 
     function loadWorkshopData() {
-      try { cutStatuses = JSON.parse(localStorage.getItem(LS_CUT_STATUSES) || '{}') || {}; } catch (e) { cutStatuses = {}; }
-      try { savedProjects = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]') || []; } catch (e) { savedProjects = []; }
-      try { activeProject = JSON.parse(localStorage.getItem(LS_ACTIVE_PROJ) || 'null'); } catch (e) { activeProject = null; }
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        cutStatuses = Object.assign({}, dbInit.cutStatuses || {});
+        savedProjects = Array.isArray(dbInit.savedProjects) ? dbInit.savedProjects.slice() : [];
+        activeProject = dbInit.activeProject ? JSON.parse(JSON.stringify(dbInit.activeProject)) : null;
+      } else {
+        try { cutStatuses = JSON.parse(localStorage.getItem(LS_CUT_STATUSES) || '{}') || {}; } catch (e) { cutStatuses = {}; }
+        try { savedProjects = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]') || []; } catch (e) { savedProjects = []; }
+        try { activeProject = JSON.parse(localStorage.getItem(LS_ACTIVE_PROJ) || 'null'); } catch (e) { activeProject = null; }
+      }
 
       const sel = $('selCncProject');
       const curName = activeProject && activeProject.currentProjectName ? activeProject.currentProjectName : 'Dự án hiện hành trên bàn';
@@ -351,44 +366,8 @@
     }
 
     async function fetchCloudWorkshopData() {
-      let got = false;
-      try {
-        const res = await fetch('/api/state');
-        if (res.ok) {
-          const d = await res.json();
-          if (d && d.db) {
-            applyCloudData(d.db);
-            got = true;
-          }
-        }
-      } catch (e) {}
-
-      if (!got) {
-        try {
-          const pollRes = await fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/json?poll=1');
-          if (pollRes.ok) {
-            const text = await pollRes.text();
-            const lines = text.trim().split('\n').filter(Boolean);
-            for (let i = lines.length - 1; i >= 0; i--) {
-              try {
-                const msg = JSON.parse(lines[i]);
-                if (msg.event === 'message') {
-                  let cloudDb = null;
-                  if (msg.attachment && msg.attachment.url) {
-                    const aRes = await fetch(msg.attachment.url);
-                    if (aRes.ok) cloudDb = await aRes.json();
-                  } else if (msg.message && msg.message.startsWith('{')) {
-                    cloudDb = JSON.parse(msg.message);
-                  }
-                  if (cloudDb && (cloudDb.activeProject || cloudDb.savedProjects)) {
-                    applyCloudData(cloudDb);
-                    break;
-                  }
-                }
-              } catch (err) {}
-            }
-          }
-        } catch (e) {}
+      if (window.WorkshopDB) {
+        return window.WorkshopDB.fetchLatest();
       }
     }
 
@@ -770,26 +749,25 @@
     }
 
     function pushCutSync(key, cutCount, total) {
-      fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cutStatuses }) }).catch(() => {});
-      try {
-        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', { method: 'POST', body: JSON.stringify({ type: 'cut_progress', cutStatuses, key, cutCount, total }) }).catch(() => {});
-      } catch (e) {}
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync({ cutStatuses }, 'cut_progress');
+        return;
+      }
+      fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cut_progress', cutStatuses }) }).catch(() => {});
     }
 
+    let cncRealtimeWired = false;
     function initRealtime() {
-      try {
-        const es = new EventSource('/api/events');
-        es.onmessage = e => {
-          try {
-            const d = JSON.parse(e.data);
-            if (d.type === 'cut_progress' && d.cutStatuses) {
-              cutStatuses = Object.assign(cutStatuses, d.cutStatuses);
-              localStorage.setItem(LS_CUT_STATUSES, JSON.stringify(cutStatuses));
-              updateProgressUI(); renderPatterns();
-            }
-          } catch (err) {}
-        };
-      } catch (e) {}
+      if (cncRealtimeWired) return;
+      cncRealtimeWired = true;
+      if (window.WorkshopDB) {
+        window.WorkshopDB.onChange((dbState) => {
+          applyCloudData(dbState);
+          updateProgressUI();
+          renderPatterns();
+        });
+        return;
+      }
     }
 
     function toAscii(str) {

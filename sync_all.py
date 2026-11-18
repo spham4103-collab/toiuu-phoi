@@ -36,6 +36,15 @@ def copy_branches_to(target_dir):
             os.makedirs(sub_d, exist_ok=True)
             shutil.copy2(b_src, os.path.join(sub_d, 'index.html'))
 
+def copy_db_files(target_dir):
+    src_db_dir = os.path.join(toiuu_phoi_dir, 'database')
+    dst_db_dir = os.path.join(target_dir, 'database')
+    os.makedirs(dst_db_dir, exist_ok=True)
+    for fn in ['workshop_db.json', 'workshop_db.js']:
+        s = os.path.join(src_db_dir, fn)
+        if os.path.exists(s):
+            shutil.copy2(s, os.path.join(dst_db_dir, fn))
+
 # 1. Đồng bộ script Python sang Fusion Script dir
 py_in_fusion = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
 if os.path.exists(src_py):
@@ -47,6 +56,7 @@ for f in all_web_assets:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
 copy_branches_to(fusion_script_dir)
+copy_db_files(fusion_script_dir)
 print('Copied web assets to Fusion Script dir')
 
 # 3. Copy web assets to Fusion360/toiuu-phoi
@@ -55,6 +65,7 @@ for f in all_web_assets + [src_py]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
 copy_branches_to(fusion_workspace_dir)
+copy_db_files(fusion_workspace_dir)
 print('Copied web assets to Fusion360/toiuu-phoi')
 
 # 4. Copy web assets to dist directory for Netlify/GitHub Pages deploy
@@ -63,6 +74,7 @@ for f in [src_html] + branch_htmls + [src_engine, src_logo, src_cfg, src_manifes
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(dist_dir, os.path.basename(f)))
 copy_branches_to(dist_dir)
+copy_db_files(dist_dir)
 print('Copied web assets to dist dir')
 
 # 5. Update export folders on Desktop if they exist

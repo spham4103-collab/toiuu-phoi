@@ -1,8 +1,8 @@
 /**
  * Service Worker - Offline-First PWA for Xếp Phôi CNC An Bình
- * Cache Version 8 - Sửa lỗi Header chồng chéo & Hệ thống đa nhánh web con (projects, inventory, cnc, admin)
+ * Cache Version 9 - Bỏ qua cache cho /database/*, API, Cloud & Tunnel để luôn nhận dữ liệu mới nhất
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v8';
+const CACHE_NAME = 'toiuu-phoi-pwa-v9';
 const STATIC_ASSETS = [
   './',
   'index.html',
@@ -39,8 +39,14 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Bỏ qua các API dynamic gọi server hoặc SSE ntfy
-  if (url.pathname.startsWith('/api/') || url.hostname.includes('ntfy.sh')) {
+  // Bỏ qua cache cho dữ liệu động (/database/*, /api/*, ntfy, GitHub raw, tunnel)
+  if (
+    url.pathname.startsWith('/database/') ||
+    url.pathname.startsWith('/api/') ||
+    url.hostname.includes('ntfy.sh') ||
+    url.hostname.includes('githubusercontent.com') ||
+    url.hostname.includes('lhr.life')
+  ) {
     return;
   }
 

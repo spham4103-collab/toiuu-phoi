@@ -28,11 +28,14 @@ const { spawn } = require('child_process');
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = __dirname;
 const DB_DIR = path.join(ROOT_DIR, 'database');
+const DIST_DB_DIR = path.join(ROOT_DIR, 'dist', 'database');
 const IGS_DIR = path.join(DB_DIR, 'igs_files');
 const DB_FILE = path.join(DB_DIR, 'workshop_db.json');
+const DB_JS_FILE = path.join(DB_DIR, 'workshop_db.js');
 
 // Đảm bảo thư mục database tồn tại
 if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+if (!fs.existsSync(DIST_DB_DIR)) fs.mkdirSync(DIST_DB_DIR, { recursive: true });
 if (!fs.existsSync(IGS_DIR)) fs.mkdirSync(IGS_DIR, { recursive: true });
 
 const DEFAULT_PROFILES = [
@@ -70,41 +73,129 @@ let db = {
   users: DEFAULT_USERS.slice()
 };
 
-const NTFY_TOPIC = 'toiuu_phoi_anbinh_cloud_v2';
+const sseClients = new Map();
+let publicTunnelUrl = null;
+const NTFY_TOPIC = 'toiuu_phoi_anbinh_db_v3';
 let cloudPushTimer = null;
+let gitSyncTimer = null;
+let isGitSyncing = false;
 
-// Tự động đẩy toàn bộ cơ sở dữ liệu lên Đám mây 24/7 (ntfy.sh) để mọi thiết bị mới mở tự động lấy được
+function buildLightDbSnapshot(actionName = 'server_sync') {
+  return {
+    senderId: 'server_anbinh_host',
+    action: actionName,
+    workspaceId: db.workspaceId || 'ANBINH',
+    updatedAt: db.updatedAt,
+    publicUrl: publicTunnelUrl || db.publicUrl || null,
+    lanUrls: getLanAddresses(),
+    savedProfiles: db.savedProfiles,
+    deletedProjectIds: db.deletedProjectIds || [],
+    savedProjects: (db.savedProjects || []).map(p => {
+      const clone = JSON.parse(JSON.stringify(p));
+      if (clone.fusionProject && Array.isArray(clone.fusionProject.nested_bars)) {
+        clone.fusionProject.nested_bars.forEach(b => delete b.igs_content);
+      }
+      if (clone.data && clone.data.fusionProject && Array.isArray(clone.data.fusionProject.nested_bars)) {
+        clone.data.fusionProject.nested_bars.forEach(b => delete b.igs_content);
+      }
+      return clone;
+    }),
+    activeProject: db.activeProject ? (() => {
+      const clone = JSON.parse(JSON.stringify(db.activeProject));
+      if (clone.fusionProject && Array.isArray(clone.fusionProject.nested_bars)) {
+        clone.fusionProject.nested_bars.forEach(b => delete b.igs_content);
+      }
+      return clone;
+    })() : null,
+    cutStatuses: db.cutStatuses || {},
+    users: db.users || []
+  };
+}
+
+function writeWorkshopDbJs(lightDb) {
+  try {
+    const endMarker = '// __WORKSHOP_DB_DATA_END__';
+    let engineTail = '';
+    if (fs.existsSync(DB_JS_FILE)) {
+      const curJs = fs.readFileSync(DB_JS_FILE, 'utf8');
+      const idx = curJs.indexOf(endMarker);
+      if (idx !== -1) {
+        engineTail = curJs.slice(idx + endMarker.length);
+      }
+    }
+    const header = `// __WORKSHOP_DB_DATA_START__\nwindow.__WORKSHOP_DB__ = ${JSON.stringify(lightDb)};\n${endMarker}`;
+    const fullJs = header + (engineTail || '\n');
+    fs.writeFileSync(DB_JS_FILE, fullJs, 'utf8');
+    if (fs.existsSync(DIST_DB_DIR)) {
+      fs.writeFileSync(path.join(DIST_DB_DIR, 'workshop_db.js'), fullJs, 'utf8');
+      fs.writeFileSync(path.join(DIST_DB_DIR, 'workshop_db.json'), JSON.stringify(db, null, 2), 'utf8');
+    }
+  } catch (err) {
+    console.error('[DB] Lỗi ghi workshop_db.js:', err.message);
+  }
+}
+
+function findGitExecutable() {
+  const candidates = [
+    'C:\\Program Files\\Git\\bin\\git.exe',
+    'C:\\Program Files\\Git\\cmd\\git.exe',
+    'git'
+  ];
+  for (const c of candidates) {
+    if (c === 'git' || fs.existsSync(c)) return c;
+  }
+  return 'git';
+}
+
+function runGitAsync(gitBin, args) {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(gitBin, args, { cwd: ROOT_DIR, windowsHide: true });
+      let out = '';
+      let err = '';
+      child.stdout.on('data', d => { out += d.toString(); });
+      child.stderr.on('data', d => { err += d.toString(); });
+      child.on('close', code => resolve({ code, out, err }));
+      child.on('error', e => resolve({ code: 1, out, err: e.message }));
+    } catch (e) {
+      resolve({ code: 1, out: '', err: e.message });
+    }
+  });
+}
+
+// Tự động đồng bộ database/workshop_db.* lên GitHub CDN để mọi thiết bị truy cập https://xepphoi.cloud nhận ngay ở 0ms
+function scheduleGitAutoSync() {
+  clearTimeout(gitSyncTimer);
+  gitSyncTimer = setTimeout(async () => {
+    if (isGitSyncing) return;
+    isGitSyncing = true;
+    try {
+      const gitBin = findGitExecutable();
+      const statusRes = await runGitAsync(gitBin, ['status', '--porcelain', 'database/workshop_db.json', 'database/workshop_db.js', 'dist/database/workshop_db.json', 'dist/database/workshop_db.js']);
+      if (statusRes.code === 0 && statusRes.out.trim()) {
+        await runGitAsync(gitBin, ['add', 'database/workshop_db.json', 'database/workshop_db.js', 'dist/database/workshop_db.json', 'dist/database/workshop_db.js']);
+        const commitRes = await runGitAsync(gitBin, ['commit', '-m', 'chore(db): auto sync workshop database']);
+        if (commitRes.code === 0) {
+          const pushRes = await runGitAsync(gitBin, ['push', 'origin', 'main']);
+          if (pushRes.code === 0) {
+            console.log('[GIT CDN] Đã tự động đồng bộ cơ sở dữ liệu lên GitHub / xepphoi.cloud!');
+          }
+        }
+      }
+    } catch (e) {
+      // Im lặng nếu đang offline hoặc có xung đột
+    } finally {
+      isGitSyncing = false;
+    }
+  }, 5000);
+}
+
+// Tự động đẩy toàn bộ cơ sở dữ liệu lên Đám mây 24/7 (ntfy.sh) để đồng bộ Realtime tức thì
 function pushDbToGlobalCloud(actionName = 'server_sync') {
   clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(() => {
     try {
-      const lightDb = {
-        senderId: 'server_anbinh_host',
-        action: actionName,
-        updatedAt: db.updatedAt,
-        savedProfiles: db.savedProfiles,
-        deletedProjectIds: db.deletedProjectIds || [],
-        savedProjects: (db.savedProjects || []).map(p => {
-          const clone = JSON.parse(JSON.stringify(p));
-          if (clone.fusionProject && Array.isArray(clone.fusionProject.nested_bars)) {
-            clone.fusionProject.nested_bars.forEach(b => delete b.igs_content);
-          }
-          if (clone.data && clone.data.fusionProject && Array.isArray(clone.data.fusionProject.nested_bars)) {
-            clone.data.fusionProject.nested_bars.forEach(b => delete b.igs_content);
-          }
-          return clone;
-        }),
-        activeProject: db.activeProject ? (() => {
-          const clone = JSON.parse(JSON.stringify(db.activeProject));
-          if (clone.fusionProject && Array.isArray(clone.fusionProject.nested_bars)) {
-            clone.fusionProject.nested_bars.forEach(b => delete b.igs_content);
-          }
-          return clone;
-        })() : null,
-        cutStatuses: db.cutStatuses || {},
-        users: db.users || []
-      };
-
+      const lightDb = buildLightDbSnapshot(actionName);
       const payload = JSON.stringify(lightDb);
 
       const options = {
@@ -131,11 +222,20 @@ function pushDbToGlobalCloud(actionName = 'server_sync') {
   }, 400);
 }
 
-function saveDb(action = 'db_save') {
+function saveDb(action = 'db_save', options = {}) {
   try {
     db.updatedAt = new Date().toISOString();
+    db.publicUrl = publicTunnelUrl || db.publicUrl || null;
+    db.lanUrls = getLanAddresses();
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-    pushDbToGlobalCloud(action);
+    const lightDb = buildLightDbSnapshot(action);
+    writeWorkshopDbJs(lightDb);
+    if (!options.skipCloudPush) {
+      pushDbToGlobalCloud(action);
+    }
+    if (!options.skipGitPush) {
+      scheduleGitAutoSync();
+    }
   } catch (err) {
     console.error('[DB] Lỗi lưu database:', err.message);
   }
@@ -303,6 +403,7 @@ function loadInitialDb() {
           db.cutStatuses = {};
         }
         console.log(`[DB] Đã nạp ${db.savedProjects.length} dự án và ${db.users.length} tài khoản từ cơ sở dữ liệu máy chủ.`);
+        saveDb('server_start');
         return;
       }
     } catch (e) {
@@ -431,10 +532,6 @@ function getLanAddresses() {
   return results;
 }
 
-// Quản lý kết nối Realtime SSE (Server-Sent Events)
-const sseClients = new Map();
-let publicTunnelUrl = null;
-
 function broadcastEvent(eventData, excludeClientId = null) {
   const payload = `data: ${JSON.stringify(eventData)}\n\n`;
   for (const [cid, res] of sseClients.entries()) {
@@ -445,6 +542,133 @@ function broadcastEvent(eventData, excludeClientId = null) {
       sseClients.delete(cid);
     }
   }
+}
+
+// Hàm áp dụng dữ liệu đồng bộ dùng chung giữa /api/sync và kênh Cloud Inbound 24/7
+function applyIncomingSyncPayload(body, clientId = null, saveOptions = {}) {
+  if (!body || typeof body !== 'object') return null;
+  const action = body.action || 'sync';
+
+  if (Array.isArray(body.deletedProjectIds) && body.deletedProjectIds.length) {
+    if (!Array.isArray(db.deletedProjectIds)) db.deletedProjectIds = [];
+    body.deletedProjectIds.forEach(did => {
+      if (did && !db.deletedProjectIds.includes(did)) db.deletedProjectIds.push(did);
+    });
+  }
+
+  if (Array.isArray(body.savedProjects)) {
+    db.savedProjects = mergeSavedProjects(db.savedProjects, body.savedProjects, body.deletedProjectIds);
+  }
+
+  if (Array.isArray(body.savedProfiles) && body.savedProfiles.length) {
+    db.savedProfiles = (action === 'profiles' && !saveOptions.fromCloudPoll)
+      ? Array.from(new Set(body.savedProfiles.map(s => String(s).trim()).filter(Boolean)))
+      : mergeProfiles(db.savedProfiles, body.savedProfiles);
+  }
+
+  if (body.cutStatuses && typeof body.cutStatuses === 'object') {
+    db.cutStatuses = mergeCutStatuses(db.cutStatuses, body.cutStatuses);
+  }
+
+  if (Array.isArray(body.users) && body.users.length) {
+    db.users = (action === 'update_users' && !saveOptions.fromCloudPoll)
+      ? body.users
+      : mergeUsers(db.users, body.users);
+  }
+
+  if (body.activeProject && (action === 'fusion_import' || action === 'save_project' || action === 'active_project' || !db.activeProject)) {
+    db.activeProject = body.activeProject;
+  }
+
+  saveDb(action, saveOptions);
+
+  const broadcastPayload = {
+    type: 'state_updated',
+    senderId: clientId,
+    updatedAt: db.updatedAt,
+    action: action,
+    db: {
+      workspaceId: db.workspaceId,
+      updatedAt: db.updatedAt,
+      publicUrl: publicTunnelUrl || db.publicUrl || null,
+      lanUrls: getLanAddresses(),
+      savedProfiles: db.savedProfiles,
+      savedProjects: db.savedProjects,
+      deletedProjectIds: db.deletedProjectIds,
+      cutStatuses: db.cutStatuses,
+      users: db.users,
+      activeProject: (action === 'fusion_import') ? db.activeProject : undefined
+    }
+  };
+
+  broadcastEvent(broadcastPayload, clientId);
+  return broadcastPayload;
+}
+
+// Lắng nghe chiều về từ Đám mây 24/7 (ntfy.sh/toiuu_phoi_anbinh_db_v3) để cập nhật khi thiết bị ngoài 4G lưu dữ liệu
+function fetchJsonUrl(targetUrl) {
+  return new Promise((resolve) => {
+    try {
+      https.get(targetUrl, (res) => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch (e) { resolve(null); }
+        });
+      }).on('error', () => resolve(null));
+    } catch (e) { resolve(null); }
+  });
+}
+
+async function processCloudMessageObj(msg) {
+  if (!msg || msg.event !== 'message') return;
+  let cloudDb = null;
+  if (msg.attachment && msg.attachment.url) {
+    cloudDb = await fetchJsonUrl(msg.attachment.url);
+  } else if (msg.message && msg.message.trim().startsWith('{')) {
+    try { cloudDb = JSON.parse(msg.message); } catch (e) {}
+  }
+  if (!cloudDb || cloudDb.senderId === 'server_anbinh_host') return;
+  applyIncomingSyncPayload(cloudDb, cloudDb.senderId || null, { skipCloudPush: true, fromCloudPoll: true });
+}
+
+function startCloudInboundListener() {
+  // 1. Nạp tin nhắn 24h gần nhất nếu có thay đổi khi server tắt
+  https.get(`https://ntfy.sh/${NTFY_TOPIC}/json?poll=1&since=24h`, (res) => {
+    let raw = '';
+    res.on('data', c => { raw += c; });
+    res.on('end', async () => {
+      const lines = raw.trim().split('\n').filter(Boolean);
+      for (const l of lines.slice(-5)) {
+        try { await processCloudMessageObj(JSON.parse(l)); } catch (e) {}
+      }
+    });
+  }).on('error', () => {});
+
+  // 2. Mở stream lắng nghe thời gian thực từ Đám mây 24/7
+  const connectStream = () => {
+    try {
+      const req = https.get(`https://ntfy.sh/${NTFY_TOPIC}/json`, (res) => {
+        let buf = '';
+        res.on('data', async (chunk) => {
+          buf += chunk.toString();
+          const lines = buf.split('\n');
+          buf = lines.pop() || '';
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t) continue;
+            try { await processCloudMessageObj(JSON.parse(t)); } catch (e) {}
+          }
+        });
+        res.on('close', () => setTimeout(connectStream, 10000));
+        res.on('error', () => setTimeout(connectStream, 10000));
+      });
+      req.on('error', () => setTimeout(connectStream, 15000));
+    } catch (e) {
+      setTimeout(connectStream, 15000);
+    }
+  };
+  connectStream();
 }
 
 // Tự động thiết lập Cloud Internet Tunnel (localhost.run qua SSH) để điện thoại 4G/5G ngoài xưởng cũng vào được
@@ -469,6 +693,7 @@ function startPublicCloudTunnel() {
       if (match && match[0] !== publicTunnelUrl) {
         publicTunnelUrl = match[0];
         console.log(`[CLOUD TUNNEL] Link Internet Toàn Cầu: ${publicTunnelUrl}`);
+        saveDb('tunnel_ready');
         broadcastEvent({
           type: 'server_info',
           publicUrl: publicTunnelUrl,
@@ -617,62 +842,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readJsonBody(req);
       const clientId = body.clientId || req.headers['x-client-id'] || null;
-      const action = body.action || 'sync';
 
-      // 1. Quản lý danh sách ID dự án đã xóa (tombstones)
-      if (Array.isArray(body.deletedProjectIds) && body.deletedProjectIds.length) {
-        if (!Array.isArray(db.deletedProjectIds)) db.deletedProjectIds = [];
-        body.deletedProjectIds.forEach(did => {
-          if (did && !db.deletedProjectIds.includes(did)) db.deletedProjectIds.push(did);
-        });
-      }
-
-      // 2. Đồng bộ danh sách dự án song song (merge thông minh theo ID và timestamp)
-      if (Array.isArray(body.savedProjects)) {
-        db.savedProjects = mergeSavedProjects(db.savedProjects, body.savedProjects, body.deletedProjectIds);
-      }
-
-      // 3. Đồng bộ quy cách hộp (Hợp tập hợp các quy cách)
-      if (Array.isArray(body.savedProfiles) && body.savedProfiles.length) {
-        db.savedProfiles = mergeProfiles(db.savedProfiles, body.savedProfiles);
-      }
-
-      // 4. Đồng bộ tiến độ cắt (giữ số lượng cắt cao nhất)
-      if (body.cutStatuses && typeof body.cutStatuses === 'object') {
-        db.cutStatuses = mergeCutStatuses(db.cutStatuses, body.cutStatuses);
-      }
-
-      // 5. Đồng bộ tài khoản người dùng
-      if (Array.isArray(body.users) && body.users.length) {
-        db.users = mergeUsers(db.users, body.users);
-      }
-
-      // 6. Lưu activeProject lên máy chủ để thiết bị mới mở có thể tự động lấy được dữ liệu cũ
-      if (body.activeProject && (action === 'fusion_import' || action === 'save_project' || !db.activeProject)) {
-        db.activeProject = body.activeProject;
-      }
-
-      saveDb();
-
-      // Phát sóng trạng thái dữ liệu dùng chung (Không phát tán activeProject nháp của người khác)
-      const broadcastPayload = {
-        type: 'state_updated',
-        senderId: clientId,
-        updatedAt: db.updatedAt,
-        action: action,
-        db: {
-          workspaceId: db.workspaceId,
-          updatedAt: db.updatedAt,
-          savedProfiles: db.savedProfiles,
-          savedProjects: db.savedProjects,
-          deletedProjectIds: db.deletedProjectIds,
-          cutStatuses: db.cutStatuses,
-          users: db.users,
-          activeProject: (action === 'fusion_import') ? db.activeProject : undefined
-        }
-      };
-
-      broadcastEvent(broadcastPayload, clientId);
+      applyIncomingSyncPayload(body, clientId, { skipCloudPush: false });
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({
@@ -793,9 +964,10 @@ const server = http.createServer(async (req, res) => {
   if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
     const ext = path.extname(fullPath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const isDbAsset = pathname.startsWith('/database/workshop_db.');
     res.writeHead(200, {
       'Content-Type': contentType,
-      'Cache-Control': 'no-cache'
+      'Cache-Control': isDbAsset ? 'no-store, no-cache, must-revalidate' : 'no-cache'
     });
     fs.createReadStream(fullPath).pipe(res);
   } else {
@@ -825,5 +997,6 @@ server.listen(PORT, () => {
     console.log(` 📱 Truy cập Điện thoại/Máy CNC : ${item.url} (${item.interface})`);
   });
   console.log('====================================================================');
-});pushDbToGlobalCloud('server_start');
+  startCloudInboundListener();
+});
         

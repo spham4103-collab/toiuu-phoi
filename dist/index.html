@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="toi-uu-engine.js"></script>
+  <script src="/database/workshop_db.js"></script>
   <script id="embeddedFusionData" type="application/json"></script>
   <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
   <style>
@@ -2650,6 +2651,13 @@
 
     // Load & Save Memory Library
     function initSavedProfiles() {
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        if (Array.isArray(dbInit.savedProfiles) && dbInit.savedProfiles.length) {
+          state.savedProfiles = dbInit.savedProfiles.slice();
+          return;
+        }
+      }
       try {
         const stored = localStorage.getItem(LS_SAVED_PROFILES);
         if (stored) {
@@ -2765,35 +2773,49 @@
 
     function loadActiveProject() {
       try {
+        let data = null;
         const stored = localStorage.getItem(LS_ACTIVE_PROJECT);
         if (stored) {
-          const data = JSON.parse(stored);
-          if (data && Array.isArray(data.parts) && (data.parts.length > 0 || data.isBlankReset)) {
-            state.currentProjectId = data.currentProjectId || null;
-            state.currentProjectName = data.currentProjectName || '';
-            state.currentProjectCustomer = data.currentProjectCustomer || '';
-            state.currentProjectNotes = data.currentProjectNotes || '';
-            state.fusionProject = data.fusionProject || null;
-            state.isBlankReset = !!data.isBlankReset;
-
-            state.activeProfiles = data.activeProfiles || ['Hộp 30x30x1.8'];
-            state.selectedTabProfile = data.selectedTabProfile || state.activeProfiles[0];
-            state.parts = data.parts;
-            state.stock = data.stock || [];
-            state.method = data.method || 'cnc';
-            state.kerf = data.kerf != null ? data.kerf : 0;
-            state.clamp = data.clamp != null ? data.clamp : 80;
-            state.interlock = data.interlock != null ? data.interlock : true;
-            state.gap = data.gap != null ? data.gap : 0;
-
-            updateInputsFromState();
-            renderProfileTabs();
-            renderPartsList();
-            renderStockList();
-            calculateOptimization(false);
-            updateProjectActiveBanner();
-            return true;
+          const parsed = JSON.parse(stored);
+          if (parsed && Array.isArray(parsed.parts) && (parsed.parts.length > 0 || parsed.isBlankReset)) {
+            data = parsed;
           }
+        }
+        // Nếu thiết bị mới chưa có nháp cục bộ -> nạp TỨC THÌ (0ms) từ WorkshopDB đã nhúng từ máy chủ!
+        if (!data && window.WorkshopDB) {
+          const dbInit = window.WorkshopDB.getInitialState();
+          if (dbInit && dbInit.activeProject && Array.isArray(dbInit.activeProject.parts) && dbInit.activeProject.parts.length > 0) {
+            data = dbInit.activeProject;
+          }
+        }
+        if (data && Array.isArray(data.parts) && (data.parts.length > 0 || data.isBlankReset)) {
+          state.currentProjectId = data.currentProjectId || null;
+          state.currentProjectName = data.currentProjectName || '';
+          state.currentProjectCustomer = data.currentProjectCustomer || '';
+          state.currentProjectNotes = data.currentProjectNotes || '';
+          state.fusionProject = data.fusionProject || null;
+          state.isBlankReset = !!data.isBlankReset;
+
+          state.activeProfiles = data.activeProfiles || ['Hộp 30x30x1.8'];
+          state.selectedTabProfile = data.selectedTabProfile || state.activeProfiles[0];
+          state.parts = data.parts;
+          state.stock = data.stock || [];
+          state.method = data.method || 'cnc';
+          state.kerf = data.kerf != null ? data.kerf : 0;
+          state.clamp = data.clamp != null ? data.clamp : 80;
+          state.interlock = data.interlock != null ? data.interlock : true;
+          state.gap = data.gap != null ? data.gap : 0;
+
+          updateInputsFromState();
+          ensureProfilesConsistency();
+          renderProfileTabs();
+          renderActiveProfileBanner();
+          renderPartsList();
+          renderStockList();
+          calculateOptimization(false);
+          updateProjectActiveBanner();
+          updateProjectsBadge();
+          return true;
         }
       } catch (e) {}
       return false;
@@ -2801,28 +2823,37 @@
 
     // Khởi tạo hệ thống quản lý danh sách dự án
     function initProjectsManager() {
-      try {
-        const raw = localStorage.getItem(LS_SAVED_PROJECTS);
-        state.savedProjects = raw ? JSON.parse(raw) : [];
-        if (!Array.isArray(state.savedProjects)) state.savedProjects = [];
-      } catch (e) {
-        state.savedProjects = [];
-      }
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        state.savedProjects = Array.isArray(dbInit.savedProjects) ? dbInit.savedProjects.slice() : [];
+        state.trashProjects = Array.isArray(dbInit.trashProjects) ? dbInit.trashProjects.slice() : [];
+        state.deletedProjectIds = Array.isArray(dbInit.deletedProjectIds) ? dbInit.deletedProjectIds.slice() : [];
+        if (Array.isArray(dbInit.lanUrls) && dbInit.lanUrls.length) state.serverLanUrls = dbInit.lanUrls;
+        if (dbInit.publicUrl) state.serverPublicUrl = dbInit.publicUrl;
+      } else {
+        try {
+          const raw = localStorage.getItem(LS_SAVED_PROJECTS);
+          state.savedProjects = raw ? JSON.parse(raw) : [];
+          if (!Array.isArray(state.savedProjects)) state.savedProjects = [];
+        } catch (e) {
+          state.savedProjects = [];
+        }
 
-      try {
-        const rawTrash = localStorage.getItem('toiuu_trash_projects_v1');
-        state.trashProjects = rawTrash ? JSON.parse(rawTrash) : [];
-        if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
-      } catch (e) {
-        state.trashProjects = [];
-      }
+        try {
+          const rawTrash = localStorage.getItem('toiuu_trash_projects_v1');
+          state.trashProjects = rawTrash ? JSON.parse(rawTrash) : [];
+          if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
+        } catch (e) {
+          state.trashProjects = [];
+        }
 
-      try {
-        const rawDel = localStorage.getItem('toiuu_deleted_proj_ids_v1');
-        state.deletedProjectIds = rawDel ? JSON.parse(rawDel) : [];
-        if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
-      } catch (e) {
-        state.deletedProjectIds = [];
+        try {
+          const rawDel = localStorage.getItem('toiuu_deleted_proj_ids_v1');
+          state.deletedProjectIds = rawDel ? JSON.parse(rawDel) : [];
+          if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
+        } catch (e) {
+          state.deletedProjectIds = [];
+        }
       }
 
       try {
@@ -2851,6 +2882,9 @@
     }
 
     async function fetchCloudProjects() {
+      if (window.WorkshopDB) {
+        return window.WorkshopDB.fetchLatest();
+      }
       let gotData = false;
       try {
         const res = await fetch(`${SERVER_API_BASE}/api/projects`);
@@ -2863,10 +2897,9 @@
         }
       } catch (e) {}
 
-      // Nếu không gọi được API máy chủ (ví dụ mở trên xepphoi.cloud từ điện thoại), tự động lấy từ Đám mây 24/7!
       if (!gotData) {
         try {
-          const pollRes = await fetch(`${GLOBAL_CLOUD_URL}/json?poll=1`);
+          const pollRes = await fetch(`${GLOBAL_CLOUD_URL}/json?poll=1&since=24h`);
           if (pollRes.ok) {
             const text = await pollRes.text();
             const lines = text.trim().split('\n').filter(Boolean);
@@ -3818,13 +3851,17 @@
     // 24/7 Global Cloud Sync + Local Workshop Server Engine
     // (Hoạt động 24/7 kể cả khi tắt nguồn máy tính cá nhân & đồng bộ từ mọi máy chạy Fusion 360)
     // ==========================================
-    const GLOBAL_CLOUD_TOPIC = 'toiuu_phoi_anbinh_cloud_v2';
+    const GLOBAL_CLOUD_TOPIC = 'toiuu_phoi_anbinh_db_v3';
     const GLOBAL_CLOUD_URL = `https://ntfy.sh/${GLOBAL_CLOUD_TOPIC}`;
     const SERVER_API_BASE = window.location.protocol.startsWith('http')
       ? window.location.origin
       : 'http://localhost:3000';
 
-    state.clientId = 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    function getLiveServerApiBase() {
+      return (window.WorkshopDB && window.WorkshopDB.getApiBase()) || SERVER_API_BASE;
+    }
+
+    state.clientId = (window.WorkshopDB && window.WorkshopDB.getClientId()) || ('dev_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
     state.serverLanUrls = [];
     state.serverPublicUrl = null;
     state.clientsCount = 1;
@@ -3868,14 +3905,29 @@
       return forCloud ? stripHeavyIgsForCloud(snap) : snap;
     }
 
+    function buildSyncPatch() {
+      return {
+        savedProfiles: state.savedProfiles,
+        deletedProjectIds: state.deletedProjectIds || [],
+        trashProjects: state.trashProjects || [],
+        savedProjects: state.savedProjects,
+        activeProject: getActiveProjectSnapshot(true),
+        cutStatuses: state.cutStatuses || {},
+        users: state.users || []
+      };
+    }
+
     function scheduleSyncToServer(actionName = 'sync') {
       if (state.isApplyingRemoteChange) return;
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync(buildSyncPatch(), actionName);
+        return;
+      }
       clearTimeout(serverSyncTimeout);
       serverSyncTimeout = setTimeout(() => {
         pushStateToServer(actionName);
       }, 150);
 
-      // Đồng bộ lên Đám mây Quốc tế 24/7 (debounce 600ms để mượt mà)
       clearTimeout(cloudSyncTimeout);
       cloudSyncTimeout = setTimeout(() => {
         pushStateToGlobalCloud(actionName);
@@ -3884,24 +3936,22 @@
 
     async function pushStateToGlobalCloud(actionName = 'sync') {
       if (state.isApplyingRemoteChange) return;
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync(buildSyncPatch(), actionName);
+        return;
+      }
       try {
         const cloudPayload = {
           senderId: state.clientId,
           action: actionName,
           updatedAt: new Date().toISOString(),
+          savedProfiles: state.savedProfiles,
+          deletedProjectIds: state.deletedProjectIds || [],
+          savedProjects: (state.savedProjects || []).map(p => stripHeavyIgsForCloud(p)),
           activeProject: getActiveProjectSnapshot(true),
           cutStatuses: state.cutStatuses || {},
           users: state.users || []
         };
-        if (Array.isArray(state.savedProfiles) && state.savedProfiles.length) {
-          cloudPayload.savedProfiles = state.savedProfiles;
-        }
-        if (Array.isArray(state.deletedProjectIds) && state.deletedProjectIds.length) {
-          cloudPayload.deletedProjectIds = state.deletedProjectIds;
-        }
-        if (Array.isArray(state.savedProjects) && state.savedProjects.length > 0) {
-          cloudPayload.savedProjects = state.savedProjects.map(p => stripHeavyIgsForCloud(p));
-        }
         const res = await fetch(GLOBAL_CLOUD_URL, {
           method: 'PUT',
           headers: {
@@ -3988,6 +4038,10 @@
 
     async function pushStateToServer(actionName = 'sync') {
       if (state.isApplyingRemoteChange) return;
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync(buildSyncPatch(), actionName);
+        return;
+      }
       try {
         const payload = {
           clientId: state.clientId,
@@ -4016,7 +4070,6 @@
           }
         }
       } catch (e) {
-        // Nếu server đang khởi động lại, giữ lưu cục bộ và tự kết nối lại qua SSE
       }
     }
 
@@ -4086,7 +4139,7 @@
         }
 
         // 5. Đồng bộ danh sách dự án song song (Merge thông minh theo ID và timestamp)
-        if (Array.isArray(remoteDb.savedProjects) && remoteDb.savedProjects.length > 0) {
+        if (Array.isArray(remoteDb.savedProjects)) {
           const delSet = new Set(state.deletedProjectIds || []);
           const mergedMap = new Map();
           (state.savedProjects || []).forEach(p => {
@@ -4184,11 +4237,25 @@
     }
 
     function initCloudSyncSystem() {
+      if (window.WorkshopDB) {
+        state.cloudConnected = true;
+        updateCloudUIState('connected');
+        window.WorkshopDB.onChange((dbState, meta) => {
+          const isFusion = meta && meta.action === 'fusion_import';
+          applyRemoteDbState(dbState, false, isFusion);
+          updateCloudUIState('connected');
+          if (isFusion) {
+            showToast('🚀 Đã tự động nhận bản vẽ mới từ Autodesk Fusion 360!');
+          } else if (meta && meta.action === 'save_project') {
+            showToast('🔔 Đã cập nhật danh sách dự án mới!');
+          }
+        });
+        window.WorkshopDB.fetchLatest();
+        return;
+      }
       updateCloudUIState('syncing');
-      // 1. Kết nối ngay với Đám mây Quốc tế 24/7 (Hoạt động kể cả khi máy tính tắt nguồn!)
       pullLatestFromGlobalCloud();
       connectGlobalCloudStream();
-      // 2. Kết nối thêm với Máy chủ Nội bộ nếu đang bật
       connectServerEventStream();
     }
 
@@ -4565,7 +4632,7 @@
               </span>
               ${part.style === 'ke' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (2 đầu)</span>' : (part.style === 'ke1' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (1 đầu)</span>' : '<span style="font-size:10px; color:#64748B; background:#F1F5F9; border-radius:3px; padding:1px 5px;">⊥ Ghép 90°</span>')}
               ${part.igs_url ? `
-                <a href="${escapeHtml(part.igs_url.startsWith('http') ? part.igs_url : `${SERVER_API_BASE}${part.igs_url}`)}" 
+                <a href="${escapeHtml(part.igs_url.startsWith('http') ? part.igs_url : `${getLiveServerApiBase()}${part.igs_url}`)}" 
                    target="_blank" download="${escapeHtml(part.name)}.igs" 
                    style="display:inline-flex; align-items:center; gap:3px; padding:1px 6px; background:#ECFDF5; color:#047857; border:1px solid #A7F3D0; border-radius:4px; font-size:10.5px; font-weight:700; text-decoration:none;" 
                    title="Tải file 3D .IGS của riêng chi tiết này về máy CNC">
@@ -5280,7 +5347,7 @@
           if (isMatch && fusionBar && (fusionBar.igs_url || fusionBar.name)) {
             const candidateUrls = [];
             if (fusionBar.igs_url) {
-              candidateUrls.push(fusionBar.igs_url.startsWith('http') ? fusionBar.igs_url : `${SERVER_API_BASE}${fusionBar.igs_url}`);
+              candidateUrls.push(fusionBar.igs_url.startsWith('http') ? fusionBar.igs_url : `${getLiveServerApiBase()}${fusionBar.igs_url}`);
             }
             const rawWithExt = rawBarName.replace(/\.igs$/i, '') + '.igs';
             candidateUrls.push(`/api/igs/${encodeURIComponent(rawWithExt)}`);
@@ -6002,6 +6069,12 @@
     ];
 
     function ensureDefaultUsers() {
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        if (Array.isArray(dbInit.users) && dbInit.users.length) {
+          state.users = dbInit.users.slice();
+        }
+      }
       if (!Array.isArray(state.users) || !state.users.length) {
         try {
           const raw = localStorage.getItem('toiuu_users_list_v1');
@@ -6635,58 +6708,25 @@
     }
 
     function pushCutStatusToSync(key, cutCount, total) {
-      // 1. Gửi lên Máy chủ LAN / Node server
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync({ cutStatuses: state.cutStatuses }, 'cut_progress');
+        return;
+      }
       fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cutStatuses: state.cutStatuses,
-          event: { type: 'cut_progress', key, cutCount, total }
+          action: 'cut_progress',
+          cutStatuses: state.cutStatuses
         })
       }).catch(() => {});
-
-      // 2. Bắn thông báo lên ntfy cloud topic để đồng bộ 2 chiều tức thì trên Internet
-      try {
-        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', {
-          method: 'POST',
-          headers: { 'Title': 'Tiến độ cắt xưởng' },
-          body: JSON.stringify({
-            type: 'cut_progress',
-            cutStatuses: state.cutStatuses,
-            key, cutCount, total
-          })
-        }).catch(() => {});
-      } catch (e) {}
     }
 
     // ==========================================
     // ⚡ NÂNG CẤP 1: REALTIME 2-WAY EVENT LISTENERS
     // ==========================================
     function initRealtimeListeners() {
-      // 1. Lắng nghe SSE từ Local Server (mạng nội bộ)
-      try {
-        const es = new EventSource('/api/events');
-        es.onmessage = function(e) {
-          try {
-            const data = JSON.parse(e.data);
-            handleRealtimeEvent(data);
-          } catch(err) {}
-        };
-      } catch (e) {}
-
-      // 2. Lắng nghe SSE từ Cloud Topic (24/7 Internet)
-      try {
-        const cloudEs = new EventSource('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/sse');
-        cloudEs.onmessage = function(e) {
-          try {
-            const payload = JSON.parse(e.data);
-            if (payload.message) {
-              const inner = JSON.parse(payload.message);
-              handleRealtimeEvent(inner);
-            }
-          } catch (err) {}
-        };
-      } catch (e) {}
+      // Đã hợp nhất vào WorkshopDB.fetchLatest() (SSE Server + Cloud v3) để tránh trùng lặp & ghi đè mảng rỗng
     }
 
     function handleRealtimeEvent(data) {
@@ -6712,9 +6752,9 @@
     function initNetworkAndPWA() {
       // Đăng ký Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=8').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=9').then(reg => {
           reg.update();
-          console.log('PWA Service Worker registered & updated v8:', reg.scope);
+          console.log('PWA Service Worker registered & updated v9:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
@@ -6747,7 +6787,7 @@
       window.addEventListener('online', () => {
         updateNetBadge();
         showToast('🟢 Đã khôi phục mạng! Tự động đồng bộ với máy chủ.');
-        if (typeof forceSyncWithServer === 'function') forceSyncWithServer();
+        if (window.WorkshopDB) window.WorkshopDB.fetchLatest();
       });
       window.addEventListener('offline', updateNetBadge);
       updateNetBadge();
@@ -6861,21 +6901,10 @@
         }
       }
 
-      // 2. Nếu không có dữ liệu Fusion nhúng sẵn, kiểm tra localStorage hoặc chờ máy chủ
+      // 2. Nếu không có dữ liệu Fusion nhúng sẵn, nạp ngay tức thì (0ms) từ localStorage hoặc WorkshopDB của máy chủ
       if (!loadedFromEmbedded) {
-        const hasLoaded = loadActiveProject();
-        if (!hasLoaded) {
-          state.isBrandNewDevice = true;
-          if ($('projectActiveBanner')) {
-            $('projectActiveBanner').innerHTML = '<span style="color:#059669; font-weight:700;">☁️ Đang nạp dữ liệu xưởng từ Máy chủ & Đám mây...</span>';
-          }
-          // Timeout nếu không có mạng thì mới nạp mẫu dự phòng
-          setTimeout(() => {
-            if (state.isBrandNewDevice && (!state.parts || state.parts.length === 0)) {
-              state.isBrandNewDevice = false;
-              loadMultiProfilePreset();
-            }
-          }, 2500);
+        if (!loadActiveProject()) {
+          loadMultiProfilePreset();
         }
       }
 

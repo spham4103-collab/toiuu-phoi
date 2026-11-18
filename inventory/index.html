@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="/toi-uu-engine.js"></script>
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
+  <script src="/database/workshop_db.js"></script>
   <style>
     :root {
       --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
@@ -378,6 +379,13 @@
     }
 
     function loadUsers() {
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        if (Array.isArray(dbInit.users) && dbInit.users.length) {
+          usersList = dbInit.users.slice();
+          return;
+        }
+      }
       try {
         const raw = localStorage.getItem(LS_USERS);
         if (raw) {
@@ -440,16 +448,24 @@
     }
 
     function loadInventoryData() {
-      try {
-        const sp = localStorage.getItem(LS_SAVED_PROFILES);
-        savedProfiles = sp ? JSON.parse(sp) : DEFAULT_PROFILES.slice();
-      } catch (e) { savedProfiles = DEFAULT_PROFILES.slice(); }
-      if (!Array.isArray(savedProfiles) || !savedProfiles.length) savedProfiles = DEFAULT_PROFILES.slice();
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        savedProfiles = (Array.isArray(dbInit.savedProfiles) && dbInit.savedProfiles.length)
+          ? dbInit.savedProfiles.slice()
+          : DEFAULT_PROFILES.slice();
+        activeProject = dbInit.activeProject ? JSON.parse(JSON.stringify(dbInit.activeProject)) : null;
+      } else {
+        try {
+          const sp = localStorage.getItem(LS_SAVED_PROFILES);
+          savedProfiles = sp ? JSON.parse(sp) : DEFAULT_PROFILES.slice();
+        } catch (e) { savedProfiles = DEFAULT_PROFILES.slice(); }
+        if (!Array.isArray(savedProfiles) || !savedProfiles.length) savedProfiles = DEFAULT_PROFILES.slice();
 
-      try {
-        const ap = localStorage.getItem(LS_ACTIVE_PROJECT);
-        activeProject = ap ? JSON.parse(ap) : null;
-      } catch (e) { activeProject = null; }
+        try {
+          const ap = localStorage.getItem(LS_ACTIVE_PROJECT);
+          activeProject = ap ? JSON.parse(ap) : null;
+        } catch (e) { activeProject = null; }
+      }
 
       if (!activeProject) {
         activeProject = {
@@ -471,44 +487,8 @@
     }
 
     async function fetchCloudProfiles() {
-      let got = false;
-      try {
-        const res = await fetch('/api/state');
-        if (res.ok) {
-          const d = await res.json();
-          if (d && d.db && Array.isArray(d.db.savedProfiles)) {
-            mergeProfilesSet(d.db.savedProfiles);
-            got = true;
-          }
-        }
-      } catch (e) {}
-
-      if (!got) {
-        try {
-          const pollRes = await fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/json?poll=1');
-          if (pollRes.ok) {
-            const text = await pollRes.text();
-            const lines = text.trim().split('\n').filter(Boolean);
-            for (let i = lines.length - 1; i >= 0; i--) {
-              try {
-                const msg = JSON.parse(lines[i]);
-                if (msg.event === 'message') {
-                  let cloudDb = null;
-                  if (msg.attachment && msg.attachment.url) {
-                    const aRes = await fetch(msg.attachment.url);
-                    if (aRes.ok) cloudDb = await aRes.json();
-                  } else if (msg.message && msg.message.startsWith('{')) {
-                    cloudDb = JSON.parse(msg.message);
-                  }
-                  if (cloudDb && Array.isArray(cloudDb.savedProfiles)) {
-                    mergeProfilesSet(cloudDb.savedProfiles);
-                    break;
-                  }
-                }
-              } catch (err) {}
-            }
-          }
-        } catch (e) {}
+      if (window.WorkshopDB) {
+        return window.WorkshopDB.fetchLatest();
       }
     }
 
@@ -528,25 +508,14 @@
 
     function saveProfilesAndSync() {
       localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(savedProfiles));
-      try {
-        fetch('/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'profiles', savedProfiles })
-        }).catch(() => {});
-      } catch (e) {}
-      try {
-        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', {
-          method: 'PUT',
-          headers: { 'Filename': 'workshop_db.json' },
-          body: JSON.stringify({ action: 'profiles', savedProfiles })
-        }).catch(() => {});
-      } catch (e) {}
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync({ savedProfiles }, 'profiles');
+      }
     }
 
     function saveActiveProjectAndSync() {
       localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(activeProject));
-      let allProjs = [];
+      let allProjs = null;
       if (activeProject.currentProjectId) {
         try {
           allProjs = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]');
@@ -561,39 +530,28 @@
           }
         } catch (e) {}
       }
-      if (allProjs.length) {
-        try {
-          fetch('/api/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'save_project', savedProjects: allProjs })
-          }).catch(() => {});
-        } catch (e) {}
+      if (window.WorkshopDB) {
+        const patch = { activeProject };
+        if (Array.isArray(allProjs) && allProjs.length) patch.savedProjects = allProjs;
+        window.WorkshopDB.sync(patch, activeProject.currentProjectId ? 'save_project' : 'active_project');
       }
     }
 
     function initRealtime() {
-      try {
-        const es = new EventSource('/api/events');
-        es.onmessage = e => {
-          try {
-            const d = JSON.parse(e.data);
-            if (d.type === 'state_updated' && d.db && Array.isArray(d.db.savedProfiles)) {
-              const profSet = new Set(savedProfiles);
-              let changed = false;
-              d.db.savedProfiles.forEach(p => {
-                if (p && !profSet.has(p)) { profSet.add(p); changed = true; }
-              });
-              if (changed) {
-                savedProfiles = Array.from(profSet);
-                localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(savedProfiles));
-                renderAll();
-                showToast('🔔 Đã cập nhật quy cách mới từ thiết bị khác!');
-              }
-            }
-          } catch (err) {}
-        };
-      } catch (e) {}
+      if (window.WorkshopDB) {
+        window.WorkshopDB.onChange((dbState) => {
+          if (Array.isArray(dbState.savedProfiles) && dbState.savedProfiles.length) {
+            savedProfiles = dbState.savedProfiles.slice();
+          }
+          if ((!activeProject || !activeProject.parts || !activeProject.parts.length) && dbState.activeProject) {
+            activeProject = JSON.parse(JSON.stringify(dbState.activeProject));
+            $('activeProjTitle').textContent = activeProject.currentProjectName || 'Dự án hiện hành (Nháp)';
+          }
+          if (Array.isArray(dbState.users) && dbState.users.length) usersList = dbState.users.slice();
+          renderAll();
+        });
+        return;
+      }
     }
 
     function solveBOM() {

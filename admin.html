@@ -22,6 +22,8 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+  <script src="/database/workshop_db.js"></script>
+
   <style>
 
     :root {
@@ -1267,109 +1269,50 @@
     }
 
     function loadUsersFromStorage() {
-
-      try {
-
-        const raw = localStorage.getItem(USERS_STORAGE_KEY);
-
-        if (raw) {
-
-          const parsed = JSON.parse(raw);
-
-          if (Array.isArray(parsed) && parsed.length) {
-
-            usersList = parsed;
-
-          }
-
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        if (Array.isArray(dbInit.users) && dbInit.users.length) {
+          usersList = dbInit.users.slice();
+          return;
         }
-
-      } catch (e) {}
-
-      if (!usersList.length) {
-
-        usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
-
-        saveUsersToStorage();
-
       }
-
+      try {
+        const raw = localStorage.getItem(USERS_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length) {
+            usersList = parsed;
+          }
+        }
+      } catch (e) {}
+      if (!usersList.length) {
+        usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
+        saveUsersToStorage();
+      }
     }
 
     function saveUsersToStorage() {
-
       try {
-
         localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
-
       } catch (e) {}
-
-      // Sync lên server nếu server đang chạy
-
-      try {
-
-        fetch('/api/sync', {
-
-          method: 'POST',
-
-          headers: { 'Content-Type': 'application/json' },
-
-          body: JSON.stringify({ action: 'update_users', users: usersList })
-
-        }).catch(() => {});
-
-      } catch (e) {}
-
-      try {
-
-        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', {
-
-          method: 'PUT',
-
-          headers: { 'Filename': 'workshop_db.json' },
-
-          body: JSON.stringify({ action: 'update_users', users: usersList })
-
-        }).catch(() => {});
-
-      } catch (e) {}
-
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync({ users: usersList }, 'update_users');
+      }
     }
 
+    let adminRealtimeWired = false;
     function initRealtime() {
-
-      try {
-
-        const es = new EventSource('/api/events');
-
-        es.onmessage = e => {
-
-          try {
-
-            const d = JSON.parse(e.data);
-
-            if (d.type === 'state_updated' && d.db && Array.isArray(d.db.users)) {
-
-              const uMap = new Map();
-
-              usersList.forEach(u => uMap.set(u.username.toLowerCase(), u));
-
-              d.db.users.forEach(ru => uMap.set(ru.username.toLowerCase(), ru));
-
-              usersList = Array.from(uMap.values());
-
-              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
-
-              renderUsersTable();
-
-            }
-
-          } catch (err) {}
-
-        };
-
-      } catch (e) {}
-
+      if (adminRealtimeWired) return;
+      adminRealtimeWired = true;
+      if (window.WorkshopDB) {
+        window.WorkshopDB.onChange((dbState) => {
+          if (Array.isArray(dbState.users) && dbState.users.length) {
+            usersList = dbState.users.slice();
+            renderUsersTable();
+          }
+        });
+        return;
+      }
     }
 
     function checkAuthSession() {
@@ -2082,6 +2025,16 @@
 
           }
 
+          if (window.WorkshopDB) {
+            window.WorkshopDB.sync({
+              users: usersList,
+              savedProjects: Array.isArray(data.projects) ? data.projects : undefined,
+              savedProfiles: Array.isArray(data.profiles) ? data.profiles : undefined,
+              activeProject: data.activeProject,
+              cutStatuses: data.cutStatuses
+            }, 'restore_backup');
+          }
+
           renderDashboard();
 
           showToast('🎉 Đã khôi phục dữ liệu toàn xưởng từ file backup thành công!');
@@ -2160,44 +2113,8 @@
 
   
     async function fetchCloudUsers() {
-      let got = false;
-      try {
-        const res = await fetch('/api/state');
-        if (res.ok) {
-          const d = await res.json();
-          if (d && d.db && Array.isArray(d.db.users)) {
-            mergeUsersList(d.db.users);
-            got = true;
-          }
-        }
-      } catch (e) {}
-
-      if (!got) {
-        try {
-          const pollRes = await fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/json?poll=1');
-          if (pollRes.ok) {
-            const text = await pollRes.text();
-            const lines = text.trim().split('\n').filter(Boolean);
-            for (let i = lines.length - 1; i >= 0; i--) {
-              try {
-                const msg = JSON.parse(lines[i]);
-                if (msg.event === 'message') {
-                  let cloudDb = null;
-                  if (msg.attachment && msg.attachment.url) {
-                    const aRes = await fetch(msg.attachment.url);
-                    if (aRes.ok) cloudDb = await aRes.json();
-                  } else if (msg.message && msg.message.startsWith('{')) {
-                    cloudDb = JSON.parse(msg.message);
-                  }
-                  if (cloudDb && Array.isArray(cloudDb.users)) {
-                    mergeUsersList(cloudDb.users);
-                    break;
-                  }
-                }
-              } catch (err) {}
-            }
-          }
-        } catch (e) {}
+      if (window.WorkshopDB) {
+        return window.WorkshopDB.fetchLatest();
       }
     }
 

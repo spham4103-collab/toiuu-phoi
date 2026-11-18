@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="/database/workshop_db.js"></script>
   <style>
     :root {
       --bg: #FFFFFF;
@@ -489,6 +490,13 @@
     }
 
     function loadUsers() {
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        if (Array.isArray(dbInit.users) && dbInit.users.length) {
+          usersList = dbInit.users.slice();
+          return;
+        }
+      }
       try {
         const raw = localStorage.getItem(LS_USERS);
         if (raw) {
@@ -566,6 +574,17 @@
     }
 
     function loadData() {
+      if (window.WorkshopDB) {
+        const dbInit = window.WorkshopDB.getInitialState();
+        projectsList = Array.isArray(dbInit.savedProjects) ? dbInit.savedProjects.slice() : [];
+        trashList = Array.isArray(dbInit.trashProjects) ? dbInit.trashProjects.slice() : [];
+        deletedIds = Array.isArray(dbInit.deletedProjectIds) ? dbInit.deletedProjectIds.slice() : [];
+        currentProjId = localStorage.getItem(LS_CUR_PROJ_ID) || (dbInit.activeProject && dbInit.activeProject.currentProjectId) || null;
+        renderAll();
+        initRealtime();
+        fetchCloudProjects();
+        return;
+      }
       try { projectsList = JSON.parse(localStorage.getItem(LS_PROJECTS) || '[]'); } catch (e) { projectsList = []; }
       try { trashList = JSON.parse(localStorage.getItem(LS_TRASH) || '[]'); } catch (e) { trashList = []; }
       try { deletedIds = JSON.parse(localStorage.getItem(LS_DELETED_IDS) || '[]'); } catch (e) { deletedIds = []; }
@@ -582,47 +601,18 @@
     }
 
     async function fetchCloudProjects() {
-      let gotData = false;
+      if (window.WorkshopDB) {
+        return window.WorkshopDB.fetchLatest();
+      }
       try {
         const res = await fetch('/api/projects');
         if (res.ok) {
           const data = await res.json();
           if (data && data.success && Array.isArray(data.projects)) {
             mergeRemoteProjects(data.projects, data.deletedProjectIds);
-            gotData = true;
           }
         }
       } catch (e) {}
-
-      // Nếu không kết nối được máy chủ nội bộ (ví dụ mở từ xepphoi.cloud trên điện thoại), nạp từ Đám mây 24/7!
-      if (!gotData) {
-        try {
-          const pollRes = await fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2/json?poll=1');
-          if (pollRes.ok) {
-            const text = await pollRes.text();
-            const lines = text.trim().split('\n').filter(Boolean);
-            for (let i = lines.length - 1; i >= 0; i--) {
-              try {
-                const msg = JSON.parse(lines[i]);
-                if (msg.event === 'message') {
-                  let cloudDb = null;
-                  if (msg.attachment && msg.attachment.url) {
-                    const aRes = await fetch(msg.attachment.url);
-                    if (aRes.ok) cloudDb = await aRes.json();
-                  } else if (msg.message && msg.message.startsWith('{')) {
-                    cloudDb = JSON.parse(msg.message);
-                  }
-                  if (cloudDb && Array.isArray(cloudDb.savedProjects)) {
-                    mergeRemoteProjects(cloudDb.savedProjects, cloudDb.deletedProjectIds);
-                    gotData = true;
-                    break;
-                  }
-                }
-              } catch (err) {}
-            }
-          }
-        } catch (e) {}
-      }
     }
 
     function mergeRemoteProjects(remoteList, remDeletedIds) {
@@ -661,67 +651,27 @@
       localStorage.setItem(LS_PROJECTS, JSON.stringify(projectsList));
       localStorage.setItem(LS_TRASH, JSON.stringify(trashList));
       localStorage.setItem(LS_DELETED_IDS, JSON.stringify(deletedIds));
-      try {
-        fetch('/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'save_project',
-            savedProjects: projectsList,
-            deletedProjectIds: deletedIds
-          })
-        }).catch(() => {});
-      } catch (e) {}
-      try {
-        fetch('https://ntfy.sh/toiuu_phoi_anbinh_cloud_v2', {
-          method: 'PUT',
-          headers: { 'Filename': 'workshop_db.json' },
-          body: JSON.stringify({
-            action: 'save_project',
-            savedProjects: projectsList,
-            deletedProjectIds: deletedIds
-          })
-        }).catch(() => {});
-      } catch (e) {}
+      if (window.WorkshopDB) {
+        window.WorkshopDB.sync({
+          savedProjects: projectsList,
+          trashProjects: trashList,
+          deletedProjectIds: deletedIds
+        }, 'save_project');
+      }
       renderAll();
     }
 
     function initRealtime() {
-      try {
-        const es = new EventSource('/api/events');
-        es.onmessage = e => {
-          try {
-            const d = JSON.parse(e.data);
-            if (d.type === 'state_updated' && d.db && Array.isArray(d.db.savedProjects)) {
-              const localMap = new Map(projectsList.map(p => [p.id, p]));
-              let changed = false;
-              d.db.savedProjects.forEach(cp => {
-                const inTrash = trashList.some(tp => tp.id === cp.id);
-                if (deletedIds.includes(cp.id) || inTrash) return;
-                const loc = localMap.get(cp.id);
-                if (!loc) {
-                  projectsList.push(cp);
-                  localMap.set(cp.id, cp);
-                  changed = true;
-                } else {
-                  const cpTime = new Date(cp.updatedAt || cp.createdAt || 0).getTime();
-                  const locTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
-                  if (cpTime > locTime) {
-                    Object.assign(loc, cp);
-                    changed = true;
-                  }
-                }
-              });
-              if (changed) {
-                projectsList.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
-                localStorage.setItem(LS_PROJECTS, JSON.stringify(projectsList));
-                renderAll();
-                showToast('🔔 Đã đồng bộ danh sách dự án mới!');
-              }
-            }
-          } catch (err) {}
-        };
-      } catch (e) {}
+      if (window.WorkshopDB) {
+        window.WorkshopDB.onChange((dbState) => {
+          if (Array.isArray(dbState.deletedProjectIds)) deletedIds = dbState.deletedProjectIds.slice();
+          if (Array.isArray(dbState.trashProjects)) trashList = dbState.trashProjects.slice();
+          if (Array.isArray(dbState.savedProjects)) projectsList = dbState.savedProjects.slice();
+          if (Array.isArray(dbState.users) && dbState.users.length) usersList = dbState.users.slice();
+          renderAll();
+        });
+        return;
+      }
     }
 
     function activateProjectData(proj) {
