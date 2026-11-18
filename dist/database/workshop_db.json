@@ -1,6 +1,6 @@
 {
   "workspaceId": "ANBINH",
-  "updatedAt": "2026-11-18T16:25:18.000Z",
+  "updatedAt": "2026-11-18T16:25:25.843Z",
   "savedProfiles": [
     "Hộp 20x20x1.4",
     "Hộp 25x25x1.4",
@@ -16,6 +16,56 @@
     "Hộp 90x90x3.0 (VerifyTemp)"
   ],
   "savedProjects": [
+    {
+      "id": "proj_verify_temp_123",
+      "name": "Test Cửa Sắt (Verify)",
+      "customer": "Test",
+      "updatedAt": "2026-11-18T16:19:14.024Z",
+      "data": {
+        "parts": [
+          {
+            "name": "Thanh 1",
+            "length": 1000,
+            "qty": 2,
+            "profile": "Hộp 30x30x1.8"
+          }
+        ],
+        "activeProfiles": [
+          "Hộp 30x30x1.8"
+        ]
+      }
+    },
+    {
+      "id": "proj_1795016724805_5hdt",
+      "name": "Dự án #1 (18/11/2026)",
+      "customer": "",
+      "notes": "",
+      "isLocked": false,
+      "createdAt": "2026-11-18T15:45:24.805Z",
+      "updatedAt": "2026-11-18T15:45:24.805Z",
+      "data": {
+        "activeProfiles": [
+          "Hộp 30x30x1.8"
+        ],
+        "selectedTabProfile": "Hộp 30x30x1.8",
+        "parts": [],
+        "stock": [
+          {
+            "id": "s_def_1795016724805",
+            "profile": "Hộp 30x30x1.8",
+            "name": "Cây mới 6.000",
+            "length": 6000,
+            "qty": null,
+            "clamp": 80
+          }
+        ],
+        "method": "cnc",
+        "kerf": 0,
+        "clamp": 80,
+        "interlock": true,
+        "gap": 0
+      }
+    },
     {
       "id": "proj_1795011503972_l3qw",
       "name": "Dự án #3 (18/11/2026)",
