@@ -36,16 +36,21 @@ def copy_branches_to(target_dir):
             os.makedirs(sub_d, exist_ok=True)
             shutil.copy2(b_src, os.path.join(sub_d, 'index.html'))
 
-def copy_db_files(target_dir):
+def copy_db_files(target_dir, include_json=False):
     src_db_dir = os.path.join(toiuu_phoi_dir, 'database')
     dst_db_dir = os.path.join(target_dir, 'database')
-    os.makedirs(dst_db_dir, exist_ok=True)
-    stale_js = os.path.join(dst_db_dir, 'workshop_db.js')
-    if os.path.exists(stale_js):
-        os.remove(stale_js)
-    src_json = os.path.join(src_db_dir, 'workshop_db.json')
-    if os.path.exists(src_json):
-        shutil.copy2(src_json, os.path.join(dst_db_dir, 'workshop_db.json'))
+    if os.path.exists(dst_db_dir):
+        for stale_name in ('workshop_db.js', 'workshop_db.json'):
+            stale_path = os.path.join(dst_db_dir, stale_name)
+            if os.path.exists(stale_path) and (stale_name == 'workshop_db.js' or not include_json):
+                os.remove(stale_path)
+    if include_json:
+        os.makedirs(dst_db_dir, exist_ok=True)
+        src_json = os.path.join(src_db_dir, 'workshop_db.json')
+        if os.path.exists(src_json):
+            shutil.copy2(src_json, os.path.join(dst_db_dir, 'workshop_db.json'))
+    elif os.path.exists(dst_db_dir) and not os.listdir(dst_db_dir):
+        os.rmdir(dst_db_dir)
 
 def copy_js_files(target_dir):
     src_js_dir = os.path.join(toiuu_phoi_dir, 'js')
@@ -68,7 +73,7 @@ for f in all_web_assets:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
 copy_branches_to(fusion_script_dir)
-copy_db_files(fusion_script_dir)
+copy_db_files(fusion_script_dir, include_json=True)
 copy_js_files(fusion_script_dir)
 print('Copied web assets to Fusion Script dir')
 
@@ -78,17 +83,20 @@ for f in all_web_assets + [src_py]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
 copy_branches_to(fusion_workspace_dir)
-copy_db_files(fusion_workspace_dir)
+copy_db_files(fusion_workspace_dir, include_json=True)
 copy_js_files(fusion_workspace_dir)
 print('Copied web assets to Fusion360/toiuu-phoi')
 
-# 4. Copy web assets to dist directory for Netlify/GitHub Pages deploy
+# 4. Copy web assets to dist directory for GitHub Pages deploy (tuyệt đối không copy workshop_db.json / .netlify)
 os.makedirs(dist_dir, exist_ok=True)
+stale_dist_netlify = os.path.join(dist_dir, '.netlify')
+if os.path.exists(stale_dist_netlify):
+    shutil.rmtree(stale_dist_netlify, ignore_errors=True)
 for f in [src_html] + branch_htmls + [src_engine, src_logo, src_cfg, src_manifest, src_sw]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(dist_dir, os.path.basename(f)))
 copy_branches_to(dist_dir)
-copy_db_files(dist_dir)
+copy_db_files(dist_dir, include_json=False)
 copy_js_files(dist_dir)
 print('Copied web assets to dist dir')
 

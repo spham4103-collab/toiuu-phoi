@@ -1684,7 +1684,7 @@
 
         <!-- Trạng thái tự động đồng bộ 24/7 -->
         <div style="font-size:12px; color:#15803D; background:#DCFCE7; border:1px solid #BBF7D0; padding:4px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; font-weight:600;" title="Toàn bộ dữ liệu được tự động đồng bộ 24/7 giữa mọi thiết bị">
-          <span class="cloud-status-dot dot-green" id="cloudStatusDot" style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span class="cloud-status-dot dot-green" id="cloudStatusDot" style="width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
           <span id="cloudStatusText">Tự động đồng bộ 24/7</span>
         </div>
 
@@ -2462,6 +2462,9 @@
       cloudSyncStatus: 'connecting',
       realtimeUnsub: null,
       activeSaveTimer: null,
+      hasPendingActiveSave: false,
+      initialSupabaseLoadFailed: false,
+      inFlightCutKeys: new Set(),
       lastLocalProjectWriteAt: 0,
       isApplyingRemoteChange: false,
       userRole: "engineer",
@@ -2475,6 +2478,9 @@
 
     // Helpers
     const $ = id => document.getElementById(id);
+    const makeId = prefix => (window.SupabaseDB && typeof window.SupabaseDB.uid === 'function')
+      ? window.SupabaseDB.uid(prefix)
+      : `${prefix || 'id'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const numVN = (n, dec) => {
       if (n == null || isNaN(n)) return '0';
       const num = Number(n);
@@ -2769,6 +2775,12 @@
 
     function saveActiveProject() {
       if (state.isApplyingRemoteChange || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      if (!state.currentProjectId && state.initialSupabaseLoadFailed) return;
+      if (state.currentProjectId) {
+        const curProjCheck = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+        if (curProjCheck && curProjCheck.isLocked) return;
+      }
+      state.hasPendingActiveSave = true;
       clearTimeout(state.activeSaveTimer);
       state.activeSaveTimer = setTimeout(async () => {
         if (state.isApplyingRemoteChange) return;
@@ -2777,17 +2789,46 @@
         try {
           if (state.currentProjectId) {
             const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
-            if (curProj && curProj.isLocked) return;
+            if (curProj && curProj.isLocked) {
+              state.hasPendingActiveSave = false;
+              return;
+            }
             const updated = await window.SupabaseDB.updateProjectFields(state.currentProjectId, { data: snap });
             if (curProj && updated) Object.assign(curProj, updated);
           } else {
             await window.SupabaseDB.saveDraftProject(snap);
           }
+          state.hasPendingActiveSave = false;
         } catch (err) {
           console.warn('Lỗi tự động lưu lên Supabase:', err);
         }
       }, 800);
     }
+
+    function flushPendingActiveSave() {
+      if (!state.hasPendingActiveSave || state.isApplyingRemoteChange) return;
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      if (!state.currentProjectId && state.initialSupabaseLoadFailed) return;
+      if (state.currentProjectId) {
+        const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+        if (curProj && curProj.isLocked) {
+          state.hasPendingActiveSave = false;
+          return;
+        }
+      }
+      clearTimeout(state.activeSaveTimer);
+      state.hasPendingActiveSave = false;
+      state.lastLocalProjectWriteAt = Date.now();
+      const snap = buildActiveDataSnapshot();
+      window.SupabaseDB.saveProjectKeepalive(
+        state.currentProjectId || window.SupabaseDB.DRAFT_PROJECT_ID,
+        snap,
+        !state.currentProjectId
+      );
+    }
+
+    window.addEventListener('pagehide', flushPendingActiveSave);
+    window.addEventListener('beforeunload', flushPendingActiveSave);
 
     function applyProjectPayloadToWorkspace(proj) {
       if (!proj) return false;
@@ -2857,6 +2898,17 @@
         chosen = draftProject;
       }
 
+      if (chosen && chosen.isSummary && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        try {
+          const fullChosen = await window.SupabaseDB.getProjectById(chosen.id);
+          if (fullChosen) chosen = fullChosen;
+        } catch (err) {
+          state.initialSupabaseLoadFailed = true;
+          console.warn('Không tải được chi tiết dự án từ Supabase:', err);
+          return false;
+        }
+      }
+
       if (chosen && applyProjectPayloadToWorkspace(chosen)) {
         await loadCutProgressForActiveProject();
         return true;
@@ -2889,7 +2941,8 @@
         return null;
       }
       try {
-        const allRows = await window.SupabaseDB.getProjects({ includeTrash: true, includeDraft: true });
+        const allRows = await window.SupabaseDB.getProjectsSummary({ includeTrash: true, includeDraft: true });
+        state.initialSupabaseLoadFailed = false;
         state.savedProjects = allRows.filter(p => !p.isTrashed && !p.isDraft);
         state.trashProjects = allRows.filter(p => p.isTrashed && !p.isDraft);
         const draftProject = allRows.find(p => p.isDraft || p.id === window.SupabaseDB.DRAFT_PROJECT_ID) || null;
@@ -2897,6 +2950,7 @@
         updateProjectActiveBanner();
         return draftProject;
       } catch (err) {
+        state.initialSupabaseLoadFailed = true;
         console.error('Lỗi tải danh sách dự án từ Supabase:', err);
         window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải dự án: ' + err.message);
         return null;
@@ -3290,7 +3344,12 @@
         openSaveProjectModal();
         return;
       }
+      if (targetProj.isLocked) {
+        alert(`🔒 DỰ ÁN "${targetProj.name}" ĐANG ĐƯỢC KHÓA BẢO VỆ!\n\nKhông thể ghi đè số liệu khi dự án đang khóa sản xuất.\nVui lòng bấm "🔓 Mở khóa" hoặc dùng "Lưu -> Lưu thành dự án mới".`);
+        return;
+      }
       state.isBlankReset = false;
+      state.hasPendingActiveSave = false;
       state.lastLocalProjectWriteAt = Date.now();
       clearTimeout(state.activeSaveTimer);
       const snap = buildActiveDataSnapshot();
@@ -3319,6 +3378,7 @@
       const notes = $('inpSaveProjNotes').value.trim();
       const nowStr = new Date().toISOString();
       state.isBlankReset = false;
+      state.hasPendingActiveSave = false;
       state.lastLocalProjectWriteAt = Date.now();
       clearTimeout(state.activeSaveTimer);
 
@@ -3326,6 +3386,10 @@
       try {
         if (state.editingProjectId) {
           const target = state.savedProjects.find(p => p.id === state.editingProjectId);
+          if (target && target.isLocked) {
+            alert(`🔒 Dự án "${target.name}" đang được KHÓA BẢO VỆ! Vui lòng mở khóa trước khi chỉnh sửa.`);
+            return;
+          }
           const updated = await window.SupabaseDB.updateProjectFields(state.editingProjectId, { name, customer, notes });
           if (target) Object.assign(target, updated);
           if (state.currentProjectId === state.editingProjectId) {
@@ -3346,6 +3410,11 @@
             targetProj = null;
           }
 
+          if (targetProj && targetProj.isLocked) {
+            alert(`🔒 DỰ ÁN "${targetProj.name}" ĐANG ĐƯỢC KHÓA BẢO VỆ!\n\nKhông thể ghi đè trực tiếp. Hãy đổi tên khác hoặc bấm "Lưu thành dự án mới".`);
+            return;
+          }
+
           if (targetProj) {
             const saved = await window.SupabaseDB.saveProject({
               ...targetProj,
@@ -3357,7 +3426,7 @@
             Object.assign(targetProj, saved);
             showToast(`✓ Đã lưu cập nhật dự án "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
           } else {
-            const newId = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            const newId = makeId('proj');
             const saved = await window.SupabaseDB.saveProject({
               id: newId,
               name, customer, notes,
@@ -3392,8 +3461,15 @@
 
     async function loadProjectById(projId) {
       let proj = state.savedProjects.find(p => p.id === projId);
-      if (!proj && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
-        try { proj = await window.SupabaseDB.getProjectById(projId); } catch (e) {}
+      if ((!proj || proj.isSummary || !proj.data || !Array.isArray(proj.data.stock)) && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        try {
+          const fullProj = await window.SupabaseDB.getProjectById(projId);
+          if (fullProj) {
+            proj = fullProj;
+            const idx = state.savedProjects.findIndex(p => p.id === projId);
+            if (idx >= 0) state.savedProjects[idx] = fullProj;
+          }
+        } catch (e) {}
       }
       if (!proj || !proj.data) {
         showToast('Không tìm thấy dữ liệu dự án!');
@@ -3549,7 +3625,7 @@
     function showProjectUpdateNotice(remoteProj) {
       if (!remoteProj || !remoteProj.name) return;
       showToast(`🔔 Dự án "${remoteProj.name}" vừa được cập nhật từ thiết bị khác!`, 6000);
-      const banner = $('projectActiveBanner');
+      const banner = $('projectActiveBar');
       if (banner && state.currentProjectId === remoteProj.id) {
         let updateBadge = $('badgeRemoteProjUpdate');
         if (!updateBadge) {
@@ -3570,11 +3646,17 @@
     }
 
     async function duplicateProject(projId) {
-      const src = state.savedProjects.find(p => p.id === projId);
+      let src = state.savedProjects.find(p => p.id === projId);
       if (!src) return;
+      if (src.isSummary && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        try {
+          const fullSrc = await window.SupabaseDB.getProjectById(projId);
+          if (fullSrc) src = fullSrc;
+        } catch (e) {}
+      }
 
       const clone = {
-        id: 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        id: makeId('proj'),
         name: src.name + ' (Bản sao)',
         customer: src.customer || '',
         notes: src.notes || '',
@@ -3615,12 +3697,18 @@
       URL.revokeObjectURL(url);
     }
 
-    function exportSingleProjectJson(projId) {
+    async function exportSingleProjectJson(projId) {
       let proj = state.savedProjects.find(p => p.id === projId);
+      if (proj && proj.isSummary && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        try {
+          const fullProj = await window.SupabaseDB.getProjectById(projId);
+          if (fullProj) proj = fullProj;
+        } catch (e) {}
+      }
       if (!proj) {
         // Xuất trực tiếp dữ liệu hiện hành trên màn hình
         proj = {
-          id: state.currentProjectId || ('proj_cur_' + Date.now()),
+          id: state.currentProjectId || makeId('proj_cur'),
           name: state.currentProjectName || `Dự án ngày ${new Date().toLocaleDateString('vi-VN')}`,
           customer: state.currentProjectCustomer || '',
           notes: state.currentProjectNotes || '',
@@ -3654,24 +3742,37 @@
       showToast(`✓ Đã xuất file dự án "${proj.name}.json"!`);
     }
 
-    function exportAllProjectsBackup() {
+    async function exportAllProjectsBackup() {
       if (!state.savedProjects || !state.savedProjects.length) {
         showToast('Chưa có dự án nào trong bộ nhớ để sao lưu!');
         return;
+      }
+
+      let fullProjects = state.savedProjects;
+      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        window.SupabaseDB.setLoading(true, 'Đang tải đầy đủ dữ liệu để sao lưu...');
+        try {
+          fullProjects = await window.SupabaseDB.getProjects({ includeTrash: false, includeDraft: false });
+        } catch (err) {
+          showToast('❌ Không tải được dữ liệu đầy đủ để sao lưu: ' + err.message);
+          return;
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       }
 
       const backupPayload = {
         generator: 'PhanMemToiUuPhoi_ToanThang',
         version: '2.0',
         exportedAt: new Date().toISOString(),
-        total_projects: state.savedProjects.length,
-        saved_projects: state.savedProjects,
+        total_projects: fullProjects.length,
+        saved_projects: fullProjects,
         saved_profiles: state.savedProfiles
       };
 
       const dateStr = new Date().toISOString().slice(0, 10);
       downloadJsonFile(`sao_luu_toan_bo_du_an_${dateStr}.json`, backupPayload);
-      showToast(`✓ Đã sao lưu toàn bộ ${state.savedProjects.length} dự án vào máy!`);
+      showToast(`✓ Đã sao lưu toàn bộ ${fullProjects.length} dự án vào máy!`);
     }
 
     function importProjectFromFile(file) {
@@ -3693,7 +3794,7 @@
                 const cloned = JSON.parse(JSON.stringify(p));
                 const exist = state.savedProjects.find(sp => sp.id === cloned.id || sp.name === cloned.name);
                 if (overwrite && exist) {
-                  cloned.id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                  cloned.id = makeId('proj');
                   cloned.name = cloned.name + ' (Nhập)';
                 }
                 cloned.source = 'import';
@@ -3722,7 +3823,7 @@
           // Trường hợp 2: File xuất 1 dự án riêng (chứa parsed.project)
           if (parsed && parsed.project && parsed.project.data) {
             const p = parsed.project;
-            p.id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            p.id = makeId('proj');
             p.source = 'import';
             window.SupabaseDB.setLoading(true, 'Đang nhập dự án...');
             try {
@@ -3763,6 +3864,7 @@
         return;
       }
       clearTimeout(state.activeSaveTimer);
+      state.hasPendingActiveSave = false;
       state.lastLocalProjectWriteAt = Date.now();
       state.isBlankReset = true;
       state.currentProjectId = null;
@@ -3778,7 +3880,7 @@
       state.selectedTabProfile = 'Hộp 30x30x1.8';
       state.parts = [];
       state.stock = [
-        { id: 's_' + Date.now(), name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: state.clamp }
+        { id: makeId('s'), name: 'Cây mới 6.000 (Hộp 30x30x1.8)', profile: 'Hộp 30x30x1.8', length: 6000, qty: null, clamp: state.clamp }
       ];
       renderProfileTabs();
       renderActiveProfileBanner();
@@ -3911,6 +4013,7 @@
               cutCount: rec.cutCount,
               totalCount: rec.totalCount,
               status: rec.status,
+              patternHash: rec.patternHash || '',
               updatedBy: rec.updatedBy,
               updatedAt: rec.updatedAt
             };
@@ -3934,6 +4037,11 @@
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           state.cloudConnected = false;
           updateCloudUIState('error');
+        }
+      }, {
+        onResync: async () => {
+          await initProjectsManager();
+          await loadCutProgressForActiveProject();
         }
       });
     }
@@ -3961,7 +4069,7 @@
       const exist = state.stock.find(s => s.profile === prof);
       if (!exist) {
         state.stock.push({
-          id: 's_auto_' + Date.now() + Math.random(),
+          id: makeId('s_auto'),
           profile: prof,
           name: `Cây mới 6.000 (${prof})`,
           length: 6000,
@@ -3972,7 +4080,7 @@
     }
 
     // Presets
-    function loadMultiProfilePreset() {
+    function loadMultiProfilePreset(opts = {}) {
       state.activeProfiles = ['Hộp 50x50x2.0', 'Hộp 30x30x1.8', 'Hộp 20x40x1.4'];
       state.selectedTabProfile = 'Hộp 50x50x2.0';
 
@@ -4014,9 +4122,11 @@
       renderProfileTabs();
       renderPartsList();
       renderStockList();
-      calculateOptimization(false);
-      saveActiveProject();
-      showToast('Đã nạp mẫu bản vẽ đa loại hộp (50x50, 30x30, 20x40)!');
+      calculateOptimization(false, Boolean(opts && opts.skipSave));
+      if (!opts || !opts.skipSave) {
+        saveActiveProject();
+        showToast('Đã nạp mẫu bản vẽ đa loại hộp (50x50, 30x30, 20x40)!');
+      }
     }
 
     function loadUserCase() {
@@ -4438,7 +4548,7 @@
         const has6m = stocksToShow.some(s => s.profile === targetProf && s.qty === null);
         if (!has6m) {
           state.stock.push({
-            id: 's_auto_' + Date.now() + Math.random(),
+            id: makeId('s_auto'),
             profile: targetProf,
             name: `Cây mới 6m (${targetProf})`,
             length: 6000,
@@ -4488,14 +4598,14 @@
     }
 
     // Optimization Calculation (Guaranteed NO auto-scroll while typing!)
-    function calculateOptimization(shouldScroll = false) {
+    function calculateOptimization(shouldScroll = false, skipSave = false) {
       const validParts = state.parts.filter(p => p.length > 0 && p.qty > 0);
       if (!validParts.length) {
         state.result = null;
         renderResults(null);
         renderProfileTabs();
         renderActiveProfileBanner();
-        saveActiveProject();
+        if (!skipSave) saveActiveProject();
         if (shouldScroll) showToast('Vui lòng nhập ít nhất 1 chi tiết có chiều dài và số lượng!');
         return;
       }
@@ -4507,7 +4617,7 @@
         const hasStock = state.stock.some(s => s.profile === prof && s.length > 0);
         if (!hasStock) {
           state.stock.push({
-            id: 's_auto_' + Date.now() + Math.random(),
+            id: makeId('s_auto'),
             profile: prof,
             name: `Cây mới 6m (${prof})`,
             length: 6000,
@@ -4563,7 +4673,7 @@
         renderResults(result);
         renderProfileTabs();
         renderActiveProfileBanner();
-        saveActiveProject();
+        if (!skipSave) saveActiveProject();
 
         $('resultsSection').style.display = 'block';
         if (shouldScroll) {
@@ -4862,12 +4972,19 @@
           }
 
           const barKey = `${prof}__${letter}`;
-          const currentCut = (state.cutStatuses && state.cutStatuses[barKey]) ? (state.cutStatuses[barKey].cutCount || 0) : 0;
+          const patternHash = (window.SupabaseDB && typeof window.SupabaseDB.computePatternHash === 'function')
+            ? window.SupabaseDB.computePatternHash(p)
+            : '';
+          const cutRecord = (state.cutStatuses && state.cutStatuses[barKey]) || null;
+          const currentCut = cutRecord ? (cutRecord.cutCount || 0) : 0;
+          const savedHash = cutRecord ? (cutRecord.patternHash || '') : '';
+          const isHashMismatch = currentCut > 0 && Boolean(savedHash && patternHash && savedHash !== patternHash);
           const isDone = currentCut >= p.count;
           const isPartiallyDone = currentCut > 0 && currentCut < p.count;
 
           patternsHTML += `
-            <div class="pattern-card ${isDone ? 'pattern-card-done' : ''}" style="${isDone ? 'border:2px solid #16A34A; background:#F0FDF4;' : ''}">
+            <div class="pattern-card ${isDone ? 'pattern-card-done' : ''}" style="${isHashMismatch ? 'border:2px solid #DC2626; background:#FEF2F2;' : (isDone ? 'border:2px solid #16A34A; background:#F0FDF4;' : '')}">
+              ${isHashMismatch ? `<div style="margin-bottom:8px; padding:7px 11px; border-radius:8px; background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; font-size:12px; font-weight:700;">⚠️ CẢNH BÁO LỆCH SƠ ĐỒ CẮT: Sơ đồ cây ${letter} đã thay đổi sau khi bắt đầu cắt (${currentCut}/${p.count} cây). Vui lòng kiểm tra lại trước khi cắt tiếp!</div>` : ''}
               <div class="pattern-header" style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
                 <span class="pattern-letter">${letter}</span>
                 <span class="pattern-multiplier">× ${p.count} cây</span>
@@ -4877,7 +4994,7 @@
                 </span>
 
                 <!-- Nút Tích Hoàn Thành Cắt Thực Tế (Live Cut Tracker) -->
-                <button type="button" class="btn btn-sm btn-cut-toggle" data-key="${barKey}" data-total="${p.count}" style="font-size:12px; padding:4px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:800; border-radius:8px; cursor:pointer; ${isDone ? 'background:#DCFCE7; color:#15803D; border:1.5px solid #16A34A;' : (isPartiallyDone ? 'background:#FEF3C7; color:#B45309; border:1.5px solid #F59E0B;' : 'background:#FFFFFF; color:#334155; border:1.5px solid #CBD5E1;')}">
+                <button type="button" class="btn btn-sm btn-cut-toggle" data-key="${barKey}" data-total="${p.count}" data-hash="${escapeHtml(patternHash)}" style="font-size:12px; padding:4px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:800; border-radius:8px; cursor:pointer; ${isDone ? 'background:#DCFCE7; color:#15803D; border:1.5px solid #16A34A;' : (isPartiallyDone ? 'background:#FEF3C7; color:#B45309; border:1.5px solid #F59E0B;' : 'background:#FFFFFF; color:#334155; border:1.5px solid #CBD5E1;')}">
                   ${isDone ? '✅ ĐÃ CẮT XONG (' + currentCut + '/' + p.count + ')' : (isPartiallyDone ? '⏳ ĐANG CẮT (' + currentCut + '/' + p.count + ')' : '⚪ Chưa cắt (' + currentCut + '/' + p.count + ')')}
                 </button>
 
@@ -5029,7 +5146,8 @@
           e.stopPropagation();
           const key = btn.dataset.key;
           const total = parseInt(btn.dataset.total) || 1;
-          toggleBarCuttingStatus(key, total);
+          const patternHash = btn.dataset.hash || '';
+          toggleBarCuttingStatus(key, total, patternHash);
         };
       });
 
@@ -5642,7 +5760,7 @@
 
         if (length > 0) {
           newParts.push({
-            id: 'p_' + Date.now() + '_' + i,
+            id: makeId('p_' + i),
             name,
             profile,
             length,
@@ -5753,7 +5871,6 @@
       if (isOp) {
         document.body.classList.add('role-operator');
         document.body.classList.add('operator-mode');
-        localStorage.removeItem('toiuu_operator_mode');
         if (roleBadge) {
           roleBadge.style.background = '#FFF7ED';
           roleBadge.style.borderColor = '#FDBA74';
@@ -5765,7 +5882,6 @@
       } else {
         document.body.classList.remove('role-operator');
         document.body.classList.remove('operator-mode');
-        localStorage.removeItem('toiuu_operator_mode');
         if (roleBadge) {
           roleBadge.style.background = '#F0FDFA';
           roleBadge.style.borderColor = '#99F6E4';
@@ -6263,7 +6379,11 @@
       } catch (e) {}
     }
 
-    async function toggleBarCuttingStatus(key, total) {
+    async function toggleBarCuttingStatus(key, total, patternHash = '') {
+      if (!state.inFlightCutKeys) state.inFlightCutKeys = new Set();
+      if (state.inFlightCutKeys.has(key)) return;
+      state.inFlightCutKeys.add(key);
+
       if (!state.cutStatuses) state.cutStatuses = {};
       const prev = state.cutStatuses[key] ? Object.assign({}, state.cutStatuses[key]) : null;
       const cur = prev ? (prev.cutCount || 0) : 0;
@@ -6275,6 +6395,7 @@
         cutCount: next,
         totalCount: total,
         status: nextStatus,
+        patternHash: patternHash || '',
         updatedBy: state.currentUser ? state.currentUser.username : null,
         updatedAt: new Date().toISOString()
       };
@@ -6292,9 +6413,9 @@
       updateLiveCuttingProgressUI();
       if (state.result) renderPatternsGrouped(state.result);
 
-      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
-        const activePid = state.currentProjectId || window.SupabaseDB.DRAFT_PROJECT_ID;
-        try {
+      try {
+        if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          const activePid = state.currentProjectId || window.SupabaseDB.DRAFT_PROJECT_ID;
           if (activePid === window.SupabaseDB.DRAFT_PROJECT_ID) {
             await window.SupabaseDB.saveDraftProject(buildActiveDataSnapshot());
           }
@@ -6302,15 +6423,18 @@
             cutCount: next,
             totalCount: total,
             status: nextStatus,
+            patternHash: patternHash || '',
             updatedBy: state.currentUser ? state.currentUser.username : null
           });
-        } catch (err) {
-          if (prev) state.cutStatuses[key] = prev;
-          else delete state.cutStatuses[key];
-          updateLiveCuttingProgressUI();
-          if (state.result) renderPatternsGrouped(state.result);
-          showToast('❌ Không lưu được tiến độ lên Supabase: ' + err.message);
         }
+      } catch (err) {
+        if (prev) state.cutStatuses[key] = prev;
+        else delete state.cutStatuses[key];
+        updateLiveCuttingProgressUI();
+        if (state.result) renderPatternsGrouped(state.result);
+        showToast('❌ Không lưu được tiến độ lên Supabase: ' + err.message);
+      } finally {
+        state.inFlightCutKeys.delete(key);
       }
     }
 
@@ -6368,9 +6492,9 @@
     // ==========================================
     function initNetworkAndPWA() {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=10').then(reg => {
+        navigator.serviceWorker.register('/sw.js?v=11').then(reg => {
           reg.update();
-          console.log('PWA Service Worker registered & updated v10:', reg.scope);
+          console.log('PWA Service Worker registered & updated v11:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
@@ -6547,7 +6671,11 @@
       if (!loadedFromEmbedded) {
         const loaded = await loadActiveProject(paramProjId, draftProject);
         if (!loaded) {
-          loadMultiProfilePreset();
+          const offlineOrErr = Boolean(state.initialSupabaseLoadFailed || !navigator.onLine);
+          loadMultiProfilePreset({ skipSave: offlineOrErr });
+          if (offlineOrErr) {
+            showToast('📡 Mất kết nối Supabase: đang hiển thị tạm bản vẽ mẫu (không ghi đè dữ liệu trên máy chủ).', 5500);
+          }
         }
       }
 
@@ -6582,7 +6710,7 @@
       $('btnAddPart').onclick = () => {
         const targetProf = state.selectedTabProfile !== 'ALL' ? state.selectedTabProfile : (state.activeProfiles[0] || 'Hộp 30x30x1.8');
         state.parts.push({
-          id: 'p_' + Date.now(),
+          id: makeId('p'),
           name: '',
           profile: targetProf,
           length: '',
@@ -6606,7 +6734,7 @@
       $('btnAddStock').onclick = () => {
         const targetProf = state.selectedTabProfile !== 'ALL' ? state.selectedTabProfile : (state.activeProfiles[0] || 'Hộp 30x30x1.8');
         state.stock.push({
-          id: 's_' + Date.now(),
+          id: makeId('s'),
           profile: targetProf,
           name: `Cây tồn (${targetProf})`,
           length: 6000,
@@ -6933,7 +7061,7 @@
       $('btnApplyIgs').onclick = () => {
         if (!stagedIgsParts.length) return;
         const newParts = stagedIgsParts.map((p, idx) => ({
-          id: 'p_igs_' + Date.now() + '_' + idx,
+          id: makeId('p_igs_' + idx),
           name: p.name,
           profile: p.profile,
           length: p.length,
@@ -7029,7 +7157,7 @@
         }
 
         const newParts = partsList.map((p, idx) => ({
-          id: 'p_f360_' + Date.now() + '_' + idx,
+          id: makeId('p_f360_' + idx),
           name: p.name || `Chi tiết ${idx + 1}`,
           profile: p.profile,
           length: p.length,
@@ -7058,9 +7186,17 @@
         state.selectedTabProfile = 'ALL';
         state.resultFilterProfile = 'ALL';
 
-        const fProjName = data.project_name || ('Bản vẽ Fusion 360 ' + new Date().toLocaleDateString('vi-VN'));
-        let existingProj = state.savedProjects.find(p => p.name.toLowerCase() === fProjName.toLowerCase());
-        const projId = existingProj ? existingProj.id : ('proj_f360_' + Date.now());
+        const baseProjName = data.project_name || ('Bản vẽ Fusion 360 ' + new Date().toLocaleDateString('vi-VN'));
+        let existingProj = state.savedProjects.find(p => p.name.toLowerCase() === baseProjName.toLowerCase());
+        let fProjName = baseProjName;
+        if (existingProj && existingProj.isLocked) {
+          const d = new Date();
+          const pad2 = n => String(n).padStart(2, '0');
+          fProjName = `${baseProjName} (v2 - ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} ${pad2(d.getHours())}:${pad2(d.getMinutes())})`;
+          existingProj = null;
+          showToast(`🔒 Bản "${baseProjName}" đang khóa -> Tự tạo bản mới "${fProjName}"`, 5000);
+        }
+        const projId = existingProj ? existingProj.id : makeId('proj_f360');
         state.currentProjectId = projId;
         state.currentProjectName = fProjName;
         state.currentProjectCustomer = 'Autodesk Fusion 360';
@@ -7092,7 +7228,7 @@
           name: fProjName,
           customer: state.currentProjectCustomer,
           notes: state.currentProjectNotes,
-          isLocked: existingProj ? !!existingProj.isLocked : false,
+          isLocked: false,
           isTrashed: false,
           isDraft: false,
           source: 'fusion360',

@@ -198,7 +198,8 @@
             <div style="font-size:12.5px; color:#475569;">Bấm nút trạng thái trên từng cây để đồng bộ tức thì tiến độ cắt với máy kỹ sư.</div>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button type="button" id="cncOfflineQueueBadge" class="no-print" style="display:none; align-items:center; gap:5px; font-size:12px; font-weight:800; padding:5px 11px; border-radius:999px; background:#FEF3C7; color:#B45309; border:1.5px solid #F59E0B; cursor:pointer;" title="Bấm để đồng bộ lại các thao tác đang chờ lên Supabase">⏳ 0 thao tác chờ đồng bộ</button>
           <span id="liveProgressPercentBadge" style="font-size:20px; font-weight:800; color:#0F766E; background:#CCFBF1; padding:4px 16px; border-radius:20px; border:1px solid #99F6E4;">0%</span>
           <span id="liveProgressRatioText" style="font-size:13.5px; font-weight:700; color:#334155;">Đã cắt: 0/0 cây</span>
         </div>
@@ -241,6 +242,7 @@
 
     const LS_SESSION = 'toiuu_logged_user_v1';
     const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
+    const LS_CNC_OFFLINE_QUEUE = 'toiuu_cnc_offline_queue_v1';
 
     let usersList = [];
     let currentUser = null;
@@ -254,6 +256,8 @@
     let filterStatus = 'ALL';
     let HINH_CACHE = [];
     let cncRealtimeUnsub = null;
+    const inFlightByKey = new Set();
+    let flushQueuePromise = null;
 
     const $ = id => document.getElementById(id);
     function showToast(msg) {
@@ -350,6 +354,107 @@
       }
     }
 
+    function readOfflineQueue() {
+      try {
+        const raw = localStorage.getItem(LS_CNC_OFFLINE_QUEUE);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function writeOfflineQueue(queue) {
+      try {
+        if (!queue || !queue.length) localStorage.removeItem(LS_CNC_OFFLINE_QUEUE);
+        else localStorage.setItem(LS_CNC_OFFLINE_QUEUE, JSON.stringify(queue));
+      } catch (e) {}
+      renderOfflineQueueBadge();
+    }
+
+    function renderOfflineQueueBadge() {
+      const badge = $('cncOfflineQueueBadge');
+      if (!badge) return;
+      const q = readOfflineQueue();
+      if (!q.length) {
+        badge.style.display = 'none';
+      } else {
+        badge.style.display = 'inline-flex';
+        badge.textContent = `⏳ ${q.length} thao tác chờ đồng bộ`;
+      }
+    }
+
+    function enqueueCutMutation(item) {
+      const q = readOfflineQueue().filter(x => !(x.projectId === item.projectId && x.barKey === item.barKey));
+      q.push(item);
+      writeOfflineQueue(q);
+    }
+
+    function removeQueuedCut(projectId, barKey) {
+      const prev = readOfflineQueue();
+      const next = prev.filter(x => !(x.projectId === projectId && x.barKey === barKey));
+      if (next.length !== prev.length) writeOfflineQueue(next);
+    }
+
+    function applyOfflineQueueToStatuses(projectId) {
+      if (!projectId) return;
+      const q = readOfflineQueue();
+      q.forEach(item => {
+        if (item.projectId === projectId && item.barKey) {
+          cutStatuses[item.barKey] = {
+            cutCount: item.cutCount,
+            totalCount: item.totalCount,
+            status: item.status,
+            patternHash: item.patternHash || '',
+            updatedBy: item.updatedBy || null,
+            updatedAt: item.updatedAt || new Date().toISOString()
+          };
+        }
+      });
+    }
+
+    function flushOfflineQueue() {
+      if (flushQueuePromise) return flushQueuePromise;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve();
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) return Promise.resolve();
+      const snapshot = readOfflineQueue();
+      if (!snapshot.length) return Promise.resolve();
+
+      flushQueuePromise = (async () => {
+        let syncedCount = 0;
+        const remaining = [];
+        let failedRest = false;
+        try {
+          for (let i = 0; i < snapshot.length; i++) {
+            const item = snapshot[i];
+            if (failedRest) {
+              remaining.push(item);
+              continue;
+            }
+            try {
+              await window.SupabaseDB.updateCutStatus(item.projectId, item.barKey, item);
+              syncedCount++;
+            } catch (err) {
+              failedRest = true;
+              remaining.push(item);
+            }
+          }
+          // Giữ lại các thao tác mới vừa được xếp thêm trong lúc đang flush
+          const latest = readOfflineQueue();
+          const processedKeys = new Set(snapshot.map(x => `${x.projectId}::${x.barKey}`));
+          const newerExtras = latest.filter(x => !processedKeys.has(`${x.projectId}::${x.barKey}`));
+          writeOfflineQueue([...remaining, ...newerExtras]);
+          if (syncedCount > 0) {
+            window.SupabaseDB.clearConnectionError();
+            showToast(`🟢 Đã đồng bộ ${syncedCount} thao tác tiến độ chờ lên Supabase!`);
+          }
+        } finally {
+          flushQueuePromise = null;
+        }
+      })();
+      return flushQueuePromise;
+    }
+
     function applySelectedProject(projRec) {
       currentProjectRecord = projRec;
       if (!projRec) {
@@ -393,7 +498,7 @@
       }
       window.SupabaseDB.setLoading(true, 'Đang tải sơ đồ cắt & tiến độ CNC...');
       try {
-        const allProjs = await window.SupabaseDB.getProjects({ includeTrash: false, includeDraft: true });
+        const allProjs = await window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true });
         savedProjects = allProjs.filter(p => !p.isDraft || (p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0));
 
         const urlProjId = new URLSearchParams(window.location.search).get('project');
@@ -404,17 +509,27 @@
         if (!chosen) {
           chosen = savedProjects.find(p => p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0) || savedProjects[0] || null;
         }
+        if (chosen && chosen.isSummary) {
+          const fullChosen = await window.SupabaseDB.getProjectById(chosen.id);
+          if (fullChosen) {
+            chosen = fullChosen;
+            savedProjects = savedProjects.map(p => p.id === chosen.id ? fullChosen : p);
+          }
+        }
 
         applySelectedProject(chosen);
         if (activeProjectId) {
           cutStatuses = await window.SupabaseDB.getCutProgress(activeProjectId);
+          applyOfflineQueueToStatuses(activeProjectId);
         } else {
           cutStatuses = {};
         }
 
         window.SupabaseDB.clearConnectionError();
+        renderOfflineQueueBadge();
         renderProjectSelector();
         solveAndRender();
+        if (navigator.onLine) flushOfflineQueue();
       } catch (err) {
         console.error('Lỗi tải dữ liệu CNC:', err);
         window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải dữ liệu CNC: ' + err.message, () => loadWorkshopData());
@@ -511,7 +626,13 @@
         pats.forEach((p, idx) => {
           const letter = alphabet[idx % alphabet.length];
           const barKey = `${prof}__${letter}`;
-          const curCut = cutStatuses[barKey] ? (cutStatuses[barKey].cutCount || 0) : 0;
+          const patternHash = (window.SupabaseDB && typeof window.SupabaseDB.computePatternHash === 'function')
+            ? window.SupabaseDB.computePatternHash(p)
+            : '';
+          const cutRecord = cutStatuses[barKey] || null;
+          const curCut = cutRecord ? (cutRecord.cutCount || 0) : 0;
+          const savedHash = cutRecord ? (cutRecord.patternHash || '') : '';
+          const isHashMismatch = curCut > 0 && Boolean(savedHash && patternHash && savedHash !== patternHash);
           const st = curCut >= p.count ? 'done' : (curCut > 0 ? 'cutting' : 'pending');
 
           if (filterStatus !== 'ALL' && st !== filterStatus) return;
@@ -552,12 +673,13 @@
           if (clampW > 0 && (clampW / stockW) * 100 > 1.2) labelsHtml += `<div class="cut-label waste-label" style="left:${(usableW/stockW)*100}%;width:${(clampW/stockW)*100}%;">kẹp ${numVN(clampW)}</div>`;
 
           cardsHtml += `
-            <div class="pattern-card ${st === 'done' ? 'pattern-card-done' : ''}">
+            <div class="pattern-card ${st === 'done' ? 'pattern-card-done' : ''}" style="${isHashMismatch ? 'border:2px solid #DC2626; background:#FEF2F2;' : ''}">
+              ${isHashMismatch ? `<div style="margin-bottom:10px; padding:8px 12px; border-radius:8px; background:#FEE2E2; border:1.5px solid #F87171; color:#991B1B; font-size:13px; font-weight:800;">⚠️ CẢNH BÁO ĐỎ: Sơ đồ cắt cây ${letter} vừa được Kỹ sư thay đổi sau khi bạn đã bắt đầu cắt (${curCut}/${p.count} cây)! Vui lòng đối chiếu lại kích thước trước khi cắt tiếp.</div>` : ''}
               <div class="pattern-header">
                 <span class="pattern-letter">${letter}</span>
                 <span class="pattern-multiplier">× ${p.count} cây</span>
                 <span class="pattern-meta">${escapeHtml(p.stockLabel)} · ${numVN(p.stockLength)} mm · cắt ${p.cuts.length} chi tiết · dư ${numVN(wasteW)} mm</span>
-                <button type="button" class="btn btn-cut-toggle" data-key="${escapeHtml(barKey)}" data-total="${p.count}" style="border:1.5px solid ${st === 'done' ? '#16A34A;background:#DCFCE7;color:#15803D' : (st === 'cutting' ? '#F59E0B;background:#FEF3C7;color:#B45309' : '#CBD5E1;background:#FFF;color:#334155')};">
+                <button type="button" class="btn btn-cut-toggle" data-key="${escapeHtml(barKey)}" data-total="${p.count}" data-hash="${escapeHtml(patternHash)}" style="border:1.5px solid ${st === 'done' ? '#16A34A;background:#DCFCE7;color:#15803D' : (st === 'cutting' ? '#F59E0B;background:#FEF3C7;color:#B45309' : '#CBD5E1;background:#FFF;color:#334155')};">
                   ${st === 'done' ? `✅ ĐÃ CẮT XONG (${curCut}/${p.count})` : (st === 'cutting' ? `⏳ ĐANG CẮT (${curCut}/${p.count})` : `⚪ Chưa cắt (${curCut}/${p.count})`)}
                 </button>
                 <button type="button" class="btn btn-p btn-export-bar" data-letter="${letter}" data-prof="${escapeHtml(prof)}" data-len="${p.stockLength}" data-idx="${cacheIdx}" data-count="${p.count}">
@@ -600,7 +722,7 @@
         container.innerHTML = `<div class="card" style="text-align:center; padding:32px; color:#64748B;">Không có cây cắt nào khớp với bộ lọc hiện tại.</div>`;
       }
 
-      container.querySelectorAll('.btn-cut-toggle').forEach(b => b.onclick = () => toggleCut(b.dataset.key, parseInt(b.dataset.total) || 1));
+      container.querySelectorAll('.btn-cut-toggle').forEach(b => b.onclick = () => toggleCut(b.dataset.key, parseInt(b.dataset.total) || 1, b.dataset.hash || ''));
       container.querySelectorAll('.btn-export-bar').forEach(b => b.onclick = () => {
         const letter = b.dataset.letter;
         const prof = b.dataset.prof;
@@ -718,41 +840,74 @@
       });
     }
 
-    async function toggleCut(key, total) {
+    async function toggleCut(key, total, patternHash = '') {
       if (!activeProjectId) {
         showToast('⚠️ Chưa có dự án đang mở để lưu tiến độ!');
         return;
       }
+      if (inFlightByKey.has(key)) return;
+
       const prev = cutStatuses[key] ? Object.assign({}, cutStatuses[key]) : null;
       const cur = prev ? (prev.cutCount || 0) : 0;
-      const next = cur + 1 > total ? 0 : cur + 1;
-      const nextStatus = next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending');
+      const isMismatch = cur > 0 && Boolean(prev && prev.patternHash && patternHash && prev.patternHash !== patternHash);
+      if (isMismatch) {
+        const ok = confirm(`⚠️ CẢNH BÁO: Sơ đồ cây ${key.replace('__', ' - ')} đã thay đổi so với lúc bạn bắt đầu cắt!\n\nBấm [OK] chỉ khi bạn đã kiểm tra kỹ bản vẽ mới để tiếp tục cập nhật tiến độ.`);
+        if (!ok) return;
+      }
 
-      cutStatuses[key] = {
-        cutCount: next,
-        totalCount: total,
-        status: nextStatus,
-        updatedBy: currentUser ? currentUser.username : null,
-        updatedAt: new Date().toISOString()
-      };
-      updateProgressUI();
-      renderPatterns();
-
+      inFlightByKey.add(key);
       try {
-        await window.SupabaseDB.updateCutStatus(activeProjectId, key, {
+        const next = cur + 1 > total ? 0 : cur + 1;
+        const nextStatus = next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending');
+        const mutationPayload = {
+          projectId: activeProjectId,
+          barKey: key,
           cutCount: next,
           totalCount: total,
           status: nextStatus,
-          updatedBy: currentUser ? currentUser.username : null
-        });
-        showToast(next >= total ? `✅ Đã hoàn thành ${key.replace('__', ' - ')} (${next}/${total})` : `✂️ Cập nhật: ${next}/${total} cây`);
-      } catch (err) {
-        if (prev) cutStatuses[key] = prev;
-        else delete cutStatuses[key];
+          patternHash: patternHash || '',
+          updatedBy: currentUser ? currentUser.username : null,
+          updatedAt: new Date().toISOString()
+        };
+
+        cutStatuses[key] = {
+          cutCount: next,
+          totalCount: total,
+          status: nextStatus,
+          patternHash: patternHash || '',
+          updatedBy: mutationPayload.updatedBy,
+          updatedAt: mutationPayload.updatedAt
+        };
         updateProgressUI();
         renderPatterns();
-        showToast('❌ Không lưu được tiến độ lên Supabase: ' + err.message);
-        window.SupabaseDB.showConnectionError('❌ Lỗi lưu tiến độ cắt: ' + err.message);
+
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          enqueueCutMutation(mutationPayload);
+          showToast(`📡 Mất Wi-Fi: Đã lưu tạm vào hàng đợi (${readOfflineQueue().length} thao tác chờ đồng bộ)`);
+          return;
+        }
+
+        try {
+          await window.SupabaseDB.updateCutStatus(activeProjectId, key, mutationPayload);
+          removeQueuedCut(activeProjectId, key);
+          showToast(next >= total ? `✅ Đã hoàn thành ${key.replace('__', ' - ')} (${next}/${total})` : `✂️ Cập nhật: ${next}/${total} cây`);
+        } catch (err) {
+          const isNetErr = (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+            (!err.code && /fetch|network|timeout|load failed|abort/i.test(String(err.message || '')));
+          if (isNetErr) {
+            enqueueCutMutation(mutationPayload);
+            showToast(`⏳ Rớt mạng tạm thời — Đã xếp hàng đợi đồng bộ (${readOfflineQueue().length} thao tác)`);
+          } else {
+            if (prev) cutStatuses[key] = prev;
+            else delete cutStatuses[key];
+            updateProgressUI();
+            renderPatterns();
+            showToast('❌ Không lưu được tiến độ lên Supabase: ' + err.message);
+            window.SupabaseDB.showConnectionError('❌ Lỗi lưu tiến độ cắt: ' + err.message);
+          }
+        }
+      } finally {
+        inFlightByKey.delete(key);
       }
     }
 
@@ -793,20 +948,27 @@
           const targetProjId = (rec && rec.projectId) || (old && old.projectId);
           if (targetProjId && targetProjId !== activeProjectId) return;
 
+          const pendingQueue = readOfflineQueue();
           if (ev.eventType === 'DELETE') {
             if (old && old.barKey) {
-              delete cutStatuses[old.barKey];
+              if (!pendingQueue.some(x => x.projectId === activeProjectId && x.barKey === old.barKey)) {
+                delete cutStatuses[old.barKey];
+              }
             } else if (activeProjectId) {
               cutStatuses = await window.SupabaseDB.getCutProgress(activeProjectId);
+              applyOfflineQueueToStatuses(activeProjectId);
             }
           } else if (rec && rec.barKey) {
-            cutStatuses[rec.barKey] = {
-              cutCount: rec.cutCount,
-              totalCount: rec.totalCount,
-              status: rec.status,
-              updatedBy: rec.updatedBy,
-              updatedAt: rec.updatedAt
-            };
+            if (!pendingQueue.some(x => x.projectId === activeProjectId && x.barKey === rec.barKey)) {
+              cutStatuses[rec.barKey] = {
+                cutCount: rec.cutCount,
+                totalCount: rec.totalCount,
+                status: rec.status,
+                patternHash: rec.patternHash || '',
+                updatedBy: rec.updatedBy,
+                updatedAt: rec.updatedAt
+              };
+            }
           }
           updateProgressUI();
           renderPatterns();
@@ -834,6 +996,15 @@
           try {
             usersList = await window.SupabaseDB.getUsers();
           } catch (e) {}
+        }
+      }, (status) => {
+        if (status === 'SUBSCRIBED') {
+          flushOfflineQueue();
+        }
+      }, {
+        onResync: async () => {
+          await flushOfflineQueue();
+          await loadWorkshopData();
         }
       });
     }
@@ -955,14 +1126,22 @@
       $('selCncProject').onchange = async e => {
         const val = e.target.value;
         if (!val) return;
-        const p = savedProjects.find(x => x.id === val);
+        let p = savedProjects.find(x => x.id === val);
         if (!p) return;
-        applySelectedProject(p);
         localStorage.setItem(LS_CUR_PROJ_ID, p.id);
         filterProf = 'ALL';
         window.SupabaseDB.setLoading(true, 'Đang tải tiến độ cắt dự án...');
         try {
+          if (p.isSummary) {
+            const fullP = await window.SupabaseDB.getProjectById(p.id);
+            if (fullP) {
+              p = fullP;
+              savedProjects = savedProjects.map(x => x.id === fullP.id ? fullP : x);
+            }
+          }
+          applySelectedProject(p);
           cutStatuses = await window.SupabaseDB.getCutProgress(p.id);
+          applyOfflineQueueToStatuses(p.id);
           solveAndRender();
           showToast(`✓ Đã chuyển sang dự án "${p.name}"`);
         } catch (err) {
@@ -971,6 +1150,12 @@
           window.SupabaseDB.setLoading(false);
         }
       };
+
+      if ($('cncOfflineQueueBadge')) {
+        $('cncOfflineQueueBadge').onclick = () => flushOfflineQueue();
+      }
+      window.addEventListener('online', flushOfflineQueue);
+      renderOfflineQueueBadge();
 
       document.querySelectorAll('.filter-status').forEach(b => b.onclick = () => {
         filterStatus = b.dataset.st;

@@ -217,13 +217,13 @@ async function processFusionPayload(fusionData) {
     ? String(fusionData.project_name).trim()
     : `Bản vẽ Fusion 360 (${new Date().toLocaleDateString('vi-VN')})`;
 
-  // Tìm xem đã có dự án cùng tên trên Supabase chưa để giữ nguyên ID
+  // Tìm xem đã có dự án cùng tên trên Supabase chưa
   let existingProj = null;
   if (supabase) {
     try {
       const { data: foundRows } = await supabase
         .from('projects')
-        .select('id, created_at')
+        .select('id, name, is_locked, created_at, igs_files')
         .eq('is_trashed', false)
         .eq('is_draft', false)
         .ilike('name', projName)
@@ -236,7 +236,44 @@ async function processFusionPayload(fusionData) {
     existingProj = localBackupDb.savedProjects.find(p => p.name && p.name.toLowerCase() === projName.toLowerCase()) || null;
   }
 
-  const projectId = existingProj ? existingProj.id : `proj_f360_${Date.now()}`;
+  let finalProjName = projName;
+  let wasVersioned = false;
+  let isUpdatingExisting = Boolean(existingProj);
+  const randSuffix = Math.random().toString(36).slice(2, 7);
+
+  // Bảo vệ khóa dự án: nếu dự án cùng tên đang bị khóa -> tự tạo bản phiên bản mới thay vì ghi đè!
+  if (existingProj && existingProj.is_locked) {
+    let nextVer = 2;
+    if (supabase) {
+      try {
+        const escapedName = projName.replace(/[%_]/g, '\\$&');
+        const { data: verRows } = await supabase
+          .from('projects')
+          .select('name')
+          .eq('is_trashed', false)
+          .eq('is_draft', false)
+          .ilike('name', `${escapedName} (v%`);
+        if (Array.isArray(verRows) && verRows.length) {
+          let maxV = 1;
+          for (const vr of verRows) {
+            const m = String(vr.name || '').match(/\(v(\d+)/i);
+            if (m) maxV = Math.max(maxV, parseInt(m[1], 10));
+          }
+          nextVer = Math.max(2, maxV + 1);
+        }
+      } catch (e) {}
+    }
+    const d = new Date();
+    const pad2 = n => String(n).padStart(2, '0');
+    const stamp = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    finalProjName = `${projName} (v${nextVer} - ${stamp})`;
+    existingProj = null;
+    isUpdatingExisting = false;
+    wasVersioned = true;
+    console.log(`[FUSION 360] Dự án "${projName}" đang KHÓA -> Tự tạo bản mới "${finalProjName}"`);
+  }
+
+  const projectId = existingProj ? existingProj.id : `proj_f360_${Date.now()}_${randSuffix}`;
   const nowStr = new Date().toISOString();
   const activeProfiles = [];
   const igsFilesMeta = [];
@@ -278,7 +315,7 @@ async function processFusionPayload(fusionData) {
     }
 
     newParts.push({
-      id: `p_f360_${Date.now()}_${idx}`,
+      id: `p_f360_${Date.now()}_${randSuffix}_${idx}`,
       name: p.name || `Chi tiết ${idx + 1}`,
       profile: prof,
       length: Number(p.length) || 0,
@@ -291,7 +328,7 @@ async function processFusionPayload(fusionData) {
   }
 
   const newStock = activeProfiles.map((prof, idx) => ({
-    id: `s_f360_${Date.now()}_${idx}`,
+    id: `s_f360_${Date.now()}_${randSuffix}_${idx}`,
     profile: prof,
     name: `Cây mới 6.000 (${prof})`,
     length: 6000,
@@ -362,7 +399,7 @@ async function processFusionPayload(fusionData) {
     interlock: true,
     gap: 0,
     fusionProject: {
-      project_name: fusionData.project_name || projName,
+      project_name: fusionData.project_name || finalProjName,
       export_dir: fusionData.export_dir || '',
       stock_length: fusionData.stock_length || 6000,
       clamp_tail: clampTail,
@@ -371,10 +408,12 @@ async function processFusionPayload(fusionData) {
     }
   };
 
-  const projNotes = `Tự động đồng bộ từ Fusion 360 (${newParts.length} mục, ${activeProfiles.length} loại hộp)`;
+  const projNotes = wasVersioned
+    ? `Tự động tạo phiên bản mới từ Fusion 360 vì bản gốc "${projName}" đang khóa (${newParts.length} mục, ${activeProfiles.length} loại hộp)`
+    : `Tự động đồng bộ từ Fusion 360 (${newParts.length} mục, ${activeProfiles.length} loại hộp)`;
   const projectRecord = {
     id: projectId,
-    name: projName,
+    name: finalProjName,
     customer: 'Fusion 360 CAD',
     notes: projNotes,
     is_locked: false,
@@ -389,6 +428,7 @@ async function processFusionPayload(fusionData) {
   };
 
   let supabaseSynced = false;
+  let orphansRemovedCount = 0;
   if (supabase) {
     // Upsert quy cách hộp mới vào bảng inventory
     if (activeProfiles.length) {
@@ -402,6 +442,41 @@ async function processFusionPayload(fusionData) {
         .upsert(invRows, { onConflict: 'profile_name', ignoreDuplicates: true });
       if (invErr) {
         console.warn('[SUPABASE DB] Lỗi upsert inventory:', invErr.message);
+      }
+    }
+
+    // Dọn các file .IGS mồ côi trên Storage khi xuất lại dự án không khóa ít cây/chi tiết hơn trước
+    if (isUpdatingExisting) {
+      try {
+        const keepPaths = new Set(igsFilesMeta.map(f => f.storage_path).filter(Boolean));
+        const candidateOldPaths = new Set();
+        if (existingProj && Array.isArray(existingProj.igs_files)) {
+          existingProj.igs_files.forEach(f => {
+            if (f && f.storage_path) candidateOldPaths.add(f.storage_path);
+          });
+        }
+        const folder = toAsciiSafe(projectId);
+        const { data: listed } = await supabase.storage.from(STORAGE_BUCKET).list(folder, { limit: 1000 });
+        if (Array.isArray(listed)) {
+          listed.forEach(item => {
+            if (item && item.name && item.id) {
+              candidateOldPaths.add(`${folder}/${item.name}`);
+            }
+          });
+        }
+        const orphanPaths = Array.from(candidateOldPaths).filter(p => p && !keepPaths.has(p));
+        if (orphanPaths.length) {
+          for (let offset = 0; offset < orphanPaths.length; offset += 100) {
+            const chunk = orphanPaths.slice(offset, offset + 100);
+            const { error: rmErr } = await supabase.storage.from(STORAGE_BUCKET).remove(chunk);
+            if (!rmErr) orphansRemovedCount += chunk.length;
+          }
+          if (orphansRemovedCount > 0) {
+            console.log(`[SUPABASE STORAGE] Đã dọn ${orphansRemovedCount} file .IGS mồ côi của dự án "${finalProjName}"`);
+          }
+        }
+      } catch (e) {
+        console.warn('[SUPABASE STORAGE] Lỗi dọn file .IGS mồ côi:', e.message);
       }
     }
 
@@ -419,7 +494,7 @@ async function processFusionPayload(fusionData) {
   const localIdx = (localBackupDb.savedProjects || []).findIndex(p => p.id === projectId);
   const localEntry = {
     id: projectId,
-    name: projName,
+    name: finalProjName,
     customer: 'Fusion 360 CAD',
     notes: projNotes,
     createdAt: projectRecord.created_at,
@@ -433,7 +508,9 @@ async function processFusionPayload(fusionData) {
   return {
     project: localEntry,
     supabaseSynced,
-    igsUploadedCount
+    igsUploadedCount,
+    wasVersioned,
+    orphansRemovedCount
   };
 }
 
@@ -526,6 +603,8 @@ const server = http.createServer(async (req, res) => {
         projectName: result.project.name,
         supabaseSynced: result.supabaseSynced,
         igsUploadedCount: result.igsUploadedCount,
+        wasVersioned: Boolean(result.wasVersioned),
+        orphansRemovedCount: Number(result.orphansRemovedCount || 0),
         webUrl: 'https://xepphoi.cloud',
         lanUrls: getLanAddresses()
       }));

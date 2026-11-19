@@ -52,6 +52,29 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   var _loadingCount = 0;
   var _retryHandler = null;
   var _stylesInjected = false;
+  var _supportsPatternHash = true;
+
+  function uid(prefix) {
+    return String(prefix || 'id') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  }
+
+  function computePatternHash(pattern) {
+    if (!pattern) return '';
+    var cuts = Array.isArray(pattern.cuts) ? pattern.cuts : [];
+    var stockLen = Math.round(Number(pattern.stockLength || 0) * 10);
+    var tokens = cuts.map(function (c) {
+      var len = Math.round(Number((c && c.length) || 0) * 10);
+      var style = String((c && (c.endStyle || c.end_style)) || 'thang');
+      return len + ':' + style;
+    }).sort();
+    var raw = stockLen + '|' + tokens.join(',');
+    var h = 0x811c9dc5;
+    for (var i = 0; i < raw.length; i++) {
+      h ^= raw.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return 'ph_' + ((h >>> 0).toString(16).padStart(8, '0')) + '_' + cuts.length;
+  }
 
   function setCredentials(url, anonKey) {
     _url = url || SUPABASE_URL;
@@ -240,6 +263,41 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     };
   }
 
+  function mapProjectSummaryFromDb(row) {
+    if (!row) return null;
+    if (row.data && typeof row.data === 'object') {
+      return mapProjectFromDb(row);
+    }
+    var activeProfiles = Array.isArray(row.active_profiles) ? row.active_profiles : [];
+    var partsArr = Array.isArray(row.parts_summary) ? row.parts_summary : [];
+    var totalPieces = partsArr.reduce(function (acc, p) {
+      return acc + (Number(p && p.qty) || 0);
+    }, 0);
+    return {
+      id: row.id,
+      name: row.name || '',
+      customer: row.customer || '',
+      notes: row.notes || '',
+      isLocked: Boolean(row.is_locked),
+      isTrashed: Boolean(row.is_trashed),
+      isDraft: Boolean(row.is_draft),
+      source: row.source || 'web',
+      isSummary: true,
+      activeProfiles: activeProfiles,
+      partsCount: partsArr.length,
+      piecesCount: totalPieces,
+      data: {
+        activeProfiles: activeProfiles,
+        parts: partsArr,
+        isBlankReset: Boolean(row.is_blank_reset)
+      },
+      igsFiles: Array.isArray(row.igs_files) ? row.igs_files : [],
+      deletedAt: row.deleted_at || null,
+      createdAt: row.created_at || new Date().toISOString(),
+      updatedAt: row.updated_at || row.created_at || new Date().toISOString()
+    };
+  }
+
   function mapProjectToDb(proj) {
     if (!proj) throw new Error('Dữ liệu dự án không hợp lệ');
     var cleanData = stripHeavyIgs(proj.data || {});
@@ -302,6 +360,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       cutCount: Number(row.cut_count) || 0,
       totalCount: Number(row.total_count) || 1,
       status: row.status || 'pending',
+      patternHash: row.pattern_hash || '',
       updatedBy: row.updated_by || null,
       updatedAt: row.updated_at || new Date().toISOString()
     };
@@ -329,6 +388,18 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var res = await query;
     var rows = throwIfError(res, 'Không tải được danh sách dự án') || [];
     return rows.map(mapProjectFromDb);
+  }
+
+  async function getProjectsSummary(opts) {
+    var options = opts || {};
+    var client = getClient();
+    var cols = 'id,name,customer,notes,is_locked,is_trashed,is_draft,source,igs_files,deleted_at,created_at,updated_at,active_profiles:data->activeProfiles,parts_summary:data->parts,is_blank_reset:data->isBlankReset';
+    var query = client.from('projects').select(cols).order('updated_at', { ascending: false });
+    if (!options.includeTrash) query = query.eq('is_trashed', false);
+    if (!options.includeDraft) query = query.eq('is_draft', false);
+    var res = await query;
+    var rows = throwIfError(res, 'Không tải được danh sách tóm tắt dự án') || [];
+    return rows.map(mapProjectSummaryFromDb);
   }
 
   async function getProjectById(id) {
@@ -398,6 +469,102 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     });
   }
 
+  function saveProjectKeepalive(projectId, activeSnapshot, isDraft) {
+    if (!isConfigured() || typeof fetch !== 'function') return;
+    var cleanData = stripHeavyIgs(activeSnapshot || {});
+    var baseUrl = _url.trim().replace(/\/+$/, '');
+    var nowIso = new Date().toISOString();
+    var useDraft = Boolean(isDraft || !projectId || projectId === DRAFT_PROJECT_ID);
+
+    var endpoint = useDraft
+      ? baseUrl + '/rest/v1/projects?on_conflict=id'
+      : baseUrl + '/rest/v1/projects?id=eq.' + encodeURIComponent(String(projectId));
+
+    var payload = useDraft
+      ? {
+          id: DRAFT_PROJECT_ID,
+          name: String((cleanData && cleanData.currentProjectName) || 'Dự án nháp'),
+          customer: String((cleanData && cleanData.currentProjectCustomer) || ''),
+          notes: String((cleanData && cleanData.currentProjectNotes) || ''),
+          is_locked: false,
+          is_trashed: false,
+          is_draft: true,
+          source: 'web',
+          data: cleanData,
+          updated_at: nowIso
+        }
+      : {
+          data: cleanData,
+          updated_at: nowIso
+        };
+
+    try {
+      var bodyStr = JSON.stringify(payload);
+      var headers = {
+        'Content-Type': 'application/json',
+        apikey: _key.trim(),
+        Authorization: 'Bearer ' + _key.trim(),
+        Prefer: useDraft ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal'
+      };
+      fetch(endpoint, {
+        method: useDraft ? 'POST' : 'PATCH',
+        headers: headers,
+        body: bodyStr,
+        keepalive: bodyStr.length <= 60000
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  async function deleteStorageFilesForProjects(projectRows) {
+    var rows = Array.isArray(projectRows) ? projectRows : [];
+    if (!rows.length) return 0;
+    var client = getClient();
+    var pathSet = {};
+
+    rows.forEach(function (r) {
+      if (r && Array.isArray(r.igs_files)) {
+        r.igs_files.forEach(function (f) {
+          if (f && f.storage_path) pathSet[String(f.storage_path)] = true;
+        });
+      }
+    });
+
+    for (var i = 0; i < rows.length; i++) {
+      var pid = rows[i] && rows[i].id;
+      if (!pid) continue;
+      var folder = toAsciiSafe(pid);
+      try {
+        var listRes = await client.storage.from(STORAGE_BUCKET).list(folder, { limit: 1000 });
+        if (listRes && Array.isArray(listRes.data)) {
+          listRes.data.forEach(function (item) {
+            if (item && item.name && item.id) {
+              pathSet[folder + '/' + item.name] = true;
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('[Storage Cleanup] Không liệt kê được thư mục ' + folder + ':', e);
+      }
+    }
+
+    var allPaths = Object.keys(pathSet);
+    var deleted = 0;
+    for (var offset = 0; offset < allPaths.length; offset += 100) {
+      var chunk = allPaths.slice(offset, offset + 100);
+      try {
+        var rmRes = await client.storage.from(STORAGE_BUCKET).remove(chunk);
+        if (rmRes && rmRes.error) {
+          console.warn('[Storage Cleanup] Lỗi xóa file Storage:', rmRes.error.message);
+        } else {
+          deleted += chunk.length;
+        }
+      } catch (e) {
+        console.warn('[Storage Cleanup] Exception xóa Storage:', e);
+      }
+    }
+    return deleted;
+  }
+
   async function trashProject(id) {
     return updateProjectFields(id, {
       isTrashed: true,
@@ -413,7 +580,18 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   async function permanentDeleteProject(id) {
+    if (!id) return false;
     var client = getClient();
+    try {
+      var infoRes = await client.from('projects').select('id, igs_files').eq('id', id).maybeSingle();
+      if (infoRes && infoRes.data) {
+        await deleteStorageFilesForProjects([infoRes.data]);
+      } else {
+        await deleteStorageFilesForProjects([{ id: id, igs_files: [] }]);
+      }
+    } catch (e) {
+      console.warn('[Storage Cleanup] Bỏ qua lỗi dọn Storage khi xóa dự án:', e);
+    }
     var res = await client.from('projects').delete().eq('id', id);
     throwIfError(res, 'Không xóa vĩnh viễn được dự án');
     return true;
@@ -421,6 +599,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
 
   async function emptyTrash() {
     var client = getClient();
+    try {
+      var trashRes = await client.from('projects').select('id, igs_files').eq('is_trashed', true);
+      if (trashRes && Array.isArray(trashRes.data) && trashRes.data.length) {
+        await deleteStorageFilesForProjects(trashRes.data);
+      }
+    } catch (e) {
+      console.warn('[Storage Cleanup] Bỏ qua lỗi dọn Storage khi dọn thùng rác:', e);
+    }
     var res = await client.from('projects').delete().eq('is_trashed', true);
     throwIfError(res, 'Không dọn sạch được thùng rác');
     return true;
@@ -503,6 +689,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         cutCount: mapped.cutCount,
         totalCount: mapped.totalCount,
         status: mapped.status,
+        patternHash: mapped.patternHash || '',
         updatedBy: mapped.updatedBy,
         updatedAt: mapped.updatedAt
       };
@@ -526,6 +713,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var cutCount = Math.max(0, Number(payload && payload.cutCount != null ? payload.cutCount : 0));
     var totalCount = Math.max(1, Number(payload && payload.totalCount != null ? payload.totalCount : 1));
     var status = (payload && payload.status) || (cutCount >= totalCount ? 'done' : (cutCount > 0 ? 'cutting' : 'pending'));
+    var patternHash = String((payload && (payload.patternHash || payload.pattern_hash)) || '');
 
     var row = {
       project_id: projectId,
@@ -538,12 +726,31 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       updated_by: (payload && payload.updatedBy) || null,
       updated_at: new Date().toISOString()
     };
+    if (_supportsPatternHash) {
+      row.pattern_hash = patternHash;
+    }
+
+    var isMissingPatternHashCol = function (err) {
+      if (!err) return false;
+      var msg = String(err.message || '') + ' ' + String(err.details || '') + ' ' + String(err.hint || '');
+      return (err.code === 'PGRST204' || err.code === '42703') && /pattern_hash/i.test(msg) || /pattern_hash/i.test(msg);
+    };
 
     var res = await client
       .from('cut_progress')
       .upsert(row, { onConflict: 'project_id,bar_key' })
       .select()
       .single();
+
+    if (res.error && isMissingPatternHashCol(res.error)) {
+      _supportsPatternHash = false;
+      delete row.pattern_hash;
+      res = await client
+        .from('cut_progress')
+        .upsert(row, { onConflict: 'project_id,bar_key' })
+        .select()
+        .single();
+    }
 
     // Nếu bản nháp (__draft__) chưa có dòng cha trên DB, tự tạo dòng nháp rồi thử lại
     if (res.error && res.error.code === '23503' && projectId === DRAFT_PROJECT_ID) {
@@ -553,6 +760,15 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         .upsert(row, { onConflict: 'project_id,bar_key' })
         .select()
         .single();
+      if (res.error && isMissingPatternHashCol(res.error)) {
+        _supportsPatternHash = false;
+        delete row.pattern_hash;
+        res = await client
+          .from('cut_progress')
+          .upsert(row, { onConflict: 'project_id,bar_key' })
+          .select()
+          .single();
+      }
     }
 
     var saved = throwIfError(res, 'Không cập nhật được tiến độ cắt');
@@ -670,13 +886,66 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   // =========================================================================
-  // REALTIME (POSTGRES CHANGES)
+  // REALTIME (POSTGRES CHANGES) + VÒNG ĐỜI TỰ PHỤC HỒI KẾT NỐI
   // =========================================================================
-  function subscribeTables(handlers, onStatusChange) {
+  function subscribeTables(handlers, onStatusChange, options) {
     var client = getClient();
     var hMap = handlers || {};
-    var channelName = 'workshop_rt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    var channel = client.channel(channelName);
+    var opts = options || {};
+    var onResync = typeof opts.onResync === 'function' ? opts.onResync : null;
+
+    var disposed = false;
+    var activeChannel = null;
+    var reconnectTimer = null;
+    var reconnectAttempts = 0;
+    var hadSubscribedOnce = false;
+    var isDisconnected = false;
+    var hiddenAt = 0;
+    var lastResyncAt = 0;
+
+    function triggerResync(reason) {
+      if (disposed || !onResync) return;
+      var now = Date.now();
+      if (now - lastResyncAt < 1200) return;
+      lastResyncAt = now;
+      try {
+        Promise.resolve(onResync(reason)).catch(function (e) {
+          console.warn('[Supabase Realtime] Resync error:', e);
+        });
+      } catch (e) {
+        console.warn('[Supabase Realtime] Resync sync error:', e);
+      }
+    }
+
+    function clearReconnectTimer() {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    }
+
+    function teardownChannel() {
+      var prev = activeChannel;
+      activeChannel = null;
+      if (prev) {
+        try {
+          client.removeChannel(prev);
+        } catch (e) {}
+      }
+    }
+
+    function scheduleReconnect(reasonStatus) {
+      if (disposed || reconnectTimer) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      var delay = Math.min(30000, 1500 * Math.pow(2, reconnectAttempts));
+      reconnectAttempts = Math.min(reconnectAttempts + 1, 5);
+      reconnectTimer = setTimeout(function () {
+        reconnectTimer = null;
+        if (!disposed) {
+          connectChannel('backoff_' + reasonStatus);
+        }
+      }, delay);
+    }
 
     var wrapPayload = function (table, payload) {
       var eventType = payload.eventType || payload.type;
@@ -715,32 +984,103 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       return payload;
     };
 
-    Object.keys(hMap).forEach(function (table) {
-      var fn = hMap[table];
-      if (typeof fn !== 'function') return;
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: table },
-        function (payload) {
-          try {
-            fn(wrapPayload(table, payload));
-          } catch (e) {
-            console.error('[Supabase Realtime]', table, e);
-          }
-        }
-      );
-    });
+    function connectChannel() {
+      if (disposed) return;
+      clearReconnectTimer();
+      teardownChannel();
 
-    channel.subscribe(function (status) {
-      if (typeof onStatusChange === 'function') {
-        onStatusChange(status);
+      var channelName = 'workshop_rt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      var channel = client.channel(channelName);
+      activeChannel = channel;
+
+      Object.keys(hMap).forEach(function (table) {
+        var fn = hMap[table];
+        if (typeof fn !== 'function') return;
+        channel.on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: table },
+          function (payload) {
+            try {
+              fn(wrapPayload(table, payload));
+            } catch (e) {
+              console.error('[Supabase Realtime]', table, e);
+            }
+          }
+        );
+      });
+
+      channel.subscribe(function (status) {
+        if (disposed || activeChannel !== channel) return;
+        if (typeof onStatusChange === 'function') {
+          try {
+            onStatusChange(status);
+          } catch (e) {}
+        }
+        if (status === 'SUBSCRIBED') {
+          clearReconnectTimer();
+          reconnectAttempts = 0;
+          if (hadSubscribedOnce && isDisconnected) {
+            triggerResync('reconnected');
+          }
+          hadSubscribedOnce = true;
+          isDisconnected = false;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          isDisconnected = true;
+          scheduleReconnect(status);
+        }
+      });
+    }
+
+    function handleVisibilityChange() {
+      if (disposed || typeof document === 'undefined') return;
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
       }
-    });
+      if (document.visibilityState === 'visible') {
+        var awayMs = hiddenAt ? (Date.now() - hiddenAt) : 0;
+        hiddenAt = 0;
+        var chState = activeChannel && activeChannel.state;
+        var needReconnect = !activeChannel || (chState !== 'joined' && chState !== 'joining');
+        if (needReconnect) {
+          reconnectAttempts = 0;
+          connectChannel();
+          triggerResync('visibility');
+        } else if (awayMs > 3000) {
+          triggerResync('visibility');
+        }
+      }
+    }
+
+    function handleOnline() {
+      if (disposed) return;
+      reconnectAttempts = 0;
+      var chState = activeChannel && activeChannel.state;
+      if (!activeChannel || (chState !== 'joined' && chState !== 'joining')) {
+        connectChannel();
+      }
+      triggerResync('online');
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('online', handleOnline);
+    }
+
+    connectChannel();
 
     return function unsubscribe() {
-      try {
-        client.removeChannel(channel);
-      } catch (e) {}
+      disposed = true;
+      clearReconnectTimer();
+      if (typeof document !== 'undefined' && document.removeEventListener) {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('online', handleOnline);
+      }
+      teardownChannel();
     };
   }
 
@@ -757,20 +1097,25 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     setLoading: setLoading,
     showConnectionError: showConnectionError,
     clearConnectionError: clearConnectionError,
+    uid: uid,
+    computePatternHash: computePatternHash,
     toAsciiSafe: toAsciiSafe,
     classifyProfile: classifyProfile,
     stripHeavyIgs: stripHeavyIgs,
     mapProjectFromDb: mapProjectFromDb,
+    mapProjectSummaryFromDb: mapProjectSummaryFromDb,
     mapProjectToDb: mapProjectToDb,
     mapUserFromDb: mapUserFromDb,
     mapInventoryFromDb: mapInventoryFromDb,
     mapCutRow: mapCutRow,
     getProjects: getProjects,
+    getProjectsSummary: getProjectsSummary,
     getProjectById: getProjectById,
     getDraftProject: getDraftProject,
     saveProject: saveProject,
     updateProjectFields: updateProjectFields,
     saveDraftProject: saveDraftProject,
+    saveProjectKeepalive: saveProjectKeepalive,
     trashProject: trashProject,
     restoreProject: restoreProject,
     permanentDeleteProject: permanentDeleteProject,

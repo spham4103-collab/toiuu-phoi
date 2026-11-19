@@ -1,6 +1,10 @@
 .env
 node_modules/
+database/workshop_db.json
+dist/database/workshop_db.json
 database/igs_files/
+.netlify/
+dist/.netlify/
 *.zip
 __pycache__/
 *.pyc

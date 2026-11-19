@@ -1,0 +1,29 @@
+name: Supabase Keepalive (Anti Auto-Pause)
+
+on:
+  schedule:
+    # Ping 3 ngày một lần lúc 02:00 UTC để tránh gói Free Supabase tự ngủ đông sau 7 ngày không hoạt động
+    - cron: '0 2 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          URL="${SB_URL:-https://tfvwijzrgnbznwwvfwww.supabase.co}"
+          KEY="${SB_KEY:-sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo}"
+          STATUS=$(curl -sS -o /tmp/sb_resp.json -w "%{http_code}" \
+            -H "apikey: ${KEY}" \
+            -H "Authorization: Bearer ${KEY}" \
+            "${URL%/}/rest/v1/inventory?select=id&limit=1")
+          echo "Supabase keepalive HTTP status: ${STATUS}"
+          cat /tmp/sb_resp.json || true
+          echo ""
+          if [ "${STATUS}" -lt 200 ] || [ "${STATUS}" -ge 300 ]; then
+            exit 1
+          fi

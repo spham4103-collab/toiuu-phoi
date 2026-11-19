@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS public.cut_progress (
   cut_count INTEGER NOT NULL DEFAULT 0 CHECK (cut_count >= 0),
   total_count INTEGER NOT NULL DEFAULT 1 CHECK (total_count >= 0),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'cutting', 'done')),
+  pattern_hash TEXT NOT NULL DEFAULT '',
   updated_by TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -120,7 +121,7 @@ CREATE TRIGGER trg_cut_progress_updated_at
 
 ALTER TABLE public.workshop_users REPLICA IDENTITY FULL;
 ALTER TABLE public.inventory REPLICA IDENTITY FULL;
-ALTER TABLE public.projects REPLICA IDENTITY FULL;
+ALTER TABLE public.projects REPLICA IDENTITY DEFAULT;
 ALTER TABLE public.cut_progress REPLICA IDENTITY FULL;
 
 -- ============================================================================

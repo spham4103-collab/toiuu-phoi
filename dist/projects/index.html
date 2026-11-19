@@ -466,6 +466,9 @@
     let realtimeUnsub = null;
 
     const $ = id => document.getElementById(id);
+    const makeId = prefix => (window.SupabaseDB && typeof window.SupabaseDB.uid === 'function')
+      ? window.SupabaseDB.uid(prefix)
+      : `${prefix || 'id'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     function showToast(msg) {
       const t = $('toast');
@@ -588,7 +591,7 @@
       }
       window.SupabaseDB.setLoading(true, 'Đang tải danh sách dự án...');
       try {
-        const allProjs = await window.SupabaseDB.getProjects({ includeTrash: true, includeDraft: false });
+        const allProjs = await window.SupabaseDB.getProjectsSummary({ includeTrash: true, includeDraft: false });
         projectsList = allProjs.filter(p => !p.isTrashed && !p.isDraft);
         trashList = allProjs.filter(p => p.isTrashed && !p.isDraft);
         sortByUpdatedDesc(projectsList);
@@ -637,6 +640,8 @@
             usersList = await window.SupabaseDB.getUsers();
           } catch (e) {}
         }
+      }, null, {
+        onResync: () => loadData()
       });
     }
 
@@ -772,24 +777,28 @@
       });
       wrap.querySelectorAll('.btn-edit').forEach(b => b.onclick = () => openProjModal(b.dataset.id));
       wrap.querySelectorAll('.btn-dup').forEach(b => b.onclick = async () => {
-        const src = projectsList.find(x => x.id === b.dataset.id);
+        let src = projectsList.find(x => x.id === b.dataset.id);
         if (!src) return;
-        const clone = {
-          id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-          name: src.name + ' (Bản sao)',
-          customer: src.customer || '',
-          notes: src.notes || '',
-          isLocked: false,
-          isTrashed: false,
-          isDraft: false,
-          source: src.source || 'web',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          data: JSON.parse(JSON.stringify(src.data || {})),
-          igsFiles: JSON.parse(JSON.stringify(src.igsFiles || []))
-        };
         window.SupabaseDB.setLoading(true, 'Đang nhân bản dự án...');
         try {
+          if (src.isSummary) {
+            const fullSrc = await window.SupabaseDB.getProjectById(src.id);
+            if (fullSrc) src = fullSrc;
+          }
+          const clone = {
+            id: makeId('proj'),
+            name: src.name + ' (Bản sao)',
+            customer: src.customer || '',
+            notes: src.notes || '',
+            isLocked: false,
+            isTrashed: false,
+            isDraft: false,
+            source: src.source || 'web',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            data: JSON.parse(JSON.stringify(src.data || {})),
+            igsFiles: JSON.parse(JSON.stringify(src.igsFiles || []))
+          };
           const saved = await window.SupabaseDB.saveProject(clone);
           projectsList = [saved, ...projectsList.filter(x => x.id !== saved.id)];
           renderAll();
@@ -800,9 +809,21 @@
           window.SupabaseDB.setLoading(false);
         }
       });
-      wrap.querySelectorAll('.btn-exp').forEach(b => b.onclick = () => {
-        const p = projectsList.find(x => x.id === b.dataset.id);
+      wrap.querySelectorAll('.btn-exp').forEach(b => b.onclick = async () => {
+        let p = projectsList.find(x => x.id === b.dataset.id);
         if (!p) return;
+        if (p.isSummary && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          window.SupabaseDB.setLoading(true, 'Đang tải chi tiết dự án để xuất...');
+          try {
+            const fullP = await window.SupabaseDB.getProjectById(p.id);
+            if (fullP) p = fullP;
+          } catch (err) {
+            showToast('❌ Lỗi tải chi tiết dự án: ' + err.message);
+            return;
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
+        }
         downloadJson(p, `${(p.name || 'du_an').replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
       });
       wrap.querySelectorAll('.btn-del').forEach(b => b.onclick = async () => {
@@ -896,7 +917,7 @@
           showToast(`✓ Đã cập nhật "${name}"`);
         } else {
           const newProj = {
-            id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            id: makeId('proj'),
             name, customer, notes,
             isLocked: false, isTrashed: false, isDraft: false, source: 'web',
             createdAt: now, updatedAt: now,
@@ -904,7 +925,7 @@
               activeProfiles: ['Hộp 30x30x1.8'],
               selectedTabProfile: 'Hộp 30x30x1.8',
               parts: [],
-              stock: [{ id: 's_def_' + Date.now(), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
+              stock: [{ id: makeId('s_def'), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
               method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
             },
             igsFiles: []
@@ -947,9 +968,24 @@
       $('btnCancelModalForm').onclick = () => $('modalProjForm').style.display = 'none';
       $('btnSaveModalForm').onclick = saveModalForm;
 
-      $('btnBackupAllProj').onclick = () => {
-        downloadJson({ exportedAt: new Date().toISOString(), projects: projectsList, trash: trashList }, `du_an_an_binh_${new Date().toISOString().slice(0,10)}.json`);
-        showToast(`💾 Đã xuất sao lưu ${projectsList.length} dự án!`);
+      $('btnBackupAllProj').onclick = async () => {
+        let fullActive = projectsList;
+        let fullTrash = trashList;
+        if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          window.SupabaseDB.setLoading(true, 'Đang tải đầy đủ dữ liệu để sao lưu...');
+          try {
+            const allFull = await window.SupabaseDB.getProjects({ includeTrash: true, includeDraft: false });
+            fullActive = allFull.filter(p => !p.isTrashed && !p.isDraft);
+            fullTrash = allFull.filter(p => p.isTrashed && !p.isDraft);
+          } catch (err) {
+            showToast('❌ Lỗi tải dữ liệu sao lưu: ' + err.message);
+            return;
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
+        }
+        downloadJson({ exportedAt: new Date().toISOString(), projects: fullActive, trash: fullTrash }, `du_an_an_binh_${new Date().toISOString().slice(0,10)}.json`);
+        showToast(`💾 Đã xuất sao lưu ${fullActive.length} dự án!`);
       };
 
       $('btnImportJsonProj').onclick = () => $('inpImportFile').click();
@@ -966,12 +1002,12 @@
                 if (p && p.name && !projectsList.some(x => x.id === p.id)) toImport.push(p);
               });
             } else if (parsed && parsed.name && parsed.data) {
-              parsed.id = 'proj_imp_' + Date.now();
+              parsed.id = makeId('proj_imp');
               parsed.source = 'import';
               toImport.push(parsed);
             } else if (parsed && Array.isArray(parsed.parts)) {
               toImport.push({
-                id: 'proj_f360_' + Date.now(),
+                id: makeId('proj_f360'),
                 name: parsed.project_name || f.name.replace(/\.json$/i, ''),
                 customer: 'Nhập từ JSON / Fusion 360',
                 source: 'import',

@@ -12,7 +12,7 @@
 
   <meta name="description" content="Trang quản trị hệ thống, danh sách tài khoản nhân sự xưởng, phân quyền kỹ sư và thợ máy CNC, sao lưu dữ liệu xưởng cơ khí An Bình.">
 
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="/manifest.json">
 
   <meta name="theme-color" content="#0F766E">
 
@@ -1239,6 +1239,12 @@
             usersList = await window.SupabaseDB.getUsers();
             renderDashboard();
           } catch (e) {}
+        }
+      }, null, {
+        onResync: async () => {
+          if (await loadUsersFromSupabase()) {
+            renderDashboard();
+          }
         }
       });
     }
