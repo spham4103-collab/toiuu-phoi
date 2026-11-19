@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "migrate:supabase": "node scripts/migrate_to_supabase.js",
+    "setup:auth": "node scripts/setup_auth_users.js",
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:restart": "pm2 restart toiuu-anbinh",
     "pm2:stop": "pm2 stop toiuu-anbinh",

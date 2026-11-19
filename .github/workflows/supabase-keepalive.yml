@@ -10,20 +10,37 @@ jobs:
   ping-supabase:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST API
+      - name: Ping Supabase PostgreSQL RPC & Auth Health
         env:
           SB_URL: ${{ secrets.SUPABASE_URL }}
           SB_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           URL="${SB_URL:-https://tfvwijzrgnbznwwvfwww.supabase.co}"
           KEY="${SB_KEY:-sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo}"
-          STATUS=$(curl -sS -o /tmp/sb_resp.json -w "%{http_code}" \
+
+          # 1. Ping PostgreSQL qua hàm public.ping() (cho phép anon thực thi, không lộ dữ liệu bảng)
+          RPC_STATUS=$(curl -sS -o /tmp/sb_rpc.json -w "%{http_code}" \
+            -X POST \
             -H "apikey: ${KEY}" \
             -H "Authorization: Bearer ${KEY}" \
-            "${URL%/}/rest/v1/inventory?select=id&limit=1")
-          echo "Supabase keepalive HTTP status: ${STATUS}"
-          cat /tmp/sb_resp.json || true
+            -H "Content-Type: application/json" \
+            "${URL%/}/rest/v1/rpc/ping")
+          echo "PostgreSQL rpc/ping HTTP status: ${RPC_STATUS}"
+          cat /tmp/sb_rpc.json || true
           echo ""
-          if [ "${STATUS}" -lt 200 ] || [ "${STATUS}" -ge 300 ]; then
+
+          # 2. Ping Supabase Auth health endpoint
+          AUTH_STATUS=$(curl -sS -o /tmp/sb_auth.json -w "%{http_code}" \
+            -H "apikey: ${KEY}" \
+            "${URL%/}/auth/v1/health")
+          echo "Auth health HTTP status: ${AUTH_STATUS}"
+          cat /tmp/sb_auth.json || true
+          echo ""
+
+          if [ "${AUTH_STATUS}" -lt 200 ] || [ "${AUTH_STATUS}" -ge 300 ]; then
+            exit 1
+          fi
+          # Nếu rpc/ping đã tạo xong (không phải 404 do chưa chạy SQL Đợt 2) thì bắt buộc phải 2xx
+          if [ "${RPC_STATUS}" -ne 404 ] && { [ "${RPC_STATUS}" -lt 200 ] || [ "${RPC_STATUS}" -ge 300 ]; }; then
             exit 1
           fi

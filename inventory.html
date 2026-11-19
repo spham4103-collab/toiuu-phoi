@@ -315,16 +315,15 @@
   <div id="toast"></div>
 
   <script>
-    const LS_SESSION = 'toiuu_logged_user_v1';
     const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
 
-    let usersList = [];
     let currentUser = null;
     let savedProfiles = [];
     let currentProjectRecord = null;
     let activeProject = null;
     let lastSolveResult = null;
     let realtimeUnsub = null;
+    let authUnsub = null;
 
     const $ = id => document.getElementById(id);
     const makeId = prefix => (window.SupabaseDB && typeof window.SupabaseDB.uid === 'function')
@@ -374,84 +373,86 @@
       return { label: 'Khác', cls: 'pill-slate' };
     }
 
-    async function loadUsers() {
-      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
-        usersList = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_USERS : []).slice();
-        if (window.SupabaseDB) {
-          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!', () => checkAuth());
-        }
-        return false;
+    function applyLoggedInUserUI(found) {
+      currentUser = found;
+      const isOp = !found || found.role === 'operator';
+      const isSuperAdmin = Boolean(found && found.role === 'admin');
+      document.body.classList.toggle('role-operator', isOp);
+      $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+      $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : (isSuperAdmin ? 'Admin' : 'Kỹ sư')}]`;
+      $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+      $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
+      $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+      $('loginGateWrap').style.display = 'none';
+      $('mainContent').style.display = 'block';
+    }
+
+    function showLoginGate(msg = '') {
+      currentUser = null;
+      if (realtimeUnsub) {
+        try { realtimeUnsub(); } catch (e) {}
+        realtimeUnsub = null;
       }
-      try {
-        usersList = await window.SupabaseDB.getUsers();
-        if (!usersList.length) usersList = window.SupabaseDB.DEFAULT_USERS.slice();
-        window.SupabaseDB.clearConnectionError();
-        return true;
-      } catch (err) {
-        console.error('Lỗi tải users:', err);
-        window.SupabaseDB.showConnectionError('❌ Không thể kết nối Supabase: ' + err.message, () => checkAuth());
-        return false;
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+      $('userIcon').textContent = '🔒';
+      $('userNameDisp').textContent = 'Chưa đăng nhập';
+      $('loginGateWrap').style.display = 'block';
+      $('mainContent').style.display = 'none';
+      if (msg && $('loginErr')) {
+        $('loginErr').textContent = msg;
+        $('loginErr').style.display = 'block';
       }
     }
 
     async function checkAuth() {
-      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kết nối Supabase...');
-      try {
-        await loadUsers();
-        let sess = null;
-        try {
-          const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
-          if (raw) sess = JSON.parse(raw);
-        } catch (e) {}
-
-        if (sess && sess.username) {
-          const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
-          if (found) {
-            currentUser = found;
-            const isOp = found.role === 'operator';
-            const isSuperAdmin = found.username.toLowerCase() === 'admin';
-            document.body.classList.toggle('role-operator', isOp);
-            $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
-            $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
-            $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
-            $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
-            $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
-            if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
-            $('loginGateWrap').style.display = 'none';
-            $('mainContent').style.display = 'block';
-            await loadInventoryData();
-            return;
-          }
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        if (window.SupabaseDB) {
+          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!', () => checkAuth());
         }
-        currentUser = null;
-        if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
-        $('loginGateWrap').style.display = 'block';
-        $('mainContent').style.display = 'none';
+        showLoginGate();
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang kiểm tra phiên Supabase Auth...');
+      try {
+        const user = await window.SupabaseDB.getCurrentAuthUser();
+        window.SupabaseDB.clearConnectionError();
+        if (user) {
+          applyLoggedInUserUI(user);
+          await loadInventoryData();
+          return;
+        }
+        showLoginGate();
+      } catch (err) {
+        console.error('Lỗi xác thực:', err);
+        window.SupabaseDB.showConnectionError('❌ Không thể kết nối Supabase: ' + err.message, () => checkAuth());
+        showLoginGate();
       } finally {
-        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+        window.SupabaseDB.setLoading(false);
       }
     }
 
     async function handleLogin() {
-      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang xác thực...');
+      const u = ($('inpLoginUser').value || '').trim();
+      const p = ($('inpLoginPass').value || '').trim();
+      if (!u || !p) {
+        $('loginErr').textContent = '⚠️ Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!';
+        $('loginErr').style.display = 'block';
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang xác thực qua Supabase Auth...');
       try {
-        await loadUsers();
-        const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
-        const p = ($('inpLoginPass').value || '').trim();
-        const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
-        if (!found) {
-          $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!';
-          $('loginErr').style.display = 'block';
-          return;
-        }
+        const found = await window.SupabaseDB.signInWithUsername(u, p);
         $('loginErr').style.display = 'none';
-        const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
-        sessionStorage.setItem(LS_SESSION, sessData);
-        localStorage.setItem(LS_SESSION, sessData);
         $('inpLoginPass').value = '';
-        await checkAuth();
+        applyLoggedInUserUI(found);
+        await loadInventoryData();
+        showToast(`✓ Xin chào ${found.fullName || found.username}!`);
+      } catch (err) {
+        $('loginErr').textContent = '❌ ' + (err.message || 'Sai tài khoản hoặc mật khẩu!');
+        $('loginErr').style.display = 'block';
       } finally {
-        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+        window.SupabaseDB.setLoading(false);
       }
     }
 
@@ -595,10 +596,10 @@
             renderAll();
           }
         },
-        workshop_users: async () => {
-          try {
-            usersList = await window.SupabaseDB.getUsers();
-          } catch (e) {}
+        profiles: (ev) => {
+          if (currentUser && ev.newRecord && ev.newRecord.id === currentUser.id) {
+            applyLoggedInUserUI(Object.assign({}, currentUser, ev.newRecord));
+          }
         }
       }, null, {
         onResync: () => loadInventoryData()
@@ -861,11 +862,10 @@
     document.addEventListener('DOMContentLoaded', () => {
       $('btnSubmitLogin').onclick = handleLogin;
       $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-      $('btnLogout').onclick = () => {
-        sessionStorage.removeItem(LS_SESSION);
-        localStorage.removeItem(LS_SESSION);
-        if (realtimeUnsub) { realtimeUnsub(); realtimeUnsub = null; }
-        checkAuth();
+      $('btnLogout').onclick = async () => {
+        if (window.SupabaseDB) await window.SupabaseDB.signOut();
+        showLoginGate();
+        showToast('👋 Đã đăng xuất!');
       };
 
       $('inpSearchProf').oninput = renderProfilesTable;
@@ -926,6 +926,14 @@
 
       $('btnCopyBomZalo').onclick = copyBomZalo;
       $('btnExportBomCsv').onclick = exportBomCsv;
+
+      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        authUnsub = window.SupabaseDB.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT' && currentUser) {
+            showLoginGate('🔒 Phiên đăng nhập đã hết hạn hoặc vừa đăng xuất. Vui lòng đăng nhập lại!');
+          }
+        });
+      }
 
       checkAuth();
     });

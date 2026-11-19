@@ -1,9 +1,9 @@
 /**
  * Service Worker - PWA for Xếp Phôi CNC An Bình
- * Cache Version 11 - Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
+ * Cache Version 12 - Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
  * Network-First cho HTML và /js/supabaseClient.js với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v11';
+const CACHE_NAME = 'toiuu-phoi-pwa-v12';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

@@ -76,14 +76,25 @@ const envVars = loadEnvFile(ENV_FILE);
 const PORT = Number(process.env.PORT || envVars.PORT || 3000);
 const clientDefaults = readClientJsDefaults();
 const SUPABASE_URL = (process.env.SUPABASE_URL || envVars.SUPABASE_URL || clientDefaults.url || '').trim();
-const SUPABASE_KEY = (
+const SUPABASE_SECRET_KEY_RAW = (
+  process.env.SUPABASE_SECRET_KEY ||
+  envVars.SUPABASE_SECRET_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   envVars.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  envVars.SUPABASE_ANON_KEY ||
-  clientDefaults.anonKey ||
   ''
 ).trim();
+const hasSecretKey = Boolean(
+  SUPABASE_SECRET_KEY_RAW &&
+  !SUPABASE_SECRET_KEY_RAW.includes('YOUR_SUPABASE_')
+);
+const SUPABASE_KEY = hasSecretKey
+  ? SUPABASE_SECRET_KEY_RAW
+  : (
+      process.env.SUPABASE_ANON_KEY ||
+      envVars.SUPABASE_ANON_KEY ||
+      clientDefaults.anonKey ||
+      ''
+    ).trim();
 
 const isSupabaseConfigured = Boolean(
   SUPABASE_URL &&
@@ -91,12 +102,16 @@ const isSupabaseConfigured = Boolean(
   !SUPABASE_URL.includes('YOUR_SUPABASE_URL') &&
   !SUPABASE_KEY.includes('YOUR_SUPABASE_ANON_KEY') &&
   !SUPABASE_KEY.includes('YOUR_SUPABASE_SERVICE_ROLE_KEY') &&
+  !SUPABASE_KEY.includes('YOUR_SUPABASE_SECRET_KEY') &&
   /^https?:\/\//i.test(SUPABASE_URL)
 );
 
 const supabase = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } })
+  ? createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    })
   : null;
+const INTERNAL_EMAIL_DOMAIN = 'anbinh.local';
 
 const DEFAULT_PROFILES = [
   'Hộp 20x20x1.4', 'Hộp 25x25x1.4', 'Hộp 30x30x1.8', 'Hộp 40x40x1.8', 'Hộp 50x50x2.0',
@@ -297,8 +312,8 @@ async function processFusionPayload(fusionData) {
       } catch (e) {}
 
       const uploaded = await uploadIgsToSupabaseStorage(projectId, safePartFileName, p.igs_content);
-      if (uploaded && uploaded.publicUrl) {
-        pieceIgsUrl = uploaded.publicUrl;
+      if (uploaded && uploaded.storagePath) {
+        pieceIgsUrl = `storage://${uploaded.storagePath}`;
         igsUploadedCount++;
         igsFilesMeta.push({
           kind: 'part',
@@ -360,8 +375,8 @@ async function processFusionPayload(fusionData) {
       let barIgsUrl = `/api/igs/${encodeURIComponent(rawName)}`;
       if (fileBuf) {
         const uploaded = await uploadIgsToSupabaseStorage(projectId, rawName, fileBuf);
-        if (uploaded && uploaded.publicUrl) {
-          barIgsUrl = uploaded.publicUrl;
+        if (uploaded && uploaded.storagePath) {
+          barIgsUrl = `storage://${uploaded.storagePath}`;
           igsUploadedCount++;
           igsFilesMeta.push({
             kind: 'bar',
@@ -485,7 +500,8 @@ async function processFusionPayload(fusionData) {
       .from('projects')
       .upsert(projectRecord, { onConflict: 'id' });
     if (projErr) {
-      throw new Error(`Không đẩy được dự án lên Supabase: ${projErr.message}`);
+      const hint = !hasSecretKey ? ' (Chưa điền SUPABASE_SECRET_KEY trong file .env để vượt RLS!)' : '';
+      throw new Error(`Không đẩy được dự án lên Supabase: ${projErr.message}${hint}`);
     }
     supabaseSynced = true;
   }
@@ -539,6 +555,43 @@ function readJsonBody(req, maxBytes = 50 * 1024 * 1024) {
   });
 }
 
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(payload));
+}
+
+async function requireAdminJwt(req) {
+  if (!isSupabaseConfigured || !supabase || !hasSecretKey) {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Máy chủ xưởng chưa cấu hình SUPABASE_SECRET_KEY trong file .env!'
+    };
+  }
+  const authHeader = String(req.headers.authorization || '');
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  const token = match ? match[1].trim() : '';
+  if (!token) {
+    return { ok: false, status: 401, error: 'Thiếu Bearer Access Token xác thực Quản trị viên.' };
+  }
+  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+  if (userErr || !userData || !userData.user) {
+    return { ok: false, status: 401, error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' };
+  }
+  const { data: prof, error: profErr } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, role')
+    .eq('id', userData.user.id)
+    .maybeSingle();
+  if (profErr || !prof) {
+    return { ok: false, status: 403, error: 'Tài khoản chưa có hồ sơ phân quyền trong xưởng.' };
+  }
+  if (prof.role !== 'admin') {
+    return { ok: false, status: 403, error: 'Chỉ Quản trị viên (role=admin) mới được phép thao tác.' };
+  }
+  return { ok: true, user: userData.user, profile: prof };
+}
+
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -556,7 +609,7 @@ const MIME_TYPES = {
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id, Authorization');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -569,16 +622,187 @@ const server = http.createServer(async (req, res) => {
 
   // 1. Thông tin trạng thái cầu nối máy chủ cục bộ (/api/info)
   if (pathname === '/api/info' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({
+    sendJson(res, 200, {
       success: true,
       serverTime: new Date().toISOString(),
       port: PORT,
       supabaseConfigured: isSupabaseConfigured,
+      hasSecretKey,
       supabaseUrl: isSupabaseConfigured ? SUPABASE_URL : null,
       lanUrls: getLanAddresses()
-    }));
+    });
     return;
+  }
+
+  // 1B. Local Admin Bridge cho /admin (chỉ chạy ở máy chủ xưởng khi có SUPABASE_SECRET_KEY)
+  if (pathname === '/api/admin/status' && req.method === 'GET') {
+    sendJson(res, 200, {
+      success: true,
+      ok: hasSecretKey && isSupabaseConfigured,
+      hasSecretKey,
+      supabaseConfigured: isSupabaseConfigured
+    });
+    return;
+  }
+
+  if (pathname === '/api/admin/users' && req.method === 'POST') {
+    try {
+      const authCheck = await requireAdminJwt(req);
+      if (!authCheck.ok) return sendJson(res, authCheck.status, { success: false, error: authCheck.error });
+
+      const body = await readJsonBody(req, 1024 * 1024);
+      const rawUser = String(body.username || '').trim().toLowerCase().replace(/\s+/g, '');
+      const password = String(body.password || '').trim();
+      const displayName = String(body.displayName || body.fullName || '').trim();
+      const role = ['admin', 'engineer', 'operator'].includes(body.role) ? body.role : 'operator';
+
+      if (!/^[a-z0-9._-]{3,32}$/.test(rawUser)) {
+        return sendJson(res, 400, { success: false, error: 'Tên đăng nhập phải dài 3-32 ký tự (chữ thường, số, ., _, -).' });
+      }
+      if (!password || password.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Mật khẩu Supabase Auth phải có ít nhất 6 ký tự.' });
+      }
+
+      const email = `${rawUser}@${INTERNAL_EMAIL_DOMAIN}`;
+      const { data: existProf } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', rawUser)
+        .maybeSingle();
+      if (existProf) {
+        return sendJson(res, 409, { success: false, error: `Tài khoản @${rawUser} đã tồn tại.` });
+      }
+
+      const resolvedName = displayName || (role === 'operator' ? `Thợ CNC (${rawUser})` : `Kỹ sư (${rawUser})`);
+      const { data: createdAuth, error: crtErr } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { username: rawUser, display_name: resolvedName, role }
+      });
+      if (crtErr || !createdAuth || !createdAuth.user) {
+        return sendJson(res, 400, { success: false, error: crtErr ? crtErr.message : 'Không tạo được tài khoản Auth.' });
+      }
+
+      const { data: savedProf, error: profErr } = await supabase
+        .from('profiles')
+        .upsert({
+          id: createdAuth.user.id,
+          username: rawUser,
+          display_name: resolvedName,
+          role
+        }, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (profErr) {
+        try { await supabase.auth.admin.deleteUser(createdAuth.user.id); } catch (e) {}
+        return sendJson(res, 500, { success: false, error: `Không lưu được hồ sơ profile: ${profErr.message}` });
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        user: {
+          id: savedProf.id,
+          username: savedProf.username,
+          displayName: savedProf.display_name,
+          fullName: savedProf.display_name,
+          role: savedProf.role,
+          email,
+          createdAt: savedProf.created_at,
+          updatedAt: savedProf.updated_at
+        }
+      });
+    } catch (err) {
+      return sendJson(res, 500, { success: false, error: err.message });
+    }
+  }
+
+  const adminPassMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/password$/);
+  if (adminPassMatch && req.method === 'PUT') {
+    try {
+      const authCheck = await requireAdminJwt(req);
+      if (!authCheck.ok) return sendJson(res, authCheck.status, { success: false, error: authCheck.error });
+
+      const targetId = adminPassMatch[1];
+      const body = await readJsonBody(req, 64 * 1024);
+      const password = String(body.password || '').trim();
+      if (!password || password.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Mật khẩu mới phải có ít nhất 6 ký tự.' });
+      }
+      const { error: updErr } = await supabase.auth.admin.updateUserById(targetId, { password });
+      if (updErr) {
+        return sendJson(res, 400, { success: false, error: updErr.message });
+      }
+      return sendJson(res, 200, { success: true });
+    } catch (err) {
+      return sendJson(res, 500, { success: false, error: err.message });
+    }
+  }
+
+  const adminRoleMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/role$/);
+  if (adminRoleMatch && req.method === 'PUT') {
+    try {
+      const authCheck = await requireAdminJwt(req);
+      if (!authCheck.ok) return sendJson(res, authCheck.status, { success: false, error: authCheck.error });
+
+      const targetId = adminRoleMatch[1];
+      const body = await readJsonBody(req, 64 * 1024);
+      const nextRole = String(body.role || '').trim();
+      if (!['admin', 'engineer', 'operator'].includes(nextRole)) {
+        return sendJson(res, 400, { success: false, error: 'Vai trò không hợp lệ.' });
+      }
+      if (targetId === authCheck.user.id && nextRole !== 'admin') {
+        return sendJson(res, 400, { success: false, error: 'Không thể tự hạ quyền Quản trị viên của chính bạn.' });
+      }
+      const patch = { role: nextRole, updated_at: new Date().toISOString() };
+      if (body.displayName !== undefined) patch.display_name = String(body.displayName || '').trim();
+
+      const { data: updated, error: updErr } = await supabase
+        .from('profiles')
+        .update(patch)
+        .eq('id', targetId)
+        .select()
+        .single();
+      if (updErr) {
+        return sendJson(res, 400, { success: false, error: updErr.message });
+      }
+      await supabase.auth.admin.updateUserById(targetId, {
+        user_metadata: {
+          username: updated.username,
+          display_name: updated.display_name,
+          role: updated.role
+        }
+      }).catch(() => {});
+
+      return sendJson(res, 200, { success: true, profile: updated });
+    } catch (err) {
+      return sendJson(res, 500, { success: false, error: err.message });
+    }
+  }
+
+  const adminDelMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+  if (adminDelMatch && req.method === 'DELETE') {
+    try {
+      const authCheck = await requireAdminJwt(req);
+      if (!authCheck.ok) return sendJson(res, authCheck.status, { success: false, error: authCheck.error });
+
+      const targetId = adminDelMatch[1];
+      if (targetId === authCheck.user.id) {
+        return sendJson(res, 400, { success: false, error: 'Không thể tự xóa tài khoản đang đăng nhập.' });
+      }
+      const { data: targetProf } = await supabase.from('profiles').select('username').eq('id', targetId).maybeSingle();
+      if (targetProf && String(targetProf.username || '').toLowerCase() === 'admin') {
+        return sendJson(res, 400, { success: false, error: 'Không thể xóa tài khoản Quản trị viên tối cao (@admin).' });
+      }
+      const { error: delErr } = await supabase.auth.admin.deleteUser(targetId);
+      if (delErr) {
+        return sendJson(res, 400, { success: false, error: delErr.message });
+      }
+      return sendJson(res, 200, { success: true });
+    } catch (err) {
+      return sendJson(res, 500, { success: false, error: err.message });
+    }
   }
 
   // 2. Cầu nối nhận bản vẽ & file .IGS trực tiếp từ Autodesk Fusion 360 (/api/fusion-import)
@@ -700,6 +924,7 @@ server.listen(PORT, () => {
   lanList.forEach(item => {
     console.log(` 📱 Mạng LAN xưởng   : ${item.url} (${item.interface})`);
   });
-  console.log(` 🗄️  Supabase Cloud   : ${isSupabaseConfigured ? `Đã kết nối (${SUPABASE_URL})` : 'CHƯA CẤU HÌNH (cần điền SUPABASE_URL & KEY vào .env hoặc js/supabaseClient.js)'}`);
+  console.log(` 🗄️  Supabase Cloud   : ${isSupabaseConfigured ? `Đã kết nối (${SUPABASE_URL})` : 'CHƯA CẤU HÌNH (cần điền SUPABASE_URL & KEY vào .env)'}`);
+  console.log(` 🔐 Secret Key RLS   : ${hasSecretKey ? 'ĐÃ KÍCH HOẠT (Fusion 360 & Local Admin Bridge sẵn sàng)' : '⚠️ CHƯA CẤU HÌNH — hãy điền SUPABASE_SECRET_KEY=... vào file .env!'}`);
   console.log('====================================================================');
 });

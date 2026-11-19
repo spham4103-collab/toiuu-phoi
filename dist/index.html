@@ -2297,11 +2297,11 @@
             Toàn quyền tối cao: quản lý danh sách tài khoản, đặt lại mật khẩu cho nhân sự và cấp tài khoản mới.
           </div>
 
-          <!-- Đổi mật khẩu Admin -->
+          <!-- Đổi mật khẩu của tôi -->
           <details id="boxChangeSelfPassword" style="margin-top:10px; font-size:12.5px; color:#0F766E;">
-            <summary style="cursor:pointer; font-weight:700;">🔑 Đổi mật khẩu Quản trị viên (Admin)</summary>
+            <summary style="cursor:pointer; font-weight:700;">🔑 Đổi mật khẩu tài khoản của tôi</summary>
             <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              <input type="password" id="inpNewSelfPassword" placeholder="Nhập mật khẩu Admin mới (tối thiểu 4 ký tự)..." style="flex:1; min-width:200px; padding:7px 12px; border:1.5px solid #CBD5E1; border-radius:8px; font-size:13px;">
+              <input type="password" id="inpNewSelfPassword" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)..." style="flex:1; min-width:200px; padding:7px 12px; border:1.5px solid #CBD5E1; border-radius:8px; font-size:13px;">
               <button type="button" class="btn btn-p btn-sm" id="btnSaveSelfPassword" style="font-weight:700;">Lưu mật khẩu mới</button>
             </div>
           </details>
@@ -2310,49 +2310,14 @@
         <!-- Nút Trỏ Tới Nhánh Web Con Quản Trị Hệ Thống Toàn Diện -->
         <div id="btnGoAdminSubpageWrap" style="display:none; margin-bottom:14px;">
           <a href="admin.html" class="btn btn-p" style="width:100%; text-decoration:none; justify-content:center; padding:10px 16px; font-size:14px; font-weight:800; border-radius:10px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">
-            🚀 MỞ TRANG QUẢN TRỊ HỆ THỐNG RIÊNG BIỆT (/admin) ↗
+            🚀 MỞ TRANG QUẢN TRỊ NHÂN SỰ &amp; PHÂN QUYỀN (/admin) ↗
           </a>
         </div>
 
-        <!-- Khối 2: Quản lý Danh sách Tài khoản Xưởng (CHỈ HIỂN THỊ KHI LÀ TÀI KHOẢN ADMIN) -->
-        <div id="adminUsersManagerBox" style="display: none !important; border:1.5px solid #CBD5E1; background:#FFFFFF; border-radius:12px; padding:14px 16px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-            <strong style="font-size:14.5px; color:#0B3B38;">👥 Danh Sách Tài Khoản Truy Cập Xưởng</strong>
-            <span style="font-size:11.5px; color:#64748B;">Độc quyền Quản Trị Viên</span>
-          </div>
-
-          <div id="usersListContainer" style="max-height:210px; overflow-y:auto; border:1px solid #E2E8F0; border-radius:8px; margin-bottom:14px;">
-            <!-- Render bằng JS -->
-          </div>
-
-          <!-- Form tạo tài khoản mới -->
-          <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px;">
-            <div style="font-size:13px; font-weight:800; color:#0F766E; margin-bottom:8px;">➕ Tạo Tài Khoản Mới Cho Kỹ Sư Hoặc Thợ CNC</div>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-bottom:8px;">
-              <div>
-                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Tên đăng nhập *</label>
-                <input type="text" id="inpAdminAddUser" placeholder="VD: tho_laser1" style="width:100%; padding:7px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px;">
-              </div>
-              <div>
-                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Mật khẩu *</label>
-                <input type="text" id="inpAdminAddPass" placeholder="VD: 1234" style="width:100%; padding:7px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px;">
-              </div>
-              <div>
-                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Họ tên / Vị trí</label>
-                <input type="text" id="inpAdminAddName" placeholder="VD: Anh Tuấn CNC" style="width:100%; padding:7px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px;">
-              </div>
-              <div>
-                <label style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:3px;">Phân quyền *</label>
-                <select id="selAdminAddRole" style="width:100%; padding:7px 8px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px; font-weight:700;">
-                  <option value="operator">👷 Thợ CNC (Khóa xóa/sửa)</option>
-                  <option value="engineer">📐 Kỹ Sư Thiết Kế (Toàn quyền)</option>
-                </select>
-              </div>
-            </div>
-            <button type="button" class="btn btn-p btn-sm" id="btnAdminCreateAccount" style="width:100%; justify-content:center; font-weight:700;">
-              ✨ Tạo Tài Khoản Ngay
-            </button>
-          </div>
+        <!-- Khối 2: Thông báo quản lý nhân sự an toàn qua Supabase Auth -->
+        <div id="adminUsersManagerBox" style="display: none; border:1.5px solid #99F6E4; background:#F0FDFA; border-radius:12px; padding:14px 16px; font-size:13px; color:#134E4A; line-height:1.55;">
+          <strong style="font-size:14px; color:#0B3B38; display:block; margin-bottom:4px;">🛡️ Bảo mật Supabase Auth Đợt 2 đã bật</strong>
+          Mật khẩu được mã hóa trên <b>Supabase Auth</b> (không lưu dạng chữ rõ). Để cấp tài khoản mới, đổi mật khẩu nhân sự hoặc phân quyền <b>Admin / Kỹ sư / Thợ CNC</b>, vui lòng bấm nút mở trang <b>/admin</b> ở trên.
         </div>
       </div>
 
@@ -2423,9 +2388,8 @@
     ];
     const getColor = i => COLORS[i % COLORS.length];
 
-    // Storage Keys (chỉ lưu cục bộ ID dự án đang mở và phiên đăng nhập riêng từng thiết bị)
+    // Storage Key cục bộ chỉ nhớ ID dự án đang chọn trên thiết bị này
     const LS_CURRENT_PROJ_ID = 'toiuu_current_proj_id_v1';
-    const LS_LOGGED_USER = 'toiuu_logged_user_v1';
 
     // Default Saved Profiles Library (fallback khi chưa cấu hình Supabase)
     const DEFAULT_SAVED_PROFILES = [
@@ -2457,18 +2421,19 @@
       activeProjectsTab: 'active',
       editingProjectId: null,
       fusionProject: null,
-      // Trạng thái Supabase Realtime
+      // Trạng thái Supabase Auth & Realtime
       cloudConnected: false,
       cloudSyncStatus: 'connecting',
       realtimeUnsub: null,
+      authUnsub: null,
+      hasBootstrappedWorkspace: false,
       activeSaveTimer: null,
       hasPendingActiveSave: false,
       initialSupabaseLoadFailed: false,
       inFlightCutKeys: new Set(),
       lastLocalProjectWriteAt: 0,
       isApplyingRemoteChange: false,
-      userRole: "engineer",
-      adminPin: "1234",
+      userRole: "operator",
       cutStatuses: {},
       users: [],
       currentUser: null
@@ -4021,14 +3986,13 @@
           updateLiveCuttingProgressUI();
           if (state.result) renderPatternsGrouped(state.result);
         },
-        workshop_users: async () => {
-          try {
-            const users = await window.SupabaseDB.getUsers();
-            if (users.length) {
-              state.users = users;
-              if (typeof renderUsersManagementList === 'function') renderUsersManagementList();
-            }
-          } catch (e) {}
+        profiles: async (ev) => {
+          if (!state.currentUser) return;
+          const rec = ev.newRecord;
+          if (rec && rec.id === state.currentUser.id) {
+            state.currentUser = Object.assign({}, state.currentUser, rec);
+            applyUserRoleUI();
+          }
         }
       }, (status) => {
         if (status === 'SUBSCRIBED') {
@@ -4366,8 +4330,9 @@
               </span>
               ${part.style === 'ke' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (2 đầu)</span>' : (part.style === 'ke1' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (1 đầu)</span>' : '<span style="font-size:10px; color:#64748B; background:#F1F5F9; border-radius:3px; padding:1px 5px;">⊥ Ghép 90°</span>')}
               ${part.igs_url ? `
-                <a href="${escapeHtml(part.igs_url)}" 
-                   target="_blank" download="${escapeHtml(part.name)}.igs" 
+                <a href="#" class="btn-download-part-igs"
+                   data-url="${escapeHtml(part.igs_url)}"
+                   data-name="${escapeHtml(part.name || ('Chi_tiet_' + (originalIndex + 1)))}"
                    style="display:inline-flex; align-items:center; gap:3px; padding:1px 6px; background:#ECFDF5; color:#047857; border:1px solid #A7F3D0; border-radius:4px; font-size:10.5px; font-weight:700; text-decoration:none;" 
                    title="Tải file 3D .IGS của riêng chi tiết này về máy CNC">
                   <svg viewBox="0 0 24 24" style="width:11px; height:11px; stroke:currentColor; stroke-width:2.2; fill:none;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -4525,6 +4490,23 @@
           renderPartsList();
           autoRecalc();
         };
+
+        const btnPartIgs = row.querySelector('.btn-download-part-igs');
+        if (btnPartIgs) {
+          btnPartIgs.onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const igsSrc = btnPartIgs.getAttribute('data-url');
+            const partName = btnPartIgs.getAttribute('data-name') || 'chi_tiet';
+            try {
+              showToast('⏳ Đang tải file 3D .IGS bảo mật...');
+              await window.SupabaseDB.downloadIgsFile(igsSrc, `${toAscii(partName).replace(/[^\w.\-]/g, '_')}.igs`);
+              showToast(`✓ Đã tải file .IGS chi tiết: ${partName}`);
+            } catch (err) {
+              showToast('❌ Không tải được file .IGS: ' + err.message);
+            }
+          };
+        }
 
         container.appendChild(row);
       });
@@ -5076,46 +5058,43 @@
           const rawBarName = (fusionBar && fusionBar.name) || (igsMetaFile && igsMetaFile.name) || defaultFileName;
           const dlName = (toAscii(rawBarName).replace(/[^\w\.\-]/g, '_') + '.igs').replace(/\.igs\.igs$/i, '.igs');
 
-          // 1. Ưu tiên tải file 3D Solid .IGS từ Supabase Storage hoặc URL trực tiếp
-          const candidateUrls = [];
-          if (igsMetaFile && igsMetaFile.public_url) {
-            candidateUrls.push(igsMetaFile.public_url);
+          // 1. Ưu tiên tải file 3D Solid .IGS từ Supabase Storage bảo mật hoặc URL cục bộ
+          const candidateSources = [];
+          if (igsMetaFile && (igsMetaFile.storage_path || igsMetaFile.public_url)) {
+            candidateSources.push(igsMetaFile.storage_path || igsMetaFile.public_url);
           }
-          if (isMatch && fusionBar && fusionBar.igs_url && /^https?:\/\//i.test(fusionBar.igs_url)) {
-            candidateUrls.push(fusionBar.igs_url);
+          if (isMatch && fusionBar && fusionBar.igs_url && !/^\/api\//i.test(fusionBar.igs_url)) {
+            candidateSources.push(fusionBar.igs_url);
           }
           if (window.SupabaseDB && window.SupabaseDB.isConfigured() && state.currentProjectId) {
-            candidateUrls.push(window.SupabaseDB.getIgsPublicUrl(`${window.SupabaseDB.toAsciiSafe(state.currentProjectId)}/${dlName}`));
+            candidateSources.push(`storage://${window.SupabaseDB.toAsciiSafe(state.currentProjectId)}/${dlName}`);
           }
-          if (isMatch && fusionBar && fusionBar.igs_url && !/^https?:\/\//i.test(fusionBar.igs_url)) {
-            candidateUrls.push(fusionBar.igs_url);
+          if (isMatch && fusionBar && fusionBar.igs_url && /^\/api\//i.test(fusionBar.igs_url)) {
+            candidateSources.push(fusionBar.igs_url);
           }
 
-          const uniqueUrls = Array.from(new Set(candidateUrls.filter(Boolean)));
-          if (uniqueUrls.length && (isMatch || igsMetaFile)) {
-            const tryFetch = (idx) => {
-              if (idx >= uniqueUrls.length) {
+          const uniqueSources = Array.from(new Set(candidateSources.filter(Boolean)));
+          if (uniqueSources.length && (isMatch || igsMetaFile)) {
+            const tryFetch = async (idx) => {
+              if (idx >= uniqueSources.length) {
                 exportNestedBarIGES(dlName, prof, len, pieces);
                 return;
               }
-              fetch(uniqueUrls[idx])
-                .then(res => {
-                  if (!res.ok) throw new Error('Fetch failed');
-                  return res.blob();
-                })
-                .then(blob => {
-                  if (!blob || blob.size < 100) throw new Error('Empty blob');
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = dlName;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                  showToast(`✓ Đã tải file 3D Solid từ Supabase Storage: ${dlName}`);
-                })
-                .catch(() => tryFetch(idx + 1));
+              try {
+                const blob = await window.SupabaseDB.downloadIgsBlob(uniqueSources[idx]);
+                if (!blob || blob.size < 100) throw new Error('Empty blob');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = dlName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                showToast(`✓ Đã tải file 3D Solid từ Supabase Storage: ${dlName}`);
+              } catch (err) {
+                tryFetch(idx + 1);
+              }
             };
             tryFetch(0);
             return;
@@ -5781,86 +5760,41 @@
 
 
     // ==========================================
-    // 🛡️ NÂNG CẤP 1 & 4: HỆ THỐNG TÀI KHOẢN & MẬT KHẨU PHÂN QUYỀN (THỢ CNC vs KỸ SƯ)
+    // 🛡️ NÂNG CẤP 1 & 4: HỆ THỐNG TÀI KHOẢN SUPABASE AUTH & PHÂN QUYỀN (ADMIN / KỸ SƯ / THỢ CNC)
     // ==========================================
-    const DEFAULT_USERS_LIST = [
-      {
-        username: 'admin',
-        password: '123456',
-        fullName: 'Kỹ Sư Thiết Kế (Admin)',
-        role: 'engineer',
-        createdAt: '2026-01-01T00:00:00.000Z'
-      },
-      {
-        username: 'kt1',
-        password: '12345',
-        fullName: 'Sơn KT (Kỹ Sư)',
-        role: 'engineer',
-        createdAt: '2026-01-01T00:00:00.000Z'
-      },
-      {
-        username: 'thocnc',
-        password: '1234',
-        fullName: 'Thợ Vận Hành Máy CNC',
-        role: 'operator',
-        createdAt: '2026-01-01T00:00:00.000Z'
-      }
-    ];
-
-    async function loadUsersFromSupabase() {
-      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
-        state.users = JSON.parse(JSON.stringify(DEFAULT_USERS_LIST));
-        if (window.SupabaseDB) {
-          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!');
-        }
-        return false;
-      }
-      try {
-        const rows = await window.SupabaseDB.getUsers();
-        state.users = rows.length ? rows : JSON.parse(JSON.stringify(DEFAULT_USERS_LIST));
-        window.SupabaseDB.clearConnectionError();
-        return true;
-      } catch (err) {
-        console.error('Lỗi tải danh sách nhân sự từ Supabase:', err);
-        if (!Array.isArray(state.users) || !state.users.length) {
-          state.users = JSON.parse(JSON.stringify(DEFAULT_USERS_LIST));
-        }
-        window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải tài khoản: ' + err.message);
-        return false;
-      }
-    }
-
     async function initUserRole() {
-      await loadUsersFromSupabase();
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        state.currentUser = null;
+        state.userRole = 'operator';
+        if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
+        applyUserRoleUI();
+        return false;
+      }
 
-      // Kiểm tra phiên đăng nhập riêng của thiết bị
-      let savedSession = null;
       try {
-        const rawSess = sessionStorage.getItem('toiuu_logged_user_v1') || localStorage.getItem('toiuu_logged_user_v1');
-        if (rawSess) savedSession = JSON.parse(rawSess);
-      } catch (e) {}
-
-      if (savedSession && savedSession.username) {
-        const matched = state.users.find(u => u.username.toLowerCase() === String(savedSession.username).toLowerCase());
-        if (matched) {
-          state.currentUser = matched;
-          state.userRole = matched.role;
+        const user = await window.SupabaseDB.getCurrentAuthUser();
+        if (user) {
+          state.currentUser = user;
+          state.userRole = user.role === 'operator' ? 'operator' : 'engineer';
           if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
           applyUserRoleUI();
-          return;
+          return true;
         }
+      } catch (err) {
+        console.warn('Không xác thực được phiên Supabase Auth:', err);
       }
 
-      // Chưa đăng nhập -> Khóa giao diện ở chế độ an toàn và hiển thị màn hình Đăng nhập
       state.currentUser = null;
       state.userRole = 'operator';
       if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
       applyUserRoleUI();
+      return false;
     }
 
     function applyUserRoleUI() {
       const user = state.currentUser;
       const isOp = !user || user.role === 'operator';
+      const isSuperAdmin = Boolean(user && user.role === 'admin');
       state.userRole = isOp ? 'operator' : 'engineer';
 
       const roleBadge = $('btnRoleSelector');
@@ -5887,14 +5821,11 @@
           roleBadge.style.borderColor = '#99F6E4';
           roleBadge.style.color = '#0F766E';
         }
-        if (roleIcon) roleIcon.textContent = '📐';
-        if (roleText) roleText.textContent = `${user.fullName || user.username} [Kỹ sư]`;
+        if (roleIcon) roleIcon.textContent = isSuperAdmin ? '👑' : '📐';
+        if (roleText) roleText.textContent = `${user.fullName || user.username} [${isSuperAdmin ? 'Admin' : 'Kỹ sư'}]`;
         if (roleLock) roleLock.textContent = '🔓';
       }
 
-      const isSuperAdmin = user && user.username && user.username.toLowerCase() === 'admin';
-
-      // Cập nhật thông tin trong Modal Quản lý tài khoản
       if (user) {
         if ($('accModalUserIcon')) $('accModalUserIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
         if ($('accModalFullName')) $('accModalFullName').textContent = user.fullName || user.username;
@@ -5917,16 +5848,15 @@
         }
         if ($('accModalRoleDesc')) {
           if (isSuperAdmin) {
-            $('accModalRoleDesc').innerHTML = '• <strong>Quyền Quản trị viên (Admin):</strong> Toàn quyền tối cao quản lý nhân sự, xem danh sách/cấp/đổi mật khẩu cho toàn bộ tài khoản xưởng, tính toán tối ưu và quản lý toàn bộ dự án.';
+            $('accModalRoleDesc').innerHTML = '• <strong>Quyền Quản trị viên (Admin):</strong> Toàn quyền tối cao quản lý nhân sự, phân quyền qua Supabase Auth, tính toán tối ưu và quản lý toàn bộ dự án.';
           } else if (isOp) {
-            $('accModalRoleDesc').innerHTML = '• <strong>Quyền hạn Thợ CNC:</strong> Được xem sơ đồ cắt, tải file <code>.IGS</code> cho máy laser và bấm tích <code>[✅ Đã cắt xong]</code>.<br>• <strong>Bảo vệ an toàn:</strong> Đã khóa và ẩn toàn bộ nút Xóa dự án, Xóa phôi, Sửa kích thước để chống xóa nhầm 100%.';
+            $('accModalRoleDesc').innerHTML = '• <strong>Quyền hạn Thợ CNC:</strong> Được xem sơ đồ cắt, tải file <code>.IGS</code> bảo mật cho máy laser và bấm tích <code>[✅ Đã cắt xong]</code>.<br>• <strong>Bảo vệ an toàn:</strong> Đã khóa toàn bộ nút Xóa dự án, Xóa phôi, Sửa kích thước cả ở giao diện lẫn Database RLS.';
           } else {
             $('accModalRoleDesc').innerHTML = '• <strong>Quyền hạn Kỹ sư Thiết kế:</strong> Toàn quyền tính toán tối ưu, thêm/sửa/xóa quy cách hộp, quản lý dự án và xuất nhập bản vẽ từ Autodesk Fusion 360.';
           }
         }
       }
 
-      // CHỈ DUY NHẤT TÀI KHOẢN ADMIN MỚI ĐƯỢC XEM DANH SÁCH TÀI KHOẢN VÀ TẠO MỚI!
       if ($('adminUsersManagerBox')) {
         $('adminUsersManagerBox').style.display = isSuperAdmin ? 'block' : 'none';
       }
@@ -5939,38 +5869,11 @@
       if ($('btnGoAdminSubpageWrap')) {
         $('btnGoAdminSubpageWrap').style.display = isSuperAdmin ? 'block' : 'none';
       }
-      if (isSuperAdmin) {
-        renderUsersManagementList();
-      } else {
-        const container = $('usersListContainer');
-        if (container) container.innerHTML = '';
-      }
-    }
-
-    function switchLoginGateTab(tab) {
-      const isLogin = tab === 'login';
-      if ($('paneGateLogin')) $('paneGateLogin').style.display = isLogin ? 'block' : 'none';
-      if ($('paneGateRegister')) $('paneGateRegister').style.display = isLogin ? 'none' : 'block';
-
-      if ($('tabGateLogin')) {
-        $('tabGateLogin').style.background = isLogin ? '#FFFFFF' : 'transparent';
-        $('tabGateLogin').style.color = isLogin ? '#0F766E' : '#64748B';
-        $('tabGateLogin').style.boxShadow = isLogin ? '0 1px 3px rgba(0,0,0,0.1)' : 'none';
-      }
-      if ($('tabGateRegister')) {
-        $('tabGateRegister').style.background = !isLogin ? '#FFFFFF' : 'transparent';
-        $('tabGateRegister').style.color = !isLogin ? '#0F766E' : '#64748B';
-        $('tabGateRegister').style.boxShadow = !isLogin ? '0 1px 3px rgba(0,0,0,0.1)' : 'none';
-      }
-      if ($('loginErrorAlert')) $('loginErrorAlert').style.display = 'none';
-      if ($('regErrorAlert')) $('regErrorAlert').style.display = 'none';
     }
 
     async function handleGateLogin() {
-      if (!state.users.length) await loadUsersFromSupabase();
       const uName = ($('inpLoginUsername') ? $('inpLoginUsername').value : '').trim();
       const uPass = ($('inpLoginPassword') ? $('inpLoginPassword').value : '').trim();
-      const remember = $('chkRememberLogin') ? $('chkRememberLogin').checked : true;
       const errBox = $('loginErrorAlert');
 
       if (!uName || !uPass) {
@@ -5981,114 +5884,25 @@
         return;
       }
 
-      const cleanInputUser = uName.toLowerCase().replace(/\s+/g, '');
-      const found = state.users.find(u => {
-        const uClean = String(u.username || '').toLowerCase().replace(/\s+/g, '');
-        const pMatch = String(u.password).trim() === uPass || (uClean === 'kt1' && (uPass === '12345' || uPass === '123456'));
-        return uClean === cleanInputUser && pMatch;
-      });
-
-      if (!found) {
-        if (errBox) {
-          errBox.textContent = '❌ Tên tài khoản hoặc Mật khẩu không chính xác!';
-          errBox.style.display = 'block';
-        }
-        return;
-      }
-
-      if (errBox) errBox.style.display = 'none';
-      state.currentUser = found;
-      state.userRole = found.role;
-
-      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+      window.SupabaseDB.setLoading(true, 'Đang xác thực qua Supabase Auth...');
       try {
-        sessionStorage.setItem('toiuu_logged_user_v1', sessData);
-        if (remember) {
-          localStorage.setItem('toiuu_logged_user_v1', sessData);
-        } else {
-          localStorage.removeItem('toiuu_logged_user_v1');
-        }
-      } catch (e) {}
-
-      if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
-      if ($('inpLoginPassword')) $('inpLoginPassword').value = '';
-      applyUserRoleUI();
-
-      const roleLabel = found.role === 'engineer' ? '📐 Kỹ Sư Thiết Kế (Toàn quyền)' : '👷 Thợ CNC (Khóa an toàn chống xóa)';
-      showToast(`✓ Xin chào ${found.fullName || found.username} · Quyền: ${roleLabel}`);
-    }
-
-    async function handleGateRegister() {
-      await loadUsersFromSupabase();
-      const rawUser = ($('inpRegUsername') ? $('inpRegUsername').value : '').trim();
-      const fullName = ($('inpRegFullName') ? $('inpRegFullName').value : '').trim();
-      const pass = ($('inpRegPassword') ? $('inpRegPassword').value : '').trim();
-      const role = $('selRegRole') ? $('selRegRole').value : 'operator';
-      const adminSecret = ($('inpRegAdminSecret') ? $('inpRegAdminSecret').value : '').trim();
-      const errBox = $('regErrorAlert');
-
-      const cleanUser = rawUser.replace(/\s+/g, '').toLowerCase();
-      if (!cleanUser || cleanUser.length < 3) {
-        if (errBox) {
-          errBox.textContent = '⚠️ Tên đăng nhập phải có ít nhất 3 ký tự (viết liền không dấu)!';
-          errBox.style.display = 'block';
-        }
-        return;
-      }
-      if (!pass || pass.length < 4) {
-        if (errBox) {
-          errBox.textContent = '⚠️ Mật khẩu phải có ít nhất 4 ký tự!';
-          errBox.style.display = 'block';
-        }
-        return;
-      }
-      if (state.users.some(u => u.username.toLowerCase() === cleanUser)) {
-        if (errBox) {
-          errBox.textContent = `❌ Tài khoản "${cleanUser}" đã tồn tại! Vui lòng chọn tên khác.`;
-          errBox.style.display = 'block';
-        }
-        return;
-      }
-
-      if (role === 'engineer') {
-        const validAdmin = state.users.some(u => u.role === 'engineer' && String(u.password) === String(adminSecret));
-        if (!validAdmin && adminSecret !== '123456') {
-          if (errBox) {
-            errBox.textContent = '🔒 Mật khẩu Admin xác thực không đúng! Chỉ Quản lý/Kỹ sư mới được cấp tài khoản quyền Kỹ Sư.';
-            errBox.style.display = 'block';
-          }
-          return;
-        }
-      }
-
-      const newUser = {
-        username: cleanUser,
-        password: pass,
-        fullName: fullName || (role === 'engineer' ? `Kỹ sư (${cleanUser})` : `Thợ CNC (${cleanUser})`),
-        role: role,
-        createdAt: new Date().toISOString()
-      };
-
-      window.SupabaseDB.setLoading(true, 'Đang đăng ký tài khoản lên Supabase...');
-      try {
-        const saved = await window.SupabaseDB.upsertUser(newUser);
-        state.users.push(saved);
-
-        state.currentUser = saved;
-        state.userRole = saved.role;
-        const sessData = JSON.stringify({ username: saved.username, loginAt: new Date().toISOString() });
-        try {
-          sessionStorage.setItem('toiuu_logged_user_v1', sessData);
-          localStorage.setItem('toiuu_logged_user_v1', sessData);
-        } catch (e) {}
-
+        const user = await window.SupabaseDB.signInWithUsername(uName, uPass);
         if (errBox) errBox.style.display = 'none';
+        state.currentUser = user;
+        state.userRole = user.role === 'operator' ? 'operator' : 'engineer';
+
         if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
+        if ($('inpLoginPassword')) $('inpLoginPassword').value = '';
         applyUserRoleUI();
-        showToast(`🎉 Đã tạo tài khoản "${saved.username}" và đăng nhập thành công!`);
+
+        const roleLabel = user.role === 'admin'
+          ? '👑 Quản trị viên (Admin)'
+          : (user.role === 'engineer' ? '📐 Kỹ Sư Thiết Kế (Toàn quyền)' : '👷 Thợ CNC (Khóa an toàn chống xóa)');
+        showToast(`✓ Xin chào ${user.fullName || user.username} · Quyền: ${roleLabel}`);
+        await bootstrapWorkspaceAfterAuth();
       } catch (err) {
         if (errBox) {
-          errBox.textContent = '❌ Lỗi lưu tài khoản lên Supabase: ' + err.message;
+          errBox.textContent = '❌ ' + (err.message || 'Tên tài khoản hoặc Mật khẩu không chính xác!');
           errBox.style.display = 'block';
         }
       } finally {
@@ -6096,16 +5910,21 @@
       }
     }
 
-    function logoutCurrentAccount() {
+    async function logoutCurrentAccount() {
+      clearTimeout(state.activeSaveTimer);
+      state.hasPendingActiveSave = false;
+      if (state.realtimeUnsub) {
+        try { state.realtimeUnsub(); } catch (e) {}
+        state.realtimeUnsub = null;
+      }
+      state.hasBootstrappedWorkspace = false;
       state.currentUser = null;
       state.userRole = 'operator';
-      try {
-        sessionStorage.removeItem('toiuu_logged_user_v1');
-        localStorage.removeItem('toiuu_logged_user_v1');
-      } catch (e) {}
+      if (window.SupabaseDB) {
+        await window.SupabaseDB.signOut();
+      }
       closeRoleSwitchModal();
       applyUserRoleUI();
-      switchLoginGateTab('login');
       if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
       showToast('👋 Đã đăng xuất tài khoản! Vui lòng đăng nhập để tiếp tục.');
     }
@@ -6113,223 +5932,20 @@
     async function saveSelfNewPassword() {
       if (!state.currentUser) return;
       const newPass = ($('inpNewSelfPassword') ? $('inpNewSelfPassword').value : '').trim();
-      if (!newPass || newPass.length < 4) {
-        alert('⚠️ Vui lòng nhập mật khẩu mới có ít nhất 4 ký tự!');
+      if (!newPass || newPass.length < 6) {
+        alert('⚠️ Mật khẩu Supabase Auth mới phải có ít nhất 6 ký tự!');
         return;
       }
-      const target = state.users.find(u => u.username.toLowerCase() === state.currentUser.username.toLowerCase());
-      if (target) {
-        window.SupabaseDB.setLoading(true, 'Đang cập nhật mật khẩu...');
-        try {
-          const updated = await window.SupabaseDB.updateUser(target.username, { password: newPass });
-          Object.assign(target, updated);
-          state.currentUser = target;
-          renderUsersManagementList();
-          if ($('inpNewSelfPassword')) $('inpNewSelfPassword').value = '';
-          showToast('🔑 Đã cập nhật mật khẩu mới thành công!');
-        } catch (err) {
-          showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
-        } finally {
-          window.SupabaseDB.setLoading(false);
-        }
-      }
-    }
-
-    async function adminCreateNewAccount() {
-      if (!state.currentUser || state.currentUser.username.toLowerCase() !== 'admin') {
-        alert('🔒 Chỉ duy nhất tài khoản Quản trị viên (admin) mới có quyền tạo tài khoản mới!');
-        return;
-      }
-      const rawUser = ($('inpAdminAddUser') ? $('inpAdminAddUser').value : '').trim();
-      const rawPass = ($('inpAdminAddPass') ? $('inpAdminAddPass').value : '').trim();
-      const rawName = ($('inpAdminAddName') ? $('inpAdminAddName').value : '').trim();
-      const role = $('selAdminAddRole') ? $('selAdminAddRole').value : 'operator';
-
-      const cleanUser = rawUser.replace(/\s+/g, '').toLowerCase();
-      if (!cleanUser || cleanUser.length < 3) {
-        alert('⚠️ Tên đăng nhập phải có ít nhất 3 ký tự (viết liền)!');
-        return;
-      }
-      if (!rawPass || rawPass.length < 4) {
-        alert('⚠️ Mật khẩu phải có ít nhất 4 ký tự!');
-        return;
-      }
-      if (state.users.some(u => u.username.toLowerCase() === cleanUser)) {
-        alert(`❌ Tài khoản "${cleanUser}" đã tồn tại trong danh sách!`);
-        return;
-      }
-
-      const newUser = {
-        username: cleanUser,
-        password: rawPass,
-        fullName: rawName || (role === 'engineer' ? `Kỹ sư (${cleanUser})` : `Thợ CNC (${cleanUser})`),
-        role: role,
-        createdAt: new Date().toISOString()
-      };
-      window.SupabaseDB.setLoading(true, 'Đang cấp tài khoản...');
+      window.SupabaseDB.setLoading(true, 'Đang cập nhật mật khẩu trên Supabase Auth...');
       try {
-        const saved = await window.SupabaseDB.upsertUser(newUser);
-        state.users.push(saved);
-        renderUsersManagementList();
-
-        if ($('inpAdminAddUser')) $('inpAdminAddUser').value = '';
-        if ($('inpAdminAddPass')) $('inpAdminAddPass').value = '';
-        if ($('inpAdminAddName')) $('inpAdminAddName').value = '';
-        showToast(`✓ Đã tạo tài khoản "${saved.username}" (${role === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
+        await window.SupabaseDB.updateOwnPassword(newPass);
+        if ($('inpNewSelfPassword')) $('inpNewSelfPassword').value = '';
+        showToast('🔑 Đã cập nhật mật khẩu mới thành công!');
       } catch (err) {
-        showToast('❌ Lỗi tạo tài khoản: ' + err.message);
+        showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
       } finally {
         window.SupabaseDB.setLoading(false);
       }
-    }
-
-    function renderUsersManagementList() {
-      const container = $('usersListContainer');
-      if (!container) return;
-      if (!state.currentUser || state.currentUser.username.toLowerCase() !== 'admin') {
-        container.innerHTML = '';
-        return;
-      }
-
-      let html = `<table style="width:100%; border-collapse:collapse; font-size:12.5px;">
-        <thead>
-          <tr style="background:#F1F5F9; color:#475569; text-align:left; border-bottom:1px solid #E2E8F0;">
-            <th style="padding:7px 10px;">Tài khoản</th>
-            <th style="padding:7px 10px;">Họ tên / Vị trí</th>
-            <th style="padding:7px 10px;">Mật khẩu</th>
-            <th style="padding:7px 10px;">Phân quyền</th>
-            <th style="padding:7px 10px; text-align:right;">Thao tác</th>
-          </tr>
-        </thead>
-        <tbody>`;
-
-      state.users.forEach((u, idx) => {
-        const isEng = u.role === 'engineer';
-        const isCurrent = state.currentUser && state.currentUser.username.toLowerCase() === u.username.toLowerCase();
-        html += `
-          <tr style="border-bottom:1px solid #F1F5F9; ${isCurrent ? 'background:#F0FDFA;' : ''}">
-            <td style="padding:7px 10px; font-family:monospace; font-weight:800; color:#0B3B38;">
-              @${escapeHtml(u.username)} ${isCurrent ? '<span style="font-size:10px; background:#0F766E; color:#FFF; padding:1px 5px; border-radius:6px;">Bạn</span>' : ''}
-            </td>
-            <td style="padding:7px 10px; font-weight:600; color:#334155;">${escapeHtml(u.fullName || u.username)}</td>
-            <td style="padding:7px 10px; font-family:monospace; white-space:nowrap;">
-              <span id="passMask_${idx}" style="letter-spacing:2px; font-weight:800; color:#64748B;">••••••••</span>
-              <span id="passPlain_${idx}" style="display:none; color:#0F766E; font-weight:700;">${escapeHtml(u.password)}</span>
-              <button type="button" class="btn-toggle-row-pass" data-idx="${idx}" style="background:none; border:none; cursor:pointer; font-size:12px; margin-left:4px; padding:2px; opacity:0.65;" title="Xem/Ẩn mật khẩu">👁️</button>
-            </td>
-            <td style="padding:7px 10px;">
-              <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:800; ${isEng ? 'background:#CCFBF1; color:#0F766E;' : 'background:#FFEDD5; color:#C2410C;'}">
-                ${isEng ? '📐 Kỹ sư' : '👷 Thợ CNC'}
-              </span>
-            </td>
-            <td style="padding:7px 10px; text-align:right; white-space:nowrap;">
-              <button type="button" class="btn-user-change-pass" data-user="${escapeHtml(u.username)}" style="background:#F0FDFA; border:1px solid #99F6E4; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#0F766E;" title="Đặt lại mật khẩu cho tài khoản này">
-                🔑 Đổi MK
-              </button>
-              <button type="button" class="btn-user-role-toggle" data-user="${escapeHtml(u.username)}" style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#334155; margin-left:3px;" title="Đổi vai trò Kỹ sư / Thợ CNC">
-                ⇄ Đổi quyền
-              </button>
-              ${!isCurrent && u.username !== 'admin' ? `
-                <button type="button" class="btn-user-del" data-user="${escapeHtml(u.username)}" style="background:#FEF2F2; border:1px solid #FECACA; border-radius:6px; padding:3px 7px; font-size:11px; font-weight:700; cursor:pointer; color:#B91C1C; margin-left:3px;" title="Xóa tài khoản này">
-                  ✕ Xóa
-                </button>
-              ` : ''}
-            </td>
-          </tr>
-        `;
-      });
-
-      html += `</tbody></table>`;
-      container.innerHTML = html;
-
-      container.querySelectorAll('.btn-toggle-row-pass').forEach(btn => {
-        btn.onclick = () => {
-          const idx = btn.getAttribute('data-idx');
-          const mask = $('passMask_' + idx);
-          const plain = $('passPlain_' + idx);
-          if (mask && plain) {
-            const isHidden = plain.style.display === 'none';
-            plain.style.display = isHidden ? 'inline' : 'none';
-            mask.style.display = isHidden ? 'none' : 'inline';
-            btn.style.opacity = isHidden ? '1' : '0.65';
-          }
-        };
-      });
-
-      container.querySelectorAll('.btn-user-change-pass').forEach(btn => {
-        btn.onclick = async () => {
-          const uname = btn.getAttribute('data-user');
-          const target = state.users.find(x => x.username.toLowerCase() === uname.toLowerCase());
-          if (!target) return;
-          const newPass = prompt(`🔑 Nhập mật khẩu mới cho tài khoản @${target.username} (${target.fullName || ''}):`, '');
-          if (newPass === null) return;
-          const cleanPass = String(newPass || '').trim();
-          if (!cleanPass || cleanPass.length < 4) {
-            alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
-            return;
-          }
-          window.SupabaseDB.setLoading(true, 'Đang cập nhật mật khẩu...');
-          try {
-            const updated = await window.SupabaseDB.updateUser(target.username, { password: cleanPass });
-            Object.assign(target, updated);
-            renderUsersManagementList();
-            showToast(`✓ Đã cập nhật mật khẩu mới cho tài khoản @${target.username}!`);
-          } catch (err) {
-            showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
-          } finally {
-            window.SupabaseDB.setLoading(false);
-          }
-        };
-      });
-
-      container.querySelectorAll('.btn-user-role-toggle').forEach(btn => {
-        btn.onclick = async () => {
-          const uname = btn.getAttribute('data-user');
-          const target = state.users.find(x => x.username.toLowerCase() === uname.toLowerCase());
-          if (!target) return;
-          if (target.role === 'engineer') {
-            const engCount = state.users.filter(x => x.role === 'engineer').length;
-            if (engCount <= 1) {
-              alert('⚠️ Hệ thống phải có ít nhất 1 tài khoản Kỹ sư quản trị!');
-              return;
-            }
-          }
-          const nextRole = target.role === 'engineer' ? 'operator' : 'engineer';
-          window.SupabaseDB.setLoading(true, 'Đang đổi phân quyền...');
-          try {
-            const updated = await window.SupabaseDB.updateUser(target.username, { role: nextRole });
-            Object.assign(target, updated);
-            if (state.currentUser && state.currentUser.username.toLowerCase() === target.username.toLowerCase()) {
-              state.currentUser = target;
-              state.userRole = target.role;
-            }
-            applyUserRoleUI();
-            showToast(`✓ Đã chuyển tài khoản @${target.username} sang quyền ${target.role === 'engineer' ? 'Kỹ sư Thiết kế' : 'Thợ CNC'}!`);
-          } catch (err) {
-            showToast('❌ Lỗi đổi quyền: ' + err.message);
-          } finally {
-            window.SupabaseDB.setLoading(false);
-          }
-        };
-      });
-
-      container.querySelectorAll('.btn-user-del').forEach(btn => {
-        btn.onclick = async () => {
-          const uname = btn.getAttribute('data-user');
-          if (!confirm(`Bạn có chắc muốn xóa tài khoản "@${uname}" khỏi hệ thống?`)) return;
-          window.SupabaseDB.setLoading(true, 'Đang xóa tài khoản...');
-          try {
-            await window.SupabaseDB.deleteUser(uname);
-            state.users = state.users.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
-            renderUsersManagementList();
-            showToast(`🗑️ Đã xóa tài khoản @${uname}`);
-          } catch (err) {
-            showToast('❌ Lỗi xóa tài khoản: ' + err.message);
-          } finally {
-            window.SupabaseDB.setLoading(false);
-          }
-        };
-      });
     }
 
     function openRoleSwitchModal() {
@@ -6337,14 +5953,6 @@
         if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
         return;
       }
-      const isSuperAdmin = state.currentUser.username && state.currentUser.username.toLowerCase() === 'admin';
-      if (!isSuperAdmin) {
-        if (confirm(`👤 Bạn đang đăng nhập với tài khoản: @${state.currentUser.username} (${state.currentUser.fullName || ''})\n\nBạn có muốn Đăng Xuất khỏi hệ thống không?`)) {
-          logoutCurrentAccount();
-        }
-        return;
-      }
-
       const modal = $('modalRoleSwitch');
       if (!modal) return;
       applyUserRoleUI();
@@ -6492,9 +6100,9 @@
     // ==========================================
     function initNetworkAndPWA() {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=11').then(reg => {
+        navigator.serviceWorker.register('/sw.js?v=12').then(reg => {
           reg.update();
-          console.log('PWA Service Worker registered & updated v11:', reg.scope);
+          console.log('PWA Service Worker registered & updated v12:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
@@ -6526,7 +6134,7 @@
       window.addEventListener('online', async () => {
         updateNetBadge();
         showToast('🟢 Đã khôi phục mạng! Tự động làm mới dữ liệu từ Supabase.');
-        if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        if (state.currentUser && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
           window.SupabaseDB.clearConnectionError();
           await initProjectsManager();
           await loadCutProgressForActiveProject();
@@ -6536,20 +6144,18 @@
       updateNetBadge();
     }
 
-    // Attach Event Listeners & Khởi động đồng bộ dữ liệu từ Supabase
-    window.addEventListener('DOMContentLoaded', async () => {
-      initNetworkAndPWA();
+    async function bootstrapWorkspaceAfterAuth() {
+      if (state.hasBootstrappedWorkspace || !state.currentUser) return;
+      state.hasBootstrappedWorkspace = true;
 
-      // Nạp song song tài khoản, thư viện quy cách, danh sách dự án & bản nháp từ Supabase
       let draftProject = null;
       if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang tải dữ liệu xưởng từ Supabase...');
       try {
         const results = await Promise.all([
-          initUserRole(),
           initSavedProfiles(),
           initProjectsManager()
         ]);
-        draftProject = results[2];
+        draftProject = results[1];
         renderMemoryLibraryChips();
       } catch (err) {
         console.error('Lỗi khởi động dữ liệu Supabase:', err);
@@ -6560,7 +6166,58 @@
 
       initCloudSyncSystem();
 
-      // Gắn sự kiện Hệ thống Tài khoản & Mật khẩu Phân quyền
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramProjId = urlParams.get('project');
+      const paramOpen = urlParams.get('open');
+
+      const embScript = $('embeddedFusionData');
+      let loadedFromEmbedded = false;
+      if (embScript && embScript.textContent.trim()) {
+        try {
+          const safeJson = embScript.textContent.trim().replace(/\\(?![/u"\\bfnrt])/g, '/');
+          const embData = JSON.parse(safeJson);
+          if (embData && (embData.parts || Array.isArray(embData))) {
+            await loadFusionDataPayload(embData);
+            loadedFromEmbedded = true;
+          }
+        } catch (e) {
+          console.warn('Lỗi đọc embeddedFusionData:', e);
+        }
+      }
+
+      if (!loadedFromEmbedded) {
+        const loaded = await loadActiveProject(paramProjId, draftProject);
+        if (!loaded) {
+          const offlineOrErr = Boolean(state.initialSupabaseLoadFailed || !navigator.onLine);
+          loadMultiProfilePreset({ skipSave: offlineOrErr });
+          if (offlineOrErr) {
+            showToast('📡 Mất kết nối Supabase: đang hiển thị tạm bản vẽ mẫu (không ghi đè dữ liệu trên máy chủ).', 5500);
+          }
+        }
+      }
+
+      if (!loadedFromEmbedded && urlParams.get('src') === 'fusion' && !paramProjId) {
+        fetch('fusion_exported_project.json')
+          .then(res => res.json())
+          .then(data => loadFusionDataPayload(data))
+          .catch(() => $('modalFusion') && ($('modalFusion').style.display = 'flex'));
+      }
+
+      if (paramOpen === 'igs' && $('btnOpenIgs')) {
+        $('btnOpenIgs').click();
+      } else if (paramOpen === 'fusion' && $('modalFusion')) {
+        $('modalFusion').style.display = 'flex';
+      } else if (paramOpen === 'paste' && $('modalPaste')) {
+        $('modalPaste').style.display = 'flex';
+        if ($('txtPaste')) $('txtPaste').focus();
+      }
+    }
+
+    // Attach Event Listeners & Khởi động xác thực Supabase Auth
+    window.addEventListener('DOMContentLoaded', async () => {
+      initNetworkAndPWA();
+
+      // Gắn sự kiện Hệ thống Tài khoản Supabase Auth (lắng nghe ngay cả khi chưa đăng nhập)
       if ($('btnRoleSelector')) {
         $('btnRoleSelector').onclick = () => openRoleSwitchModal();
       }
@@ -6608,8 +6265,41 @@
       if ($('btnSaveSelfPassword')) {
         $('btnSaveSelfPassword').onclick = () => saveSelfNewPassword();
       }
-      if ($('btnAdminCreateAccount')) {
-        $('btnAdminCreateAccount').onclick = () => adminCreateNewAccount();
+
+      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        state.authUnsub = window.SupabaseDB.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT' && state.currentUser) {
+            clearTimeout(state.activeSaveTimer);
+            state.hasPendingActiveSave = false;
+            if (state.realtimeUnsub) {
+              try { state.realtimeUnsub(); } catch (e) {}
+              state.realtimeUnsub = null;
+            }
+            state.hasBootstrappedWorkspace = false;
+            state.currentUser = null;
+            state.userRole = 'operator';
+            applyUserRoleUI();
+            if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'flex';
+            const errBox = $('loginErrorAlert');
+            if (errBox) {
+              errBox.textContent = '🔒 Phiên đăng nhập đã hết hạn hoặc vừa đăng xuất. Vui lòng đăng nhập lại!';
+              errBox.style.display = 'block';
+            }
+          }
+        });
+      }
+
+      // Kiểm tra phiên Supabase Auth trước — chỉ nạp dữ liệu xưởng khi đã đăng nhập hợp lệ
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kiểm tra phiên đăng nhập...');
+      let isAuthed = false;
+      try {
+        isAuthed = await initUserRole();
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+      }
+
+      if (isAuthed) {
+        await bootstrapWorkspaceAfterAuth();
       }
       if ($('btnResetCutProgress')) {
         $('btnResetCutProgress').onclick = async () => {
@@ -6646,38 +6336,6 @@
       document.addEventListener('click', () => {
         document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
       });
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const paramProjId = urlParams.get('project');
-      const paramOpen = urlParams.get('open');
-
-      // 1. Kiểm tra dữ liệu Fusion nhúng sẵn trong file HTML (Ưu tiên hàng đầu khi mở từ Fusion)
-      const embScript = $('embeddedFusionData');
-      let loadedFromEmbedded = false;
-      if (embScript && embScript.textContent.trim()) {
-        try {
-          const safeJson = embScript.textContent.trim().replace(/\\(?![/u"\\bfnrt])/g, '/');
-          const embData = JSON.parse(safeJson);
-          if (embData && (embData.parts || Array.isArray(embData))) {
-            await loadFusionDataPayload(embData);
-            loadedFromEmbedded = true;
-          }
-        } catch (e) {
-          console.warn('Lỗi đọc embeddedFusionData:', e);
-        }
-      }
-
-      // 2. Nếu không có dữ liệu Fusion nhúng sẵn -> Nạp từ Supabase (?project -> dự án đã mở -> dự án mới nhất -> bản nháp)
-      if (!loadedFromEmbedded) {
-        const loaded = await loadActiveProject(paramProjId, draftProject);
-        if (!loaded) {
-          const offlineOrErr = Boolean(state.initialSupabaseLoadFailed || !navigator.onLine);
-          loadMultiProfilePreset({ skipSave: offlineOrErr });
-          if (offlineOrErr) {
-            showToast('📡 Mất kết nối Supabase: đang hiển thị tạm bản vẽ mẫu (không ghi đè dữ liệu trên máy chủ).', 5500);
-          }
-        }
-      }
 
       $('btnPresetMulti').onclick = () => loadMultiProfilePreset();
       $('btnPresetUser').onclick = () => loadUserCase();
@@ -7260,23 +6918,6 @@
         updateProjectsBadge();
         const projName = data.project_name ? `từ bản vẽ "${data.project_name}"` : '';
         showToast(`✓ Đã nạp thành công ${newParts.length} mục (${state.activeProfiles.length} loại hộp) ${projName}!`);
-      }
-
-      // Kiểm tra URL query (?open=..., ?src=fusion)
-      if (!loadedFromEmbedded && urlParams.get('src') === 'fusion' && !paramProjId) {
-        fetch('fusion_exported_project.json')
-          .then(res => res.json())
-          .then(data => loadFusionDataPayload(data))
-          .catch(() => openFusionModal());
-      }
-
-      if (paramOpen === 'igs') {
-        openIgsModal();
-      } else if (paramOpen === 'fusion') {
-        openFusionModal();
-      } else if (paramOpen === 'paste') {
-        $('modalPaste').style.display = 'flex';
-        if ($('txtPaste')) $('txtPaste').focus();
       }
     });
   </script>

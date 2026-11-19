@@ -15,6 +15,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
 
   var STORAGE_BUCKET = 'igs-files';
   var DRAFT_PROJECT_ID = '__draft__';
+  var INTERNAL_EMAIL_DOMAIN = 'anbinh.local';
+  var AUTH_STORAGE_KEY = 'toiuu_supabase_auth_v2';
+  var LEGACY_SESSION_KEY = 'toiuu_logged_user_v1';
 
   var DEFAULT_PROFILES = [
     'Hộp 20x20x1.4', 'Hộp 25x25x1.4', 'Hộp 30x30x1.8', 'Hộp 40x40x1.8', 'Hộp 50x50x2.0',
@@ -22,37 +25,36 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     'Ống Ø27x1.4', 'Ống Ø34x1.4'
   ];
 
-  var DEFAULT_USERS = [
-    {
-      username: 'admin',
-      password: '123456',
-      fullName: 'Kỹ Sư Thiết Kế (Admin)',
-      role: 'engineer',
-      createdAt: '2026-01-01T00:00:00.000Z'
-    },
-    {
-      username: 'kt1',
-      password: '12345',
-      fullName: 'Sơn KT (Kỹ Sư)',
-      role: 'engineer',
-      createdAt: '2026-01-01T00:00:00.000Z'
-    },
-    {
-      username: 'thocnc',
-      password: '1234',
-      fullName: 'Thợ Vận Hành Máy CNC',
-      role: 'operator',
-      createdAt: '2026-01-01T00:00:00.000Z'
-    }
-  ];
-
   var _url = SUPABASE_URL;
   var _key = SUPABASE_ANON_KEY;
   var _client = null;
+  var _accessToken = null;
   var _loadingCount = 0;
   var _retryHandler = null;
   var _stylesInjected = false;
   var _supportsPatternHash = true;
+
+  function usernameToEmail(input) {
+    var clean = String(input || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (!clean) return '';
+    if (clean.indexOf('@') !== -1) return clean;
+    return clean + '@' + INTERNAL_EMAIL_DOMAIN;
+  }
+
+  function emailToUsername(email) {
+    var clean = String(email || '').trim().toLowerCase();
+    var at = clean.indexOf('@');
+    return at !== -1 ? clean.slice(0, at) : clean;
+  }
+
+  function clearLegacySessionStorage() {
+    try {
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(LEGACY_SESSION_KEY);
+    } catch (e) {}
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(LEGACY_SESSION_KEY);
+    } catch (e) {}
+  }
 
   function uid(prefix) {
     return String(prefix || 'id') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -104,8 +106,23 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         throw new Error('Chưa tải được thư viện @supabase/supabase-js từ CDN');
       }
       _client = sdk.createClient(_url.trim(), _key.trim(), {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+          storageKey: AUTH_STORAGE_KEY
+        },
         realtime: { params: { eventsPerSecond: 10 } }
       });
+      try {
+        _client.auth.onAuthStateChange(function (_event, session) {
+          _accessToken = session && session.access_token ? session.access_token : null;
+        });
+        _client.auth.getSession().then(function (res) {
+          var s = res && res.data ? res.data.session : null;
+          if (s && s.access_token) _accessToken = s.access_token;
+        }).catch(function () {});
+      } catch (e) {}
     }
     return _client;
   }
@@ -321,13 +338,16 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     };
   }
 
-  function mapUserFromDb(row) {
+  function mapProfileFromDb(row) {
     if (!row) return null;
+    var uname = row.username || emailToUsername(row.email || '');
+    var dispName = row.display_name || row.displayName || row.full_name || row.fullName || uname;
     return {
       id: row.id,
-      username: row.username,
-      password: row.password,
-      fullName: row.full_name || row.fullName || row.username,
+      username: uname,
+      displayName: dispName,
+      fullName: dispName,
+      email: usernameToEmail(uname),
       role: row.role || 'operator',
       createdAt: row.created_at || new Date().toISOString(),
       updatedAt: row.updated_at || row.created_at || new Date().toISOString()
@@ -470,7 +490,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   function saveProjectKeepalive(projectId, activeSnapshot, isDraft) {
-    if (!isConfigured() || typeof fetch !== 'function') return;
+    if (!isConfigured() || typeof fetch !== 'function' || !_accessToken) return;
     var cleanData = stripHeavyIgs(activeSnapshot || {});
     var baseUrl = _url.trim().replace(/\/+$/, '');
     var nowIso = new Date().toISOString();
@@ -503,7 +523,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       var headers = {
         'Content-Type': 'application/json',
         apikey: _key.trim(),
-        Authorization: 'Bearer ' + _key.trim(),
+        Authorization: 'Bearer ' + _accessToken,
         Prefer: useDraft ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal'
       };
       fetch(endpoint, {
@@ -784,90 +804,360 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   // =========================================================================
-  // CRUD: WORKSHOP USERS (TÀI KHOẢN & PHÂN QUYỀN)
+  // SUPABASE AUTH & PROFILES (ĐỢT 2 - BẢO MẬT & RLS THEO VAI TRÒ)
   // =========================================================================
-  async function getUsers() {
+  async function getAccessToken() {
     var client = getClient();
-    var res = await client.from('workshop_users').select('*').order('created_at', { ascending: true });
-    var rows = throwIfError(res, 'Không tải được danh sách nhân sự') || [];
-    return rows.map(mapUserFromDb);
+    var res = await client.auth.getSession();
+    var session = res && res.data ? res.data.session : null;
+    _accessToken = session && session.access_token ? session.access_token : null;
+    return _accessToken;
   }
 
-  async function upsertUser(user) {
-    if (!user || !user.username) throw new Error('Thiếu tên đăng nhập');
+  async function fetchProfileById(userId) {
+    if (!userId) return null;
     var client = getClient();
-    var payload = {
-      username: String(user.username).trim().toLowerCase(),
-      password: String(user.password || ''),
-      full_name: String(user.fullName || user.full_name || user.username),
-      role: user.role === 'engineer' ? 'engineer' : 'operator',
-      created_at: user.createdAt || new Date().toISOString(),
-      updated_at: new Date().toISOString()
+    var res = await client
+      .from('profiles')
+      .select('id, username, display_name, role, created_at, updated_at')
+      .eq('id', userId)
+      .maybeSingle();
+    var row = throwIfError(res, 'Không đọc được hồ sơ phân quyền tài khoản');
+    return row ? mapProfileFromDb(row) : null;
+  }
+
+  async function signInWithUsername(username, password) {
+    var client = getClient();
+    var email = usernameToEmail(username);
+    if (!email || !password) {
+      throw new Error('Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!');
+    }
+    var authRes = await client.auth.signInWithPassword({
+      email: email,
+      password: String(password)
+    });
+    if (authRes.error || !authRes.data || !authRes.data.user || !authRes.data.session) {
+      var rawMsg = authRes.error ? String(authRes.error.message || '') : '';
+      if (/invalid login credentials/i.test(rawMsg)) {
+        throw new Error('Tên tài khoản hoặc Mật khẩu không chính xác!');
+      }
+      if (/email not confirmed/i.test(rawMsg)) {
+        throw new Error('Tài khoản chưa được xác nhận email trên Supabase Auth (hãy chạy setup_auth_users.js).');
+      }
+      throw new Error(rawMsg || 'Đăng nhập thất bại!');
+    }
+
+    _accessToken = authRes.data.session.access_token;
+    clearLegacySessionStorage();
+
+    var prof = null;
+    try {
+      prof = await fetchProfileById(authRes.data.user.id);
+    } catch (e) {
+      await client.auth.signOut().catch(function () {});
+      _accessToken = null;
+      throw e;
+    }
+
+    if (!prof) {
+      await client.auth.signOut().catch(function () {});
+      _accessToken = null;
+      throw new Error('Tài khoản Auth hợp lệ nhưng chưa có dòng phân quyền trong bảng public.profiles. Vui lòng liên hệ Admin!');
+    }
+    return prof;
+  }
+
+  async function signOut() {
+    _accessToken = null;
+    clearLegacySessionStorage();
+    if (!isConfigured()) return;
+    try {
+      await getClient().auth.signOut();
+    } catch (e) {}
+  }
+
+  async function getCurrentAuthUser() {
+    clearLegacySessionStorage();
+    if (!isConfigured()) return null;
+    var client = getClient();
+    var sRes = await client.auth.getSession();
+    var session = sRes && sRes.data ? sRes.data.session : null;
+    if (!session || !session.access_token) {
+      _accessToken = null;
+      return null;
+    }
+    _accessToken = session.access_token;
+
+    // Xác thực trực tiếp với Auth server để phát hiện token hết hạn / bị thu hồi
+    var uRes = await client.auth.getUser();
+    if (uRes && uRes.error) {
+      var msg = String(uRes.error.message || '');
+      var isNetworkDown = (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+        (/fetch|network|timeout|load failed/i.test(msg) && !/jwt|token|session|expired|invalid|401|403/i.test(msg));
+      if (!isNetworkDown) {
+        await client.auth.signOut().catch(function () {});
+        _accessToken = null;
+        return null;
+      }
+      throw uRes.error;
+    }
+
+    var authUser = uRes && uRes.data ? uRes.data.user : null;
+    if (!authUser) {
+      await client.auth.signOut().catch(function () {});
+      _accessToken = null;
+      return null;
+    }
+
+    var prof = await fetchProfileById(authUser.id);
+    if (!prof) {
+      await client.auth.signOut().catch(function () {});
+      _accessToken = null;
+      return null;
+    }
+    return prof;
+  }
+
+  function onAuthStateChange(callback) {
+    if (typeof callback !== 'function' || !isConfigured()) {
+      return function () {};
+    }
+    var client = getClient();
+    var subRes = client.auth.onAuthStateChange(function (event, session) {
+      _accessToken = session && session.access_token ? session.access_token : null;
+      try {
+        callback(event, session);
+      } catch (e) {
+        console.error('[Supabase Auth]', e);
+      }
+    });
+    var subscription = subRes && subRes.data ? subRes.data.subscription : null;
+    return function () {
+      try {
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+      } catch (e) {}
     };
-    var res = await client
-      .from('workshop_users')
-      .upsert(payload, { onConflict: 'username' })
-      .select()
-      .single();
-    var saved = throwIfError(res, 'Không lưu được tài khoản nhân sự');
-    return mapUserFromDb(saved);
   }
 
-  async function updateUser(username, patch) {
-    if (!username || !patch) return null;
+  async function updateOwnPassword(newPassword) {
+    var clean = String(newPassword || '').trim();
+    if (!clean || clean.length < 6) {
+      throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự!');
+    }
     var client = getClient();
-    var updateObj = { updated_at: new Date().toISOString() };
-    if (patch.password !== undefined) updateObj.password = String(patch.password);
-    if (patch.fullName !== undefined) updateObj.full_name = String(patch.fullName);
-    if (patch.full_name !== undefined) updateObj.full_name = String(patch.full_name);
-    if (patch.role !== undefined) updateObj.role = patch.role === 'engineer' ? 'engineer' : 'operator';
-
-    var res = await client
-      .from('workshop_users')
-      .update(updateObj)
-      .eq('username', String(username).trim().toLowerCase())
-      .select()
-      .single();
-    var saved = throwIfError(res, 'Không cập nhật được tài khoản');
-    return mapUserFromDb(saved);
-  }
-
-  async function deleteUser(username) {
-    var clean = String(username || '').trim().toLowerCase();
-    if (clean === 'admin') throw new Error('Không thể xóa tài khoản Quản trị viên tối cao (admin)');
-    var client = getClient();
-    var res = await client.from('workshop_users').delete().eq('username', clean);
-    throwIfError(res, 'Không xóa được tài khoản');
+    var res = await client.auth.updateUser({ password: clean });
+    if (res && res.error) {
+      throw new Error('Không đổi được mật khẩu: ' + res.error.message);
+    }
     return true;
   }
 
-  async function resetDefaultUsers() {
+  async function getProfiles() {
     var client = getClient();
-    await client.from('workshop_users').delete().neq('username', 'admin');
-    var rows = DEFAULT_USERS.map(function (u) {
-      return {
-        username: u.username,
-        password: u.password,
-        full_name: u.fullName,
-        role: u.role,
-        created_at: u.createdAt
-      };
-    });
     var res = await client
-      .from('workshop_users')
-      .upsert(rows, { onConflict: 'username' })
-      .select();
-    var saved = throwIfError(res, 'Không khôi phục được danh sách tài khoản mặc định') || [];
-    return saved.map(mapUserFromDb);
+      .from('profiles')
+      .select('id, username, display_name, role, created_at, updated_at')
+      .order('created_at', { ascending: true });
+    var rows = throwIfError(res, 'Không tải được danh sách nhân sự') || [];
+    return rows.map(mapProfileFromDb);
+  }
+
+  async function updateProfile(userId, patch) {
+    if (!userId || !patch) return null;
+    var client = getClient();
+    var updateObj = { updated_at: new Date().toISOString() };
+    if (patch.displayName !== undefined) updateObj.display_name = String(patch.displayName || '').trim();
+    if (patch.fullName !== undefined) updateObj.display_name = String(patch.fullName || '').trim();
+    if (patch.role !== undefined && ['admin', 'engineer', 'operator'].indexOf(patch.role) !== -1) {
+      updateObj.role = patch.role;
+    }
+    var res = await client
+      .from('profiles')
+      .update(updateObj)
+      .eq('id', userId)
+      .select('id, username, display_name, role, created_at, updated_at')
+      .single();
+    var row = throwIfError(res, 'Không cập nhật được hồ sơ nhân sự');
+    return mapProfileFromDb(row);
+  }
+
+  // Cầu nối quản trị Auth cục bộ qua server.js (tuyệt đối không giữ Secret key trên trình duyệt)
+  function _getLocalBridgeCandidates() {
+    var bases = [];
+    if (typeof window !== 'undefined' && window.location) {
+      var host = String(window.location.hostname || '').toLowerCase();
+      var proto = String(window.location.protocol || '');
+      var isLocalOrLan = host === 'localhost' || host === '127.0.0.1' ||
+        /^192\.168\./.test(host) || /^10\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+      if (isLocalOrLan && /^https?:$/i.test(proto)) {
+        bases.push(window.location.origin);
+      }
+    }
+    if (bases.indexOf('http://localhost:3000') === -1) {
+      bases.push('http://localhost:3000');
+    }
+    return bases;
+  }
+
+  async function _fetchWithTimeout(url, opts, timeoutMs) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs || 1800) : null;
+    try {
+      var nextOpts = Object.assign({}, opts || {});
+      if (ctrl) nextOpts.signal = ctrl.signal;
+      return await fetch(url, nextOpts);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function checkLocalAdminBridge() {
+    if (typeof fetch !== 'function') return { available: false, reason: 'NO_FETCH' };
+    var candidates = _getLocalBridgeCandidates();
+    for (var i = 0; i < candidates.length; i++) {
+      var base = candidates[i];
+      try {
+        var r = await _fetchWithTimeout(base + '/api/admin/status', { method: 'GET' }, 1500);
+        if (r && r.ok) {
+          var data = await r.json();
+          if (data && data.success) {
+            return {
+              available: true,
+              baseUrl: base,
+              hasSecretKey: Boolean(data.hasSecretKey)
+            };
+          }
+        }
+      } catch (e) {}
+    }
+    return { available: false, reason: 'BRIDGE_UNAVAILABLE' };
+  }
+
+  async function _callAdminBridge(method, pathSuffix, body) {
+    var status = await checkLocalAdminBridge();
+    if (!status.available) {
+      var err = new Error('Không tìm thấy máy chủ cầu nối xưởng (server.js localhost:3000). Nếu đang truy cập từ xa trên xepphoi.cloud, vui lòng tạo/đổi mật khẩu nhân sự khác trực tiếp trên Supabase Auth Dashboard.');
+      err.code = 'BRIDGE_UNAVAILABLE';
+      throw err;
+    }
+    if (!status.hasSecretKey) {
+      var errKey = new Error('Máy chủ server.js đang chạy nhưng chưa điền SUPABASE_SECRET_KEY trong file .env!');
+      err.code = 'MISSING_SECRET_KEY';
+      throw errKey;
+    }
+    var token = await getAccessToken();
+    if (!token) {
+      throw new Error('Phiên đăng nhập Quản trị viên đã hết hạn. Vui lòng đăng nhập lại!');
+    }
+    var res = await _fetchWithTimeout(status.baseUrl + pathSuffix, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    }, 10000);
+    var json = await res.json().catch(function () { return {}; });
+    if (!res.ok || !json.success) {
+      throw new Error(json.error || ('Lỗi máy chủ cầu nối (HTTP ' + res.status + ')'));
+    }
+    return json;
+  }
+
+  async function adminCreateUser(payload) {
+    var res = await _callAdminBridge('POST', '/api/admin/users', payload);
+    return res.user;
+  }
+
+  async function adminResetPassword(userId, newPassword) {
+    return _callAdminBridge('PUT', '/api/admin/users/' + encodeURIComponent(userId) + '/password', {
+      password: newPassword
+    });
+  }
+
+  async function adminUpdateRole(userId, role, displayName) {
+    var res = await _callAdminBridge('PUT', '/api/admin/users/' + encodeURIComponent(userId) + '/role', {
+      role: role,
+      displayName: displayName
+    });
+    return mapProfileFromDb(res.profile);
+  }
+
+  async function adminDeleteUser(userId) {
+    return _callAdminBridge('DELETE', '/api/admin/users/' + encodeURIComponent(userId));
   }
 
   // =========================================================================
-  // STORAGE BUCKET: igs-files
+  // PRIVATE STORAGE BUCKET: igs-files (ĐỌC QUA JWT AUTHENTICATED)
   // =========================================================================
-  function getIgsPublicUrl(storagePath) {
+  function extractIgsStoragePath(pathOrUrl) {
+    if (!pathOrUrl) return null;
+    var s = String(pathOrUrl).trim();
+    if (!s || s.indexOf('/api/igs/') === 0) return null;
+    if (s.indexOf('storage://') === 0) {
+      return s.slice('storage://'.length).replace(/^\/+/, '');
+    }
+    var markerRegex = /\/storage\/v1\/object\/(?:public|authenticated|sign)\/igs-files\/([^?#]+)/i;
+    var m = s.match(markerRegex);
+    if (m && m[1]) {
+      try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+    }
+    if (!/^https?:\/\//i.test(s) && s.indexOf('/') !== 0) {
+      return s;
+    }
+    return null;
+  }
+
+  async function downloadIgsBlob(pathOrUrl) {
+    var storagePath = extractIgsStoragePath(pathOrUrl);
+    if (storagePath) {
+      var client = getClient();
+      var res = await client.storage.from(STORAGE_BUCKET).download(storagePath);
+      if (res && res.error) {
+        throw new Error('Không tải được file .IGS từ Storage bảo mật: ' + res.error.message);
+      }
+      if (!res || !res.data) {
+        throw new Error('File .IGS trống trên Storage');
+      }
+      return res.data;
+    }
+    if (!pathOrUrl) throw new Error('Thiếu đường dẫn file .IGS');
+    var httpRes = await fetch(String(pathOrUrl));
+    if (!httpRes.ok) {
+      throw new Error('Không tải được file .IGS (HTTP ' + httpRes.status + ')');
+    }
+    return await httpRes.blob();
+  }
+
+  async function downloadIgsFile(pathOrUrl, fileName) {
+    var blob = await downloadIgsBlob(pathOrUrl);
+    if (!blob || blob.size < 50) {
+      throw new Error('Dữ liệu file .IGS rỗng hoặc không hợp lệ');
+    }
+    var dlName = String(fileName || 'file.igs').replace(/\.igs\.igs$/i, '.igs');
+    if (!/\.igs$/i.test(dlName)) dlName += '.igs';
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = dlName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    return true;
+  }
+
+  async function getIgsSignedUrl(pathOrUrl, expiresInSec) {
+    var storagePath = extractIgsStoragePath(pathOrUrl);
+    if (!storagePath) return pathOrUrl;
     var client = getClient();
-    var res = client.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
-    return res && res.data ? res.data.publicUrl : null;
+    var res = await client.storage.from(STORAGE_BUCKET).createSignedUrl(storagePath, expiresInSec || 300);
+    if (res && res.error) {
+      throw new Error('Không tạo được link tải tạm .IGS: ' + res.error.message);
+    }
+    return res && res.data ? res.data.signedUrl : null;
   }
 
   async function uploadIgsFile(storagePath, content) {
@@ -881,7 +1171,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     }
     return {
       path: storagePath,
-      publicUrl: getIgsPublicUrl(storagePath)
+      storageRef: 'storage://' + storagePath
     };
   }
 
@@ -973,11 +1263,11 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           raw: payload
         };
       }
-      if (table === 'workshop_users') {
+      if (table === 'profiles') {
         return {
           eventType: eventType,
-          newRecord: mapUserFromDb(payload.new),
-          oldRecord: mapUserFromDb(payload.old),
+          newRecord: mapProfileFromDb(payload.new),
+          oldRecord: mapProfileFromDb(payload.old),
           raw: payload
         };
       }
@@ -1089,8 +1379,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     SUPABASE_ANON_KEY: SUPABASE_ANON_KEY,
     STORAGE_BUCKET: STORAGE_BUCKET,
     DRAFT_PROJECT_ID: DRAFT_PROJECT_ID,
+    INTERNAL_EMAIL_DOMAIN: INTERNAL_EMAIL_DOMAIN,
     DEFAULT_PROFILES: DEFAULT_PROFILES,
-    DEFAULT_USERS: DEFAULT_USERS,
     setCredentials: setCredentials,
     isConfigured: isConfigured,
     getClient: getClient,
@@ -1102,12 +1392,28 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     toAsciiSafe: toAsciiSafe,
     classifyProfile: classifyProfile,
     stripHeavyIgs: stripHeavyIgs,
+    usernameToEmail: usernameToEmail,
+    emailToUsername: emailToUsername,
     mapProjectFromDb: mapProjectFromDb,
     mapProjectSummaryFromDb: mapProjectSummaryFromDb,
     mapProjectToDb: mapProjectToDb,
-    mapUserFromDb: mapUserFromDb,
+    mapProfileFromDb: mapProfileFromDb,
     mapInventoryFromDb: mapInventoryFromDb,
     mapCutRow: mapCutRow,
+    getAccessToken: getAccessToken,
+    signInWithUsername: signInWithUsername,
+    signOut: signOut,
+    getCurrentAuthUser: getCurrentAuthUser,
+    onAuthStateChange: onAuthStateChange,
+    updateOwnPassword: updateOwnPassword,
+    getProfiles: getProfiles,
+    getUsers: getProfiles,
+    updateProfile: updateProfile,
+    checkLocalAdminBridge: checkLocalAdminBridge,
+    adminCreateUser: adminCreateUser,
+    adminResetPassword: adminResetPassword,
+    adminUpdateRole: adminUpdateRole,
+    adminDeleteUser: adminDeleteUser,
     getProjects: getProjects,
     getProjectsSummary: getProjectsSummary,
     getProjectById: getProjectById,
@@ -1128,12 +1434,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,
     resetCutProgress: resetCutProgress,
-    getUsers: getUsers,
-    upsertUser: upsertUser,
-    updateUser: updateUser,
-    deleteUser: deleteUser,
-    resetDefaultUsers: resetDefaultUsers,
-    getIgsPublicUrl: getIgsPublicUrl,
+    extractIgsStoragePath: extractIgsStoragePath,
+    downloadIgsBlob: downloadIgsBlob,
+    downloadIgsFile: downloadIgsFile,
+    getIgsSignedUrl: getIgsSignedUrl,
     uploadIgsFile: uploadIgsFile,
     subscribeTables: subscribeTables
   };

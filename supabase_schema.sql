@@ -1,6 +1,7 @@
 -- ============================================================================
 -- SUPABASE DATABASE SCHEMA CHO HỆ THỐNG XẾP PHÔI CƠ KHÍ AN BÌNH (xepphoi.cloud)
--- Single Source of Truth: PostgreSQL + Supabase Realtime + Supabase Storage
+-- Single Source of Truth: Supabase Auth + PostgreSQL + Realtime + Private Storage
+-- Đã cập nhật hoàn chỉnh theo Đợt 2 (Auth + RLS theo vai trò admin / engineer / operator)
 -- An toàn khi chạy lại nhiều lần (Idempotent) trong Supabase SQL Editor
 -- ============================================================================
 
@@ -19,17 +20,13 @@ END;
 $$;
 
 -- ============================================================================
--- 3. BẢNG NHÂN SỰ & PHÂN QUYỀN XƯỞNG (public.workshop_users)
--- Lưu ý: Tách biệt rõ ràng với auth.users của Supabase Auth
+-- 3. BẢNG PROFILES NHÂN SỰ XƯỞNG (public.profiles) LIÊN KẾT auth.users(id)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS public.workshop_users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT NOT NULL UNIQUE,
-  -- Tạm giữ mật khẩu dạng văn bản phục vụ giai đoạn chuyển đổi từ localStorage.
-  -- Khi siết bảo mật thực tế, hãy chuyển sang Supabase Auth (supabase.auth) hoặc băm bcrypt qua Edge Function.
-  password TEXT NOT NULL,
-  full_name TEXT NOT NULL DEFAULT '',
-  role TEXT NOT NULL DEFAULT 'operator' CHECK (role IN ('engineer', 'operator')),
+  display_name TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL DEFAULT 'operator' CHECK (role IN ('admin', 'engineer', 'operator')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -64,7 +61,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
   source TEXT NOT NULL DEFAULT 'web' CHECK (source IN ('web', 'fusion360', 'import')),
   data JSONB NOT NULL DEFAULT '{}'::jsonb,
   igs_files JSONB NOT NULL DEFAULT '[]'::jsonb,
-  created_by UUID REFERENCES public.workshop_users(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -75,8 +72,6 @@ CREATE INDEX IF NOT EXISTS idx_projects_active_filter ON public.projects (is_tra
 
 -- ============================================================================
 -- 6. BẢNG TIẾN ĐỘ CẮT CNC THEO TỪNG CÂY (public.cut_progress)
--- Tách biệt hoàn toàn khỏi projects để Thợ CNC cập nhật từng dòng (row-level)
--- không bao giờ ghi đè lên dữ liệu Kỹ sư đang chỉnh sửa ở bảng projects.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.cut_progress (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,11 +92,11 @@ CREATE TABLE IF NOT EXISTS public.cut_progress (
 CREATE INDEX IF NOT EXISTS idx_cut_progress_project_id ON public.cut_progress (project_id);
 
 -- ============================================================================
--- 7. GẮN TRIGGER updated_at & BẬT REPLICA IDENTITY FULL (Cho Realtime DELETE)
+-- 7. GẮN TRIGGER updated_at & REPLICA IDENTITY CHO REALTIME
 -- ============================================================================
-DROP TRIGGER IF EXISTS trg_workshop_users_updated_at ON public.workshop_users;
-CREATE TRIGGER trg_workshop_users_updated_at
-  BEFORE UPDATE ON public.workshop_users
+DROP TRIGGER IF EXISTS trg_profiles_updated_at ON public.profiles;
+CREATE TRIGGER trg_profiles_updated_at
+  BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 DROP TRIGGER IF EXISTS trg_inventory_updated_at ON public.inventory;
@@ -119,7 +114,7 @@ CREATE TRIGGER trg_cut_progress_updated_at
   BEFORE UPDATE ON public.cut_progress
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-ALTER TABLE public.workshop_users REPLICA IDENTITY FULL;
+ALTER TABLE public.profiles REPLICA IDENTITY FULL;
 ALTER TABLE public.inventory REPLICA IDENTITY FULL;
 ALTER TABLE public.projects REPLICA IDENTITY DEFAULT;
 ALTER TABLE public.cut_progress REPLICA IDENTITY FULL;
@@ -131,7 +126,7 @@ DO $$
 DECLARE
   tbl TEXT;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['workshop_users', 'inventory', 'projects', 'cut_progress']
+  FOREACH tbl IN ARRAY ARRAY['profiles', 'inventory', 'projects', 'cut_progress']
   LOOP
     IF NOT EXISTS (
       SELECT 1
@@ -147,86 +142,209 @@ END;
 $$;
 
 -- ============================================================================
--- 9. TẠO STORAGE BUCKET 'igs-files' & POLICY TRUY CẬP
+-- 9. HÀM HELPER SECURITY DEFINER (TRÁNH ĐỆ QUY RLS) & HÀM PING KEEPALIVE
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid() LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_my_username()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT username FROM public.profiles WHERE id = auth.uid() LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_workshop_member()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(public.get_my_role() IN ('admin', 'engineer', 'operator'), FALSE);
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin_or_engineer()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(public.get_my_role() IN ('admin', 'engineer'), FALSE);
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(public.get_my_role() = 'admin', FALSE);
+$$;
+
+REVOKE ALL ON FUNCTION public.get_my_role() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_my_username() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.is_workshop_member() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.is_admin_or_engineer() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.is_admin() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.get_my_role() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_my_username() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_workshop_member() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_admin_or_engineer() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.ping()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT 'ok'::text;
+$$;
+
+REVOKE ALL ON FUNCTION public.ping() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ping() TO anon, authenticated;
+
+-- ============================================================================
+-- 10. STORAGE BUCKET PRIVATE 'igs-files' & POLICY CHO NHÂN SỰ ĐÃ ĐĂNG NHẬP
 -- ============================================================================
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('igs-files', 'igs-files', true, 52428800, NULL)
-ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 52428800;
+VALUES ('igs-files', 'igs-files', false, 52428800, NULL)
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 52428800;
 
-DROP POLICY IF EXISTS "igs_files_public_select" ON storage.objects;
-CREATE POLICY "igs_files_public_select"
-  ON storage.objects FOR SELECT TO anon, authenticated
-  USING (bucket_id = 'igs-files');
+DROP POLICY IF EXISTS "igs_files_auth_select" ON storage.objects;
+CREATE POLICY "igs_files_auth_select"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'igs-files' AND public.is_workshop_member());
 
-DROP POLICY IF EXISTS "igs_files_public_insert" ON storage.objects;
-CREATE POLICY "igs_files_public_insert"
-  ON storage.objects FOR INSERT TO anon, authenticated
-  WITH CHECK (bucket_id = 'igs-files');
+DROP POLICY IF EXISTS "igs_files_auth_insert" ON storage.objects;
+CREATE POLICY "igs_files_auth_insert"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'igs-files' AND public.is_admin_or_engineer());
 
-DROP POLICY IF EXISTS "igs_files_public_update" ON storage.objects;
-CREATE POLICY "igs_files_public_update"
-  ON storage.objects FOR UPDATE TO anon, authenticated
-  USING (bucket_id = 'igs-files')
-  WITH CHECK (bucket_id = 'igs-files');
+DROP POLICY IF EXISTS "igs_files_auth_update" ON storage.objects;
+CREATE POLICY "igs_files_auth_update"
+  ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'igs-files' AND public.is_admin_or_engineer())
+  WITH CHECK (bucket_id = 'igs-files' AND public.is_admin_or_engineer());
 
-DROP POLICY IF EXISTS "igs_files_public_delete" ON storage.objects;
-CREATE POLICY "igs_files_public_delete"
-  ON storage.objects FOR DELETE TO anon, authenticated
-  USING (bucket_id = 'igs-files');
+DROP POLICY IF EXISTS "igs_files_auth_delete" ON storage.objects;
+CREATE POLICY "igs_files_auth_delete"
+  ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'igs-files' AND public.is_admin_or_engineer());
 
 -- ============================================================================
--- 10. CẤU HÌNH ROW LEVEL SECURITY (RLS) TẠM THỜI CHO TEST NHANH QUA ANON KEY
+-- 11. THU HỒI QUYỀN ANON & SIẾT ROW LEVEL SECURITY (RLS) THEO VAI TRÒ
 -- ============================================================================
-ALTER TABLE public.workshop_users ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress FROM anon;
+REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress TO authenticated;
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cut_progress ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "anon_full_access_workshop_users" ON public.workshop_users;
-CREATE POLICY "anon_full_access_workshop_users"
-  ON public.workshop_users FOR ALL TO anon, authenticated
-  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "profiles_select_self_or_admin" ON public.profiles;
+CREATE POLICY "profiles_select_self_or_admin"
+  ON public.profiles FOR SELECT TO authenticated
+  USING (id = auth.uid() OR public.is_admin());
 
-DROP POLICY IF EXISTS "anon_full_access_inventory" ON public.inventory;
-CREATE POLICY "anon_full_access_inventory"
-  ON public.inventory FOR ALL TO anon, authenticated
-  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "profiles_update_admin_or_self_name" ON public.profiles;
+CREATE POLICY "profiles_update_admin_or_self_name"
+  ON public.profiles FOR UPDATE TO authenticated
+  USING (id = auth.uid() OR public.is_admin())
+  WITH CHECK (
+    public.is_admin()
+    OR (
+      id = auth.uid()
+      AND role = public.get_my_role()
+      AND username = public.get_my_username()
+    )
+  );
 
-DROP POLICY IF EXISTS "anon_full_access_projects" ON public.projects;
-CREATE POLICY "anon_full_access_projects"
-  ON public.projects FOR ALL TO anon, authenticated
-  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "projects_select_authenticated_member" ON public.projects;
+CREATE POLICY "projects_select_authenticated_member"
+  ON public.projects FOR SELECT TO authenticated
+  USING (public.is_workshop_member());
 
-DROP POLICY IF EXISTS "anon_full_access_cut_progress" ON public.cut_progress;
-CREATE POLICY "anon_full_access_cut_progress"
-  ON public.cut_progress FOR ALL TO anon, authenticated
-  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "projects_insert_engineer_admin" ON public.projects;
+CREATE POLICY "projects_insert_engineer_admin"
+  ON public.projects FOR INSERT TO authenticated
+  WITH CHECK (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "projects_update_engineer_admin" ON public.projects;
+CREATE POLICY "projects_update_engineer_admin"
+  ON public.projects FOR UPDATE TO authenticated
+  USING (public.is_admin_or_engineer())
+  WITH CHECK (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "projects_delete_engineer_admin" ON public.projects;
+CREATE POLICY "projects_delete_engineer_admin"
+  ON public.projects FOR DELETE TO authenticated
+  USING (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "inventory_select_authenticated_member" ON public.inventory;
+CREATE POLICY "inventory_select_authenticated_member"
+  ON public.inventory FOR SELECT TO authenticated
+  USING (public.is_workshop_member());
+
+DROP POLICY IF EXISTS "inventory_insert_engineer_admin" ON public.inventory;
+CREATE POLICY "inventory_insert_engineer_admin"
+  ON public.inventory FOR INSERT TO authenticated
+  WITH CHECK (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "inventory_update_engineer_admin" ON public.inventory;
+CREATE POLICY "inventory_update_engineer_admin"
+  ON public.inventory FOR UPDATE TO authenticated
+  USING (public.is_admin_or_engineer())
+  WITH CHECK (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "inventory_delete_engineer_admin" ON public.inventory;
+CREATE POLICY "inventory_delete_engineer_admin"
+  ON public.inventory FOR DELETE TO authenticated
+  USING (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "cut_progress_select_authenticated_member" ON public.cut_progress;
+CREATE POLICY "cut_progress_select_authenticated_member"
+  ON public.cut_progress FOR SELECT TO authenticated
+  USING (public.is_workshop_member());
+
+DROP POLICY IF EXISTS "cut_progress_insert_authenticated_member" ON public.cut_progress;
+CREATE POLICY "cut_progress_insert_authenticated_member"
+  ON public.cut_progress FOR INSERT TO authenticated
+  WITH CHECK (public.is_workshop_member());
+
+DROP POLICY IF EXISTS "cut_progress_update_authenticated_member" ON public.cut_progress;
+CREATE POLICY "cut_progress_update_authenticated_member"
+  ON public.cut_progress FOR UPDATE TO authenticated
+  USING (public.is_workshop_member())
+  WITH CHECK (public.is_workshop_member());
+
+DROP POLICY IF EXISTS "cut_progress_delete_engineer_admin" ON public.cut_progress;
+CREATE POLICY "cut_progress_delete_engineer_admin"
+  ON public.cut_progress FOR DELETE TO authenticated
+  USING (public.is_admin_or_engineer());
 
 -- ============================================================================
--- LƯU Ý SIẾT BẢO MẬT KHI ĐƯA VÀO VẬN HÀNH CHÍNH THỨC (PRODUCTION HARDENING):
--- 1. Không lưu mật khẩu dạng văn bản rõ trong workshop_users.password; hãy chuyển
---    sang dùng Supabase Auth (supabase.auth.signInWithPassword) hoặc Edge Function
---    kiểm tra mật khẩu đã băm bằng bcrypt và cấp JWT tùy chỉnh.
--- 2. Hạn chế quyền đọc bảng workshop_users (tuyệt đối không SELECT cột password
---    xuống trình duyệt ở phía public anon key; tạo VIEW public_users ẩn mật khẩu).
--- 3. Phân quyền RLS chặt chẽ theo vai trò (auth.jwt() ->> 'role'):
---    - 'engineer' / 'admin': được phép INSERT/UPDATE/DELETE trên projects, inventory.
---    - 'operator' (Thợ CNC): chỉ được SELECT trên projects/inventory và chỉ được
---      INSERT/UPDATE trên cut_progress; bị chặn xóa hoặc sửa dự án đang khóa.
--- 4. Trên Storage Bucket 'igs-files': chỉ cho phép 'authenticated' (engineer) hoặc
---    'service_role' (từ server.js Fusion 360) upload/xóa file .igs; 'anon' chỉ đọc.
+-- 12. DỮ LIỆU MẶC ĐỊNH BAN ĐẦU (INVENTORY SEED)
+-- Tài khoản đăng nhập được tạo qua Supabase Auth bằng script:
+--   node scripts/setup_auth_users.js
 -- ============================================================================
-
--- ============================================================================
--- 11. DỮ LIỆU MẶC ĐỊNH BAN ĐẦU (SEED DATA)
--- ============================================================================
-INSERT INTO public.workshop_users (username, password, full_name, role, created_at)
-VALUES
-  ('admin', '123456', 'Kỹ Sư Thiết Kế (Admin)', 'engineer', '2026-01-01T00:00:00Z'),
-  ('kt1', '12345', 'Sơn KT (Kỹ Sư)', 'engineer', '2026-01-01T00:00:00Z'),
-  ('thocnc', '1234', 'Thợ Vận Hành Máy CNC', 'operator', '2026-01-01T00:00:00Z')
-ON CONFLICT (username) DO NOTHING;
-
 INSERT INTO public.inventory (profile_name, category, standard_length, is_default)
 VALUES
   ('Hộp 20x20x1.4', 'square', 6000, true),

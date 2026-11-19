@@ -937,7 +937,7 @@
 
           <div class="kpi-val" id="kpiTotalEngineers">2</div>
 
-          <div class="kpi-label">Kỹ sư thiết kế (Toàn quyền)</div>
+          <div class="kpi-label">Kỹ sư &amp; Admin (Toàn quyền)</div>
 
         </div>
 
@@ -973,6 +973,16 @@
 
     </div>
 
+    <!-- Banner Trạng thái Cầu nối Quản trị Auth Cục bộ vs Quản lý qua Supabase Dashboard -->
+    <div id="adminBridgeBanner" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:12px 16px; border-radius:12px; border:1.5px solid #99F6E4; background:#F0FDFA; color:#134E4A; font-size:13px; margin-bottom:16px;">
+      <div id="adminBridgeBannerText" style="line-height:1.5;">
+        🔍 Đang kiểm tra kết nối cầu nối quản trị Supabase Auth (<code>localhost:3000</code>)...
+      </div>
+      <a href="https://supabase.com/dashboard/project/tfvwijzrgnbznwwvfwww/auth/users" target="_blank" rel="noopener" class="btn btn-soft btn-sm">
+        🌐 Mở Supabase Auth Dashboard ↗
+      </a>
+    </div>
+
     <!-- 2. Danh Sách Nhân Sự & Phân Quyền Chi Tiết -->
 
     <section class="card">
@@ -981,9 +991,9 @@
 
         <div>
 
-          <h2>Danh Sách Nhân Sự &amp; Tài Khoản Xưởng</h2>
+          <h2>Danh Sách Nhân Sự &amp; Phân Quyền Xưởng (Supabase Auth)</h2>
 
-          <div class="card-sub" style="margin-bottom:0;">Chỉ duy nhất Quản trị viên mới xem được mật khẩu và quản lý danh sách này.</div>
+          <div class="card-sub" style="margin-bottom:0;">Mật khẩu được băm an toàn trong Supabase Auth (không bao giờ lưu mật khẩu chữ rõ).</div>
 
         </div>
 
@@ -991,9 +1001,11 @@
 
           <input type="text" id="inpSearchUser" placeholder="🔍 Tìm theo tên hoặc @tài khoản..." style="max-width:240px; min-height:34px; font-size:13px;">
 
-          <select id="selFilterRole" style="max-width:160px; min-height:34px; font-size:13px;">
+          <select id="selFilterRole" style="max-width:180px; min-height:34px; font-size:13px;">
 
             <option value="ALL">Tất cả vai trò</option>
+
+            <option value="admin">👑 Quản trị viên</option>
 
             <option value="engineer">📐 Kỹ sư thiết kế</option>
 
@@ -1017,13 +1029,13 @@
 
               <th>Họ và tên / Bộ phận</th>
 
-              <th style="width: 170px;">Phân quyền</th>
+              <th style="width: 175px;">Phân quyền</th>
 
-              <th style="width: 160px;">Mật khẩu</th>
+              <th style="width: 210px;">Email nội bộ (Auth)</th>
 
-              <th style="width: 140px;">Ngày tạo</th>
+              <th style="width: 120px;">Ngày tạo</th>
 
-              <th style="width: 180px; text-align:right;">Thao tác quản trị</th>
+              <th style="width: 200px; text-align:right;">Thao tác quản trị</th>
 
             </tr>
 
@@ -1071,7 +1083,7 @@
 
             <label for="inpNewPassword">Mật khẩu đăng nhập ban đầu *</label>
 
-            <input type="text" id="inpNewPassword" placeholder="Nhập mật khẩu (tối thiểu 4 ký tự)..." required>
+            <input type="password" id="inpNewPassword" placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)..." required>
 
           </div>
 
@@ -1089,9 +1101,11 @@
 
             <select id="selNewRole">
 
-              <option value="operator">👷 Thợ Máy CNC (Khóa an toàn chống xóa, chỉ xem &amp; tích hoàn thành)</option>
+              <option value="operator">👷 Thợ Máy CNC (Chỉ xem sơ đồ &amp; tích tiến độ cắt)</option>
 
-              <option value="engineer">📐 Kỹ Sư Thiết Kế (Toàn quyền tính toán, lưu dự án, xuất file IGS)</option>
+              <option value="engineer">📐 Kỹ Sư Thiết Kế (Toàn quyền dự án, kho &amp; Storage)</option>
+
+              <option value="admin">👑 Quản Trị Viên (Toàn quyền kỹ thuật + nhân sự)</option>
 
             </select>
 
@@ -1127,7 +1141,7 @@
 
             <label for="inpSelfAdminPass">Mật khẩu Admin mới *</label>
 
-            <input type="password" id="inpSelfAdminPass" placeholder="Nhập mật khẩu Admin mới (tối thiểu 4 ký tự)...">
+            <input type="password" id="inpSelfAdminPass" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)...">
 
           </div>
 
@@ -1167,9 +1181,9 @@
 
             </label>
 
-            <button type="button" class="btn btn-soft" id="btnResetDefaultAccounts" style="color:#B91C1C;">
+            <button type="button" class="btn btn-soft" id="btnResetDefaultAccounts" style="color:#0F766E;">
 
-              🔄 Khôi phục danh sách tài khoản mẫu ban đầu
+              📘 Hướng dẫn tạo lại 3 tài khoản mẫu (CLI)
 
             </button>
 
@@ -1187,13 +1201,15 @@
 
   <script>
     // ========================================================
-    // QUẢN TRỊ VIÊN HỆ THỐNG & NHÂN SỰ XƯỞNG AN BÌNH (SUPABASE)
+    // QUẢN TRỊ VIÊN HỆ THỐNG & NHÂN SỰ XƯỞNG AN BÌNH (SUPABASE AUTH + RLS)
     // ========================================================
-    const SESSION_STORAGE_KEY = 'toiuu_logged_user_v1';
+    const SUPABASE_AUTH_DASHBOARD_URL = 'https://supabase.com/dashboard/project/tfvwijzrgnbznwwvfwww/auth/users';
 
     let usersList = [];
     let currentUser = null;
     let adminRealtimeUnsub = null;
+    let adminAuthUnsub = null;
+    let bridgeStatus = { available: false, hasSecretKey: false };
 
     function $(id) { return document.getElementById(id); }
 
@@ -1209,24 +1225,44 @@
       return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
     }
 
+    async function refreshAdminBridgeStatus() {
+      const box = $('adminBridgeBanner');
+      const txt = $('adminBridgeBannerText');
+      if (!window.SupabaseDB || !box || !txt) return;
+      bridgeStatus = await window.SupabaseDB.checkLocalAdminBridge();
+      if (bridgeStatus.available && bridgeStatus.hasSecretKey) {
+        box.style.background = '#F0FDFA';
+        box.style.borderColor = '#5EEAD4';
+        box.style.color = '#134E4A';
+        txt.innerHTML = '✅ <b>Đã kết nối Cầu nối Quản trị cục bộ (<code>server.js</code> + Secret Key):</b> Anh có thể <b>tạo tài khoản mới, đổi mật khẩu nhân sự khác, xóa tài khoản</b> trực tiếp ngay trên trang này.';
+      } else if (bridgeStatus.available && !bridgeStatus.hasSecretKey) {
+        box.style.background = '#FFFBEB';
+        box.style.borderColor = '#FCD34D';
+        box.style.color = '#92400E';
+        txt.innerHTML = '⚠️ <b>Máy chủ <code>server.js</code> đang chạy nhưng thiếu <code>SUPABASE_SECRET_KEY</code> trong file <code>.env</code>:</b> Đổi mật khẩu của bạn &amp; đổi quyền vẫn chạy bình thường, nhưng tạo/xóa/đổi MK nhân sự khác cần điền Secret key vào <code>.env</code> hoặc thao tác trên Supabase Dashboard.';
+      } else {
+        box.style.background = '#F8FAFC';
+        box.style.borderColor = '#CBD5E1';
+        box.style.color = '#334155';
+        txt.innerHTML = 'ℹ️ <b>Đang truy cập từ xa (không bật <code>server.js</code> cục bộ):</b> Đổi mật khẩu Admin của chính bạn, đổi vai trò (role) &amp; sao lưu vẫn hoạt động bình thường. Để <b>tạo/xóa user hoặc đặt lại mật khẩu cho người khác</b>, hãy dùng máy chủ tại xưởng hoặc bấm <b>Mở Supabase Auth Dashboard</b> bên phải.';
+      }
+    }
+
     async function loadUsersFromSupabase() {
       if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
-        usersList = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_USERS : []).slice();
+        usersList = [];
         if (window.SupabaseDB) {
           window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!', () => checkAuthSession());
         }
         return false;
       }
       try {
-        usersList = await window.SupabaseDB.getUsers();
-        if (!usersList.length) {
-          usersList = window.SupabaseDB.DEFAULT_USERS.slice();
-        }
+        usersList = await window.SupabaseDB.getProfiles();
         window.SupabaseDB.clearConnectionError();
         return true;
       } catch (err) {
-        console.error('Lỗi tải workshop_users:', err);
-        window.SupabaseDB.showConnectionError('❌ Không thể kết nối Supabase để tải nhân sự: ' + err.message, () => checkAuthSession());
+        console.error('Lỗi tải profiles:', err);
+        window.SupabaseDB.showConnectionError('❌ Không thể tải danh sách nhân sự từ Supabase: ' + err.message, () => checkAuthSession());
         return false;
       }
     }
@@ -1234,9 +1270,9 @@
     function initRealtime() {
       if (adminRealtimeUnsub || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
       adminRealtimeUnsub = window.SupabaseDB.subscribeTables({
-        workshop_users: async () => {
+        profiles: async () => {
           try {
-            usersList = await window.SupabaseDB.getUsers();
+            usersList = await window.SupabaseDB.getProfiles();
             renderDashboard();
           } catch (e) {}
         }
@@ -1250,18 +1286,9 @@
     }
 
     async function checkAuthSession() {
-      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kết nối Supabase...');
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kiểm tra phiên Supabase Auth...');
       try {
-        await loadUsersFromSupabase();
-        initRealtime();
-
-        let session = null;
-        try {
-          const raw = sessionStorage.getItem(SESSION_STORAGE_KEY) || localStorage.getItem(SESSION_STORAGE_KEY);
-          if (raw) session = JSON.parse(raw);
-        } catch (e) {}
-
-        if (!session || !session.username) {
+        if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
           $('adminLoginGate').style.display = 'block';
           $('accessDeniedGate').style.display = 'none';
           $('adminMainContent').style.display = 'none';
@@ -1270,38 +1297,53 @@
           return;
         }
 
-        const found = usersList.find(u => u.username.toLowerCase() === String(session.username).toLowerCase());
-        if (!found) {
+        const user = await window.SupabaseDB.getCurrentAuthUser();
+        window.SupabaseDB.clearConnectionError();
+        if (!user) {
+          currentUser = null;
+          if (adminRealtimeUnsub) { adminRealtimeUnsub(); adminRealtimeUnsub = null; }
           $('adminLoginGate').style.display = 'block';
           $('accessDeniedGate').style.display = 'none';
           $('adminMainContent').style.display = 'none';
+          $('topAdminBadge').style.display = 'none';
+          $('btnAdminLogout').style.display = 'none';
           return;
         }
 
-        currentUser = found;
-        if (found.username.toLowerCase() !== 'admin') {
+        currentUser = user;
+        if (user.role !== 'admin') {
+          if (adminRealtimeUnsub) { adminRealtimeUnsub(); adminRealtimeUnsub = null; }
           $('adminLoginGate').style.display = 'none';
           $('accessDeniedGate').style.display = 'block';
           $('adminMainContent').style.display = 'none';
-          $('deniedUsername').textContent = '@' + found.username;
-          $('deniedRoleName').textContent = found.role === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Máy CNC';
+          $('topAdminBadge').style.display = 'none';
+          $('btnAdminLogout').style.display = 'inline-flex';
+          $('deniedUsername').textContent = '@' + user.username;
+          $('deniedRoleName').textContent = user.role === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Máy CNC';
           return;
         }
+
+        await loadUsersFromSupabase();
+        initRealtime();
+        refreshAdminBridgeStatus();
 
         $('adminLoginGate').style.display = 'none';
         $('accessDeniedGate').style.display = 'none';
         $('adminMainContent').style.display = 'block';
         $('topAdminBadge').style.display = 'inline-flex';
         $('btnAdminLogout').style.display = 'inline-flex';
-        $('topAdminUser').textContent = '@' + found.username;
+        $('topAdminUser').textContent = '@' + user.username;
         renderDashboard();
+      } catch (err) {
+        console.error('Lỗi kiểm tra phiên Admin:', err);
+        window.SupabaseDB.showConnectionError('❌ Lỗi kết nối Supabase: ' + err.message, () => checkAuthSession());
       } finally {
         if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
       }
     }
 
     async function handleAdminLogin() {
-      const u = ($('inpAdminLoginUser').value || '').trim().toLowerCase();
+      const u = ($('inpAdminLoginUser').value || '').trim();
       const p = ($('inpAdminLoginPass').value || '').trim();
       const err = $('loginGateError');
       if (!u || !p) {
@@ -1310,46 +1352,36 @@
         return;
       }
 
-      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang xác thực Admin...');
+      window.SupabaseDB.setLoading(true, 'Đang xác thực Admin qua Supabase Auth...');
       try {
-        await loadUsersFromSupabase();
-        const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
-        if (!adminAcc || u !== 'admin' || String(adminAcc.password).trim() !== p) {
-          err.textContent = '❌ Mật khẩu hoặc tài khoản Admin không chính xác!';
-          err.style.display = 'block';
-          return;
-        }
-
+        const user = await window.SupabaseDB.signInWithUsername(u, p);
         err.style.display = 'none';
-        currentUser = adminAcc;
-        const sessData = JSON.stringify({ username: adminAcc.username, loginAt: new Date().toISOString() });
-        try {
-          sessionStorage.setItem(SESSION_STORAGE_KEY, sessData);
-          localStorage.setItem(SESSION_STORAGE_KEY, sessData);
-        } catch (e) {}
-
         $('inpAdminLoginPass').value = '';
-        showToast('🎉 Đăng nhập Quản Trị Viên thành công!');
+        if (user.role !== 'admin') {
+          showToast('⛔ Tài khoản này không có quyền Quản trị viên (admin)!');
+        } else {
+          showToast('🎉 Đăng nhập Quản Trị Viên thành công!');
+        }
         await checkAuthSession();
+      } catch (loginErr) {
+        err.textContent = '❌ ' + (loginErr.message || 'Tài khoản hoặc mật khẩu Admin không chính xác!');
+        err.style.display = 'block';
       } finally {
-        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+        window.SupabaseDB.setLoading(false);
       }
     }
 
-    function handleAdminLogout() {
+    async function handleAdminLogout() {
       currentUser = null;
       if (adminRealtimeUnsub) { adminRealtimeUnsub(); adminRealtimeUnsub = null; }
-      try {
-        sessionStorage.removeItem(SESSION_STORAGE_KEY);
-        localStorage.removeItem(SESSION_STORAGE_KEY);
-      } catch (e) {}
+      if (window.SupabaseDB) await window.SupabaseDB.signOut();
       showToast('👋 Đã đăng xuất khỏi tài khoản Quản trị!');
-      checkAuthSession();
+      await checkAuthSession();
     }
 
     function renderDashboard() {
       const total = usersList.length;
-      const engineers = usersList.filter(u => u.role === 'engineer').length;
+      const engineers = usersList.filter(u => u.role === 'admin' || u.role === 'engineer').length;
       const operators = usersList.filter(u => u.role === 'operator').length;
 
       $('kpiTotalUsers').textContent = total;
@@ -1357,6 +1389,17 @@
       $('kpiTotalOperators').textContent = operators;
       $('kpiWorkshopCode').textContent = 'ANBINH';
       renderUsersTable();
+    }
+
+    function showBridgeInstructionModal(actionLabel, err) {
+      const msg = (err && err.message) || '';
+      const askOpen = confirm(
+        `⚠️ Không thể thực hiện "${actionLabel}" từ trình duyệt này:\n\n${msg}\n\n` +
+        `Bấm [OK] để mở trang Supabase Auth Dashboard (tạo/đổi mật khẩu/xóa user an toàn) ngay trong tab mới.`
+      );
+      if (askOpen) {
+        window.open(SUPABASE_AUTH_DASHBOARD_URL, '_blank', 'noopener');
+      }
     }
 
     function renderUsersTable() {
@@ -1381,38 +1424,39 @@
       }
 
       let html = '';
-      filtered.forEach((u, idx) => {
-        const isCurrentAdmin = u.username.toLowerCase() === 'admin';
-        const isEng = u.role === 'engineer';
+      filtered.forEach((u) => {
+        const isCurrentAdminUser = u.role === 'admin';
+        const isRootAdmin = String(u.username || '').toLowerCase() === 'admin';
+        const isSelf = currentUser && u.id === currentUser.id;
+        const isEng = u.role === 'engineer' || u.role === 'admin';
         const createdDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mặc định';
+        const rolePillHtml = isCurrentAdminUser
+          ? '<span class="role-pill role-admin">👑 Quản Trị Viên</span>'
+          : (u.role === 'engineer'
+              ? '<span class="role-pill role-eng">📐 Kỹ Sư Thiết Kế</span>'
+              : '<span class="role-pill role-op">👷 Thợ Máy CNC</span>');
 
         html += `
           <tr>
             <td>
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="width:32px; height:32px; border-radius:50%; background:${isEng ? '#CCFBF1' : '#FFEDD5'}; color:${isEng ? '#0F766E' : '#C2410C'}; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800;">
-                  ${isCurrentAdmin ? '👑' : (isEng ? '📐' : '👷')}
+                  ${isCurrentAdminUser ? '👑' : (isEng ? '📐' : '👷')}
                 </span>
                 <div>
                   <strong style="font-family:monospace; font-size:14px; color:#0F172A;">@${escapeHtml(u.username)}</strong>
-                  ${isCurrentAdmin ? '<span class="role-pill role-admin" style="font-size:10px; margin-left:4px;">Admin</span>' : ''}
+                  ${isSelf ? '<span class="role-pill role-admin" style="font-size:10px; margin-left:4px;">Bạn</span>' : ''}
                 </div>
               </div>
             </td>
             <td><strong style="color:#1E293B;">${escapeHtml(u.fullName || u.username)}</strong></td>
-            <td><span class="role-pill ${isEng ? 'role-eng' : 'role-op'}">${isEng ? '📐 Kỹ Sư Thiết Kế' : '👷 Thợ Máy CNC'}</span></td>
-            <td>
-              <div style="display:flex; align-items:center; gap:6px; font-family:monospace;">
-                <span id="passMask_${idx}" style="letter-spacing:2px; font-weight:800; color:#64748B;">••••••••</span>
-                <span id="passPlain_${idx}" style="display:none; color:#0F766E; font-weight:700;">${escapeHtml(u.password)}</span>
-                <button type="button" class="btn-toggle-pass" data-idx="${idx}" style="background:none; border:none; cursor:pointer; font-size:14px; padding:2px;" title="Xem / Ẩn mật khẩu">👁️</button>
-              </div>
-            </td>
+            <td>${rolePillHtml}</td>
+            <td style="font-family:monospace; font-size:12px; color:#475569;">${escapeHtml(u.email || `${u.username}@anbinh.local`)}</td>
             <td style="color:#64748B; font-size:12.5px;">${createdDate}</td>
             <td style="text-align:right; white-space:nowrap;">
-              <button type="button" class="btn btn-soft btn-sm btn-change-pass" data-user="${escapeHtml(u.username)}" title="Đổi mật khẩu cho tài khoản này">🔑 Đổi MK</button>
-              <button type="button" class="btn btn-soft btn-sm btn-toggle-role" data-user="${escapeHtml(u.username)}" title="Chuyển đổi vai trò Kỹ sư / Thợ CNC" style="margin-left:4px;">⇄ Đổi quyền</button>
-              ${!isCurrentAdmin ? `<button type="button" class="btn btn-danger btn-sm btn-del-user" data-user="${escapeHtml(u.username)}" title="Xóa tài khoản này" style="margin-left:4px;">✕ Xóa</button>` : ''}
+              <button type="button" class="btn btn-soft btn-sm btn-change-pass" data-id="${escapeHtml(u.id)}" data-user="${escapeHtml(u.username)}" title="Đổi mật khẩu cho tài khoản này">🔑 Đổi MK</button>
+              <button type="button" class="btn btn-soft btn-sm btn-toggle-role" data-id="${escapeHtml(u.id)}" data-user="${escapeHtml(u.username)}" title="Chuyển đổi phân quyền" style="margin-left:4px;" ${isRootAdmin ? 'disabled style="opacity:0.4;margin-left:4px;"' : ''}>⇄ Đổi quyền</button>
+              ${!isRootAdmin && !isSelf ? `<button type="button" class="btn btn-danger btn-sm btn-del-user" data-id="${escapeHtml(u.id)}" data-user="${escapeHtml(u.username)}" title="Xóa tài khoản này" style="margin-left:4px;">✕ Xóa</button>` : ''}
             </td>
           </tr>
         `;
@@ -1420,40 +1464,34 @@
 
       tbody.innerHTML = html;
 
-      tbody.querySelectorAll('.btn-toggle-pass').forEach(btn => {
-        btn.onclick = () => {
-          const idx = btn.getAttribute('data-idx');
-          const mask = $('passMask_' + idx);
-          const plain = $('passPlain_' + idx);
-          if (mask && plain) {
-            const isHidden = plain.style.display === 'none';
-            plain.style.display = isHidden ? 'inline' : 'none';
-            mask.style.display = isHidden ? 'none' : 'inline';
-            btn.style.opacity = isHidden ? '1' : '0.65';
-          }
-        };
-      });
-
       tbody.querySelectorAll('.btn-change-pass').forEach(btn => {
         btn.onclick = async () => {
+          const uid = btn.getAttribute('data-id');
           const uname = btn.getAttribute('data-user');
-          const target = usersList.find(x => x.username.toLowerCase() === uname.toLowerCase());
+          const target = usersList.find(x => x.id === uid);
           if (!target) return;
-          const newPass = prompt(`🔑 Nhập mật khẩu mới cho tài khoản @${target.username} (${target.fullName || ''}):`, '');
+          const isSelf = currentUser && target.id === currentUser.id;
+          const newPass = prompt(`🔑 Nhập mật khẩu mới cho tài khoản @${target.username} (tối thiểu 6 ký tự):`, '');
           if (newPass === null) return;
           const cleanPass = String(newPass || '').trim();
-          if (!cleanPass || cleanPass.length < 4) {
-            alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
+          if (!cleanPass || cleanPass.length < 6) {
+            alert('⚠️ Mật khẩu Supabase Auth phải có ít nhất 6 ký tự!');
             return;
           }
           window.SupabaseDB.setLoading(true, 'Đang cập nhật mật khẩu...');
           try {
-            const updated = await window.SupabaseDB.updateUser(target.username, { password: cleanPass });
-            Object.assign(target, updated);
-            renderDashboard();
-            showToast(`✓ Đã cập nhật mật khẩu cho @${target.username}!`);
+            if (isSelf) {
+              await window.SupabaseDB.updateOwnPassword(cleanPass);
+            } else {
+              await window.SupabaseDB.adminResetPassword(target.id, cleanPass);
+            }
+            showToast(`✓ Đã cập nhật mật khẩu mới cho @${target.username}!`);
           } catch (err) {
-            showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
+            if (err.code === 'BRIDGE_UNAVAILABLE' || err.code === 'MISSING_SECRET_KEY') {
+              showBridgeInstructionModal(`Đặt lại mật khẩu cho @${uname}`, err);
+            } else {
+              showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
+            }
           } finally {
             window.SupabaseDB.setLoading(false);
           }
@@ -1462,16 +1500,20 @@
 
       tbody.querySelectorAll('.btn-toggle-role').forEach(btn => {
         btn.onclick = async () => {
-          const uname = btn.getAttribute('data-user');
-          const target = usersList.find(x => x.username.toLowerCase() === uname.toLowerCase());
+          const uid = btn.getAttribute('data-id');
+          const target = usersList.find(x => x.id === uid);
           if (!target) return;
-          const newRole = target.role === 'engineer' ? 'operator' : 'engineer';
+          if (String(target.username || '').toLowerCase() === 'admin' || (currentUser && target.id === currentUser.id)) {
+            alert('🔒 Không thể hạ quyền tài khoản Quản trị viên đang đăng nhập hoặc @admin!');
+            return;
+          }
+          const newRole = target.role === 'operator' ? 'engineer' : (target.role === 'engineer' ? 'operator' : 'engineer');
           const roleLabel = newRole === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Vận Hành CNC';
           if (!confirm(`Bạn có chắc chắn muốn đổi quyền của @${target.username} thành [${roleLabel}] không?`)) return;
 
           window.SupabaseDB.setLoading(true, 'Đang cập nhật phân quyền...');
           try {
-            const updated = await window.SupabaseDB.updateUser(target.username, { role: newRole });
+            const updated = await window.SupabaseDB.updateProfile(target.id, { role: newRole });
             Object.assign(target, updated);
             renderDashboard();
             showToast(`✓ Đã đổi quyền của @${target.username} thành ${roleLabel}!`);
@@ -1485,21 +1527,26 @@
 
       tbody.querySelectorAll('.btn-del-user').forEach(btn => {
         btn.onclick = async () => {
+          const uid = btn.getAttribute('data-id');
           const uname = btn.getAttribute('data-user');
-          if (uname.toLowerCase() === 'admin') {
+          if (String(uname || '').toLowerCase() === 'admin') {
             alert('🔒 Không thể xóa tài khoản Quản trị viên tối cao (Admin)!');
             return;
           }
-          if (!confirm(`⚠️ CẢNH BÁO: Bạn có chắc chắn muốn XÓA vĩnh viễn tài khoản [@${uname}] khỏi xưởng không?`)) return;
+          if (!confirm(`⚠️ CẢNH BÁO: Bạn có chắc chắn muốn XÓA vĩnh viễn tài khoản [@${uname}] khỏi Supabase Auth không?`)) return;
 
           window.SupabaseDB.setLoading(true, 'Đang xóa tài khoản...');
           try {
-            await window.SupabaseDB.deleteUser(uname);
-            usersList = usersList.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
+            await window.SupabaseDB.adminDeleteUser(uid);
+            usersList = usersList.filter(x => x.id !== uid);
             renderDashboard();
             showToast(`🗑️ Đã xóa tài khoản @${uname} thành công!`);
           } catch (err) {
-            showToast('❌ Lỗi xóa tài khoản: ' + err.message);
+            if (err.code === 'BRIDGE_UNAVAILABLE' || err.code === 'MISSING_SECRET_KEY') {
+              showBridgeInstructionModal(`Xóa tài khoản @${uname}`, err);
+            } else {
+              showToast('❌ Lỗi xóa tài khoản: ' + err.message);
+            }
           } finally {
             window.SupabaseDB.setLoading(false);
           }
@@ -1513,12 +1560,12 @@
       const fn = ($('inpNewFullName').value || '').trim();
       const r = $('selNewRole').value;
 
-      if (!u || u.length < 3) {
-        alert('⚠️ Tên đăng nhập phải có ít nhất 3 ký tự (viết liền không dấu)!');
+      if (!/^[a-z0-9._-]{3,32}$/.test(u)) {
+        alert('⚠️ Tên đăng nhập phải dài 3-32 ký tự (chỉ dùng chữ thường, số, ., _, -)!');
         return;
       }
-      if (!p || p.length < 4) {
-        alert('⚠️ Mật khẩu phải có ít nhất 4 ký tự!');
+      if (!p || p.length < 6) {
+        alert('⚠️ Mật khẩu Supabase Auth phải có ít nhất 6 ký tự!');
         return;
       }
       if (usersList.some(x => x.username.toLowerCase() === u)) {
@@ -1526,25 +1573,26 @@
         return;
       }
 
-      const newUser = {
-        username: u,
-        password: p,
-        fullName: fn || (r === 'engineer' ? `Kỹ sư (${u})` : `Thợ CNC (${u})`),
-        role: r,
-        createdAt: new Date().toISOString()
-      };
-
-      window.SupabaseDB.setLoading(true, 'Đang tạo tài khoản mới...');
+      window.SupabaseDB.setLoading(true, 'Đang tạo tài khoản trên Supabase Auth...');
       try {
-        const saved = await window.SupabaseDB.upsertUser(newUser);
-        usersList.push(saved);
+        const created = await window.SupabaseDB.adminCreateUser({
+          username: u,
+          password: p,
+          displayName: fn || (r === 'operator' ? `Thợ CNC (${u})` : `Kỹ sư (${u})`),
+          role: r
+        });
+        usersList.push(created);
         renderDashboard();
         $('inpNewUsername').value = '';
         $('inpNewPassword').value = '';
         $('inpNewFullName').value = '';
-        showToast(`🎉 Đã cấp tài khoản [@${u}] (${r === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
+        showToast(`🎉 Đã cấp tài khoản [@${u}] (${created.email}) thành công!`);
       } catch (err) {
-        showToast('❌ Lỗi tạo tài khoản: ' + err.message);
+        if (err.code === 'BRIDGE_UNAVAILABLE' || err.code === 'MISSING_SECRET_KEY') {
+          showBridgeInstructionModal(`Tạo tài khoản mới @${u}`, err);
+        } else {
+          showToast('❌ Lỗi tạo tài khoản: ' + err.message);
+        }
       } finally {
         window.SupabaseDB.setLoading(false);
       }
@@ -1552,16 +1600,13 @@
 
     async function handleSaveAdminPass() {
       const newPass = ($('inpSelfAdminPass').value || '').trim();
-      if (!newPass || newPass.length < 4) {
-        alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
+      if (!newPass || newPass.length < 6) {
+        alert('⚠️ Mật khẩu Supabase Auth mới phải có ít nhất 6 ký tự!');
         return;
       }
-      window.SupabaseDB.setLoading(true, 'Đang đổi mật khẩu Admin...');
+      window.SupabaseDB.setLoading(true, 'Đang đổi mật khẩu Admin trên Supabase Auth...');
       try {
-        const updated = await window.SupabaseDB.updateUser('admin', { password: newPass });
-        const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
-        if (adminAcc) Object.assign(adminAcc, updated);
-        renderDashboard();
+        await window.SupabaseDB.updateOwnPassword(newPass);
         $('inpSelfAdminPass').value = '';
         showToast('🔑 Đã cập nhật mật khẩu Admin mới thành công!');
       } catch (err) {
@@ -1575,17 +1620,17 @@
       window.SupabaseDB.setLoading(true, 'Đang xuất sao lưu toàn xưởng từ Supabase...');
       try {
         const [uRows, invRows, projRows, cutRows] = await Promise.all([
-          window.SupabaseDB.getUsers(),
+          window.SupabaseDB.getProfiles(),
           window.SupabaseDB.getInventory(),
           window.SupabaseDB.getProjects({ includeTrash: true, includeDraft: true }),
           window.SupabaseDB.getAllCutProgress()
         ]);
 
         const backupObj = {
-          version: 'toiuu-phoi-supabase-backup-v3',
+          version: 'toiuu-phoi-supabase-backup-v4',
           exportedAt: new Date().toISOString(),
           workshopCode: 'ANBINH',
-          users: uRows,
+          authProfiles: uRows,
           profiles: invRows.map(r => r.profileName),
           projects: projRows,
           cutProgress: cutRows
@@ -1617,21 +1662,15 @@
       reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target.result);
-          if (!data || (!Array.isArray(data.users) && !Array.isArray(data.projects))) {
+          if (!data || (!Array.isArray(data.projects) && !Array.isArray(data.profiles))) {
             alert('❌ File không đúng định dạng sao lưu của hệ thống Xếp Phôi An Bình!');
             return;
           }
-          if (!confirm(`⚠️ Bạn có chắc chắn muốn khôi phục dữ liệu từ file backup ngày [${data.exportedAt || 'không rõ'}] lên Supabase không?`)) return;
+          if (!confirm(`⚠️ Bạn có chắc chắn muốn khôi phục dữ liệu dự án & quy cách từ file backup ngày [${data.exportedAt || 'không rõ'}] lên Supabase không?\n(Tài khoản Supabase Auth được bảo toàn giữ nguyên).`)) return;
 
           window.SupabaseDB.setLoading(true, 'Đang khôi phục dữ liệu lên Supabase...');
           try {
-            if (Array.isArray(data.users) && data.users.length) {
-              for (const u of data.users) {
-                if (u && u.username) await window.SupabaseDB.upsertUser(u);
-              }
-              usersList = await window.SupabaseDB.getUsers();
-            }
-            if (Array.isArray(data.profiles) && data.profiles.length) {
+            if (Array.isArray(data.profiles) && data.profiles.length && typeof data.profiles[0] === 'string') {
               await window.SupabaseDB.addProfilesBulk(data.profiles);
             }
             if (Array.isArray(data.projects)) {
@@ -1655,7 +1694,7 @@
               }
             }
             renderDashboard();
-            showToast('🎉 Đã khôi phục dữ liệu toàn xưởng lên Supabase thành công!');
+            showToast('🎉 Đã khôi phục dự án, kho quy cách & tiến độ lên Supabase thành công!');
           } finally {
             window.SupabaseDB.setLoading(false);
           }
@@ -1667,17 +1706,16 @@
       event.target.value = '';
     }
 
-    async function handleResetDefaultAccounts() {
-      if (!confirm('⚠️ Bạn có chắc chắn muốn đặt lại danh sách nhân sự về 3 tài khoản mặc định (admin, kt1, thocnc) không?')) return;
-      window.SupabaseDB.setLoading(true, 'Đang khôi phục tài khoản mặc định...');
-      try {
-        usersList = await window.SupabaseDB.resetDefaultUsers();
-        renderDashboard();
-        showToast('🔄 Đã khôi phục danh sách tài khoản mẫu ban đầu!');
-      } catch (err) {
-        showToast('❌ Lỗi đặt lại tài khoản: ' + err.message);
-      } finally {
-        window.SupabaseDB.setLoading(false);
+    function handleResetDefaultAccounts() {
+      const openDash = confirm(
+        '🔐 BẢO MẬT SUPABASE AUTH ĐỢT 2:\n\n' +
+        'Danh sách nhân sự dùng xác thực Supabase Auth (mật khẩu mã hóa).\n' +
+        'Để đặt lại hoặc khởi tạo lại 3 tài khoản mẫu (admin / kt1 / thocnc), anh chạy trên máy chủ xưởng lệnh:\n\n' +
+        '    node scripts/setup_auth_users.js\n\n' +
+        'Hoặc bấm [OK] để mở Supabase Authentication Dashboard.'
+      );
+      if (openDash) {
+        window.open(SUPABASE_AUTH_DASHBOARD_URL, '_blank', 'noopener');
       }
     }
 
@@ -1701,6 +1739,15 @@
         $('cardAddUser').scrollIntoView({ behavior: 'smooth' });
         $('inpNewUsername').focus();
       };
+
+      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        adminAuthUnsub = window.SupabaseDB.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT' && currentUser) {
+            currentUser = null;
+            checkAuthSession();
+          }
+        });
+      }
 
       checkAuthSession();
     });
