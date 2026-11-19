@@ -1,7 +1,12 @@
 try:
     import adsk.core, adsk.fusion
 except ImportError:
-    pass
+    adsk = None
+
+_CoreInputChangedBase = getattr(getattr(adsk, 'core', None), 'InputChangedEventHandler', object)
+_CoreValidateInputsBase = getattr(getattr(adsk, 'core', None), 'ValidateInputsEventHandler', object)
+_CoreCommandEventBase = getattr(getattr(adsk, 'core', None), 'CommandEventHandler', object)
+_CoreCommandCreatedBase = getattr(getattr(adsk, 'core', None), 'CommandCreatedEventHandler', object)
 import traceback
 import os, json, re, math, webbrowser, shutil, subprocess, tempfile
 
@@ -46,6 +51,12 @@ def detect_wall_thickness(norm_b, w_mm, h_mm, name_hint=""):
     m_prof = re.search(r'(\d+)\s*[xX\*×]\s*(\d+)\s*[xX\*×]\s*(\d+(?:[.,]\d+)?)', name_hint)
     if m_prof:
         val = float(m_prof.group(3).replace(',', '.'))
+        if 0.4 <= val <= 15.0:
+            return val
+
+    m_round = re.search(r'(?:Ø|Phi|phi|D|d)\s*\d+(?:[.,]\d+)?\s*[xX\*×]\s*(\d+(?:[.,]\d+)?)', name_hint)
+    if m_round:
+        val = float(m_round.group(1).replace(',', '.'))
         if 0.4 <= val <= 15.0:
             return val
 
@@ -418,119 +429,627 @@ def solve_bars_with_engine(parts_by_prof, engine_dirs, stock_len=6000.0, clamp_t
     return None
 
 def export_single_body_to_igs(des, root, em, tbm, body, igs_path, temp_name):
-    """Xuất 1 khối BRepBody đã chuẩn hóa tọa độ ra file .igs thông qua component tạm."""
+    """Xuất 1 khối BRepBody đã chuẩn hóa tọa độ ra file .igs thông qua component tạm được cô lập sạch."""
     occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    try:
+        occ.isLightBulbOn = True
+    except Exception:
+        pass
     comp = occ.component
     comp.name = temp_name
     try:
+        try:
+            comp.isBodiesFolderLightBulbOn = True
+        except Exception:
+            pass
         if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
             bf = comp.features.baseFeatures.add()
             bf.startEdit()
-            comp.bRepBodies.add(tbm.copy(body), bf)
+            added_b = comp.bRepBodies.add(tbm.copy(body), bf)
             bf.finishEdit()
         else:
-            comp.bRepBodies.add(tbm.copy(body))
+            added_b = comp.bRepBodies.add(tbm.copy(body))
+        if added_b is not None:
+            try:
+                added_b.isLightBulbOn = True
+            except Exception:
+                pass
         opts = em.createIGESExportOptions(igs_path, comp)
         em.execute(opts)
     finally:
         occ.deleteMe()
 
-def run(context):
-    ui = None
+
+# ============================================================================
+# CHỌN PHẠM VI COMPONENT, CHỐNG TRÙNG LẶP, CÔ LẬP HIỂN THỊ & HỘP THOẠI LỆNH
+# ============================================================================
+CMD_ID = 'AnBinh_XuatIGS_ToiUuPhoi_Cmd'
+_handlers = []
+_session = {}
+
+EXCLUDE_KEYWORDS = [
+    "mặt bàn", "mat ban", "mica", "tấm", "tam", "plate", "bản mã", "ban ma",
+    "mã chân", "ma chan", "ecu", "êcu", "bulong", "bu lông", "bu-lông", "bolt",
+    "nut", "ốc", "oc vit", "vít", "vit", "screw", "rivet", "đinh tán", "long đen",
+    "long den", "washer", "bánh xe", "banh xe", "caster", "wheel", "gối", "trục",
+    "chìa", "bản lề", "ban le", "hinge", "nắp bịt", "nap bit", "nút bịt", "bịt đầu",
+    "chân tăng", "chan tang", "cao su", "gân tăng cứng", "ke góc", "ke goc",
+    "tay nắm", "tay nam", "khóa", "đệm", "sheet metal", "flange", "bracket",
+    "bearing", "vòng bi", "bạc đạn", "stast", "stop", "fkl", "c-fjfn", "c-hhszn"
+]
+
+
+def clean_instance_name(name):
+    return re.sub(r':\d+$', '', str(name or '')).strip()
+
+
+def get_occ_full_path(occ):
     try:
-        app = adsk.core.Application.get()
-        ui = app.userInterface
-        doc = app.activeDocument
-        des = adsk.fusion.Design.cast(app.activeProduct)
+        fp = getattr(occ, 'fullPathName', '') or ''
+        if fp:
+            return fp
+    except Exception:
+        pass
+    try:
+        return str(getattr(occ, 'name', '') or id(occ))
+    except Exception:
+        return str(id(occ))
 
-        if not des:
-            ui.messageBox('Vui lòng mở một bản vẽ 3D Design trước khi chạy script!', 'An Bình - Xuất IGS')
+
+def is_temp_export_component_name(name):
+    s = str(name or '')
+    return s.startswith('Cay_') or s.startswith('Cây_') or s.startswith('Test_Bar')
+
+
+def is_occ_suppressed_hierarchy(occ):
+    cur = occ
+    visited = set()
+    while cur is not None and id(cur) not in visited:
+        visited.add(id(cur))
+        try:
+            if getattr(cur, 'isSuppressed', False):
+                return True
+        except Exception:
+            pass
+        try:
+            tl = getattr(cur, 'timelineObject', None)
+            if tl is not None and getattr(tl, 'isSuppressed', False):
+                return True
+        except Exception:
+            pass
+        try:
+            cur = getattr(cur, 'assemblyContext', None)
+        except Exception:
+            cur = None
+    return False
+
+
+def is_occ_visible_hierarchy(occ):
+    cur = occ
+    visited = set()
+    while cur is not None and id(cur) not in visited:
+        visited.add(id(cur))
+        try:
+            if not getattr(cur, 'isLightBulbOn', True):
+                return False
+        except Exception:
+            pass
+        try:
+            if hasattr(cur, 'isVisible') and not cur.isVisible:
+                return False
+        except Exception:
+            pass
+        try:
+            cur = getattr(cur, 'assemblyContext', None)
+        except Exception:
+            cur = None
+    return True
+
+
+def is_body_visible_hierarchy(proxy_body, local_body, comp, occ=None):
+    if occ is not None and not is_occ_visible_hierarchy(occ):
+        return False
+    try:
+        if comp is not None and not getattr(comp, 'isBodiesFolderLightBulbOn', True):
+            return False
+    except Exception:
+        pass
+    for b_ref in (proxy_body, local_body):
+        if b_ref is None:
+            continue
+        try:
+            if not getattr(b_ref, 'isLightBulbOn', True):
+                return False
+        except Exception:
+            pass
+        try:
+            if hasattr(b_ref, 'isVisible') and not b_ref.isVisible:
+                return False
+        except Exception:
+            pass
+    return True
+
+
+def _cast_entity(cls_obj, ent):
+    if cls_obj is None or not hasattr(cls_obj, 'cast'):
+        return None
+    try:
+        return cls_obj.cast(ent)
+    except Exception:
+        return None
+
+
+def resolve_preselected_occurrences(ui, root, des=None):
+    """Đọc các đối tượng người dùng chọn sẵn trước khi chạy script (Occurrence, Body, Face, Edge hoặc Sub-assembly đang kích hoạt)."""
+    occs = []
+    seen = set()
+
+    def add_occ(occ):
+        if occ is None:
+            return
+        fp = get_occ_full_path(occ)
+        if fp not in seen:
+            seen.add(fp)
+            occs.append(occ)
+
+    try:
+        sels = getattr(ui, 'activeSelections', None)
+        sel_count = sels.count if sels is not None else 0
+        for idx in range(sel_count):
+            ent = getattr(sels.item(idx), 'entity', None)
+            if ent is None:
+                continue
+
+            occ = _cast_entity(getattr(adsk.fusion, 'Occurrence', None), ent)
+            if occ is not None:
+                add_occ(occ)
+                continue
+
+            body = _cast_entity(getattr(adsk.fusion, 'BRepBody', None), ent)
+            if body is not None:
+                ctx_occ = getattr(body, 'assemblyContext', None)
+                if ctx_occ is not None:
+                    add_occ(ctx_occ)
+                continue
+
+            face = _cast_entity(getattr(adsk.fusion, 'BRepFace', None), ent)
+            if face is not None and getattr(face, 'body', None) is not None:
+                ctx_occ = getattr(face.body, 'assemblyContext', None)
+                if ctx_occ is not None:
+                    add_occ(ctx_occ)
+                continue
+
+            edge = _cast_entity(getattr(adsk.fusion, 'BRepEdge', None), ent)
+            if edge is not None and getattr(edge, 'body', None) is not None:
+                ctx_occ = getattr(edge.body, 'assemblyContext', None)
+                if ctx_occ is not None:
+                    add_occ(ctx_occ)
+                continue
+
+            comp = _cast_entity(getattr(adsk.fusion, 'Component', None), ent)
+            if comp is not None and comp != root and hasattr(root, 'allOccurrences'):
+                all_occs = root.allOccurrences
+                for j in range(all_occs.count):
+                    cand = all_occs.item(j)
+                    if getattr(cand, 'component', None) == comp:
+                        add_occ(cand)
+    except Exception:
+        pass
+
+    if not occs and des is not None:
+        try:
+            act_occ = getattr(des, 'activeOccurrence', None)
+            if act_occ is not None:
+                add_occ(act_occ)
+        except Exception:
+            pass
+
+    return occs
+
+
+def suggest_project_name(selected_occs, doc_name, use_root_mode=False):
+    """Tự gợi ý tên dự án theo Component mẹ đang chọn (hoặc tên file gốc nếu xuất Root)."""
+    base_doc = str(doc_name or 'DuAn_Fusion360').strip()
+    if use_root_mode or not selected_occs:
+        return base_doc
+    if len(selected_occs) == 1:
+        occ = selected_occs[0]
+        comp = getattr(occ, 'component', None)
+        candidate = clean_instance_name(getattr(occ, 'name', '') or (getattr(comp, 'name', '') if comp else ''))
+        return candidate or base_doc
+
+    # Nếu chọn nhiều ống/cụm con cùng nằm chung 1 Component mẹ trực tiếp -> lấy tên cụm mẹ đó
+    try:
+        parent_paths = set()
+        parents = []
+        for occ in selected_occs:
+            p_occ = getattr(occ, 'assemblyContext', None)
+            if p_occ is None:
+                parent_paths.clear()
+                break
+            fp = get_occ_full_path(p_occ)
+            parent_paths.add(fp)
+            parents.append(p_occ)
+        if len(parent_paths) == 1 and parents:
+            p_name = clean_instance_name(getattr(parents[0], 'name', ''))
+            if p_name:
+                return p_name
+    except Exception:
+        pass
+
+    return f"{base_doc} ({len(selected_occs)} cụm chọn)"
+
+
+def collect_scoped_candidates(root, selected_occs, use_root_mode=False, skip_hidden=True):
+    """
+    Thu thập danh sách body 3D trong phạm vi đã chọn (hỗ trợ cả Component mẹ đệ quy và ống lẻ),
+    lọc trùng tuyệt đối theo fullPathName và tôn trọng trạng thái ẩn/hiện & Suppress theo chuỗi cha-con.
+    """
+    candidate_entries = []
+    skipped_items = []
+    seen_occ_paths = set()
+    seen_body_keys = set()
+    stats = {'visited_occs': 0, 'hidden_or_suppressed': 0, 'temp_skipped': 0}
+
+    def record_skip(name, reason, kind):
+        skipped_items.append({'name': name, 'reason': reason, 'kind': kind})
+        if kind in ('hidden', 'suppressed'):
+            stats['hidden_or_suppressed'] += 1
+        elif kind == 'temp':
+            stats['temp_skipped'] += 1
+
+    def walk_occurrence(occ):
+        if occ is None:
+            return
+        occ_path = get_occ_full_path(occ)
+        if occ_path in seen_occ_paths:
+            return
+        seen_occ_paths.add(occ_path)
+        stats['visited_occs'] += 1
+
+        comp = getattr(occ, 'component', None)
+        comp_name = getattr(comp, 'name', '') if comp is not None else getattr(occ, 'name', '')
+        clean_occ_label = clean_instance_name(getattr(occ, 'name', '') or comp_name)
+
+        if is_temp_export_component_name(comp_name):
+            record_skip(clean_occ_label or comp_name, 'Component tạm từ lần xuất trước', 'temp')
             return
 
-        # Kích hoạt RootComponent để đảm bảo quét toàn bộ các loại hộp trong bản vẽ (không bị ẩn bởi Edit-in-place)
-        if des.activeComponent != des.rootComponent:
-            try:
-                des.activateRootComponent()
-            except:
-                pass
-
-        root = des.rootComponent
-        em = des.exportManager
-        tbm = adsk.fusion.TemporaryBRepManager.get()
-
-        # 1. Hộp thoại chọn thư mục lưu file .IGS
-        folder_dlg = ui.createFolderDialog()
-        folder_dlg.title = f'Chọn thư mục lưu file .IGS cho bản vẽ: {doc.name}'
-        dlg_res = folder_dlg.showDialog()
-
-        if dlg_res != adsk.core.DialogResults.DialogOK:
+        if is_occ_suppressed_hierarchy(occ):
+            record_skip(clean_occ_label or comp_name, 'Chi tiết đang bị Suppress', 'suppressed')
             return
 
-        chosen_folder = folder_dlg.folder
-        safe_doc_name = re.sub(r'[\/\\:*?"<>|]', '_', doc.name).strip()
-        if os.path.basename(chosen_folder).lower() == safe_doc_name.lower():
-            export_dir = chosen_folder
+        if skip_hidden and not is_occ_visible_hierarchy(occ):
+            record_skip(clean_occ_label or comp_name, 'Component đang tắt đèn (ẩn)', 'hidden')
+            return
+
+        occ_bodies = getattr(occ, 'bRepBodies', None)
+        if occ_bodies is not None and getattr(occ_bodies, 'count', 0) > 0:
+            b_count = occ_bodies.count
+            body_pairs = [
+                (occ_bodies.item(b_idx), getattr(occ_bodies.item(b_idx), 'nativeObject', None) or occ_bodies.item(b_idx))
+                for b_idx in range(b_count)
+            ]
+        elif comp is not None and getattr(comp, 'bRepBodies', None) is not None:
+            comp_bodies = comp.bRepBodies
+            b_count = comp_bodies.count
+            body_pairs = []
+            for b_idx in range(b_count):
+                lb = comp_bodies.item(b_idx)
+                pb = lb.createForAssemblyContext(occ) if hasattr(lb, 'createForAssemblyContext') else lb
+                body_pairs.append((pb, lb))
         else:
-            export_dir = os.path.join(chosen_folder, safe_doc_name)
-        os.makedirs(export_dir, exist_ok=True)
+            b_count = 0
+            body_pairs = []
 
-        # Xóa các file .igs cũ trong thư mục đích để tránh nhầm lẫn với lần xuất trước
-        for old_f in os.listdir(export_dir):
-            if old_f.lower().endswith('.igs'):
+        for b_idx, (proxy_b, local_b) in enumerate(body_pairs):
+            if not is_body_visible_hierarchy(proxy_b, local_b, comp, occ):
+                if skip_hidden:
+                    b_label = getattr(local_b, 'name', f'Body{b_idx + 1}')
+                    record_skip(f"{clean_occ_label}_{b_label}", 'Body đang tắt đèn (ẩn)', 'hidden')
+                    continue
+
+            body_key = f"{occ_path}::body#{b_idx}"
+            if body_key in seen_body_keys:
+                continue
+            seen_body_keys.add(body_key)
+
+            b_name = getattr(local_b, 'name', f'Body{b_idx + 1}')
+            name_hint = comp_name if b_count == 1 else f"{comp_name}_{b_name}"
+            candidate_entries.append({
+                'local_body': local_b,
+                'proxy_body': proxy_b,
+                'name_hint': name_hint,
+                'comp': comp,
+                'occ': occ,
+                'full_path': body_key
+            })
+
+        children = getattr(occ, 'childOccurrences', None)
+        if children is not None:
+            for c_idx in range(children.count):
+                walk_occurrence(children.item(c_idx))
+
+    if use_root_mode:
+        root_occs = getattr(root, 'occurrences', None)
+        if root_occs is not None:
+            for idx in range(root_occs.count):
+                walk_occurrence(root_occs.item(idx))
+
+        root_bodies = getattr(root, 'bRepBodies', None)
+        rb_count = root_bodies.count if root_bodies is not None else 0
+        for b_idx in range(rb_count):
+            b = root_bodies.item(b_idx)
+            if skip_hidden and not is_body_visible_hierarchy(b, b, root, None):
+                record_skip(getattr(b, 'name', f'RootBody_{b_idx + 1}'), 'Body ở Root đang tắt đèn (ẩn)', 'hidden')
+                continue
+            body_key = f"__root__::body#{b_idx}"
+            if body_key not in seen_body_keys:
+                seen_body_keys.add(body_key)
+                candidate_entries.append({
+                    'local_body': b,
+                    'proxy_body': b,
+                    'name_hint': getattr(b, 'name', f'Body_{b_idx + 1}'),
+                    'comp': root,
+                    'occ': None,
+                    'full_path': body_key
+                })
+    else:
+        # Sắp xếp cha trước con (ít dấu '+' nhất trước) để lọc trùng ổn định bất kể thứ tự chọn
+        ordered_sel = sorted(
+            list(selected_occs or []),
+            key=lambda o: get_occ_full_path(o).count('+')
+        )
+        for occ in ordered_sel:
+            walk_occurrence(occ)
+
+    return candidate_entries, skipped_items, stats
+
+
+def classify_candidate_filter(local_body, proxy_body, raw_name_hint):
+    """Kiểm tra sơ bộ trước khi chuẩn hóa 3D để loại tấm kim loại, ốc vít, bản mã và phụ kiện."""
+    clean_hint = clean_instance_name(raw_name_hint)
+    clean_lower = clean_hint.lower()
+
+    if getattr(proxy_body, 'isSheetMetal', False) or getattr(local_body, 'isSheetMetal', False):
+        return False, 'Tấm kim loại Sheet Metal'
+
+    if any(kw in clean_lower for kw in EXCLUDE_KEYWORDS):
+        return False, 'Phụ kiện / không phải ống hộp (theo tên)'
+
+    try:
+        bb_raw = local_body.boundingBox
+        dx_raw = round((bb_raw.maxPoint.x - bb_raw.minPoint.x) * 10, 1)
+        dy_raw = round((bb_raw.maxPoint.y - bb_raw.minPoint.y) * 10, 1)
+        dz_raw = round((bb_raw.maxPoint.z - bb_raw.minPoint.z) * 10, 1)
+        dims = sorted([dx_raw, dy_raw, dz_raw])
+        if dims[0] <= 3.5 and dims[1] > 70:
+            return False, 'Tấm phẳng mỏng (không phải ống/hộp)'
+        if dims[0] < 5 or dims[2] < 25 or (dims[2] / max(dims[1], 1)) < 1.1:
+            return False, 'Kích thước không phải thanh ống/hộp dài'
+    except Exception:
+        pass
+
+    return True, ''
+
+
+def detect_profile_name(norm_b, w_mm, h_mm, t, clean_hint):
+    t_str = f"{int(t)}" if float(t).is_integer() else f"{t}"
+    hint_lower = (clean_hint or '').lower()
+    if abs(w_mm - h_mm) < 1.5:
+        if re.search(r'(?:ống|ong|phi|ø)', hint_lower):
+            d_int = int(round((w_mm + h_mm) / 2.0))
+            return f'Ống Ø{d_int}x{t_str}'
+        try:
+            cyl_type = getattr(getattr(adsk.core, 'SurfaceTypes', None), 'CylinderSurfaceType', -1)
+            plane_type = getattr(getattr(adsk.core, 'SurfaceTypes', None), 'PlaneSurfaceType', -2)
+            cyl_area = 0.0
+            side_plane_area = 0.0
+            for f in norm_b.faces:
+                stype = f.geometry.surfaceType
+                if stype == cyl_type:
+                    cyl_area += getattr(f, 'area', 0.0)
+                elif stype == plane_type:
+                    _, n = f.evaluator.getNormalAtPoint(f.pointOnFace)
+                    if abs(n.z) < 0.25:
+                        side_plane_area += getattr(f, 'area', 0.0)
+            if cyl_area > 0 and side_plane_area == 0.0:
+                d_int = int(round((w_mm + h_mm) / 2.0))
+                return f'Ống Ø{d_int}x{t_str}'
+        except Exception:
+            pass
+        w_int = int(round(w_mm))
+        return f'Hộp {w_int}x{w_int}x{t_str}'
+    w1 = int(round(max(w_mm, h_mm)))
+    w2 = int(round(min(w_mm, h_mm)))
+    return f'Hộp {w1}x{w2}x{t_str}'
+
+
+def snapshot_visibility_state(root, des=None):
+    """Lưu toàn bộ trạng thái ẩn/hiện hiện tại của bản vẽ để khôi phục nguyên trạng trong finally."""
+    snap = {
+        'root': root,
+        'des': des,
+        'active_occ': None,
+        'root_bodies_folder': True,
+        'root_bodies': [],
+        'occurrences': [],
+        'components': []
+    }
+    if des is not None:
+        try:
+            snap['active_occ'] = getattr(des, 'activeOccurrence', None)
+        except Exception:
+            snap['active_occ'] = None
+    try:
+        snap['root_bodies_folder'] = getattr(root, 'isBodiesFolderLightBulbOn', True)
+    except Exception:
+        pass
+    try:
+        r_bodies = getattr(root, 'bRepBodies', None)
+        if r_bodies is not None:
+            for i in range(r_bodies.count):
+                b = r_bodies.item(i)
+                snap['root_bodies'].append((b, getattr(b, 'isLightBulbOn', True)))
+    except Exception:
+        pass
+
+    seen_comp_ids = set()
+    try:
+        all_occs = getattr(root, 'allOccurrences', None)
+        if all_occs is not None:
+            for i in range(all_occs.count):
+                occ = all_occs.item(i)
+                snap['occurrences'].append((occ, getattr(occ, 'isLightBulbOn', True)))
+                comp = getattr(occ, 'component', None)
+                if comp is not None and id(comp) not in seen_comp_ids:
+                    seen_comp_ids.add(id(comp))
+                    body_states = []
+                    cb = getattr(comp, 'bRepBodies', None)
+                    if cb is not None:
+                        for j in range(cb.count):
+                            b = cb.item(j)
+                            body_states.append((b, getattr(b, 'isLightBulbOn', True)))
+                    snap['components'].append((comp, getattr(comp, 'isBodiesFolderLightBulbOn', True), body_states))
+    except Exception:
+        pass
+
+    return snap
+
+
+def hide_all_for_isolated_export(root):
+    """Tắt hiển thị toàn bộ bản vẽ gốc khi xuất .IGS để chỉ component tạm đang xuất được hiện."""
+    try:
+        r_bodies = getattr(root, 'bRepBodies', None)
+        if r_bodies is not None:
+            for i in range(r_bodies.count):
                 try:
-                    os.remove(os.path.join(export_dir, old_f))
-                except:
+                    r_bodies.item(i).isLightBulbOn = False
+                except Exception:
                     pass
+    except Exception:
+        pass
+    # Ưu tiên tắt ở tầng Root occurrences để không làm xáo trộn trạng thái đèn riêng của component con
+    top_occs = getattr(root, 'occurrences', None)
+    if top_occs is not None and getattr(top_occs, 'count', 0) > 0:
+        for i in range(top_occs.count):
+            try:
+                top_occs.item(i).isLightBulbOn = False
+            except Exception:
+                pass
+    else:
+        try:
+            all_occs = getattr(root, 'allOccurrences', None)
+            if all_occs is not None:
+                for i in range(all_occs.count):
+                    try:
+                        all_occs.item(i).isLightBulbOn = False
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+
+def restore_visibility_state(snapshot):
+    """Khôi phục nguyên trạng 100% bóng đèn hiển thị của Component và Body sau khi xuất xong hoặc gặp lỗi."""
+    if not snapshot:
+        return
+    root = snapshot.get('root')
+    if root is not None:
+        try:
+            root.isBodiesFolderLightBulbOn = snapshot.get('root_bodies_folder', True)
+        except Exception:
+            pass
+    for b, state in snapshot.get('root_bodies', []):
+        try:
+            b.isLightBulbOn = state
+        except Exception:
+            pass
+    for comp, folder_state, body_states in snapshot.get('components', []):
+        try:
+            comp.isBodiesFolderLightBulbOn = folder_state
+        except Exception:
+            pass
+        for b, b_state in body_states:
+            try:
+                b.isLightBulbOn = b_state
+            except Exception:
+                pass
+    # Khôi phục cha trước con để tránh lỗi toggle trạng thái con khi cha đang ẩn
+    ordered_occs = sorted(
+        list(snapshot.get('occurrences', [])),
+        key=lambda pair: get_occ_full_path(pair[0]).count('+')
+    )
+    for occ, state in ordered_occs:
+        try:
+            occ.isLightBulbOn = state
+        except Exception:
+            pass
+    act_occ = snapshot.get('active_occ')
+    if act_occ is not None:
+        try:
+            act_occ.activate()
+        except Exception:
+            pass
+
+
+def build_fast_preview_html(root, selected_occs, use_root_mode, skip_hidden, suggested_name):
+    """Tạo nội dung tóm tắt nhanh trong hộp thoại Command Dialog khi người dùng thay đổi lựa chọn."""
+    entries, skipped_items, stats = collect_scoped_candidates(
+        root, selected_occs, use_root_mode=use_root_mode, skip_hidden=skip_hidden
+    )
+    pass_count = 0
+    non_tube_count = 0
+    for ent in entries:
+        ok, _ = classify_candidate_filter(ent['local_body'], ent['proxy_body'], ent['name_hint'])
+        if ok:
+            pass_count += 1
+        else:
+            non_tube_count += 1
+
+    scope_label = 'Toàn bộ bản vẽ (Root)' if use_root_mode else f'{len(selected_occs)} đối tượng đã chọn'
+    hidden_count = stats.get('hidden_or_suppressed', 0)
+    lines = [
+        f"<b>Phạm vi:</b> {scope_label} (quét {stats.get('visited_occs', 0)} component)",
+        f"<b>Tên dự án dự kiến:</b> {suggested_name}",
+        f"<b>Ước tính chi tiết ống/hộp:</b> <span style='color:#0F766E;'><b>{pass_count} thanh</b></span>",
+        f"<b>Đã bỏ qua:</b> {hidden_count} ẩn/Suppress · {non_tube_count} phụ kiện/tấm/ốc vít"
+    ]
+    if not use_root_mode and len(selected_occs) == 0:
+        lines.append("<span style='color:#B91C1C;'>⚠ Vui lòng chọn ít nhất 1 Component mẹ hoặc ống lẻ (Ctrl/Shift để chọn nhiều).</span>")
+    elif pass_count > 0:
+        lines.append("<i>Bấm [Tiếp tục xuất .IGS] để chuẩn hóa 3D và xem bảng xác nhận chi tiết.</i>")
+    return "<br>".join(lines)
+
+
+def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mode, skip_hidden, chosen_project_name):
+    """Thực hiện quét 3D chính xác, hiển thị hộp xác nhận, xuất IGS cô lập và đồng bộ lên Supabase."""
+    em = des.exportManager
+    tbm = adsk.fusion.TemporaryBRepManager.get()
+    vis_snapshot = snapshot_visibility_state(root, des)
+
+    try:
+        # 1. Thu thập chi tiết theo đúng phạm vi đã chọn (lọc trùng & lọc ẩn)
+        candidate_entries, skipped_items, _stats = collect_scoped_candidates(
+            root, selected_occs, use_root_mode=use_root_mode, skip_hidden=skip_hidden
+        )
 
         parts_dict = {}
         parts_by_prof = {}
         norm_bodies_by_key = {}
         total_tubes_count = 0
 
-        exclude_keywords = [
-            "mặt bàn", "mat ban", "mica", "tấm", "tam", "plate", "bản mã", "ban ma",
-            "mã chân", "ma chan", "ecu", "êcu", "bulong", "bolt", "nut", "vít", "vit",
-            "bánh xe", "gối", "trục", "chìa", "bản lề", "stast", "stop", "fkl", "c-fjfn", "c-hhszn"
-        ]
+        # 2. Lọc hình học & chuẩn hóa tọa độ 3D từng chi tiết
+        for ent in candidate_entries:
+            orig_body = ent['local_body']
+            proxy_body = ent['proxy_body']
+            raw_name_hint = ent['name_hint']
+            comp_ref = ent['comp']
+            clean_hint = clean_instance_name(raw_name_hint)
 
-        # Thu thập toàn bộ các khối 3D từ cả Occurrences (Components) VÀ RootComponent Bodies
-        candidate_entries = []
-        for i in range(root.allOccurrences.count):
-            occ = root.allOccurrences.item(i)
-            if not occ.isLightBulbOn:
-                continue
-            comp = occ.component
-            if comp.name.startswith('Cay_') or comp.name.startswith('Cây_') or comp.name.startswith('Test_Bar'):
-                continue
-            for b_idx in range(comp.bRepBodies.count):
-                b = comp.bRepBodies.item(b_idx)
-                if b.isLightBulbOn:
-                    name_hint = comp.name if comp.bRepBodies.count == 1 else f"{comp.name}_{b.name}"
-                    candidate_entries.append((b, name_hint, comp))
-
-        # Nếu bản vẽ có các khối vẽ trực tiếp trong RootComponent mà chưa tách Component
-        for b_idx in range(root.bRepBodies.count):
-            b = root.bRepBodies.item(b_idx)
-            if b.isLightBulbOn:
-                candidate_entries.append((b, b.name, root))
-
-        # 2. Quét toàn bộ chi tiết trong bản vẽ & chuẩn hóa tọa độ 3D cho TẤT CẢ các loại hộp
-        for orig_body, raw_name_hint, comp_ref in candidate_entries:
-            clean_hint = re.sub(r':\d+$', '', raw_name_hint).strip()
-            clean_lower = clean_hint.lower()
-            if any(kw in clean_lower for kw in exclude_keywords):
-                continue
-
-            bb_raw = orig_body.boundingBox
-            dx_raw = round((bb_raw.maxPoint.x - bb_raw.minPoint.x) * 10, 1)
-            dy_raw = round((bb_raw.maxPoint.y - bb_raw.minPoint.y) * 10, 1)
-            dz_raw = round((bb_raw.maxPoint.z - bb_raw.minPoint.z) * 10, 1)
-
-            dims = sorted([dx_raw, dy_raw, dz_raw])
-            # Bỏ qua tấm tôn phẳng, mặt bàn mỏng hoặc chi tiết quá nhỏ
-            if dims[0] <= 3.5 and dims[1] > 70:
-                continue
-            if dims[0] < 5 or (dims[2] / max(dims[1], 1)) < 1.1:
+            ok_pre, pre_reason = classify_candidate_filter(orig_body, proxy_body, raw_name_hint)
+            if not ok_pre:
+                skipped_items.append({'name': clean_hint, 'reason': pre_reason, 'kind': 'non_tube'})
                 continue
 
             norm_b = normalize_body(tbm, orig_body)
@@ -540,18 +1059,13 @@ def run(context):
             l_max = round((bb.maxPoint.z - bb.minPoint.z) * 10, 1)
             l_cm = bb.maxPoint.z - bb.minPoint.z
 
+            if (min(w_mm, h_mm) <= 5.0 and max(w_mm, h_mm) >= 40.0) or l_max < 25.0 or (l_max / max(w_mm, h_mm, 1.0)) < 1.1:
+                skipped_items.append({'name': clean_hint, 'reason': 'Hình học sau chuẩn hóa không phải thanh ống/hộp', 'kind': 'non_tube'})
+                continue
+
             t = detect_wall_thickness(norm_b, w_mm, h_mm, clean_hint)
-            t_str = f"{int(t)}" if float(t).is_integer() else f"{t}"
+            prof_name = detect_profile_name(norm_b, w_mm, h_mm, t, clean_hint)
 
-            if abs(w_mm - h_mm) < 1.5:
-                w_int = int(round(w_mm))
-                prof_name = f'Hộp {w_int}x{w_int}x{t_str}'
-            else:
-                w1 = int(round(max(w_mm, h_mm)))
-                w2 = int(round(min(w_mm, h_mm)))
-                prof_name = f'Hộp {w1}x{w2}x{t_str}'
-
-            # Kiểm tra góc vát mòi 3D trực tiếp từ 2 mặt đầu thanh đã chuẩn hóa
             ns, ne = get_end_normals(norm_b, l_cm)
             ang_s = round(math.degrees(math.acos(max(-1.0, min(1.0, abs(ns.z))))), 1)
             ang_e = round(math.degrees(math.acos(max(-1.0, min(1.0, abs(ne.z))))), 1)
@@ -559,7 +1073,6 @@ def run(context):
             is_m_end = ang_e >= 2.0
             miter_ends = (1 if is_m_start else 0) + (1 if is_m_end else 0)
 
-            # Tính độ vát chính xác dọc trục Z (Delta L = (|n_x|*w + |n_y|*h) / |n_z|)
             def calc_delta_z(n_vec):
                 nz_clamped = max(abs(n_vec.z), 0.005)
                 return (abs(n_vec.x) * w_mm + abs(n_vec.y) * h_mm) / nz_clamped
@@ -568,7 +1081,6 @@ def run(context):
             delta_e = calc_delta_z(ne) if is_m_end else 0.0
 
             if miter_ends == 2:
-                # 2 đầu đều vát: kiểm tra cùng góc hay khác góc
                 if abs(ang_s - ang_e) <= 1.5:
                     style = 'ke'
                     mat = round((delta_s + delta_e) / 2.0, 1)
@@ -593,8 +1105,10 @@ def run(context):
                 angle_tag = ""
 
             l_str = f"{int(l_max)}" if float(l_max).is_integer() else f"{l_max}"
-            # Giữ hậu tố đặc biệt (như lỗ thoát, lỗ ren, Mirror) nếu có trong tên chi tiết
-            extra_note = re.sub(r'^(?:Hộp|Hop|Ống|Ong)?\s*\d+\s*[xX\*×]\s*\d+(?:\s*[xX\*×]\s*\d+(?:[.,]\d+)?)?\s*(?:L|l)?\s*\d+(?:[.,]\d+)?', '', clean_hint, flags=re.I).strip()
+            extra_note = re.sub(
+                r'^(?:Hộp|Hop|Ống|Ong|Phi|Ø)?\s*\d+\s*[xX\*×]\s*\d+(?:\s*[xX\*×]\s*\d+(?:[.,]\d+)?)?\s*(?:L|l)?\s*\d+(?:[.,]\d+)?',
+                '', clean_hint, flags=re.I
+            ).strip()
             extra_note = re.sub(r'\b(?:ke1|ke2|ke|sl\s*\d+)\b', '', extra_note, flags=re.I).strip()
 
             tag_suffix = f"_{angle_tag}" if angle_tag else f"_{style}"
@@ -635,11 +1149,100 @@ def run(context):
             norm_bodies_by_key[part_key] = parts_dict[part_key]['norm_body']
             total_tubes_count += 1
 
+        hidden_skipped = [s for s in skipped_items if s.get('kind') in ('hidden', 'suppressed')]
+        non_tube_skipped = [s for s in skipped_items if s.get('kind') == 'non_tube']
+
         if not parts_dict:
-            ui.messageBox('Không tìm thấy chi tiết ống/hộp nào trong bản vẽ hiện tại!', 'An Bình - Xuất IGS')
+            no_tube_msg = 'Không tìm thấy chi tiết ống/hộp hợp lệ nào trong phạm vi đã chọn!\n\n'
+            if skipped_items:
+                no_tube_msg += f'Đã bỏ qua {len(hidden_skipped)} chi tiết ẩn/Suppress và {len(non_tube_skipped)} chi tiết không phải ống/hộp.'
+            ui.messageBox(no_tube_msg, 'An Bình - Xuất IGS')
             return
 
-        # 3. XUẤT CÁC FILE .IGS CHI TIẾT LẺ KÈM HẬU TỐ SỐ LƯỢNG "SL <qty>"
+        # 3. Hộp thoại tóm tắt & xác nhận trước khi xuất .IGS hàng loạt và đẩy lên Web
+        scope_names = ['Toàn bộ bản vẽ (Root)'] if use_root_mode else [
+            clean_instance_name(getattr(o, 'name', '') or getattr(getattr(o, 'component', None), 'name', ''))
+            for o in selected_occs[:6]
+        ]
+        if not use_root_mode and len(selected_occs) > 6:
+            scope_names.append(f'... và {len(selected_occs) - 6} cụm khác')
+
+        confirm_lines = [
+            'XÁC NHẬN XUẤT FILE .IGS & ĐẨY LÊN XEPPHOI.CLOUD',
+            '',
+            f'• Tên dự án dự kiến : {chosen_project_name}',
+            f'• Phạm vi quét       : {", ".join(scope_names)}',
+            f'• Tổng số thanh hợp lệ: {total_tubes_count} thanh ({len(parts_by_prof)} quy cách):'
+        ]
+        for p_name, items_d in parts_by_prof.items():
+            p_cnt = sum(it['qty'] for it in items_d.values())
+            confirm_lines.append(f'   + {p_name}: {p_cnt} thanh ({len(items_d)} kích thước)')
+
+        confirm_lines.append('')
+        confirm_lines.append(f'• Đã tự động bỏ qua  : {len(hidden_skipped)} chi tiết ẩn/Suppress, {len(non_tube_skipped)} phụ kiện/tấm/ốc vít')
+        if non_tube_skipped:
+            sample_skipped = ', '.join(s['name'] for s in non_tube_skipped[:5])
+            if len(non_tube_skipped) > 5:
+                sample_skipped += f', ... (+{len(non_tube_skipped) - 5})'
+            confirm_lines.append(f'   (Mẫu bỏ qua: {sample_skipped})')
+
+        confirm_lines.extend([
+            '',
+            'Bấm [Yes] để chọn thư mục lưu .IGS và đồng bộ lên Web App.',
+            'Bấm [No] để hủy (trạng thái bản vẽ giữ nguyên).'
+        ])
+
+        yes_no = getattr(getattr(adsk.core, 'MessageBoxButtonTypes', None), 'YesNoButtonType', 1)
+        q_icon = getattr(getattr(adsk.core, 'MessageBoxIconTypes', None), 'QuestionIconType', 2)
+        dialog_yes = getattr(getattr(adsk.core, 'DialogResults', None), 'DialogYes', 2)
+        confirm_res = ui.messageBox('\n'.join(confirm_lines), 'An Bình - Xác nhận xuất IGS', yes_no, q_icon)
+        if confirm_res != dialog_yes:
+            return
+
+        # 4. Chọn thư mục lưu file .IGS
+        folder_dlg = ui.createFolderDialog()
+        folder_dlg.title = f'Chọn thư mục lưu file .IGS cho dự án: {chosen_project_name}'
+        dlg_res = folder_dlg.showDialog()
+        if dlg_res != adsk.core.DialogResults.DialogOK:
+            return
+
+        chosen_folder = folder_dlg.folder
+        safe_proj_name = re.sub(r'[\/\\:*?"<>|]', '_', chosen_project_name).strip() or 'DuAn_Fusion360'
+        if os.path.basename(chosen_folder).lower() == safe_proj_name.lower():
+            export_dir = chosen_folder
+        else:
+            export_dir = os.path.join(chosen_folder, safe_proj_name)
+        os.makedirs(export_dir, exist_ok=True)
+
+        # Xóa các file .igs cũ trong thư mục đích
+        for old_f in os.listdir(export_dir):
+            if old_f.lower().endswith('.igs'):
+                try:
+                    os.remove(os.path.join(export_dir, old_f))
+                except Exception:
+                    pass
+
+        # Lưu log các chi tiết đã bỏ qua để kỹ sư kiểm tra nếu cần
+        if skipped_items:
+            try:
+                log_path = os.path.join(export_dir, 'skipped_items_log.txt')
+                with open(log_path, 'w', encoding='utf-8') as f_log:
+                    f_log.write(f"DANH SÁCH CHI TIẾT ĐÃ BỎ QUA — DỰ ÁN: {chosen_project_name}\n")
+                    f_log.write("=" * 68 + "\n")
+                    for sk in skipped_items:
+                        f_log.write(f"- [{sk.get('kind', '')}] {sk.get('name', '')}: {sk.get('reason', '')}\n")
+            except Exception:
+                pass
+
+        # Kích hoạt RootComponent & cô lập hiển thị (tắt đèn toàn bộ bản vẽ gốc trong khi xuất .IGS)
+        if getattr(des, 'activeComponent', root) != root:
+            try:
+                des.activateRootComponent()
+            except Exception:
+                pass
+        hide_all_for_isolated_export(root)
+
+        # 5. XUẤT CÁC FILE .IGS CHI TIẾT LẺ KÈM HẬU TỐ SỐ LƯỢNG "SL <qty>"
         parts_list = []
         for part_key, p in parts_dict.items():
             qty = p['qty']
@@ -663,7 +1266,7 @@ def run(context):
 
             try:
                 export_single_body_to_igs(des, root, em, tbm, p['norm_body'], igs_path, safe_file_name)
-            except Exception as e:
+            except Exception:
                 pass
 
             igs_text = ''
@@ -686,11 +1289,11 @@ def run(context):
                 'file_size': os.path.getsize(igs_path) if os.path.exists(igs_path) else 0
             })
 
-        # 4. XUẤT ĐẦY ĐỦ TẤT CẢ FILE .IGS CÁC CÂY GHÉP 6M CHO MỌI LOẠI HỘP
+        # 6. XUẤT ĐẦY ĐỦ TẤT CẢ FILE .IGS CÁC CÂY GHÉP 6M CHO MỌI LOẠI HỘP
         stock_len = 6000.0
-        clamp_len = 80.0  # Chuẩn kẹp đuôi 80mm đồng bộ 100% với Laser CNC trên Web
-        usable_len = stock_len - clamp_len  # 5920mm
-        kerf = 0.0  # Common-line cut liền mạch
+        clamp_len = 80.0
+        usable_len = stock_len - clamp_len
+        kerf = 0.0
         bar_exports = []
         alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -701,7 +1304,6 @@ def run(context):
             'C:/Users/Administrator/Fusion360/toiuu-phoi'
         ]
 
-        # Đảm bảo có sẵn run_engine_helper.js và toi-uu-engine.js trong script_dir
         for src_dir in ['C:/Users/Administrator/toiuu-phoi', 'C:/Users/Administrator/Fusion360/toiuu-phoi']:
             for fn in ['run_engine_helper.js', 'toi-uu-engine.js']:
                 sf = os.path.join(src_dir, fn)
@@ -709,10 +1311,9 @@ def run(context):
                 if os.path.exists(sf) and not os.path.exists(df):
                     try:
                         shutil.copy2(sf, df)
-                    except:
+                    except Exception:
                         pass
 
-        # Giải bài toán tối ưu bằng toi-uu-engine.js thông qua Node.js để kết quả 3D trùng khớp 100% với Web
         engine_bars = solve_bars_with_engine(parts_by_prof, candidate_engine_dirs, stock_len=stock_len, clamp_tail=clamp_len, kerf=kerf)
 
         grouped_bars = []
@@ -727,7 +1328,6 @@ def run(context):
                     'waste': eb['waste']
                 })
         else:
-            # Fallback thuật toán Python nếu máy tính chưa cài Node.js
             for prof_name, items_dict in parts_by_prof.items():
                 bars = solve_optimal_bars_for_profile(items_dict, usable_len=usable_len, kerf=kerf)
                 cur_prof_bars = []
@@ -752,7 +1352,6 @@ def run(context):
                     gb['cuts_count'] = len(gb['pieces'])
                     grouped_bars.append(gb)
 
-        # Xuất từng cây ghép (Cây A, Cây B...) của từng loại hộp thành file .IGS 3D Solid hoàn chỉnh
         for gb in grouped_bars:
             letter = gb['letter']
             prof_name = gb['profile']
@@ -763,10 +1362,18 @@ def run(context):
             igs_bar_path = os.path.join(export_dir, f"{safe_bar_name}.igs")
 
             bar_occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+            try:
+                bar_occ.isLightBulbOn = True
+            except Exception:
+                pass
             bar_comp = bar_occ.component
             bar_comp.name = safe_bar_name
 
             try:
+                try:
+                    bar_comp.isBodiesFolderLightBulbOn = True
+                except Exception:
+                    pass
                 placed_bodies = []
                 cur_z_cm = 0.0
                 prev_ne = None
@@ -819,6 +1426,10 @@ def run(context):
                             raw_hint = parts_dict.get(p_info['key'], {}).get('raw_name') or p_info.get('key', '')
                             clean_short = re.sub(r'^(?:Hộp|Hop|Ống|Ong)?\s*\d+\s*[xX\*×]\s*\d+(?:\s*[xX\*×]\s*\d+(?:[.,]\d+)?)?', '', raw_hint, flags=re.I).strip()
                             new_b.name = clean_short if clean_short else f"L{int(p_info['length'])}"
+                            try:
+                                new_b.isLightBulbOn = True
+                            except Exception:
+                                pass
                     bf.finishEdit()
                 else:
                     for b_item, p_info in placed_bodies:
@@ -827,6 +1438,10 @@ def run(context):
                             raw_hint = parts_dict.get(p_info['key'], {}).get('raw_name') or p_info.get('key', '')
                             clean_short = re.sub(r'^(?:Hộp|Hop|Ống|Ong)?\s*\d+\s*[xX\*×]\s*\d+(?:\s*[xX\*×]\s*\d+(?:[.,]\d+)?)?', '', raw_hint, flags=re.I).strip()
                             new_b.name = clean_short if clean_short else f"L{int(p_info['length'])}"
+                            try:
+                                new_b.isLightBulbOn = True
+                            except Exception:
+                                pass
 
                 igs_opts = em.createIGESExportOptions(igs_bar_path, bar_comp)
                 em.execute(igs_opts)
@@ -836,7 +1451,7 @@ def run(context):
                     try:
                         with open(igs_bar_path, 'r', encoding='utf-8', errors='ignore') as f_igs:
                             igs_text = f_igs.read()
-                    except:
+                    except Exception:
                         pass
 
                 bar_exports.append({
@@ -851,14 +1466,16 @@ def run(context):
                     'file_size': os.path.getsize(igs_bar_path) if os.path.exists(igs_bar_path) else 0,
                     'igs_content': igs_text
                 })
-            except Exception as e:
+            except Exception:
                 pass
             finally:
                 bar_occ.deleteMe()
 
-        # 5. Lưu file JSON dữ liệu dự án (Chuẩn hóa đường dẫn '/' tránh lỗi JSON escape '\')
+        # 7. Lưu file JSON dữ liệu dự án (dùng tên dự án đã gợi ý/chỉnh sửa)
         payload_data = {
-            'project_name': doc.name,
+            'project_name': chosen_project_name,
+            'source_document': doc.name,
+            'scope_mode': 'root' if use_root_mode else 'selection',
             'export_dir': export_dir.replace('\\', '/'),
             'stock_length': stock_len,
             'clamp_tail': clamp_len,
@@ -870,8 +1487,7 @@ def run(context):
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(payload_data, f, indent=2, ensure_ascii=False)
 
-        # 6. Tự động khởi động Máy Chủ Web (server.js) và đẩy dữ liệu trực tiếp qua HTTP API
-        script_dir = os.path.dirname(__file__)
+        # 8. Lưu bản sao HTML dự phòng & gọi Cầu nối Node server.js -> Supabase
         candidate_web_dirs = [
             'C:/Users/Administrator/toiuu-phoi',
             'C:/Users/Administrator/Fusion360/toiuu-phoi',
@@ -884,7 +1500,6 @@ def run(context):
                 found_web_dir = os.path.abspath(cdir)
                 break
 
-        # Vẫn lưu bản sao file HTML dự phòng vào thư mục xuất
         if found_web_dir:
             try:
                 for fname in ['index.html', 'logo_an_binh.jpg', 'toi-uu-engine.js', 'run_engine_helper.js', 'workshop_config.json']:
@@ -913,7 +1528,6 @@ def run(context):
             except Exception:
                 pass
 
-        # Đảm bảo Cầu nối Node server.js (port 3000) đang chạy để đẩy dữ liệu lên Supabase
         import urllib.request
         import urllib.error
         import urllib.parse
@@ -926,7 +1540,7 @@ def run(context):
         igs_uploaded_count = 0
         was_versioned = False
         synced_project_id = ""
-        synced_project_name = doc.name
+        synced_project_name = chosen_project_name
         sync_error_msg = ""
 
         def is_server_alive():
@@ -950,7 +1564,7 @@ def run(context):
 
             if node_exe and os.path.exists(server_js):
                 try:
-                    creationflags = 0x08000000 if os.name == 'nt' else 0  # CREATE_NO_WINDOW
+                    creationflags = 0x08000000 if os.name == 'nt' else 0
                     subprocess.Popen(
                         [node_exe, server_js],
                         cwd=os.path.dirname(server_js),
@@ -965,7 +1579,6 @@ def run(context):
                 except Exception as start_err:
                     sync_error_msg = f"Không tự khởi động được server.js: {start_err}"
 
-        # Gọi trực tiếp Cầu nối local server.js -> Supabase PostgreSQL + Supabase Storage (igs-files)
         post_bytes = json.dumps(payload_data, ensure_ascii=False).encode('utf-8')
         try:
             req = urllib.request.Request(
@@ -982,7 +1595,7 @@ def run(context):
                     igs_uploaded_count = int(resp_data.get('igsUploadedCount') or 0)
                     was_versioned = bool(resp_data.get('wasVersioned'))
                     synced_project_id = str(resp_data.get('projectId') or '')
-                    synced_project_name = str(resp_data.get('projectName') or doc.name)
+                    synced_project_name = str(resp_data.get('projectName') or chosen_project_name)
                     lan_list = resp_data.get('lanUrls') or []
                     if len(lan_list) > 0 and lan_list[0].get('url'):
                         lan_url_display = lan_list[0]['url']
@@ -1017,10 +1630,8 @@ def run(context):
         else:
             target_web_url = project_web_url
 
-        # 7. Mở nhanh đúng dự án trên trình duyệt Web App
         webbrowser.open(target_web_url)
 
-        # 8. Hiển thị thông báo kết quả chi tiết (Supabase DB, Storage IGS & Link mở nhanh)
         prof_names_str = ", ".join(parts_by_prof.keys())
         db_status_text = "✅ ĐÃ ĐỒNG BỘ SUPABASE" if supabase_synced else (
             "⚠️ CHỈ LƯU CỤC BỘ (Chưa đẩy lên Supabase)" if pushed_to_server else "❌ CHƯA KẾT NỐI ĐƯỢC SERVER CẦU NỐI (localhost:3000)"
@@ -1030,11 +1641,12 @@ def run(context):
         msg += f"• Trạng thái Supabase DB : {db_status_text}\n"
         msg += f"• Upload .IGS Storage    : {igs_uploaded_count} file (bucket 'igs-files')\n"
         if was_versioned:
-            msg += f"• Bảo vệ khóa dự án      : 🔒 Bản \"{doc.name}\" đang khóa → Tự tạo bản mới \"{synced_project_name}\"\n"
+            msg += f"• Bảo vệ khóa dự án      : 🔒 Bản \"{chosen_project_name}\" đang khóa → Tự tạo bản mới \"{synced_project_name}\"\n"
         if sync_error_msg and not supabase_synced:
             msg += f"• Chi tiết lỗi           : {sync_error_msg}\n"
         msg += f"• Các loại hộp phát hiện ({len(parts_by_prof)} loại): {prof_names_str}\n"
-        msg += f"• Tổng số chi tiết bản vẽ: {total_tubes_count} thanh\n\n"
+        msg += f"• Tổng số chi tiết xuất  : {total_tubes_count} thanh\n"
+        msg += f"• Đã lọc bỏ tự động      : {len(hidden_skipped)} ẩn/Suppress · {len(non_tube_skipped)} phụ kiện/tấm\n\n"
         msg += f"★ CÁC CÂY GHÉP 6M (LIỀN MẠCH - KHÍT MÒI 100%): {len(bar_exports)} file .IGS\n"
         for be in bar_exports:
             msg += f"   ➔ {be['name']}.igs ({be['profile']} · Ghép {be['cuts_count']} ct · SL: {be['bar_count']} cây)\n"
@@ -1046,7 +1658,269 @@ def run(context):
         msg += f"\n📂 Thư mục lưu file .IGS cục bộ: {export_dir}"
 
         ui.messageBox(msg, 'An Bình - Đồng Bộ Supabase & Xuất IGS')
+    finally:
+        # Khôi phục lại 100% bóng đèn ẩn/hiện nguyên bản kể cả khi gặp lỗi hoặc hủy giữa chừng
+        restore_visibility_state(vis_snapshot)
 
-    except:
+
+def _get_selected_occurrences_from_input(sel_input):
+    occs = []
+    if sel_input is None:
+        return occs
+    seen = set()
+    for i in range(sel_input.selectionCount):
+        ent = getattr(sel_input.selection(i), 'entity', None)
+        if ent is None:
+            continue
+        occ = _cast_entity(getattr(adsk.fusion, 'Occurrence', None), ent) or ent
+        fp = get_occ_full_path(occ)
+        if fp not in seen:
+            seen.add(fp)
+            occs.append(occ)
+    return occs
+
+
+def _is_root_mode_selected(scope_input):
+    if scope_input is None:
+        return False
+    try:
+        item = scope_input.selectedItem
+        return bool(item and 'Root' in item.name)
+    except Exception:
+        return False
+
+
+class _BaseInputChangedHandler(_CoreInputChangedBase):
+    def __init__(self, root):
+        super().__init__()
+        self.root = root
+
+    def notify(self, args):
+        try:
+            changed = args.input
+            inputs = args.inputs
+            scope_inp = adsk.core.RadioButtonGroupCommandInput.cast(inputs.itemById('scope_mode'))
+            sel_inp = adsk.core.SelectionCommandInput.cast(inputs.itemById('target_selection'))
+            skip_inp = adsk.core.BoolValueCommandInput.cast(inputs.itemById('skip_hidden'))
+            name_inp = adsk.core.StringValueCommandInput.cast(inputs.itemById('project_name'))
+            prev_inp = adsk.core.TextBoxCommandInput.cast(inputs.itemById('preview_box'))
+
+            if changed and changed.id == 'project_name':
+                if not _session.get('programmatic_name_update'):
+                    _session['user_edited_name'] = True
+                return
+
+            use_root = _is_root_mode_selected(scope_inp)
+            skip_hidden = bool(skip_inp.value) if skip_inp else True
+
+            if sel_inp is not None:
+                sel_inp.isVisible = not use_root
+                sel_inp.isEnabled = not use_root
+
+            sel_occs = _get_selected_occurrences_from_input(sel_inp)
+            suggested = suggest_project_name(sel_occs, _session.get('doc_name', ''), use_root_mode=use_root)
+
+            if name_inp is not None and not _session.get('user_edited_name'):
+                _session['programmatic_name_update'] = True
+                try:
+                    name_inp.value = suggested
+                finally:
+                    _session['programmatic_name_update'] = False
+
+            cur_name = (name_inp.value.strip() if name_inp and name_inp.value else '') or suggested
+            if prev_inp is not None:
+                prev_inp.formattedText = build_fast_preview_html(
+                    self.root, sel_occs, use_root, skip_hidden, cur_name
+                )
+        except Exception:
+            pass
+
+
+class _BaseValidateInputsHandler(_CoreValidateInputsBase):
+    def notify(self, args):
+        try:
+            inputs = args.inputs
+            scope_inp = adsk.core.RadioButtonGroupCommandInput.cast(inputs.itemById('scope_mode'))
+            sel_inp = adsk.core.SelectionCommandInput.cast(inputs.itemById('target_selection'))
+            name_inp = adsk.core.StringValueCommandInput.cast(inputs.itemById('project_name'))
+            use_root = _is_root_mode_selected(scope_inp)
+            has_scope = use_root or (sel_inp is not None and sel_inp.selectionCount > 0)
+            has_name = bool(name_inp and name_inp.value and name_inp.value.strip())
+            args.areInputsValid = bool(has_scope and has_name)
+        except Exception:
+            args.areInputsValid = True
+
+
+class _BaseExecuteHandler(_CoreCommandEventBase):
+    def __init__(self, app, ui, doc, des, root):
+        super().__init__()
+        self.app = app
+        self.ui = ui
+        self.doc = doc
+        self.des = des
+        self.root = root
+
+    def notify(self, args):
+        try:
+            inputs = args.command.commandInputs
+            scope_inp = adsk.core.RadioButtonGroupCommandInput.cast(inputs.itemById('scope_mode'))
+            sel_inp = adsk.core.SelectionCommandInput.cast(inputs.itemById('target_selection'))
+            skip_inp = adsk.core.BoolValueCommandInput.cast(inputs.itemById('skip_hidden'))
+            name_inp = adsk.core.StringValueCommandInput.cast(inputs.itemById('project_name'))
+
+            use_root = _is_root_mode_selected(scope_inp)
+            skip_hidden = bool(skip_inp.value) if skip_inp else True
+            sel_occs = _get_selected_occurrences_from_input(sel_inp)
+            chosen_name = (name_inp.value.strip() if name_inp and name_inp.value else '') or suggest_project_name(
+                sel_occs, getattr(self.doc, 'name', ''), use_root_mode=use_root
+            )
+
+            execute_export_workflow(
+                self.app, self.ui, self.doc, self.des, self.root,
+                sel_occs, use_root, skip_hidden, chosen_name
+            )
+        except Exception:
+            if self.ui:
+                self.ui.messageBox('Lỗi khi bóc tách & ghép cây: {}'.format(traceback.format_exc()), 'An Bình - Xuất IGS')
+
+
+class _BaseDestroyHandler(_CoreCommandEventBase):
+    def __init__(self, ui):
+        super().__init__()
+        self.ui = ui
+
+    def notify(self, args):
+        try:
+            cmd_def = self.ui.commandDefinitions.itemById(CMD_ID)
+            if cmd_def:
+                cmd_def.deleteMe()
+        except Exception:
+            pass
+        _handlers.clear()
+        try:
+            adsk.terminate()
+        except Exception:
+            pass
+
+
+class _BaseCommandCreatedHandler(_CoreCommandCreatedBase):
+    def __init__(self, app, ui, doc, des, root):
+        super().__init__()
+        self.app = app
+        self.ui = ui
+        self.doc = doc
+        self.des = des
+        self.root = root
+
+    def notify(self, args):
+        try:
+            cmd = args.command
+            cmd.isExecutedWhenPreEmpted = False
+            cmd.okButtonText = 'Tiếp tục xuất .IGS'
+            try:
+                cmd.setDialogMinimumSize(460, 480)
+                cmd.setDialogInitialSize(500, 560)
+            except Exception:
+                pass
+
+            inputs = cmd.commandInputs
+            pre_occs = _session.get('preselected_occs') or []
+            use_root_default = False
+
+            scope_inp = inputs.addRadioButtonGroupCommandInput('scope_mode', 'Phạm vi xuất phôi')
+            scope_inp.listItems.add('Theo vùng chọn (Component mẹ / Ống lẻ)', not use_root_default)
+            scope_inp.listItems.add('Xuất toàn bộ bản vẽ (Root)', use_root_default)
+
+            sel_inp = inputs.addSelectionInput(
+                'target_selection',
+                'Chọn Component / Ống hộp',
+                'Bấm trực tiếp trên mô hình 3D hoặc cây Browser (Ctrl/Shift chọn nhiều)'
+            )
+            sel_inp.addSelectionFilter('Occurrences')
+            sel_inp.setSelectionLimits(0, 0)
+            for occ in pre_occs:
+                try:
+                    sel_inp.addSelection(occ)
+                except Exception:
+                    pass
+
+            inputs.addBoolValueInput(
+                'skip_hidden',
+                'Bỏ qua chi tiết đang ẩn (tắt đèn) / Suppress',
+                True,
+                '',
+                True
+            )
+
+            default_name = suggest_project_name(pre_occs, _session.get('doc_name', ''), use_root_mode=use_root_default)
+            inputs.addStringValueInput('project_name', 'Tên dự án xuất lên web', default_name)
+
+            preview_html = build_fast_preview_html(self.root, pre_occs, use_root_default, True, default_name)
+            inputs.addTextBoxCommandInput('preview_box', 'Tóm tắt nhanh', preview_html, 8, True)
+
+            h_chg = _BaseInputChangedHandler(self.root)
+            cmd.inputChanged.add(h_chg)
+            _handlers.append(h_chg)
+
+            h_val = _BaseValidateInputsHandler()
+            cmd.validateInputs.add(h_val)
+            _handlers.append(h_val)
+
+            h_exec = _BaseExecuteHandler(self.app, self.ui, self.doc, self.des, self.root)
+            cmd.execute.add(h_exec)
+            _handlers.append(h_exec)
+
+            h_dest = _BaseDestroyHandler(self.ui)
+            cmd.destroy.add(h_dest)
+            _handlers.append(h_dest)
+        except Exception:
+            if self.ui:
+                self.ui.messageBox('Lỗi khởi tạo hộp thoại xuất IGS: {}'.format(traceback.format_exc()), 'An Bình - Xuất IGS')
+
+
+def run(context):
+    ui = None
+    try:
+        app = adsk.core.Application.get()
+        ui = app.userInterface
+        doc = app.activeDocument
+        des = adsk.fusion.Design.cast(app.activeProduct)
+
+        if not des:
+            ui.messageBox('Vui lòng mở một bản vẽ 3D Design trước khi chạy script!', 'An Bình - Xuất IGS')
+            return
+
+        root = des.rootComponent
+        # Quan trọng: đọc activeSelections TRƯỚC KHI tạo hộp thoại / không kích hoạt Root để giữ nguyên vùng chọn sẵn
+        pre_occs = resolve_preselected_occurrences(ui, root, des)
+
+        _handlers.clear()
+        _session.clear()
+        _session['preselected_occs'] = pre_occs
+        _session['doc_name'] = getattr(doc, 'name', 'DuAn_Fusion360')
+        _session['user_edited_name'] = False
+        _session['programmatic_name_update'] = False
+
+        old_def = ui.commandDefinitions.itemById(CMD_ID)
+        if old_def:
+            old_def.deleteMe()
+
+        cmd_def = ui.commandDefinitions.addButtonDefinition(
+            CMD_ID,
+            'Xuất IGS & Tối Ưu Phôi (An Bình)',
+            'Chọn Component mẹ hoặc các ống/hộp lẻ để xuất .IGS và đồng bộ lên xepphoi.cloud'
+        )
+        h_created = _BaseCommandCreatedHandler(app, ui, doc, des, root)
+        cmd_def.commandCreated.add(h_created)
+        _handlers.append(h_created)
+
+        adsk.autoTerminate(False)
+        cmd_def.execute()
+    except Exception:
         if ui:
-            ui.messageBox('Lỗi khi bóc tách & ghép cây: {}'.format(traceback.format_exc()), 'An Bình - Xuất IGS')
+            ui.messageBox('Lỗi khi khởi chạy script xuất IGS: {}'.format(traceback.format_exc()), 'An Bình - Xuất IGS')
+        try:
+            adsk.terminate()
+        except Exception:
+            pass
+
