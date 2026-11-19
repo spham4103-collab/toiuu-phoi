@@ -225,7 +225,6 @@
     var savingM = (u.totalInterlockSaving || 0) / 1000;
     var qrSvg = generateQrSvg(ctx.cncUrl);
     var exportedAtStr = formatDateTimeVN(new Date());
-    var revStr = formatRevisionCode(ctx.updatedAt);
 
     var headerHtml = [
       '<div class="a4-header">',
@@ -239,10 +238,9 @@
       '    </div>',
       '    <div class="a4-meta-grid">',
       '      <div><b>Đơn hàng / Dự án:</b> ' + escapeHtml(ctx.projectName) + (ctx.isLocked ? ' 🔒' : '') + '</div>',
-      '      <div><b>Mã &amp; Phiên bản:</b> ' + escapeHtml(ctx.isRealProj ? ctx.projectId : 'Nháp') + ' · ' + escapeHtml(revStr) + '</div>',
-      '      <div><b>Khách hàng:</b> ' + escapeHtml(ctx.customer || '—') + '</div>',
       '      <div><b>Ngày xuất phiếu:</b> ' + escapeHtml(exportedAtStr) + (ctx.exportedBy ? ' (@' + escapeHtml(ctx.exportedBy) + ')' : '') + '</div>',
-      '      <div style="grid-column:1/-1;"><b>Thông số máy cắt:</b> Mạch cắt ' + numVN(ctx.kerf) + ' mm · Kẹp đuôi ' + numVN(ctx.clamp) + ' mm · Xen kẽ ke 45°: ' + (ctx.interlock ? 'BẬT' : 'TẮT') + (ctx.interlock && ctx.gap > 0 ? ' (Hở ' + numVN(ctx.gap) + ' mm)' : '') + (ctx.notes ? ' · <b>Ghi chú:</b> ' + escapeHtml(ctx.notes) : '') + '</div>',
+      '      <div style="grid-column:1/-1;"><b>Khách hàng:</b> ' + escapeHtml(ctx.customer || '—') + ' · <b>Thông số máy cắt:</b> Mạch cắt ' + numVN(ctx.kerf) + ' mm · Kẹp đuôi ' + numVN(ctx.clamp) + ' mm · Xen kẽ ke 45°: ' + (ctx.interlock ? 'BẬT' : 'TẮT') + (ctx.interlock && ctx.gap > 0 ? ' (Hở ' + numVN(ctx.gap) + ' mm)' : '') + '</div>',
+      (ctx.notes ? '      <div style="grid-column:1/-1;"><b>Ghi chú:</b> ' + escapeHtml(ctx.notes) + '</div>' : ''),
       '    </div>',
       '  </div>',
       '  <div class="a4-qr-box">',
