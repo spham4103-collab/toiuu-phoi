@@ -593,11 +593,295 @@
     return { ok: true, format: 'csv', fileName: csvName };
   }
 
+  // =========================================================================
+  // KHO PHÔI ĐỢT 4: EXCEL MẪU PHÔI LẺ, PARSE COPY-PASTE & BÁO CÁO KHO (.XLSX)
+  // =========================================================================
+  var TX_TYPE_LABELS = {
+    opening_balance: 'Tồn đầu kỳ',
+    purchase_in: 'Nhập mua mới',
+    project_out: 'Xuất cho dự án',
+    project_return: 'Hoàn kho dự án',
+    offcut_in: 'Nhập đề-xê CNC',
+    offcut_out: 'Xuất phôi lẻ',
+    stocktake_adjust: 'Kiểm kê điều chỉnh'
+  };
+
+  var OFFCUT_SOURCE_LABELS = {
+    opening_stock: 'Phôi cũ đầu kỳ',
+    cnc_return: 'Đề-xê từ CNC',
+    manual: 'Nhập tay'
+  };
+
+  function _downloadCsvFallback(rows, fileName) {
+    var csvText = '\uFEFF' + rows.map(function (row) {
+      return (row || []).map(function (cell) {
+        return '"' + String(cell == null ? '' : cell).replace(/"/g, '""') + '"';
+      }).join(',');
+    }).join('\r\n');
+    if (typeof Blob !== 'undefined' && typeof document !== 'undefined' && typeof URL !== 'undefined') {
+      var blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+  }
+
+  function _parseSpreadsheetNumber(raw) {
+    if (typeof raw === 'number') return isFinite(raw) ? raw : NaN;
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return NaN;
+    s = s.replace(/\s*(?:mm|m|cây|cay|đoạn|doan)\s*$/i, '').trim();
+    if (/^\d{1,3}(?:[.,]\d{3})+$/.test(s)) {
+      s = s.replace(/[.,]/g, '');
+    } else if (/^\d+,\d{1,2}$/.test(s)) {
+      s = s.replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+    var n = parseFloat(s);
+    return isFinite(n) ? n : NaN;
+  }
+
+  function parseOffcutsArrayRows(aoaRows) {
+    var input = Array.isArray(aoaRows) ? aoaRows : [];
+    var rows = [];
+    var skipped = [];
+
+    for (var i = 0; i < input.length; i++) {
+      var rawRow = input[i];
+      if (!Array.isArray(rawRow)) continue;
+      var cells = rawRow.map(function (c) { return String(c == null ? '' : c).trim(); });
+      if (!cells.some(Boolean)) continue;
+
+      var c0Lower = (cells[0] || '').toLowerCase();
+      var c1Lower = (cells[1] || '').toLowerCase();
+      var isHeader = /quy\s*cách|quy\s*cach|profile|loại\s*hộp|loai\s*hop|^stt$/i.test(c0Lower) ||
+        /chiều\s*dài|chieu\s*dai|length/i.test(c1Lower);
+      if (isHeader) continue;
+
+      // Hỗ trợ tự động nếu file Excel có cột STT ở đầu (col 0 = số thứ tự nhỏ, col 1 = tên hộp chữ)
+      var offset = 0;
+      if (/^\d{1,4}$/.test(cells[0]) && cells.length >= 4 && isNaN(_parseSpreadsheetNumber(cells[1])) && !isNaN(_parseSpreadsheetNumber(cells[2]))) {
+        offset = 1;
+      }
+
+      var profile = String(cells[offset] || '').trim();
+      var lenVal = _parseSpreadsheetNumber(cells[offset + 1]);
+      var qtyRaw = _parseSpreadsheetNumber(cells[offset + 2]);
+      var rackLoc = String(cells[offset + 3] || '').trim();
+      var noteStr = String(cells[offset + 4] || '').trim();
+
+      if (!profile || !(lenVal > 0)) {
+        skipped.push({ line: i + 1, raw: cells.join(' | '), reason: !profile ? 'Thiếu quy cách' : 'Chiều dài không hợp lệ' });
+        continue;
+      }
+      var qty = (!isNaN(qtyRaw) && qtyRaw >= 1) ? Math.round(qtyRaw) : 1;
+      rows.push({
+        profile: profile,
+        lengthMm: Math.round(lenVal * 100) / 100,
+        quantity: qty,
+        rackLocation: rackLoc,
+        note: noteStr
+      });
+    }
+    return { rows: rows, skipped: skipped };
+  }
+
+  function parseOffcutsPasteText(text) {
+    var str = String(text || '');
+    if (!str.trim()) return { rows: [], skipped: [] };
+    var lines = str.split(/\r?\n/);
+    var aoa = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line.trim()) continue;
+      var parts;
+      if (line.indexOf('\t') !== -1) {
+        parts = line.split('\t');
+      } else if (line.indexOf(';') !== -1) {
+        parts = line.split(';');
+      } else if (line.indexOf('|') !== -1) {
+        parts = line.split('|');
+      } else {
+        parts = line.split(',');
+      }
+      aoa.push(parts);
+    }
+    return parseOffcutsArrayRows(aoa);
+  }
+
+  function downloadOpeningOffcutsTemplateXlsx() {
+    var sheet1Rows = [
+      ['Quy cách', 'Chiều dài (mm)', 'Số lượng', 'Vị trí kệ', 'Ghi chú'],
+      ['Hộp 30x30x1.8', 2450, 3, 'Kệ B1', 'Phôi lẻ cũ trước khi dùng web'],
+      ['Hộp 40x80x2.0', 1850, 2, 'Kệ A2', 'Khúc thừa lan can dự án cũ'],
+      ['Ống Ø27x1.4', 1200, 5, 'Kệ C1', 'Đoạn ống còn tồn kho']
+    ];
+    var guideRows = [
+      ['HƯỚNG DẪN NHẬP FILE EXCEL PHÔI LẺ / ĐỀ-XÊ TỒN ĐẦU KỲ'],
+      ['Cột A - Quy cách', 'Nhập tên quy cách thép (ví dụ: Hộp 30x30x1.8). Nên trùng tên thư viện xưởng.'],
+      ['Cột B - Chiều dài (mm)', 'Nhập số nguyên mm (ví dụ: 2450, không gõ chữ mm).'],
+      ['Cột C - Số lượng', 'Số đoạn phôi có cùng quy cách và chiều dài này (mặc định 1 nếu bỏ trống).'],
+      ['Cột D - Vị trí kệ', 'Tên giá/kệ ngoài xưởng (ví dụ: Kệ B1) để thợ dễ tìm lấy cắt.'],
+      ['Cột E - Ghi chú', 'Ghi chú thêm nếu có. Có thể Copy trực tiếp 5 cột từ Excel và Dán vào web!']
+    ];
+
+    if (typeof global.XLSX !== 'undefined' && global.XLSX && global.XLSX.utils) {
+      var XLSX = global.XLSX;
+      var wb = XLSX.utils.book_new();
+      var ws1 = XLSX.utils.aoa_to_sheet(sheet1Rows);
+      ws1['!cols'] = [{ wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 36 }];
+      var ws2 = XLSX.utils.aoa_to_sheet(guideRows);
+      ws2['!cols'] = [{ wch: 24 }, { wch: 70 }];
+      XLSX.utils.book_append_sheet(wb, ws1, 'PhoiLe_DauKy');
+      XLSX.utils.book_append_sheet(wb, ws2, 'HuongDan');
+      var fileName = 'Mau_Nhap_Phoi_Le_Dau_Ky_AnBinh.xlsx';
+      XLSX.writeFile(wb, fileName);
+      return { ok: true, format: 'xlsx', fileName: fileName };
+    }
+    var csvName = 'Mau_Nhap_Phoi_Le_Dau_Ky_AnBinh.csv';
+    _downloadCsvFallback(sheet1Rows, csvName);
+    return { ok: true, format: 'csv', fileName: csvName };
+  }
+
+  function buildInventoryReportSheetsData(opts) {
+    var o = opts || {};
+    var invItems = Array.isArray(o.inventoryItems) ? o.inventoryItems : [];
+    var offcuts = Array.isArray(o.stockOffcuts) ? o.stockOffcuts : [];
+    var txs = Array.isArray(o.transactions) ? o.transactions : [];
+    var nowStr = formatDateTimeVN(new Date());
+
+    var sheetBars = [
+      ['CƠ KHÍ AN BÌNH — BÁO CÁO TỒN KHO CÂY NGUYÊN'],
+      ['Ngày xuất báo cáo:', nowStr, 'Người xuất:', o.exportedBy ? '@' + o.exportedBy : '—'],
+      [],
+      ['STT', 'Quy cách thép', 'Loại', 'Dài chuẩn (mm)', 'Tồn kho (cây)', 'Định mức tối thiểu', 'Trạng thái tồn', 'Kg/m', 'Tổng khối lượng (kg)', 'Đơn giá (đ)', 'Vị trí kệ']
+    ];
+    invItems.forEach(function (item, idx) {
+      var qty = Math.max(0, Number(item.stockQty) || 0);
+      var stdLen = Number(item.standardLengthMm || item.standardLength) || 6000;
+      var minQty = Math.max(0, Number(item.minStockQty) || 0);
+      var wPerM = Math.max(0, Number(item.weightPerM) || 0);
+      var totalKg = Math.round(qty * (stdLen / 1000) * wPerM * 100) / 100;
+      var statusTxt = qty === 0 ? 'Hết hàng' : (minQty > 0 && qty <= minQty ? 'Sắp hết hàng' : 'Đủ tồn');
+      sheetBars.push([
+        idx + 1,
+        item.profileName || '',
+        item.category || '',
+        stdLen,
+        qty,
+        minQty,
+        statusTxt,
+        wPerM,
+        totalKg,
+        Number(item.unitPrice) || 0,
+        item.rackLocation || ''
+      ]);
+    });
+
+    var sheetOffcuts = [
+      ['CƠ KHÍ AN BÌNH — BÁO CÁO KHO PHÔI LẺ & ĐỀ-XÊ'],
+      ['Ngày xuất báo cáo:', nowStr],
+      [],
+      ['STT', 'Quy cách thép', 'Chiều dài (mm)', 'Số đoạn', 'Tổng dài (m)', 'Nguồn nhập', 'Trạng thái', 'Vị trí kệ', 'Dự án tạo', 'Ghi chú', 'Người nhập', 'Ngày nhập']
+    ];
+    offcuts.forEach(function (off, idx) {
+      var qty = Math.max(0, Number(off.quantity) || 0);
+      var meters = Math.round(((Number(off.lengthMm) || 0) * qty) / 10) / 100;
+      sheetOffcuts.push([
+        idx + 1,
+        off.profile || '',
+        Number(off.lengthMm) || 0,
+        qty,
+        meters,
+        OFFCUT_SOURCE_LABELS[off.sourceType] || off.sourceType || 'Nhập tay',
+        off.status === 'used' ? 'Đã dùng hết' : (off.status === 'reserved' ? 'Đã giữ' : 'Khả dụng'),
+        off.rackLocation || '',
+        off.sourceProjectName || '',
+        off.note || off.notes || '',
+        off.createdBy ? ('@' + off.createdBy) : '',
+        off.createdAt ? formatDateTimeVN(off.createdAt) : ''
+      ]);
+    });
+
+    var sheetLedger = [
+      ['CƠ KHÍ AN BÌNH — SỔ CÁI XUẤT NHẬP KHO'],
+      ['Ngày xuất báo cáo:', nowStr, 'Bộ lọc:', o.filtersLabel || 'Tất cả'],
+      [],
+      ['STT', 'Thời gian', 'Loại giao dịch', 'Quy cách thép', 'Chiều dài (mm)', 'Thay đổi (+/-)', 'Tồn sau GD', 'Mã dự án', 'Ghi chú', 'Người thực hiện']
+    ];
+    txs.forEach(function (tx, idx) {
+      sheetLedger.push([
+        idx + 1,
+        tx.createdAt ? formatDateTimeVN(tx.createdAt) : '',
+        TX_TYPE_LABELS[tx.txType] || tx.txType || '',
+        tx.profile || '',
+        Number(tx.lengthMm) || 6000,
+        Number(tx.qtyChange) || 0,
+        tx.balanceAfter != null ? Number(tx.balanceAfter) : '',
+        tx.projectId || '',
+        tx.note || '',
+        tx.createdBy ? ('@' + tx.createdBy) : ''
+      ]);
+    });
+
+    return {
+      sheetBars: sheetBars,
+      sheetOffcuts: sheetOffcuts,
+      sheetLedger: sheetLedger
+    };
+  }
+
+  function exportInventoryReportXlsx(opts) {
+    var data = buildInventoryReportSheetsData(opts);
+    var dateStr = new Date().toISOString().slice(0, 10);
+    if (typeof global.XLSX !== 'undefined' && global.XLSX && global.XLSX.utils) {
+      var XLSX = global.XLSX;
+      var wb = XLSX.utils.book_new();
+      var ws1 = XLSX.utils.aoa_to_sheet(data.sheetBars);
+      ws1['!cols'] = [
+        { wch: 6 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 },
+        { wch: 16 }, { wch: 15 }, { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 14 }
+      ];
+      var ws2 = XLSX.utils.aoa_to_sheet(data.sheetOffcuts);
+      ws2['!cols'] = [
+        { wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 12 },
+        { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 24 }, { wch: 30 }, { wch: 14 }, { wch: 18 }
+      ];
+      var ws3 = XLSX.utils.aoa_to_sheet(data.sheetLedger);
+      ws3['!cols'] = [
+        { wch: 6 }, { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 14 },
+        { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 36 }, { wch: 16 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws1, 'TonKho_CayNguyen');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Kho_PhoiLe_DeXe');
+      XLSX.utils.book_append_sheet(wb, ws3, 'SoCai_XuatNhap');
+      var fileName = 'BaoCao_KhoPhoi_AnBinh_' + dateStr + '.xlsx';
+      XLSX.writeFile(wb, fileName);
+      return { ok: true, format: 'xlsx', fileName: fileName };
+    }
+    var csvName = 'BaoCao_KhoPhoi_AnBinh_' + dateStr + '.csv';
+    _downloadCsvFallback([].concat(data.sheetBars).concat([[]]).concat(data.sheetOffcuts).concat([[]]).concat(data.sheetLedger), csvName);
+    return { ok: true, format: 'csv', fileName: csvName };
+  }
+
   global.WorkshopExport = {
+    TX_TYPE_LABELS: TX_TYPE_LABELS,
+    OFFCUT_SOURCE_LABELS: OFFCUT_SOURCE_LABELS,
     generateQrSvg: generateQrSvg,
     buildA4SheetHtml: buildA4SheetHtml,
     printProductionSheet: printProductionSheet,
     buildExcelSheetsData: buildExcelSheetsData,
-    exportExcelXlsx: exportExcelXlsx
+    exportExcelXlsx: exportExcelXlsx,
+    parseOffcutsArrayRows: parseOffcutsArrayRows,
+    parseOffcutsPasteText: parseOffcutsPasteText,
+    downloadOpeningOffcutsTemplateXlsx: downloadOpeningOffcutsTemplateXlsx,
+    buildInventoryReportSheetsData: buildInventoryReportSheetsData,
+    exportInventoryReportXlsx: exportInventoryReportXlsx
   };
 })(typeof window !== 'undefined' ? window : globalThis);

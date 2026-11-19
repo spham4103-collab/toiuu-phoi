@@ -34,6 +34,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   var _stylesInjected = false;
   var _supportsPatternHash = true;
   var _offcutsTableReady = true;
+  var _inventoryEnhancedReady = true;
+  var _ledgerTableReady = true;
+  var _projectsDeductedColReady = true;
 
   function usernameToEmail(input) {
     var clean = String(input || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -251,6 +254,58 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return 'other';
   }
 
+  function estimateSteelWeightPerM(pName) {
+    var s = String(pName || '').trim();
+    if (!s) return 0;
+    // Ông tròn: Ø27x1.4, Phi 34x1.8, Ống 42*2.0
+    var mRound = s.match(/(?:Ø|phi|ống|ong|d)\s*(\d+(?:\.\d+)?)\s*[xX\*×]\s*(\d+(?:\.\d+)?)/i);
+    if (mRound && /ống|ong|phi|ø/i.test(s)) {
+      var od = parseFloat(mRound[1]);
+      var wt = parseFloat(mRound[2]);
+      if (od > 2 * wt && wt > 0) {
+        var areaMm2 = Math.PI * (od - wt) * wt;
+        return Math.round(areaMm2 * 0.00785 * 100) / 100;
+      }
+    }
+    // Hộp vuông / chữ nhật: 30x30x1.8, 40x80x2.0
+    var mBox = s.match(/(\d+(?:\.\d+)?)\s*[xX\*×]\s*(\d+(?:\.\d+)?)\s*[xX\*×]\s*(\d+(?:\.\d+)?)/);
+    if (mBox) {
+      var w = parseFloat(mBox[1]);
+      var h = parseFloat(mBox[2]);
+      var t = parseFloat(mBox[3]);
+      if (w > 0 && h > 0 && t > 0 && 2 * t < Math.min(w, h)) {
+        var boxAreaMm2 = (2 * (w + h) - 4 * t) * t;
+        return Math.round(boxAreaMm2 * 0.00785 * 100) / 100;
+      }
+    }
+    return 0;
+  }
+
+  function _errMsg(err) {
+    if (!err) return '';
+    return String(err.message || '') + ' ' + String(err.details || '') + ' ' + String(err.hint || '');
+  }
+
+  function _isMissingColumnError(err, colRegex) {
+    if (!err) return false;
+    var msg = _errMsg(err);
+    var isColCode = err.code === 'PGRST204' || err.code === '42703' || /column|schema cache|Could not find/i.test(msg);
+    if (!isColCode) return false;
+    return colRegex ? colRegex.test(msg) : true;
+  }
+
+  function _isMissingTableError(err, tableName) {
+    if (!err) return false;
+    var msg = _errMsg(err);
+    if (err.code === 'PGRST205' || err.code === '42P01') {
+      return !tableName || new RegExp(tableName, 'i').test(msg) || /schema cache|does not exist/i.test(msg);
+    }
+    if (tableName && new RegExp(tableName, 'i').test(msg) && /does not exist|schema cache|not find/i.test(msg)) {
+      return true;
+    }
+    return false;
+  }
+
   function stripHeavyIgs(obj) {
     if (obj === null || obj === undefined) return obj;
     try {
@@ -264,6 +319,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
 
   function mapProjectFromDb(row) {
     if (!row) return null;
+    var d = (row.data && typeof row.data === 'object') ? row.data : {};
     return {
       id: row.id,
       name: row.name || '',
@@ -273,8 +329,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       isTrashed: Boolean(row.is_trashed),
       isDraft: Boolean(row.is_draft),
       source: row.source || 'web',
-      data: (row.data && typeof row.data === 'object') ? row.data : {},
+      data: d,
       igsFiles: Array.isArray(row.igs_files) ? row.igs_files : [],
+      inventoryDeductedAt: row.inventory_deducted_at || d.inventoryDeductedAt || null,
       deletedAt: row.deleted_at || null,
       createdAt: row.created_at || new Date().toISOString(),
       updatedAt: row.updated_at || row.created_at || new Date().toISOString()
@@ -357,12 +414,18 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
 
   function mapInventoryFromDb(row) {
     if (!row) return null;
+    var stdLen = Number(row.standard_length_mm != null ? row.standard_length_mm : row.standard_length) || 6000;
     return {
       id: row.id,
       profileName: row.profile_name,
-      category: row.category || 'other',
-      standardLength: Number(row.standard_length) || 6000,
-      stockQty: row.stock_qty != null ? Number(row.stock_qty) : null,
+      category: row.category || classifyProfile(row.profile_name),
+      standardLength: stdLen,
+      standardLengthMm: stdLen,
+      stockQty: row.stock_qty != null ? Math.max(0, Number(row.stock_qty) || 0) : 0,
+      minStockQty: Math.max(0, Number(row.min_stock_qty) || 0),
+      weightPerM: Math.max(0, Number(row.weight_per_m) || 0),
+      unitPrice: Math.max(0, Number(row.unit_price) || 0),
+      rackLocation: String(row.rack_location || ''),
       notes: row.notes || '',
       isDefault: Boolean(row.is_default),
       createdAt: row.created_at || null,
@@ -389,18 +452,42 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
 
   function mapOffcutFromDb(row) {
     if (!row) return null;
+    var qty = row.quantity != null ? Math.max(0, Number(row.quantity) || 0) : 0;
+    var noteText = String((row.note !== undefined && row.note !== null && row.note !== '') ? row.note : (row.notes || ''));
+    var srcType = row.source_type || ((row.source_bar_key || row.source_project_id) ? 'cnc_return' : 'manual');
+    var statusVal = row.status || (qty > 0 ? 'available' : 'used');
     return {
       id: row.id,
       profile: row.profile || '',
       lengthMm: Number(row.length_mm) || 0,
-      quantity: row.quantity != null ? Number(row.quantity) : 0,
+      quantity: qty,
       sourceProjectId: row.source_project_id || null,
       sourceProjectName: row.source_project_name || '',
       sourceBarKey: row.source_bar_key || '',
-      notes: row.notes || '',
+      sourceType: srcType,
+      rackLocation: String(row.rack_location || ''),
+      status: statusVal,
+      note: noteText,
+      notes: noteText,
       createdBy: row.created_by || '',
       createdAt: row.created_at || null,
       updatedAt: row.updated_at || row.created_at || null
+    };
+  }
+
+  function mapInventoryTxFromDb(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      txType: row.tx_type || 'stocktake_adjust',
+      profile: row.profile || '',
+      lengthMm: Number(row.length_mm) || 6000,
+      qtyChange: Number(row.qty_change) || 0,
+      balanceAfter: row.balance_after != null ? Number(row.balance_after) : null,
+      projectId: row.project_id || null,
+      note: String(row.note || ''),
+      createdBy: String(row.created_by || ''),
+      createdAt: row.created_at || new Date().toISOString()
     };
   }
 
@@ -482,6 +569,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (fields.data !== undefined) patch.data = stripHeavyIgs(fields.data);
     if (fields.igsFiles !== undefined) patch.igs_files = fields.igsFiles;
     if (fields.igs_files !== undefined) patch.igs_files = fields.igs_files;
+    if (_projectsDeductedColReady) {
+      if (fields.inventoryDeductedAt !== undefined) patch.inventory_deducted_at = fields.inventoryDeductedAt;
+      if (fields.inventory_deducted_at !== undefined) patch.inventory_deducted_at = fields.inventory_deducted_at;
+    }
 
     var res = await client
       .from('projects')
@@ -489,6 +580,16 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .eq('id', id)
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /inventory_deducted_at/i)) {
+      _projectsDeductedColReady = false;
+      delete patch.inventory_deducted_at;
+      res = await client
+        .from('projects')
+        .update(patch)
+        .eq('id', id)
+        .select()
+        .single();
+    }
     var updated = throwIfError(res, 'Không cập nhật được dự án');
     return mapProjectFromDb(updated);
   }
@@ -651,12 +752,35 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   // =========================================================================
-  // CRUD: INVENTORY (QUY CÁCH THÉP HỘP / ỐNG)
+  // CRUD: INVENTORY (KHO CÂY NGUYÊN TIÊU CHUẨN & THƯ VIỆN QUY CÁCH - ĐỢT 4)
   // =========================================================================
+  function isInventoryEnhancedReady() {
+    return _inventoryEnhancedReady;
+  }
+
+  function isLedgerTableReady() {
+    return _ledgerTableReady;
+  }
+
+  function _stripEnhancedInventoryCols(obj) {
+    var copy = Object.assign({}, obj);
+    delete copy.standard_length_mm;
+    delete copy.min_stock_qty;
+    delete copy.weight_per_m;
+    delete copy.unit_price;
+    delete copy.rack_location;
+    return copy;
+  }
+
   async function getInventory() {
     var client = getClient();
     var res = await client.from('inventory').select('*').order('created_at', { ascending: true });
     var rows = throwIfError(res, 'Không tải được thư viện quy cách') || [];
+    if (rows.length > 0 && !Object.prototype.hasOwnProperty.call(rows[0], 'rack_location')) {
+      _inventoryEnhancedReady = false;
+    } else if (rows.length > 0) {
+      _inventoryEnhancedReady = true;
+    }
     return rows.map(mapInventoryFromDb);
   }
 
@@ -665,20 +789,99 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (!clean) throw new Error('Tên quy cách không được để trống');
     var info = meta || {};
     var client = getClient();
+    var stdLen = Math.max(100, Number(info.standardLengthMm != null ? info.standardLengthMm : (info.standardLength != null ? info.standardLength : 6000)) || 6000);
+    var qtyVal = info.stockQty !== undefined && info.stockQty !== null && info.stockQty !== ''
+      ? Math.max(0, Math.round(Number(info.stockQty) || 0))
+      : 0;
     var payload = {
       profile_name: clean,
       category: info.category || classifyProfile(clean),
-      standard_length: info.standardLength != null ? Number(info.standardLength) : 6000,
-      stock_qty: info.stockQty !== undefined ? info.stockQty : null,
-      notes: info.notes || '',
+      standard_length: stdLen,
+      standard_length_mm: stdLen,
+      stock_qty: qtyVal,
+      min_stock_qty: Math.max(0, Math.round(Number(info.minStockQty) || 0)),
+      weight_per_m: Math.max(0, Number(info.weightPerM != null ? info.weightPerM : estimateSteelWeightPerM(clean)) || 0),
+      unit_price: Math.max(0, Number(info.unitPrice) || 0),
+      rack_location: String(info.rackLocation || '').trim(),
+      notes: String(info.notes || ''),
       is_default: Boolean(info.isDefault)
     };
+    if (!_inventoryEnhancedReady) {
+      payload = _stripEnhancedInventoryCols(payload);
+    }
     var res = await client
       .from('inventory')
       .upsert(payload, { onConflict: 'profile_name' })
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /standard_length_mm|min_stock_qty|weight_per_m|unit_price|rack_location/i)) {
+      _inventoryEnhancedReady = false;
+      res = await client
+        .from('inventory')
+        .upsert(_stripEnhancedInventoryCols(payload), { onConflict: 'profile_name' })
+        .select()
+        .single();
+    }
     var row = throwIfError(res, 'Không lưu được quy cách hộp');
+    return mapInventoryFromDb(row);
+  }
+
+  async function updateInventoryProfile(profileNameOrId, patch) {
+    if (!profileNameOrId || !patch) return null;
+    var client = getClient();
+    var p = patch || {};
+    var updateObj = { updated_at: new Date().toISOString() };
+    if (p.profileName !== undefined) {
+      var cleanName = String(p.profileName || '').trim();
+      if (!cleanName) throw new Error('Tên quy cách không được để trống');
+      updateObj.profile_name = cleanName;
+      updateObj.category = p.category || classifyProfile(cleanName);
+    }
+    if (p.category !== undefined) updateObj.category = String(p.category || 'other');
+    if (p.standardLengthMm !== undefined || p.standardLength !== undefined) {
+      var sLen = Math.max(100, Number(p.standardLengthMm !== undefined ? p.standardLengthMm : p.standardLength) || 6000);
+      updateObj.standard_length = sLen;
+      updateObj.standard_length_mm = sLen;
+    }
+    if (p.stockQty !== undefined) {
+      updateObj.stock_qty = Math.max(0, Math.round(Number(p.stockQty) || 0));
+    }
+    if (p.minStockQty !== undefined) {
+      updateObj.min_stock_qty = Math.max(0, Math.round(Number(p.minStockQty) || 0));
+    }
+    if (p.weightPerM !== undefined) {
+      updateObj.weight_per_m = Math.max(0, Number(p.weightPerM) || 0);
+    }
+    if (p.unitPrice !== undefined) {
+      updateObj.unit_price = Math.max(0, Number(p.unitPrice) || 0);
+    }
+    if (p.rackLocation !== undefined) {
+      updateObj.rack_location = String(p.rackLocation || '').trim();
+    }
+    if (p.notes !== undefined) {
+      updateObj.notes = String(p.notes || '');
+    }
+
+    var isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(profileNameOrId));
+    var colKey = isUuid ? 'id' : 'profile_name';
+    var execUpdate = _inventoryEnhancedReady ? updateObj : _stripEnhancedInventoryCols(updateObj);
+
+    var res = await client
+      .from('inventory')
+      .update(execUpdate)
+      .eq(colKey, String(profileNameOrId).trim())
+      .select()
+      .single();
+    if (res && res.error && _isMissingColumnError(res.error, /standard_length_mm|min_stock_qty|weight_per_m|unit_price|rack_location/i)) {
+      _inventoryEnhancedReady = false;
+      res = await client
+        .from('inventory')
+        .update(_stripEnhancedInventoryCols(updateObj))
+        .eq(colKey, String(profileNameOrId).trim())
+        .select()
+        .single();
+    }
+    var row = throwIfError(res, 'Không cập nhật được quy cách vật tư');
     return mapInventoryFromDb(row);
   }
 
@@ -688,12 +891,16 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .map(function (n) { return String(n || '').trim(); })
       .filter(Boolean)
       .map(function (clean) {
-        return {
+        var r = {
           profile_name: clean,
           category: classifyProfile(clean),
           standard_length: 6000,
+          standard_length_mm: 6000,
+          stock_qty: 0,
+          weight_per_m: estimateSteelWeightPerM(clean),
           is_default: DEFAULT_PROFILES.indexOf(clean) !== -1
         };
+        return _inventoryEnhancedReady ? r : _stripEnhancedInventoryCols(r);
       });
     if (!rows.length) return [];
     var client = getClient();
@@ -701,6 +908,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .from('inventory')
       .upsert(rows, { onConflict: 'profile_name', ignoreDuplicates: true })
       .select();
+    if (res && res.error && _isMissingColumnError(res.error, /standard_length_mm|weight_per_m/i)) {
+      _inventoryEnhancedReady = false;
+      res = await client
+        .from('inventory')
+        .upsert(rows.map(_stripEnhancedInventoryCols), { onConflict: 'profile_name', ignoreDuplicates: true })
+        .select();
+    }
     var saved = throwIfError(res, 'Không thêm được danh sách quy cách') || [];
     return saved.map(mapInventoryFromDb);
   }
@@ -710,6 +924,176 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var res = await client.from('inventory').delete().eq('profile_name', String(profileName || '').trim());
     throwIfError(res, 'Không xóa được quy cách hộp');
     return true;
+  }
+
+  async function _ensureInventoryProfileRow(profileName, defaultLenMm) {
+    var clean = String(profileName || '').trim();
+    if (!clean) throw new Error('Thiếu tên quy cách vật tư');
+    var client = getClient();
+    var curRes = await client.from('inventory').select('*').eq('profile_name', clean).maybeSingle();
+    var existing = throwIfError(curRes, 'Không đọc được thông tin tồn kho quy cách');
+    if (existing) return mapInventoryFromDb(existing);
+    return addProfile(clean, {
+      standardLengthMm: defaultLenMm || 6000,
+      stockQty: 0
+    });
+  }
+
+  async function saveOpeningBalanceBars(items, createdBy) {
+    var list = Array.isArray(items) ? items : [];
+    var cleanItems = list
+      .map(function (it) {
+        var name = String((it && (it.profileName || it.profile)) || '').trim();
+        if (!name) return null;
+        var stdLen = Math.max(100, Number(it.standardLengthMm != null ? it.standardLengthMm : (it.standardLength || 6000)) || 6000);
+        return {
+          profileName: name,
+          stockQty: Math.max(0, Math.round(Number(it.stockQty != null ? it.stockQty : it.qty) || 0)),
+          standardLengthMm: stdLen,
+          minStockQty: Math.max(0, Math.round(Number(it.minStockQty) || 0)),
+          weightPerM: it.weightPerM != null ? Math.max(0, Number(it.weightPerM) || 0) : estimateSteelWeightPerM(name),
+          unitPrice: Math.max(0, Number(it.unitPrice) || 0),
+          rackLocation: String(it.rackLocation || '').trim(),
+          notes: String(it.notes || '')
+        };
+      })
+      .filter(Boolean);
+    if (!cleanItems.length) return { savedRows: [], txCount: 0, ledgerSkipped: false };
+
+    var existingList = await getInventory();
+    var existingMap = {};
+    existingList.forEach(function (r) { existingMap[r.profileName] = r; });
+
+    var client = getClient();
+    var payloads = cleanItems.map(function (it) {
+      var prev = existingMap[it.profileName];
+      var obj = {
+        profile_name: it.profileName,
+        category: classifyProfile(it.profileName),
+        standard_length: it.standardLengthMm,
+        standard_length_mm: it.standardLengthMm,
+        stock_qty: it.stockQty,
+        min_stock_qty: it.minStockQty,
+        weight_per_m: it.weightPerM > 0 ? it.weightPerM : (prev ? prev.weightPerM : estimateSteelWeightPerM(it.profileName)),
+        unit_price: it.unitPrice > 0 ? it.unitPrice : (prev ? prev.unitPrice : 0),
+        rack_location: it.rackLocation,
+        notes: it.notes || (prev ? prev.notes : ''),
+        is_default: prev ? Boolean(prev.isDefault) : (DEFAULT_PROFILES.indexOf(it.profileName) !== -1),
+        updated_at: new Date().toISOString()
+      };
+      return _inventoryEnhancedReady ? obj : _stripEnhancedInventoryCols(obj);
+    });
+
+    var res = await client
+      .from('inventory')
+      .upsert(payloads, { onConflict: 'profile_name' })
+      .select();
+    if (res && res.error && _isMissingColumnError(res.error, /standard_length_mm|min_stock_qty|weight_per_m|unit_price|rack_location/i)) {
+      _inventoryEnhancedReady = false;
+      res = await client
+        .from('inventory')
+        .upsert(payloads.map(_stripEnhancedInventoryCols), { onConflict: 'profile_name' })
+        .select();
+    }
+    var saved = throwIfError(res, 'Không lưu được tồn kho đầu kỳ cây nguyên') || [];
+
+    var txCount = 0;
+    var ledgerSkipped = false;
+    var actor = String(createdBy || '').trim();
+    for (var i = 0; i < cleanItems.length; i++) {
+      var item = cleanItems[i];
+      var prevRow = existingMap[item.profileName];
+      var prevQty = prevRow ? Math.max(0, Number(prevRow.stockQty) || 0) : 0;
+      var delta = item.stockQty - prevQty;
+      if (delta === 0) continue;
+      var txNote = 'Nhập tồn đầu kỳ (Phôi cũ)' + (item.rackLocation ? (' · ' + item.rackLocation) : '');
+      var txRes = await addInventoryTransaction({
+        txType: 'opening_balance',
+        profile: item.profileName,
+        lengthMm: item.standardLengthMm,
+        qtyChange: delta,
+        balanceAfter: item.stockQty,
+        projectId: null,
+        note: txNote,
+        createdBy: actor
+      });
+      if (txRes && txRes.skipped) ledgerSkipped = true;
+      else if (txRes) txCount++;
+    }
+
+    return {
+      savedRows: saved.map(mapInventoryFromDb),
+      txCount: txCount,
+      ledgerSkipped: ledgerSkipped
+    };
+  }
+
+  async function purchaseInInventory(opts) {
+    var o = opts || {};
+    var profile = String(o.profile || o.profileName || '').trim();
+    var qty = Math.round(Number(o.qty));
+    if (!profile) throw new Error('Vui lòng chọn quy cách thép nhập kho!');
+    if (!(qty > 0)) throw new Error('Số cây nhập mua mới phải lớn hơn 0!');
+
+    var cur = await _ensureInventoryProfileRow(profile, o.lengthMm || 6000);
+    var prevQty = Math.max(0, Number(cur.stockQty) || 0);
+    var nextQty = prevQty + qty;
+    var lengthMm = Math.max(100, Number(o.lengthMm || cur.standardLengthMm || 6000) || 6000);
+    var updated = await updateInventoryProfile(profile, { stockQty: nextQty });
+
+    var txRes = await addInventoryTransaction({
+      txType: 'purchase_in',
+      profile: profile,
+      lengthMm: lengthMm,
+      qtyChange: qty,
+      balanceAfter: nextQty,
+      projectId: null,
+      note: String(o.note || '').trim() || 'Nhập mua mới từ nhà cung cấp',
+      createdBy: String(o.createdBy || '').trim()
+    });
+    return {
+      item: updated,
+      transaction: txRes && !txRes.skipped ? txRes : null,
+      ledgerSkipped: Boolean(txRes && txRes.skipped)
+    };
+  }
+
+  async function stocktakeAdjustInventory(opts) {
+    var o = opts || {};
+    var profile = String(o.profile || o.profileName || '').trim();
+    var rawActual = o.actualQty != null ? o.actualQty : o.actual_qty;
+    var actualQty = Math.round(Number(rawActual));
+    var reason = String(o.reason || o.note || '').trim();
+    if (!profile) throw new Error('Vui lòng chọn quy cách kiểm kê!');
+    if (rawActual === '' || rawActual === null || rawActual === undefined || isNaN(actualQty) || actualQty < 0) {
+      throw new Error('Số lượng thực tế đếm được phải >= 0!');
+    }
+    if (!reason) {
+      throw new Error('Vui lòng nhập lý do kiểm kê / điều chỉnh kho!');
+    }
+
+    var cur = await _ensureInventoryProfileRow(profile, 6000);
+    var prevQty = Math.max(0, Number(cur.stockQty) || 0);
+    var delta = actualQty - prevQty;
+    var updated = await updateInventoryProfile(profile, { stockQty: actualQty });
+
+    var txRes = await addInventoryTransaction({
+      txType: 'stocktake_adjust',
+      profile: profile,
+      lengthMm: cur.standardLengthMm || 6000,
+      qtyChange: delta,
+      balanceAfter: actualQty,
+      projectId: null,
+      note: reason,
+      createdBy: String(o.createdBy || '').trim()
+    });
+    return {
+      item: updated,
+      delta: delta,
+      prevQty: prevQty,
+      transaction: txRes && !txRes.skipped ? txRes : null,
+      ledgerSkipped: Boolean(txRes && txRes.skipped)
+    };
   }
 
   // =========================================================================
@@ -822,17 +1206,23 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   // =========================================================================
-  // CRUD: STOCK OFFCUTS (KHO PHÔI ĐỀ-XÊ TÁI SỬ DỤNG - ĐỢT 3)
+  // CRUD: STOCK OFFCUTS (KHO PHÔI LẺ & ĐỀ-XÊ TÁI SỬ DỤNG - ĐỢT 3 & ĐỢT 4)
   // =========================================================================
   function _isMissingOffcutsTableError(err) {
-    if (!err) return false;
-    var msg = String(err.message || '') + ' ' + String(err.details || '') + ' ' + String(err.hint || '');
-    if (err.code === 'PGRST205' || err.code === '42P01') return true;
-    return /stock_offcuts/i.test(msg) && /does not exist|schema cache|not find/i.test(msg);
+    return _isMissingTableError(err, 'stock_offcuts');
   }
 
   function isOffcutsTableReady() {
     return _offcutsTableReady;
+  }
+
+  function _stripEnhancedOffcutCols(obj) {
+    var copy = Object.assign({}, obj);
+    delete copy.source_type;
+    delete copy.rack_location;
+    delete copy.status;
+    delete copy.note;
+    return copy;
   }
 
   async function getStockOffcuts(opts) {
@@ -855,7 +1245,19 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     }
     _offcutsTableReady = true;
     var rows = throwIfError(res, 'Không tải được kho phôi đề-xê') || [];
-    return rows.map(mapOffcutFromDb);
+    var mapped = rows.map(mapOffcutFromDb);
+    if (options.onlyAvailable) {
+      mapped = mapped.filter(function (o) {
+        return o.quantity > 0 && (!o.status || o.status === 'available');
+      });
+    }
+    if (options.status && options.status !== 'ALL') {
+      mapped = mapped.filter(function (o) { return o.status === options.status; });
+    }
+    if (options.sourceType && options.sourceType !== 'ALL') {
+      mapped = mapped.filter(function (o) { return o.sourceType === options.sourceType; });
+    }
+    return mapped;
   }
 
   async function addStockOffcut(payload) {
@@ -864,6 +1266,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var rawLen = p.lengthMm != null ? p.lengthMm : p.length_mm;
     var lengthMm = Math.round(Number(rawLen) * 100) / 100;
     var quantity = Math.max(1, parseInt(p.quantity != null ? p.quantity : 1, 10) || 1);
+    var srcProjId = p.sourceProjectId || p.source_project_id || null;
+    var srcBarKey = String(p.sourceBarKey || p.source_bar_key || '');
+    var noteStr = String(p.note != null ? p.note : (p.notes || '')).trim();
+    var srcType = p.sourceType || p.source_type || (srcBarKey ? 'cnc_return' : 'manual');
+    var rackLoc = String(p.rackLocation || p.rack_location || '').trim();
+    var statusVal = p.status || 'available';
+    var createdBy = String(p.createdBy || p.created_by || '').trim();
 
     if (!profile) throw new Error('Thiếu quy cách hộp/ống cho phôi đề-xê');
     if (!(lengthMm > 0)) throw new Error('Chiều dài phôi đề-xê phải lớn hơn 0 mm');
@@ -873,18 +1282,34 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       profile: profile,
       length_mm: lengthMm,
       quantity: quantity,
-      source_project_id: p.sourceProjectId || p.source_project_id || null,
+      source_project_id: srcProjId,
       source_project_name: String(p.sourceProjectName || p.source_project_name || ''),
-      source_bar_key: String(p.sourceBarKey || p.source_bar_key || ''),
-      notes: String(p.notes || ''),
-      created_by: String(p.createdBy || p.created_by || '')
+      source_bar_key: srcBarKey,
+      source_type: srcType,
+      rack_location: rackLoc,
+      status: statusVal,
+      note: noteStr,
+      notes: noteStr,
+      created_by: createdBy
     };
+    if (!_inventoryEnhancedReady) {
+      row = _stripEnhancedOffcutCols(row);
+    }
 
     var res = await client
       .from('stock_offcuts')
       .insert(row)
       .select()
       .single();
+
+    if (res && res.error && _isMissingColumnError(res.error, /source_type|rack_location|status|note/i)) {
+      _inventoryEnhancedReady = false;
+      res = await client
+        .from('stock_offcuts')
+        .insert(_stripEnhancedOffcutCols(row))
+        .select()
+        .single();
+    }
 
     if (res && res.error) {
       if (_isMissingOffcutsTableError(res.error)) {
@@ -902,7 +1327,89 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
 
     _offcutsTableReady = true;
     var saved = throwIfError(res, 'Không nhập được kho đề-xê');
-    return mapOffcutFromDb(saved);
+    var mapped = mapOffcutFromDb(saved);
+
+    if (p.logTx !== false) {
+      var txType = p.txType || (srcType === 'opening_stock' ? 'opening_balance' : 'offcut_in');
+      var txNote = noteStr || (
+        srcType === 'opening_stock'
+          ? 'Tồn đầu kỳ phôi lẻ'
+          : (srcBarKey ? ('Nhập đề-xê từ CNC (' + srcBarKey.replace('__', ' - ') + ')') : 'Nhập phôi lẻ vào kho')
+      );
+      if (rackLoc && txNote.indexOf(rackLoc) === -1) txNote += ' · ' + rackLoc;
+      try {
+        await addInventoryTransaction({
+          txType: txType,
+          profile: profile,
+          lengthMm: lengthMm,
+          qtyChange: quantity,
+          balanceAfter: quantity,
+          projectId: (srcProjId && srcProjId !== DRAFT_PROJECT_ID) ? srcProjId : null,
+          note: txNote,
+          createdBy: createdBy
+        });
+      } catch (e) {
+        console.warn('[Stock Ledger] Bỏ qua ghi sổ cái khi nhập offcut:', e);
+      }
+    }
+
+    return mapped;
+  }
+
+  async function saveOpeningBalanceOffcuts(items, createdBy) {
+    var list = Array.isArray(items) ? items : [];
+    var cleanItems = [];
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i] || {};
+      var prof = String(it.profile || it.profileName || '').trim();
+      var len = Math.round(Number(it.lengthMm != null ? it.lengthMm : it.length) * 100) / 100;
+      var qty = Math.max(1, parseInt(it.quantity != null ? it.quantity : it.qty, 10) || 1);
+      if (!prof || !(len > 0)) continue;
+      cleanItems.push({
+        profile: prof,
+        lengthMm: len,
+        quantity: qty,
+        rackLocation: String(it.rackLocation || '').trim(),
+        note: String(it.note || it.notes || '').trim() || 'Phôi lẻ tồn đầu kỳ'
+      });
+    }
+    if (!cleanItems.length) {
+      throw new Error('Không có dòng phôi lẻ hợp lệ nào để lưu (cần có Quy cách và Chiều dài > 0 mm)!');
+    }
+
+    // Đảm bảo quy cách mới xuất hiện trong bảng phôi lẻ cũng có trong Thư viện quy cách
+    var uniqProfiles = [];
+    cleanItems.forEach(function (it) {
+      if (uniqProfiles.indexOf(it.profile) === -1) uniqProfiles.push(it.profile);
+    });
+    try {
+      await addProfilesBulk(uniqProfiles);
+    } catch (e) {}
+
+    var actor = String(createdBy || '').trim();
+    var savedItems = [];
+    for (var j = 0; j < cleanItems.length; j++) {
+      var row = cleanItems[j];
+      var created = await addStockOffcut({
+        profile: row.profile,
+        lengthMm: row.lengthMm,
+        quantity: row.quantity,
+        rackLocation: row.rackLocation,
+        sourceType: 'opening_stock',
+        status: 'available',
+        note: row.note,
+        notes: row.note,
+        createdBy: actor,
+        txType: 'opening_balance',
+        logTx: true
+      });
+      savedItems.push(created);
+    }
+    return {
+      savedItems: savedItems,
+      count: savedItems.length,
+      ledgerSkipped: !_ledgerTableReady
+    };
   }
 
   async function updateStockOffcut(id, patch) {
@@ -920,17 +1427,37 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       updateObj.length_mm = len;
     }
     if (patch.quantity !== undefined) {
-      updateObj.quantity = Math.max(0, parseInt(patch.quantity, 10) || 0);
+      var qVal = Math.max(0, parseInt(patch.quantity, 10) || 0);
+      updateObj.quantity = qVal;
+      if (patch.status === undefined) {
+        updateObj.status = qVal > 0 ? 'available' : 'used';
+      }
     }
-    if (patch.notes !== undefined) {
-      updateObj.notes = String(patch.notes || '');
+    if (patch.status !== undefined) updateObj.status = String(patch.status);
+    if (patch.sourceType !== undefined) updateObj.source_type = String(patch.sourceType);
+    if (patch.rackLocation !== undefined) updateObj.rack_location = String(patch.rackLocation || '').trim();
+    if (patch.note !== undefined || patch.notes !== undefined) {
+      var nStr = String(patch.note !== undefined ? patch.note : patch.notes || '');
+      updateObj.note = nStr;
+      updateObj.notes = nStr;
     }
+
+    var execObj = _inventoryEnhancedReady ? updateObj : _stripEnhancedOffcutCols(updateObj);
     var res = await client
       .from('stock_offcuts')
-      .update(updateObj)
+      .update(execObj)
       .eq('id', id)
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /source_type|rack_location|status|note/i)) {
+      _inventoryEnhancedReady = false;
+      res = await client
+        .from('stock_offcuts')
+        .update(_stripEnhancedOffcutCols(updateObj))
+        .eq('id', id)
+        .select()
+        .single();
+    }
     var updated = throwIfError(res, 'Không cập nhật được phôi đề-xê');
     return mapOffcutFromDb(updated);
   }
@@ -943,8 +1470,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return true;
   }
 
-  async function consumeStockOffcuts(items) {
+  async function consumeStockOffcuts(items, meta) {
     var list = Array.isArray(items) ? items : [];
+    var metaObj = meta || {};
     var merged = {};
     list.forEach(function (it) {
       if (!it || !it.id) return;
@@ -966,24 +1494,365 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       var usedQty = merged[offId];
       var curRes = await client
         .from('stock_offcuts')
-        .select('id, profile, length_mm, quantity')
+        .select('*')
         .eq('id', offId)
         .maybeSingle();
-      var cur = throwIfError(curRes, 'Không đọc được số lượng phôi đề-xê hiện tại');
-      if (!cur) continue;
+      var curRow = throwIfError(curRes, 'Không đọc được số lượng phôi đề-xê hiện tại');
+      if (!curRow) continue;
+      var cur = mapOffcutFromDb(curRow);
 
-      var remaining = Math.max(0, (Number(cur.quantity) || 0) - usedQty);
+      var actualUsed = Math.min(usedQty, Math.max(0, cur.quantity));
+      if (actualUsed <= 0) continue;
+      var remaining = Math.max(0, cur.quantity - actualUsed);
+      var action = 'updated';
+
       if (remaining <= 0) {
-        await deleteStockOffcut(offId);
-        deletedCount++;
-        details.push({ id: offId, profile: cur.profile, lengthMm: Number(cur.length_mm), usedQty: usedQty, remaining: 0, action: 'deleted' });
+        if (_inventoryEnhancedReady) {
+          await updateStockOffcut(offId, { quantity: 0, status: 'used' });
+          action = 'marked_used';
+          updatedCount++;
+        } else {
+          await deleteStockOffcut(offId);
+          action = 'deleted';
+          deletedCount++;
+        }
       } else {
-        await updateStockOffcut(offId, { quantity: remaining });
+        await updateStockOffcut(offId, { quantity: remaining, status: 'available' });
         updatedCount++;
-        details.push({ id: offId, profile: cur.profile, lengthMm: Number(cur.length_mm), usedQty: usedQty, remaining: remaining, action: 'updated' });
       }
+
+      details.push({
+        id: offId,
+        profile: cur.profile,
+        lengthMm: cur.lengthMm,
+        rackLocation: cur.rackLocation || '',
+        sourceType: cur.sourceType || 'manual',
+        usedQty: actualUsed,
+        remaining: remaining,
+        action: action
+      });
+
+      var pId = (metaObj.projectId && metaObj.projectId !== DRAFT_PROJECT_ID) ? metaObj.projectId : null;
+      var txNote = metaObj.note || ('Xuất phôi lẻ/đề-xê cho dự án ' + (metaObj.projectName || pId || ''));
+      try {
+        await addInventoryTransaction({
+          txType: 'offcut_out',
+          profile: cur.profile,
+          lengthMm: cur.lengthMm,
+          qtyChange: -actualUsed,
+          balanceAfter: remaining,
+          projectId: pId,
+          note: txNote.trim(),
+          createdBy: String(metaObj.createdBy || '').trim()
+        });
+      } catch (e) {}
     }
     return { updatedCount: updatedCount, deletedCount: deletedCount, details: details };
+  }
+
+  // =========================================================================
+  // SỔ CÁI XUẤT - NHẬP KHO (INVENTORY TRANSACTIONS) & XUẤT/HOÀN KHO DỰ ÁN
+  // =========================================================================
+  function _isMissingLedgerTableError(err) {
+    return _isMissingTableError(err, 'inventory_transactions');
+  }
+
+  async function getInventoryTransactions(filters) {
+    var f = filters || {};
+    var client = getClient();
+    var query = client
+      .from('inventory_transactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(Math.max(1, Math.min(2000, Number(f.limit) || 500)));
+
+    if (f.txType && f.txType !== 'ALL') {
+      query = query.eq('tx_type', String(f.txType));
+    }
+    if (f.profile && f.profile !== 'ALL') {
+      query = query.eq('profile', String(f.profile));
+    }
+    if (f.projectId) {
+      query = query.eq('project_id', String(f.projectId));
+    }
+    if (f.fromDate) {
+      query = query.gte('created_at', String(f.fromDate).trim() + 'T00:00:00');
+    }
+    if (f.toDate) {
+      query = query.lte('created_at', String(f.toDate).trim() + 'T23:59:59.999');
+    }
+
+    var res = await query;
+    if (res && res.error && _isMissingLedgerTableError(res.error)) {
+      _ledgerTableReady = false;
+      return [];
+    }
+    _ledgerTableReady = true;
+    var rows = throwIfError(res, 'Không tải được sổ cái giao dịch kho') || [];
+    return rows.map(mapInventoryTxFromDb);
+  }
+
+  async function addInventoryTransaction(tx) {
+    var t = tx || {};
+    var profile = String(t.profile || '').trim();
+    if (!profile) throw new Error('Thiếu tên quy cách khi ghi sổ cái kho');
+    var pId = (t.projectId && t.projectId !== DRAFT_PROJECT_ID) ? String(t.projectId) : null;
+    var row = {
+      tx_type: String(t.txType || 'stocktake_adjust'),
+      profile: profile,
+      length_mm: Math.max(1, Number(t.lengthMm) || 6000),
+      qty_change: Math.round(Number(t.qtyChange) || 0),
+      balance_after: t.balanceAfter != null ? Math.round(Number(t.balanceAfter)) : null,
+      project_id: pId,
+      note: String(t.note || '').trim(),
+      created_by: String(t.createdBy || '').trim()
+    };
+
+    var client = getClient();
+    var res = await client
+      .from('inventory_transactions')
+      .insert(row)
+      .select()
+      .single();
+    if (res && res.error && _isMissingLedgerTableError(res.error)) {
+      _ledgerTableReady = false;
+      return { skipped: true, reason: 'LEDGER_TABLE_NOT_READY' };
+    }
+    _ledgerTableReady = true;
+    var saved = throwIfError(res, 'Không ghi được dòng sổ cái kho');
+    return mapInventoryTxFromDb(saved);
+  }
+
+  async function checkProjectDispatchStatus(projectId) {
+    if (!projectId || projectId === DRAFT_PROJECT_ID) {
+      return { isDispatched: false, lastOutAt: null, ledgerChecked: false };
+    }
+    var client = getClient();
+    var res = await client
+      .from('inventory_transactions')
+      .select('id, tx_type, qty_change, created_at')
+      .eq('project_id', String(projectId))
+      .in('tx_type', ['project_out', 'offcut_out', 'project_return'])
+      .order('created_at', { ascending: true });
+    if (res && res.error && _isMissingLedgerTableError(res.error)) {
+      _ledgerTableReady = false;
+      return { isDispatched: false, lastOutAt: null, ledgerChecked: false };
+    }
+    _ledgerTableReady = true;
+    var rows = throwIfError(res, 'Không kiểm tra được trạng thái xuất kho dự án') || [];
+    var lastOutAt = null;
+    var lastOutMs = 0;
+    var lastReturnMs = 0;
+    rows.forEach(function (r) {
+      var ms = r.created_at ? Date.parse(r.created_at) || 0 : 0;
+      if (r.tx_type === 'project_out' || r.tx_type === 'offcut_out') {
+        if (ms >= lastOutMs) {
+          lastOutMs = ms;
+          lastOutAt = r.created_at;
+        }
+      } else if (r.tx_type === 'project_return') {
+        if (ms >= lastReturnMs) lastReturnMs = ms;
+      }
+    });
+    return {
+      isDispatched: lastOutMs > 0 && lastOutMs > lastReturnMs,
+      lastOutAt: lastOutAt,
+      ledgerChecked: true
+    };
+  }
+
+  async function dispatchProjectInventory(opts) {
+    var o = opts || {};
+    var projectId = String(o.projectId || '').trim();
+    var projectName = String(o.projectName || projectId).trim();
+    var actor = String(o.createdBy || '').trim();
+    if (!projectId || projectId === DRAFT_PROJECT_ID) {
+      var errDraft = new Error('Vui lòng lưu dự án thành đơn chính thức trước khi Xuất kho để chống trừ kho trùng lặp!');
+      errDraft.code = 'UNSAVED_PROJECT';
+      throw errDraft;
+    }
+
+    if (o.projectDeductedAt) {
+      var errDupFlag = new Error('Dự án này đã được xuất kho trước đó (' + o.projectDeductedAt + '). Để xuất lại, vui lòng bấm "↩️ Hoàn kho" trước!');
+      errDupFlag.code = 'ALREADY_DISPATCHED';
+      throw errDupFlag;
+    }
+
+    var dbStatus = await checkProjectDispatchStatus(projectId);
+    if (dbStatus.isDispatched) {
+      var errDupDb = new Error('Sổ cái xác nhận dự án "' + projectName + '" đã xuất kho trước đó. Hệ thống chặn trừ lần 2 để tránh sai số!');
+      errDupDb.code = 'ALREADY_DISPATCHED';
+      throw errDupDb;
+    }
+
+    var reqBars = Array.isArray(o.fullBarsByProfile) ? o.fullBarsByProfile : [];
+    var reqOffcuts = Array.isArray(o.offcutsUsed) ? o.offcutsUsed : [];
+    var invList = await getInventory();
+    var invByProf = {};
+    invList.forEach(function (r) { invByProf[r.profileName] = r; });
+
+    var fullBarsDone = [];
+    var shortages = [];
+    var totalFullDeducted = 0;
+    var ledgerSkipped = false;
+
+    for (var i = 0; i < reqBars.length; i++) {
+      var req = reqBars[i] || {};
+      var prof = String(req.profile || '').trim();
+      var reqQty = Math.max(0, Math.round(Number(req.qty) || 0));
+      if (!prof || reqQty <= 0) continue;
+
+      var invRow = invByProf[prof];
+      var available = invRow ? Math.max(0, Number(invRow.stockQty) || 0) : 0;
+      var deductQty = Math.min(reqQty, available);
+      var stdLen = (invRow && invRow.standardLengthMm) || Number(req.lengthMm) || 6000;
+
+      if (reqQty > available) {
+        shortages.push({ profile: prof, requested: reqQty, available: available, missing: reqQty - available });
+      }
+      if (deductQty <= 0) continue;
+
+      var nextQty = available - deductQty;
+      await updateInventoryProfile(prof, { stockQty: nextQty });
+      totalFullDeducted += deductQty;
+      fullBarsDone.push({ profile: prof, deductedQty: deductQty, lengthMm: stdLen });
+
+      var txRes = await addInventoryTransaction({
+        txType: 'project_out',
+        profile: prof,
+        lengthMm: stdLen,
+        qtyChange: -deductQty,
+        balanceAfter: nextQty,
+        projectId: projectId,
+        note: 'Xuất kho cho dự án: ' + projectName,
+        createdBy: actor
+      });
+      if (txRes && txRes.skipped) ledgerSkipped = true;
+    }
+
+    var offcutResult = { details: [] };
+    if (reqOffcuts.length > 0) {
+      offcutResult = await consumeStockOffcuts(reqOffcuts, {
+        projectId: projectId,
+        projectName: projectName,
+        createdBy: actor,
+        note: 'Xuất phôi lẻ/đề-xê cho dự án: ' + projectName
+      });
+    }
+    var offcutsDone = offcutResult.details || [];
+    var totalOffcutsDeducted = offcutsDone.reduce(function (a, b) { return a + (Number(b.usedQty) || 0); }, 0);
+
+    if (totalFullDeducted === 0 && totalOffcutsDeducted === 0) {
+      var errEmpty = new Error('Không thể xuất kho: trong kho hiện có 0 cây nguyên và 0 phôi lẻ khả dụng cho các quy cách của dự án này. Hãy nhập tồn kho trước hoặc mua mới!');
+      errEmpty.code = 'NO_STOCK_TO_DEDUCT';
+      throw errEmpty;
+    }
+
+    return {
+      deductedAt: new Date().toISOString(),
+      deductedBy: actor,
+      fullBars: fullBarsDone,
+      offcuts: offcutsDone,
+      shortages: shortages,
+      totalFullDeducted: totalFullDeducted,
+      totalOffcutsDeducted: totalOffcutsDeducted,
+      ledgerSkipped: ledgerSkipped || !_ledgerTableReady
+    };
+  }
+
+  async function returnProjectInventory(opts) {
+    var o = opts || {};
+    var projectId = String(o.projectId || '').trim();
+    var projectName = String(o.projectName || projectId).trim();
+    var snap = o.snapshot || {};
+    var actor = String(o.createdBy || '').trim();
+    if (!projectId || projectId === DRAFT_PROJECT_ID) {
+      throw new Error('Thiếu mã dự án hợp lệ để hoàn kho!');
+    }
+
+    var fullBars = Array.isArray(snap.fullBars) ? snap.fullBars : [];
+    var offcuts = Array.isArray(snap.offcuts) ? snap.offcuts : [];
+    var totalFullReturned = 0;
+    var totalOffcutsReturned = 0;
+    var ledgerSkipped = false;
+
+    for (var i = 0; i < fullBars.length; i++) {
+      var fb = fullBars[i] || {};
+      var prof = String(fb.profile || '').trim();
+      var retQty = Math.max(0, Math.round(Number(fb.deductedQty) || 0));
+      if (!prof || retQty <= 0) continue;
+
+      var cur = await _ensureInventoryProfileRow(prof, fb.lengthMm || 6000);
+      var prevQty = Math.max(0, Number(cur.stockQty) || 0);
+      var nextQty = prevQty + retQty;
+      await updateInventoryProfile(prof, { stockQty: nextQty });
+      totalFullReturned += retQty;
+
+      var txRes = await addInventoryTransaction({
+        txType: 'project_return',
+        profile: prof,
+        lengthMm: fb.lengthMm || cur.standardLengthMm || 6000,
+        qtyChange: retQty,
+        balanceAfter: nextQty,
+        projectId: projectId,
+        note: 'Hoàn kho từ dự án: ' + projectName,
+        createdBy: actor
+      });
+      if (txRes && txRes.skipped) ledgerSkipped = true;
+    }
+
+    var client = getClient();
+    for (var j = 0; j < offcuts.length; j++) {
+      var oc = offcuts[j] || {};
+      var usedQty = Math.max(0, Math.round(Number(oc.usedQty) || 0));
+      if (!oc.profile || usedQty <= 0) continue;
+
+      var restoredQty = usedQty;
+      var existingRow = null;
+      if (oc.id) {
+        try {
+          var checkRes = await client.from('stock_offcuts').select('*').eq('id', oc.id).maybeSingle();
+          if (checkRes && !checkRes.error && checkRes.data) existingRow = mapOffcutFromDb(checkRes.data);
+        } catch (e) {}
+      }
+
+      if (existingRow) {
+        restoredQty = Math.max(0, Number(existingRow.quantity) || 0) + usedQty;
+        await updateStockOffcut(oc.id, { quantity: restoredQty, status: 'available' });
+      } else {
+        await addStockOffcut({
+          profile: oc.profile,
+          lengthMm: oc.lengthMm,
+          quantity: usedQty,
+          rackLocation: oc.rackLocation || '',
+          sourceType: oc.sourceType || 'manual',
+          status: 'available',
+          note: 'Hoàn kho từ dự án: ' + projectName,
+          createdBy: actor,
+          logTx: false
+        });
+      }
+      totalOffcutsReturned += usedQty;
+
+      var txOffRes = await addInventoryTransaction({
+        txType: 'project_return',
+        profile: oc.profile,
+        lengthMm: oc.lengthMm || 1000,
+        qtyChange: usedQty,
+        balanceAfter: restoredQty,
+        projectId: projectId,
+        note: 'Hoàn kho phôi lẻ từ dự án: ' + projectName,
+        createdBy: actor
+      });
+      if (txOffRes && txOffRes.skipped) ledgerSkipped = true;
+    }
+
+    return {
+      returnedAt: new Date().toISOString(),
+      totalFullReturned: totalFullReturned,
+      totalOffcutsReturned: totalOffcutsReturned,
+      ledgerSkipped: ledgerSkipped || !_ledgerTableReady
+    };
   }
 
   // =========================================================================
@@ -1462,6 +2331,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           raw: payload
         };
       }
+      if (table === 'inventory_transactions') {
+        return {
+          eventType: eventType,
+          newRecord: mapInventoryTxFromDb(payload.new),
+          oldRecord: mapInventoryTxFromDb(payload.old),
+          raw: payload
+        };
+      }
       return payload;
     };
 
@@ -1582,6 +2459,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     computePatternHash: computePatternHash,
     toAsciiSafe: toAsciiSafe,
     classifyProfile: classifyProfile,
+    estimateSteelWeightPerM: estimateSteelWeightPerM,
     stripHeavyIgs: stripHeavyIgs,
     usernameToEmail: usernameToEmail,
     emailToUsername: emailToUsername,
@@ -1592,6 +2470,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     mapInventoryFromDb: mapInventoryFromDb,
     mapCutRow: mapCutRow,
     mapOffcutFromDb: mapOffcutFromDb,
+    mapInventoryTxFromDb: mapInventoryTxFromDb,
     getAccessToken: getAccessToken,
     signInWithUsername: signInWithUsername,
     signOut: signOut,
@@ -1618,10 +2497,16 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     restoreProject: restoreProject,
     permanentDeleteProject: permanentDeleteProject,
     emptyTrash: emptyTrash,
+    isInventoryEnhancedReady: isInventoryEnhancedReady,
+    isLedgerTableReady: isLedgerTableReady,
     getInventory: getInventory,
     addProfile: addProfile,
+    updateInventoryProfile: updateInventoryProfile,
     addProfilesBulk: addProfilesBulk,
     deleteProfile: deleteProfile,
+    saveOpeningBalanceBars: saveOpeningBalanceBars,
+    purchaseInInventory: purchaseInInventory,
+    stocktakeAdjustInventory: stocktakeAdjustInventory,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,
@@ -1629,9 +2514,15 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     isOffcutsTableReady: isOffcutsTableReady,
     getStockOffcuts: getStockOffcuts,
     addStockOffcut: addStockOffcut,
+    saveOpeningBalanceOffcuts: saveOpeningBalanceOffcuts,
     updateStockOffcut: updateStockOffcut,
     deleteStockOffcut: deleteStockOffcut,
     consumeStockOffcuts: consumeStockOffcuts,
+    getInventoryTransactions: getInventoryTransactions,
+    addInventoryTransaction: addInventoryTransaction,
+    checkProjectDispatchStatus: checkProjectDispatchStatus,
+    dispatchProjectInventory: dispatchProjectInventory,
+    returnProjectInventory: returnProjectInventory,
     extractIgsStoragePath: extractIgsStoragePath,
     downloadIgsBlob: downloadIgsBlob,
     downloadIgsFile: downloadIgsFile,

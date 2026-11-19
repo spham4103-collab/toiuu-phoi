@@ -618,7 +618,9 @@
     body.operator-mode #btnProjModalImport,
     body.operator-mode .btn-del-proj,
     body.operator-mode .btn-del,
-    body.operator-mode .btn-perm-del-proj {
+    body.operator-mode .btn-perm-del-proj,
+    body.role-operator #btnDispatchProjectInventory,
+    body.role-operator #btnReturnProjectInventory {
       display: none !important;
     }
     body.role-operator .parts-row input,
@@ -2034,10 +2036,12 @@
 
       <!-- Materials Needed Card (Grouped by Profile) -->
       <section class="card" style="margin-bottom: 22px;">
-        <div class="card-title">
-          <h2>Bảng vật tư cần đặt hàng (Theo loại hộp)</h2>
+        <div class="card-title" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+          <h2>Bảng vật tư &amp; Đối chiếu tồn kho (Theo loại hộp)</h2>
+          <div id="projectDispatchBar" class="no-print" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
         </div>
-        <p class="card-subtitle">Tổng hợp số lượng cây mua mới và cây tồn kho cần dùng cho từng loại hộp trong bản vẽ.</p>
+        <p class="card-subtitle">Tổng hợp số cây cần dùng cho bản vẽ, đối chiếu trực tiếp với tồn kho thực tế toàn xưởng để biết chính xác số lượng cần mua thêm.</p>
+        <div id="warehouseComparisonSummary" style="display:none; margin-bottom:12px; padding:11px 14px; background:#F0FDFA; border:1.5px solid #99F6E4; border-radius:10px; font-size:13px; line-height:1.65;"></div>
         <div id="materialsContainer"></div>
       </section>
 
@@ -2451,10 +2455,14 @@
       isApplyingRemoteChange: false,
       userRole: "operator",
       cutStatuses: {},
+      inventoryItems: [],
       stockOffcuts: [],
       useWarehouseOffcuts: false,
       offcutsDeducted: false,
       offcutsDeductedAt: null,
+      inventoryDeductedAt: null,
+      inventoryDeductedBy: '',
+      inventoryDeductedSnapshot: null,
       users: [],
       currentUser: null
     };
@@ -2638,15 +2646,18 @@
     // Load & Save Memory Library (Supabase inventory)
     async function initSavedProfiles() {
       if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        state.inventoryItems = DEFAULT_SAVED_PROFILES.map(n => ({ profileName: n, stockQty: 0, standardLengthMm: 6000 }));
         state.savedProfiles = DEFAULT_SAVED_PROFILES.slice();
         return;
       }
       try {
         const invRows = await window.SupabaseDB.getInventory();
-        const names = invRows.map(r => r.profileName).filter(Boolean);
+        state.inventoryItems = Array.isArray(invRows) ? invRows : [];
+        const names = state.inventoryItems.map(r => r.profileName).filter(Boolean);
         state.savedProfiles = names.length ? names : DEFAULT_SAVED_PROFILES.slice();
       } catch (err) {
         console.error('Lỗi tải thư viện quy cách từ Supabase:', err);
+        state.inventoryItems = DEFAULT_SAVED_PROFILES.map(n => ({ profileName: n, stockQty: 0, standardLengthMm: 6000 }));
         state.savedProfiles = DEFAULT_SAVED_PROFILES.slice();
       }
     }
@@ -2755,6 +2766,9 @@
         useWarehouseOffcuts: Boolean(state.useWarehouseOffcuts),
         offcutsDeducted: Boolean(state.offcutsDeducted),
         offcutsDeductedAt: state.offcutsDeductedAt || null,
+        inventoryDeductedAt: state.inventoryDeductedAt || null,
+        inventoryDeductedBy: state.inventoryDeductedBy || '',
+        inventoryDeductedSnapshot: state.inventoryDeductedSnapshot || null,
         fusionProject: state.fusionProject || null,
         isBlankReset: !!state.isBlankReset
       };
@@ -2842,6 +2856,9 @@
       state.useWarehouseOffcuts = Boolean(d.useWarehouseOffcuts);
       state.offcutsDeducted = Boolean(d.offcutsDeducted);
       state.offcutsDeductedAt = d.offcutsDeductedAt || null;
+      state.inventoryDeductedAt = proj.inventoryDeductedAt || d.inventoryDeductedAt || null;
+      state.inventoryDeductedBy = d.inventoryDeductedBy || '';
+      state.inventoryDeductedSnapshot = d.inventoryDeductedSnapshot || null;
 
       if (state.currentProjectId) {
         try { localStorage.setItem(LS_CURRENT_PROJ_ID, state.currentProjectId); } catch (e) {}
@@ -3209,7 +3226,7 @@
     }
 
     async function deductUsedOffcutsFromWarehouse(skipAlert = false) {
-      if (state.offcutsDeducted) return true;
+      if (state.offcutsDeducted || state.inventoryDeductedAt) return true;
       const usedItems = getUsedOffcutsFromResult();
       if (!usedItems.length) {
         if (!skipAlert) showToast('Phương án hiện tại chưa sử dụng đoạn đề-xê nào!');
@@ -3221,7 +3238,11 @@
       }
       window.SupabaseDB.setLoading(true, 'Đang trừ kho đề-xê trên Supabase...');
       try {
-        await window.SupabaseDB.consumeStockOffcuts(usedItems);
+        await window.SupabaseDB.consumeStockOffcuts(usedItems, {
+          projectId: state.currentProjectId,
+          projectName: state.currentProjectName,
+          createdBy: state.currentUser ? state.currentUser.username : ''
+        });
         state.offcutsDeducted = true;
         state.offcutsDeductedAt = new Date().toISOString();
         await initStockOffcuts();
@@ -3239,10 +3260,243 @@
           await window.SupabaseDB.saveDraftProject(snap);
         }
         renderOffcutSuggestionBox();
+        if (state.result) renderMaterialsGrouped(state.result);
         showToast(`♻️ Đã trừ ${totalUsed} đoạn đề-xê khỏi kho chung!`);
         return true;
       } catch (err) {
         showToast('❌ Lỗi trừ kho đề-xê: ' + err.message);
+        return false;
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    function computeDispatchPlanForResult(resObj, stockList, alreadyOffcutsDeducted) {
+      const res = resObj || state.result;
+      if (!res || !Array.isArray(res.byStockType)) {
+        return { fullBarsByProfile: [], offcutsUsed: [], fullSummaryLines: [], offcutCount: 0 };
+      }
+      const stList = Array.isArray(stockList) ? stockList : state.stock;
+      const offDed = alreadyOffcutsDeducted !== undefined ? Boolean(alreadyOffcutsDeducted) : Boolean(state.offcutsDeducted);
+      const offcutsUsed = offDed ? [] : getUsedOffcutsFromResult(res, stList);
+      const offcutUsedIds = new Set(offcutsUsed.map(o => 'off_' + o.id));
+      const invByProf = {};
+      (state.inventoryItems || []).forEach(r => { invByProf[r.profileName] = r; });
+
+      // Cây nguyên cần xuất kho = tất cả cây không phải _fromOffcut (chỉ lọc usedQty > 0 SAU khi căn chỉnh index với stList)
+      const fullByProfMap = {};
+      const profiles = (res.summaryByProfile || []).map(s => s.profile);
+      profiles.forEach(prof => {
+        const bts = res.byStockType.filter(s => (s.profile || 'Chung') === prof);
+        const ps = stList.filter(s => Number(s.length) > 0 && (s.profile || 'Chung') === prof);
+        let fullQty = 0;
+        let stdLen = (invByProf[prof] && invByProf[prof].standardLengthMm) || 6000;
+        for (let i = 0; i < bts.length; i++) {
+          const st = bts[i];
+          const used = Number(st && st.usedQty) || 0;
+          if (used <= 0) continue;
+          const matchingPs = i < ps.length ? ps[i] : null;
+          const isOffcut = Boolean(matchingPs && (matchingPs._fromOffcut || offcutUsedIds.has(matchingPs.id)));
+          if (!isOffcut) {
+            fullQty += used;
+            if (st.length) stdLen = Number(st.length);
+          }
+        }
+        if (fullQty > 0) {
+          fullByProfMap[prof] = { profile: prof, qty: fullQty, lengthMm: stdLen };
+        }
+      });
+
+      const fullBarsByProfile = Object.values(fullByProfMap);
+      const fullSummaryLines = fullBarsByProfile.map(f => {
+        const whQty = invByProf[f.profile] ? Math.max(0, Number(invByProf[f.profile].stockQty) || 0) : 0;
+        const deductQty = Math.min(f.qty, whQty);
+        return `• ${f.profile}: cần ${f.qty} cây (trong kho còn ${whQty} → sẽ trừ ${deductQty} cây)`;
+      });
+      const offcutCount = offcutsUsed.reduce((a, b) => a + (Number(b.usedQty) || 0), 0);
+      return { fullBarsByProfile, offcutsUsed, fullSummaryLines, offcutCount };
+    }
+
+    function computeDispatchNeedsForAnyProject(projRec) {
+      if (!projRec) return { fullBarsByProfile: [], offcutsUsed: [], fullSummaryLines: [], offcutCount: 0 };
+      if (projRec.id === state.currentProjectId && state.result) {
+        return computeDispatchPlanForResult(state.result, state.stock, state.offcutsDeducted);
+      }
+      const d = projRec.data || {};
+      const parts = Array.isArray(d.parts) ? d.parts.filter(p => Number(p.length) > 0 && Number(p.qty) > 0) : [];
+      const stList = Array.isArray(d.stock) ? d.stock : [];
+      if (!parts.length || typeof RC === 'undefined') {
+        return { fullBarsByProfile: [], offcutsUsed: [], fullSummaryLines: [], offcutCount: 0 };
+      }
+      const clampTail = d.clamp != null ? Number(d.clamp) : 80;
+      const partProfiles = new Set(parts.map(p => p.profile || 'Chung'));
+      const stockForEngine = stList.filter(s => Number(s.length) > 0).map((s, idx) => ({
+        label: s.name || (s.qty === null ? `Cây mới ${numVN(s.length)}` : `Cây tồn ${numVN(s.length)}`),
+        length: Number(s.length),
+        clampTail,
+        qty: s.qty,
+        priority: s._fromOffcut ? (-1000 + idx) : idx,
+        profile: s.profile || 'Chung'
+      }));
+      partProfiles.forEach(prof => {
+        if (!stockForEngine.some(s => s.profile === prof)) {
+          stockForEngine.push({ label: `Cây mới 6m (${prof})`, length: 6000, clampTail, qty: null, priority: 99, profile: prof });
+        }
+      });
+      try {
+        const simRes = RC.solve({
+          kerf: Number(d.kerf) || 0,
+          interlock: d.interlock != null ? Boolean(d.interlock) : true,
+          gap: Number(d.gap) || 0,
+          stock: stockForEngine,
+          parts: parts.map(p => ({
+            label: p.id,
+            length: Number(p.length),
+            qty: Number(p.qty),
+            end_style: p.style || 'thang',
+            mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? Number(p.mat) : extractMatFromProfile(p.profile)),
+            profile: p.profile || 'Chung'
+          }))
+        });
+        return computeDispatchPlanForResult(simRes, stList, Boolean(d.offcutsDeducted));
+      } catch (e) {
+        return { fullBarsByProfile: [], offcutsUsed: [], fullSummaryLines: [], offcutCount: 0 };
+      }
+    }
+
+    async function dispatchActiveProjectToWarehouse(skipConfirm = false) {
+      if (state.userRole === 'operator') {
+        alert('🔒 Thợ CNC không có quyền Xuất kho dự án.');
+        return false;
+      }
+      if (!state.currentProjectId) {
+        alert('⚠️ Vui lòng bấm [Lưu dự án] thành đơn hàng chính thức trước khi Xuất kho, để Sổ cái lưu đúng mã dự án và khóa chống trừ trùng!');
+        openSaveProjectModal();
+        return false;
+      }
+      if (state.inventoryDeductedAt) {
+        showToast('🔒 Dự án này đã xuất kho rồi! Nếu muốn điều chỉnh, vui lòng bấm "↩️ Hoàn kho" trước.');
+        return false;
+      }
+      if (!state.result || !state.result.bars || !state.result.bars.length) {
+        showToast('⚠️ Chưa có kết quả xếp phôi để xuất kho!');
+        return false;
+      }
+
+      const plan = computeDispatchPlanForResult(state.result, state.stock);
+      if (!plan.fullBarsByProfile.length && !plan.offcutsUsed.length) {
+        showToast('⚠️ Dự án chưa có vật tư nào cần xuất kho!');
+        return false;
+      }
+
+      const msgLines = [
+        `📤 XÁC NHẬN XUẤT KHO CHO DỰ ÁN "${state.currentProjectName || state.currentProjectId}":`,
+        '',
+        ...plan.fullSummaryLines,
+        ...(plan.offcutCount > 0 ? [`• Phôi lẻ / Đề-xê kho: đánh dấu đã dùng ${plan.offcutCount} đoạn.`] : []),
+        '',
+        'Thao tác sẽ ghi Sổ cái xuất kho và KHÓA chống trừ kho lần 2 cho dự án này.'
+      ];
+      if (!skipConfirm && !confirm(msgLines.join('\n'))) {
+        return false;
+      }
+
+      window.SupabaseDB.setLoading(true, 'Đang xuất kho & ghi Sổ cái giao dịch...');
+      try {
+        const actor = state.currentUser ? state.currentUser.username : '';
+        const res = await window.SupabaseDB.dispatchProjectInventory({
+          projectId: state.currentProjectId,
+          projectName: state.currentProjectName || state.currentProjectId,
+          projectDeductedAt: state.inventoryDeductedAt,
+          fullBarsByProfile: plan.fullBarsByProfile,
+          offcutsUsed: plan.offcutsUsed,
+          createdBy: actor
+        });
+
+        state.inventoryDeductedAt = res.deductedAt;
+        state.inventoryDeductedBy = actor;
+        state.inventoryDeductedSnapshot = { fullBars: res.fullBars, offcuts: res.offcuts };
+        if (res.totalOffcutsDeducted > 0) {
+          state.offcutsDeducted = true;
+          state.offcutsDeductedAt = res.deductedAt;
+        }
+
+        state.hasPendingActiveSave = false;
+        clearTimeout(state.activeSaveTimer);
+        state.lastLocalProjectWriteAt = Date.now();
+        const snap = buildActiveDataSnapshot();
+        const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+        const updatedProj = await window.SupabaseDB.updateProjectFields(state.currentProjectId, {
+          data: snap,
+          inventoryDeductedAt: res.deductedAt
+        });
+        if (curProj && updatedProj) Object.assign(curProj, updatedProj);
+
+        await Promise.all([initSavedProfiles(), initStockOffcuts()]);
+        renderOffcutSuggestionBox();
+        renderMaterialsGrouped(state.result);
+        showToast(`📤 Đã xuất kho: -${res.totalFullDeducted} cây nguyên${res.totalOffcutsDeducted > 0 ? ` và -${res.totalOffcutsDeducted} đoạn lẻ` : ''}!`);
+        return true;
+      } catch (err) {
+        showToast('❌ Không xuất được kho: ' + err.message);
+        return false;
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function returnActiveProjectToWarehouse() {
+      if (state.userRole === 'operator') return false;
+      if (!state.currentProjectId || !state.inventoryDeductedAt) {
+        showToast('Dự án này chưa xuất kho nên không cần hoàn kho!');
+        return false;
+      }
+      const snap = state.inventoryDeductedSnapshot || { fullBars: [], offcuts: [] };
+      const fullQty = (snap.fullBars || []).reduce((a, b) => a + (Number(b.deductedQty) || 0), 0);
+      const offQty = (snap.offcuts || []).reduce((a, b) => a + (Number(b.usedQty) || 0), 0);
+
+      if (!confirm(
+        `↩️ XÁC NHẬN HOÀN KHO DỰ ÁN "${state.currentProjectName}":\n\n` +
+        `• Trả lại kho: +${fullQty} cây nguyên${offQty > 0 ? ` và +${offQty} đoạn phôi lẻ` : ''}.\n` +
+        `• Ghi bút toán 'project_return' vào Sổ cái kho và mở lại trạng thái Chưa xuất kho.`
+      )) {
+        return false;
+      }
+
+      window.SupabaseDB.setLoading(true, 'Đang hoàn kho & ghi Sổ cái...');
+      try {
+        const actor = state.currentUser ? state.currentUser.username : '';
+        const retRes = await window.SupabaseDB.returnProjectInventory({
+          projectId: state.currentProjectId,
+          projectName: state.currentProjectName || state.currentProjectId,
+          snapshot: snap,
+          createdBy: actor
+        });
+
+        state.inventoryDeductedAt = null;
+        state.inventoryDeductedBy = '';
+        state.inventoryDeductedSnapshot = null;
+        state.offcutsDeducted = false;
+        state.offcutsDeductedAt = null;
+
+        state.hasPendingActiveSave = false;
+        clearTimeout(state.activeSaveTimer);
+        state.lastLocalProjectWriteAt = Date.now();
+        const projSnap = buildActiveDataSnapshot();
+        const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+        const updatedProj = await window.SupabaseDB.updateProjectFields(state.currentProjectId, {
+          data: projSnap,
+          inventoryDeductedAt: null
+        });
+        if (curProj && updatedProj) Object.assign(curProj, updatedProj);
+
+        await Promise.all([initSavedProfiles(), initStockOffcuts()]);
+        renderOffcutSuggestionBox();
+        if (state.result) renderMaterialsGrouped(state.result);
+        showToast(`↩️ Đã hoàn kho +${retRes.totalFullReturned} cây nguyên${retRes.totalOffcutsReturned > 0 ? ` và +${retRes.totalOffcutsReturned} đoạn lẻ` : ''}!`);
+        return true;
+      } catch (err) {
+        showToast('❌ Lỗi hoàn kho: ' + err.message);
         return false;
       } finally {
         window.SupabaseDB.setLoading(false);
@@ -3263,43 +3517,76 @@
             if (fullP) { Object.assign(targetProj, fullP); }
           } catch (e) {}
         }
-        const alreadyDeducted = projId === state.currentProjectId
-          ? Boolean(state.offcutsDeducted)
-          : Boolean(targetProj.data && targetProj.data.offcutsDeducted);
-        const usedItems = !alreadyDeducted ? computeUsedOffcutsForAnyProject(targetProj) : [];
-        if (usedItems.length > 0) {
-          const totalUsed = usedItems.reduce((a, b) => a + b.usedQty, 0);
-          const wantDeduct = confirm(
-            `♻️ Đơn hàng "${targetProj.name}" có sử dụng ${totalUsed} đoạn phôi đề-xê từ kho chung.\n\n` +
-            `• Bấm [OK] để TRỪ ${totalUsed} đoạn đề-xê khỏi kho và Khóa bảo vệ dự án.\n` +
-            `• Bấm [Cancel] để giữ nguyên kho đề-xê (vẫn Khóa bảo vệ dự án).`
-          );
-          if (wantDeduct) {
-            window.SupabaseDB.setLoading(true, 'Đang trừ đề-xê khỏi kho...');
-            try {
-              await window.SupabaseDB.consumeStockOffcuts(usedItems);
-              const deductedAt = new Date().toISOString();
-              if (projId === state.currentProjectId) {
-                state.offcutsDeducted = true;
-                state.offcutsDeductedAt = deductedAt;
-                const snap = buildActiveDataSnapshot();
-                const updatedData = await window.SupabaseDB.updateProjectFields(projId, { data: snap });
-                Object.assign(p, updatedData);
-              } else {
-                const nextData = Object.assign({}, targetProj.data || {}, {
-                  offcutsDeducted: true,
-                  offcutsDeductedAt: deductedAt
+        const alreadyDispatched = (projId === state.currentProjectId && Boolean(state.inventoryDeductedAt))
+          || Boolean(targetProj.inventoryDeductedAt || (targetProj.data && targetProj.data.inventoryDeductedAt));
+
+        if (!alreadyDispatched) {
+          const plan = computeDispatchNeedsForAnyProject(targetProj);
+          const invByProf = {};
+          (state.inventoryItems || []).forEach(r => { invByProf[r.profileName] = r; });
+          const totalDeductibleFull = plan.fullBarsByProfile.reduce((sum, req) => {
+            const avail = invByProf[req.profile] ? Math.max(0, Number(invByProf[req.profile].stockQty) || 0) : 0;
+            return sum + Math.min(req.qty, avail);
+          }, 0);
+
+          if (totalDeductibleFull > 0 || plan.offcutCount > 0) {
+            const wantDispatch = confirm(
+              `📦 CHỐT KHÓA SẢN XUẤT "${targetProj.name}":\n\n` +
+              (plan.fullSummaryLines.length ? plan.fullSummaryLines.join('\n') + '\n' : '') +
+              (plan.offcutCount > 0 ? `• Phôi lẻ/đề-xê kho: dùng ${plan.offcutCount} đoạn\n` : '') +
+              `\n• Bấm [OK] để XUẤT KHO & KHÓA BẢO VỆ DỰ ÁN (chống trừ trùng).\n` +
+              `• Bấm [Cancel] để giữ nguyên kho (chỉ Khóa bảo vệ dự án).`
+            );
+            if (wantDispatch) {
+              window.SupabaseDB.setLoading(true, 'Đang xuất kho trước khi khóa dự án...');
+              try {
+                const actor = state.currentUser ? state.currentUser.username : '';
+                const dispRes = await window.SupabaseDB.dispatchProjectInventory({
+                  projectId: projId,
+                  projectName: targetProj.name || projId,
+                  projectDeductedAt: null,
+                  fullBarsByProfile: plan.fullBarsByProfile,
+                  offcutsUsed: plan.offcutsUsed,
+                  createdBy: actor
                 });
-                const updatedData = await window.SupabaseDB.updateProjectFields(projId, { data: nextData });
-                Object.assign(p, updatedData);
+                const snapObj = { fullBars: dispRes.fullBars, offcuts: dispRes.offcuts };
+                if (projId === state.currentProjectId) {
+                  state.inventoryDeductedAt = dispRes.deductedAt;
+                  state.inventoryDeductedBy = actor;
+                  state.inventoryDeductedSnapshot = snapObj;
+                  if (dispRes.totalOffcutsDeducted > 0) {
+                    state.offcutsDeducted = true;
+                    state.offcutsDeductedAt = dispRes.deductedAt;
+                  }
+                  const snap = buildActiveDataSnapshot();
+                  const updatedData = await window.SupabaseDB.updateProjectFields(projId, {
+                    data: snap,
+                    inventoryDeductedAt: dispRes.deductedAt
+                  });
+                  Object.assign(p, updatedData);
+                } else {
+                  const nextData = Object.assign({}, targetProj.data || {}, {
+                    inventoryDeductedAt: dispRes.deductedAt,
+                    inventoryDeductedBy: actor,
+                    inventoryDeductedSnapshot: snapObj,
+                    offcutsDeducted: dispRes.totalOffcutsDeducted > 0 ? true : Boolean(targetProj.data && targetProj.data.offcutsDeducted),
+                    offcutsDeductedAt: dispRes.totalOffcutsDeducted > 0 ? dispRes.deductedAt : (targetProj.data && targetProj.data.offcutsDeductedAt) || null
+                  });
+                  const updatedData = await window.SupabaseDB.updateProjectFields(projId, {
+                    data: nextData,
+                    inventoryDeductedAt: dispRes.deductedAt
+                  });
+                  Object.assign(p, updatedData);
+                }
+                await Promise.all([initSavedProfiles(), initStockOffcuts()]);
+                renderOffcutSuggestionBox();
+                if (state.result) renderMaterialsGrouped(state.result);
+                showToast(`📤 Đã xuất kho: -${dispRes.totalFullDeducted} cây nguyên${dispRes.totalOffcutsDeducted > 0 ? `, -${dispRes.totalOffcutsDeducted} đoạn lẻ` : ''}!`);
+              } catch (err) {
+                showToast('⚠️ Chưa xuất được kho: ' + err.message);
+              } finally {
+                window.SupabaseDB.setLoading(false);
               }
-              await initStockOffcuts();
-              renderOffcutSuggestionBox();
-              showToast(`♻️ Đã trừ ${totalUsed} đoạn đề-xê khỏi kho!`);
-            } catch (err) {
-              showToast('⚠️ Chưa trừ được kho đề-xê: ' + err.message);
-            } finally {
-              window.SupabaseDB.setLoading(false);
             }
           }
         }
@@ -3697,16 +3984,24 @@
             showToast(`✓ Đã lưu cập nhật dự án "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
           } else {
             const newId = makeId('proj');
+            const newCopyData = Object.assign({}, projectDataPayload, {
+              inventoryDeductedAt: null,
+              inventoryDeductedBy: '',
+              inventoryDeductedSnapshot: null
+            });
             const saved = await window.SupabaseDB.saveProject({
               id: newId,
               name, customer, notes,
               isLocked: false, isTrashed: false, isDraft: false, source: 'web',
               createdAt: nowStr, updatedAt: nowStr,
-              data: projectDataPayload,
+              data: newCopyData,
               igsFiles: []
             });
             state.savedProjects.unshift(saved);
             state.currentProjectId = saved.id;
+            state.inventoryDeductedAt = null;
+            state.inventoryDeductedBy = '';
+            state.inventoryDeductedSnapshot = null;
             try { localStorage.setItem(LS_CURRENT_PROJ_ID, saved.id); } catch (e) {}
             showToast(`✓ Đã thêm dự án mới "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
           }
@@ -3766,6 +4061,9 @@
       state.useWarehouseOffcuts = Boolean(d.useWarehouseOffcuts);
       state.offcutsDeducted = Boolean(d.offcutsDeducted);
       state.offcutsDeductedAt = d.offcutsDeductedAt || null;
+      state.inventoryDeductedAt = proj.inventoryDeductedAt || d.inventoryDeductedAt || null;
+      state.inventoryDeductedBy = d.inventoryDeductedBy || '';
+      state.inventoryDeductedSnapshot = d.inventoryDeductedSnapshot || null;
 
       // Đảm bảo các loại hộp của dự án xuất hiện trong bộ nhớ mẫu
       let addedToMemory = false;
@@ -4150,6 +4448,9 @@
       state.useWarehouseOffcuts = false;
       state.offcutsDeducted = false;
       state.offcutsDeductedAt = null;
+      state.inventoryDeductedAt = null;
+      state.inventoryDeductedBy = '';
+      state.inventoryDeductedSnapshot = null;
       try { localStorage.removeItem(LS_CURRENT_PROJ_ID); } catch (e) {}
 
       state.activeProfiles = ['Hộp 30x30x1.8'];
@@ -4263,11 +4564,13 @@
         inventory: async () => {
           try {
             const invRows = await window.SupabaseDB.getInventory();
-            const names = invRows.map(r => r.profileName).filter(Boolean);
+            state.inventoryItems = Array.isArray(invRows) ? invRows : [];
+            const names = state.inventoryItems.map(r => r.profileName).filter(Boolean);
             if (names.length) {
               state.savedProfiles = names;
               renderMemoryLibraryChips();
             }
+            if (state.result) renderMaterialsGrouped(state.result);
           } catch (e) {}
         },
         cut_progress: async (ev) => {
@@ -4303,13 +4606,14 @@
           if (ev.eventType === 'DELETE' && old && old.id) {
             state.stockOffcuts = (state.stockOffcuts || []).filter(o => o.id !== old.id);
           } else if (rec && rec.id) {
-            if (Number(rec.quantity) > 0) {
+            if (Number(rec.quantity) > 0 && (!rec.status || rec.status === 'available')) {
               state.stockOffcuts = [rec, ...(state.stockOffcuts || []).filter(o => o.id !== rec.id)];
             } else {
               state.stockOffcuts = (state.stockOffcuts || []).filter(o => o.id !== rec.id);
             }
           }
           renderOffcutSuggestionBox();
+          if (state.result) renderMaterialsGrouped(state.result);
         },
         profiles: async (ev) => {
           if (!state.currentUser) return;
@@ -4413,6 +4717,9 @@
       state.useWarehouseOffcuts = false;
       state.offcutsDeducted = false;
       state.offcutsDeductedAt = null;
+      state.inventoryDeductedAt = null;
+      state.inventoryDeductedBy = '';
+      state.inventoryDeductedSnapshot = null;
 
       updateInputsFromState();
       renderProfileTabs();
@@ -4447,6 +4754,9 @@
       state.useWarehouseOffcuts = false;
       state.offcutsDeducted = false;
       state.offcutsDeductedAt = null;
+      state.inventoryDeductedAt = null;
+      state.inventoryDeductedBy = '';
+      state.inventoryDeductedSnapshot = null;
 
       updateInputsFromState();
       renderProfileTabs();
@@ -5050,6 +5360,8 @@
           </div>
         `;
         $('warningsContainer').innerHTML = '';
+        if ($('warehouseComparisonSummary')) $('warehouseComparisonSummary').style.display = 'none';
+        if ($('projectDispatchBar')) $('projectDispatchBar').innerHTML = '';
         $('materialsContainer').innerHTML = '<div style="padding:24px;text-align:center;color:var(--mut);font-size:14px;background:#F8FAFC;border-radius:8px;">Chưa có dữ liệu vật tư.</div>';
         $('resultFilterTabs').innerHTML = '';
         $('patternsContainer').innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--mut);background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:12px;margin:15px 0;font-size:14px;">Chưa có sơ đồ cắt nào. Vui lòng nhập chi tiết ở trên để hiển thị sơ đồ trực tiếp (Live Preview).</div>';
@@ -5747,11 +6059,46 @@
 
     window.addEventListener('resize', applyMiterAngleAdjustment);
 
-    // Grouped Materials Table (BOM for Purchasing)
+    // Grouped Materials Table (BOM for Purchasing + Live Warehouse Comparison & Dispatch)
     function renderMaterialsGrouped(res) {
       const container = $('materialsContainer');
-      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
+      const cmpBox = $('warehouseComparisonSummary');
+      const dispatchBar = $('projectDispatchBar');
+      if (!container) return;
 
+      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
+      const invMap = {};
+      (state.inventoryItems || []).forEach(r => { invMap[r.profileName] = r; });
+      const offcutCountMap = {};
+      (state.stockOffcuts || []).filter(o => Number(o.quantity) > 0 && (!o.status || o.status === 'available')).forEach(o => {
+        offcutCountMap[o.profile] = (offcutCountMap[o.profile] || 0) + (Number(o.quantity) || 0);
+      });
+
+      if (dispatchBar) {
+        if (state.inventoryDeductedAt) {
+          const byWho = state.inventoryDeductedBy ? ` · @${escapeHtml(state.inventoryDeductedBy)}` : '';
+          dispatchBar.innerHTML = `
+            <span style="display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border-radius:999px; background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; font-size:12px; font-weight:800;">
+              ✅ Đã xuất kho (${escapeHtml(formatShortCutTime(state.inventoryDeductedAt))}${byWho})
+            </span>
+            ${state.userRole !== 'operator' ? `<button type="button" class="btn btn-soft btn-sm" id="btnReturnProjectInventory" style="min-height:32px; border-color:#FCA5A5; color:#B91C1C;">↩️ Hoàn kho</button>` : ''}
+          `;
+          if ($('btnReturnProjectInventory')) {
+            $('btnReturnProjectInventory').onclick = () => returnActiveProjectToWarehouse();
+          }
+        } else if (state.userRole !== 'operator') {
+          dispatchBar.innerHTML = `
+            <button type="button" class="btn btn-p btn-sm" id="btnDispatchProjectInventory" style="min-height:32px;">📤 Xuất kho cho dự án</button>
+          `;
+          if ($('btnDispatchProjectInventory')) {
+            $('btnDispatchProjectInventory').onclick = () => dispatchActiveProjectToWarehouse();
+          }
+        } else {
+          dispatchBar.innerHTML = '';
+        }
+      }
+
+      const cmpLines = [];
       let tableHTML = `
         <table class="mat-table">
           <thead>
@@ -5759,9 +6106,9 @@
               <th>Loại hộp / Quy cách</th>
               <th>Cây vật tư</th>
               <th class="r">Dài (mm)</th>
-              <th class="r">Đang có</th>
               <th class="r">Cần dùng</th>
-              <th class="r">Tình trạng</th>
+              <th class="r">Tồn kho xưởng</th>
+              <th class="r">Cần mua thêm / Trạng thái</th>
             </tr>
           </thead>
           <tbody>
@@ -5770,20 +6117,34 @@
       profiles.forEach(prof => {
         const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === prof && s.usedQty > 0);
         if (!stocks.length) return;
+        const invRow = invMap[prof];
+        const whFullQty = invRow ? Math.max(0, Number(invRow.stockQty) || 0) : 0;
+        const whOffPieces = offcutCountMap[prof] || 0;
+        const needFullBars = stocks.filter(s => s.availableQty === null).reduce((a, b) => a + (Number(b.usedQty) || 0), 0);
+        const needToBuy = Math.max(0, needFullBars - whFullQty);
+
+        cmpLines.push(
+          `• <b>${escapeHtml(prof)}:</b> Trong kho có: <b style="color:#0F766E;">${numVN(whFullQty)} cây nguyên</b> + <b>${numVN(whOffPieces)} đoạn lẻ</b> → ` +
+          (needToBuy > 0
+            ? `<b style="color:#C2410C;">Cần mua thêm: ${numVN(needToBuy)} cây</b>`
+            : `<b style="color:#15803D;">Đủ trong kho (0 cần mua)</b>`)
+        );
 
         stocks.forEach((st, idx) => {
           const isNew = st.availableQty === null;
           const statusBadge = isNew
-            ? `<span style="color:var(--cta);font-weight:700;">Mua mới ${st.usedQty} cây</span>`
-            : `<span style="color:var(--p);font-weight:700;">Lấy tồn ${st.usedQty} cây</span>`;
+            ? (needToBuy > 0
+                ? `<span style="color:var(--cta);font-weight:800;">🛒 Cần mua thêm ${numVN(needToBuy)} cây</span>`
+                : `<span style="color:#15803D;font-weight:800;">✅ Đủ trong kho</span>`)
+            : `<span style="color:var(--p);font-weight:700;">♻️ Lấy tồn ${numVN(st.usedQty)} đoạn</span>`;
 
           tableHTML += `
             <tr>
               ${idx === 0 ? `<td rowspan="${stocks.length}" style="vertical-align:top;font-weight:800;color:var(--dark);background:#F8FAFC;border-right:1px solid var(--edge);">${escapeHtml(prof)}</td>` : ''}
               <td><b>${escapeHtml(st.label)}</b></td>
               <td class="r">${numVN(st.length)}</td>
-              <td class="r">${isNew ? 'Không giới hạn' : numVN(st.availableQty)}</td>
               <td class="r"><b>${numVN(st.usedQty)}</b></td>
+              ${idx === 0 ? `<td rowspan="${stocks.length}" class="r" style="vertical-align:top;font-weight:700;color:#0F766E;">${numVN(whFullQty)} cây<br><span style="font-size:11px;color:#0369A1;">+${numVN(whOffPieces)} lẻ</span></td>` : ''}
               <td class="r">${statusBadge}</td>
             </tr>
           `;
@@ -5794,6 +6155,15 @@
           </tbody>
         </table>
       `;
+
+      if (cmpBox) {
+        if (cmpLines.length) {
+          cmpBox.style.display = 'block';
+          cmpBox.innerHTML = cmpLines.join('<br>');
+        } else {
+          cmpBox.style.display = 'none';
+        }
+      }
 
       const u = res.usageStats;
       const summaryNote = `
@@ -6220,6 +6590,9 @@
       if ($('navLinkAdmin')) {
         $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
       }
+      if (state.result) {
+        renderMaterialsGrouped(state.result);
+      }
       if ($('btnHeaderAdminPanel')) {
         $('btnHeaderAdminPanel').style.display = isSuperAdmin ? 'inline-flex' : 'none';
       }
@@ -6457,7 +6830,7 @@
     // ==========================================
     function initNetworkAndPWA() {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=14').then(reg => {
+        navigator.serviceWorker.register('/sw.js?v=15').then(reg => {
           reg.update();
           console.log('PWA Service Worker registered & updated v14:', reg.scope);
         }).catch(err => {

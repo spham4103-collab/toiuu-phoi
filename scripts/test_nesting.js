@@ -50,7 +50,7 @@ function getNewEngineSource() {
 
 function getOldEngineSource() {
   const gitExe = 'C:\\Program Files\\Git\\bin\\git.exe';
-  return execFileSync(gitExe, ['show', 'HEAD:toi-uu-engine.js'], {
+  return execFileSync(gitExe, ['show', '423c683~1:toi-uu-engine.js'], {
     cwd: ROOT_DIR,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024

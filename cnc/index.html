@@ -1203,8 +1203,13 @@
           sourceProjectId: activeProjectId,
           sourceProjectName: (activeProject && activeProject.currentProjectName) || '',
           sourceBarKey: barKey,
+          sourceType: 'cnc_return',
+          status: 'available',
+          note: `Đề-xê tự động từ ${barKey.replace('__', ' - ')}`,
           notes: `Đề-xê tự động từ ${barKey.replace('__', ' - ')}`,
-          createdBy: currentUser ? currentUser.username : ''
+          createdBy: currentUser ? currentUser.username : '',
+          txType: 'offcut_in',
+          logTx: true
         });
         if (created && !stockOffcuts.some(o => o.id === created.id)) {
           stockOffcuts.unshift(created);

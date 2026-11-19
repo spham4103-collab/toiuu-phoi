@@ -1,7 +1,7 @@
 -- ============================================================================
 -- SUPABASE DATABASE SCHEMA CHO HỆ THỐNG XẾP PHÔI CƠ KHÍ AN BÌNH (xepphoi.cloud)
 -- Single Source of Truth: Supabase Auth + PostgreSQL + Realtime + Private Storage
--- Đã cập nhật hoàn chỉnh theo Đợt 2 (Auth + RLS theo vai trò admin / engineer / operator)
+-- Đã cập nhật hoàn chỉnh theo Đợt 2, Đợt 3 & Đợt 4 (Kho Phôi & Sổ Cái Xuất-Nhập)
 -- An toàn khi chạy lại nhiều lần (Idempotent) trong Supabase SQL Editor
 -- ============================================================================
 
@@ -39,7 +39,12 @@ CREATE TABLE IF NOT EXISTS public.inventory (
   profile_name TEXT NOT NULL UNIQUE,
   category TEXT NOT NULL DEFAULT 'other' CHECK (category IN ('square', 'rect', 'round', 'other')),
   standard_length NUMERIC NOT NULL DEFAULT 6000,
-  stock_qty INTEGER, -- NULL = mua mới không giới hạn số lượng
+  standard_length_mm NUMERIC NOT NULL DEFAULT 6000 CHECK (standard_length_mm > 0),
+  stock_qty INTEGER NOT NULL DEFAULT 0 CHECK (stock_qty >= 0),
+  min_stock_qty INTEGER NOT NULL DEFAULT 0 CHECK (min_stock_qty >= 0),
+  weight_per_m NUMERIC NOT NULL DEFAULT 0 CHECK (weight_per_m >= 0),
+  unit_price NUMERIC NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
+  rack_location TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
   is_default BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -62,6 +67,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
   data JSONB NOT NULL DEFAULT '{}'::jsonb,
   igs_files JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  inventory_deducted_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -102,6 +108,10 @@ CREATE TABLE IF NOT EXISTS public.stock_offcuts (
   source_project_id TEXT REFERENCES public.projects(id) ON DELETE SET NULL,
   source_project_name TEXT NOT NULL DEFAULT '',
   source_bar_key TEXT NOT NULL DEFAULT '',
+  source_type TEXT NOT NULL DEFAULT 'manual' CHECK (source_type IN ('opening_stock', 'cnc_return', 'manual')),
+  rack_location TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'reserved', 'used')),
+  note TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
   created_by TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -110,9 +120,41 @@ CREATE TABLE IF NOT EXISTS public.stock_offcuts (
 
 CREATE INDEX IF NOT EXISTS idx_stock_offcuts_profile ON public.stock_offcuts (profile);
 CREATE INDEX IF NOT EXISTS idx_stock_offcuts_created_at ON public.stock_offcuts (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_offcuts_status ON public.stock_offcuts (status);
+CREATE INDEX IF NOT EXISTS idx_stock_offcuts_source_type ON public.stock_offcuts (source_type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_offcuts_unique_source_bar
   ON public.stock_offcuts (source_project_id, source_bar_key)
   WHERE source_project_id IS NOT NULL AND source_bar_key <> '';
+
+-- ============================================================================
+-- 6C. BẢNG SỔ CÁI GIAO DỊCH KHO (public.inventory_transactions)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.inventory_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tx_type TEXT NOT NULL CHECK (tx_type IN (
+    'opening_balance',
+    'purchase_in',
+    'project_out',
+    'offcut_in',
+    'offcut_out',
+    'stocktake_adjust',
+    'project_return'
+  )),
+  profile TEXT NOT NULL,
+  length_mm NUMERIC NOT NULL DEFAULT 6000 CHECK (length_mm > 0),
+  qty_change INTEGER NOT NULL,
+  balance_after INTEGER,
+  project_id TEXT REFERENCES public.projects(id) ON DELETE SET NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_inv_tx_created_at ON public.inventory_transactions (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inv_tx_profile ON public.inventory_transactions (profile);
+CREATE INDEX IF NOT EXISTS idx_inv_tx_type ON public.inventory_transactions (tx_type);
+CREATE INDEX IF NOT EXISTS idx_inv_tx_project_id ON public.inventory_transactions (project_id)
+  WHERE project_id IS NOT NULL;
 
 -- ============================================================================
 -- 7. GẮN TRIGGER updated_at & REPLICA IDENTITY CHO REALTIME
@@ -147,15 +189,16 @@ ALTER TABLE public.inventory REPLICA IDENTITY FULL;
 ALTER TABLE public.projects REPLICA IDENTITY DEFAULT;
 ALTER TABLE public.cut_progress REPLICA IDENTITY FULL;
 ALTER TABLE public.stock_offcuts REPLICA IDENTITY FULL;
+ALTER TABLE public.inventory_transactions REPLICA IDENTITY FULL;
 
 -- ============================================================================
--- 8. BẬT REALTIME PUBLICATION CHO CẢ 5 BẢNG
+-- 8. BẬT REALTIME PUBLICATION CHO CẢ 6 BẢNG
 -- ============================================================================
 DO $$
 DECLARE
   tbl TEXT;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['profiles', 'inventory', 'projects', 'cut_progress', 'stock_offcuts']
+  FOREACH tbl IN ARRAY ARRAY['profiles', 'inventory', 'projects', 'cut_progress', 'stock_offcuts', 'inventory_transactions']
   LOOP
     IF NOT EXISTS (
       SELECT 1
@@ -279,15 +322,16 @@ CREATE POLICY "igs_files_auth_delete"
 -- ============================================================================
 -- 11. THU HỒI QUYỀN ANON & SIẾT ROW LEVEL SECURITY (RLS) THEO VAI TRÒ
 -- ============================================================================
-REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts FROM anon;
-REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts FROM authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts TO authenticated;
+REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts, public.inventory_transactions FROM anon;
+REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts, public.inventory_transactions FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts, public.inventory_transactions TO authenticated;
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cut_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_offcuts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_transactions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profiles_select_self_or_admin" ON public.profiles;
 CREATE POLICY "profiles_select_self_or_admin"
@@ -389,6 +433,34 @@ CREATE POLICY "stock_offcuts_update_engineer_admin"
 DROP POLICY IF EXISTS "stock_offcuts_delete_engineer_admin" ON public.stock_offcuts;
 CREATE POLICY "stock_offcuts_delete_engineer_admin"
   ON public.stock_offcuts FOR DELETE TO authenticated
+  USING (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "inventory_transactions_select_member" ON public.inventory_transactions;
+CREATE POLICY "inventory_transactions_select_member"
+  ON public.inventory_transactions FOR SELECT TO authenticated
+  USING (public.is_workshop_member());
+
+DROP POLICY IF EXISTS "inventory_transactions_insert_role_scoped" ON public.inventory_transactions;
+CREATE POLICY "inventory_transactions_insert_role_scoped"
+  ON public.inventory_transactions FOR INSERT TO authenticated
+  WITH CHECK (
+    public.is_admin_or_engineer()
+    OR (
+      public.is_workshop_member()
+      AND tx_type = 'offcut_in'
+      AND qty_change > 0
+    )
+  );
+
+DROP POLICY IF EXISTS "inventory_transactions_update_engineer_admin" ON public.inventory_transactions;
+CREATE POLICY "inventory_transactions_update_engineer_admin"
+  ON public.inventory_transactions FOR UPDATE TO authenticated
+  USING (public.is_admin_or_engineer())
+  WITH CHECK (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "inventory_transactions_delete_engineer_admin" ON public.inventory_transactions;
+CREATE POLICY "inventory_transactions_delete_engineer_admin"
+  ON public.inventory_transactions FOR DELETE TO authenticated
   USING (public.is_admin_or_engineer());
 
 -- ============================================================================
