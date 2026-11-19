@@ -6066,13 +6066,16 @@
       const dispatchBar = $('projectDispatchBar');
       if (!container) return;
 
-      const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
-      const invMap = {};
-      (state.inventoryItems || []).forEach(r => { invMap[r.profileName] = r; });
-      const offcutCountMap = {};
-      (state.stockOffcuts || []).filter(o => Number(o.quantity) > 0 && (!o.status || o.status === 'available')).forEach(o => {
-        offcutCountMap[o.profile] = (offcutCountMap[o.profile] || 0) + (Number(o.quantity) || 0);
-      });
+      const cmp = (window.WorkshopExport && typeof window.WorkshopExport.computeWarehouseBomComparison === 'function')
+        ? window.WorkshopExport.computeWarehouseBomComparison({
+            result: res,
+            inventoryItems: state.inventoryItems,
+            stockOffcuts: state.stockOffcuts,
+            inventoryDeductedAt: state.inventoryDeductedAt,
+            inventoryDeductedBy: state.inventoryDeductedBy,
+            inventoryDeductedSnapshot: state.inventoryDeductedSnapshot
+          })
+        : null;
 
       if (dispatchBar) {
         if (state.inventoryDeductedAt) {
@@ -6098,7 +6101,15 @@
         }
       }
 
-      const cmpLines = [];
+      if (cmpBox) {
+        if (cmp && cmp.summaryLines && cmp.summaryLines.length) {
+          cmpBox.style.display = 'block';
+          cmpBox.innerHTML = cmp.summaryLines.join('<br>');
+        } else {
+          cmpBox.style.display = 'none';
+        }
+      }
+
       let tableHTML = `
         <table class="mat-table">
           <thead>
@@ -6114,42 +6125,30 @@
           <tbody>
       `;
 
-      profiles.forEach(prof => {
-        const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === prof && s.usedQty > 0);
-        if (!stocks.length) return;
-        const invRow = invMap[prof];
-        const whFullQty = invRow ? Math.max(0, Number(invRow.stockQty) || 0) : 0;
-        const whOffPieces = offcutCountMap[prof] || 0;
-        const needFullBars = stocks.filter(s => s.availableQty === null).reduce((a, b) => a + (Number(b.usedQty) || 0), 0);
-        const needToBuy = Math.max(0, needFullBars - whFullQty);
-
-        cmpLines.push(
-          `• <b>${escapeHtml(prof)}:</b> Trong kho có: <b style="color:#0F766E;">${numVN(whFullQty)} cây nguyên</b> + <b>${numVN(whOffPieces)} đoạn lẻ</b> → ` +
-          (needToBuy > 0
-            ? `<b style="color:#C2410C;">Cần mua thêm: ${numVN(needToBuy)} cây</b>`
-            : `<b style="color:#15803D;">Đủ trong kho (0 cần mua)</b>`)
-        );
-
-        stocks.forEach((st, idx) => {
-          const isNew = st.availableQty === null;
-          const statusBadge = isNew
-            ? (needToBuy > 0
-                ? `<span style="color:var(--cta);font-weight:800;">🛒 Cần mua thêm ${numVN(needToBuy)} cây</span>`
-                : `<span style="color:#15803D;font-weight:800;">✅ Đủ trong kho</span>`)
-            : `<span style="color:var(--p);font-weight:700;">♻️ Lấy tồn ${numVN(st.usedQty)} đoạn</span>`;
-
-          tableHTML += `
-            <tr>
-              ${idx === 0 ? `<td rowspan="${stocks.length}" style="vertical-align:top;font-weight:800;color:var(--dark);background:#F8FAFC;border-right:1px solid var(--edge);">${escapeHtml(prof)}</td>` : ''}
-              <td><b>${escapeHtml(st.label)}</b></td>
-              <td class="r">${numVN(st.length)}</td>
-              <td class="r"><b>${numVN(st.usedQty)}</b></td>
-              ${idx === 0 ? `<td rowspan="${stocks.length}" class="r" style="vertical-align:top;font-weight:700;color:#0F766E;">${numVN(whFullQty)} cây<br><span style="font-size:11px;color:#0369A1;">+${numVN(whOffPieces)} lẻ</span></td>` : ''}
-              <td class="r">${statusBadge}</td>
-            </tr>
-          `;
+      if (cmp && cmp.items && cmp.items.length) {
+        const profGroups = {};
+        cmp.items.forEach(it => {
+          if (!profGroups[it.profile]) profGroups[it.profile] = [];
+          profGroups[it.profile].push(it);
         });
-      });
+
+        Object.keys(profGroups).forEach(prof => {
+          const group = profGroups[prof];
+          const first = group[0];
+          group.forEach((it, idx) => {
+            tableHTML += `
+              <tr>
+                ${idx === 0 ? `<td rowspan="${group.length}" style="vertical-align:top;font-weight:800;color:var(--dark);background:#F8FAFC;border-right:1px solid var(--edge);">${escapeHtml(prof)}</td>` : ''}
+                <td><b>${escapeHtml(it.label)}</b></td>
+                <td class="r">${numVN(it.length)}</td>
+                <td class="r"><b>${numVN(it.usedQty)}</b></td>
+                ${idx === 0 ? `<td rowspan="${group.length}" class="r" style="vertical-align:top;font-weight:700;color:#0F766E;">${numVN(first.warehouseFullQty)} cây<br><span style="font-size:11px;color:#0369A1;">+${numVN(first.warehouseOffcutQty)} lẻ</span></td>` : ''}
+                <td class="r">${it.sourceBadgeHtml}</td>
+              </tr>
+            `;
+          });
+        });
+      }
 
       tableHTML += `
           </tbody>
@@ -7271,11 +7270,19 @@
               kerf: state.kerf,
               clamp: state.clamp,
               interlock: state.interlock,
-              gap: state.gap
+              gap: state.gap,
+              inventoryDeductedAt: state.inventoryDeductedAt,
+              inventoryDeductedBy: state.inventoryDeductedBy,
+              inventoryDeductedSnapshot: state.inventoryDeductedSnapshot
             }),
             result: state.result,
             parts: state.parts || [],
             cutStatuses: state.cutStatuses || {},
+            inventoryItems: state.inventoryItems || [],
+            stockOffcuts: state.stockOffcuts || [],
+            inventoryDeductedAt: state.inventoryDeductedAt,
+            inventoryDeductedBy: state.inventoryDeductedBy,
+            inventoryDeductedSnapshot: state.inventoryDeductedSnapshot,
             exportedBy: state.currentUser ? state.currentUser.username : ''
           });
         } else {
@@ -7303,11 +7310,19 @@
                 kerf: state.kerf,
                 clamp: state.clamp,
                 interlock: state.interlock,
-                gap: state.gap
+                gap: state.gap,
+                inventoryDeductedAt: state.inventoryDeductedAt,
+                inventoryDeductedBy: state.inventoryDeductedBy,
+                inventoryDeductedSnapshot: state.inventoryDeductedSnapshot
               }),
               result: state.result,
               parts: state.parts || [],
               cutStatuses: state.cutStatuses || {},
+              inventoryItems: state.inventoryItems || [],
+              stockOffcuts: state.stockOffcuts || [],
+              inventoryDeductedAt: state.inventoryDeductedAt,
+              inventoryDeductedBy: state.inventoryDeductedBy,
+              inventoryDeductedSnapshot: state.inventoryDeductedSnapshot,
               exportedBy: state.currentUser ? state.currentUser.username : ''
             });
             showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);

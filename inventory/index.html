@@ -1948,11 +1948,16 @@
       if (!lastSolveResult) { showToast('Chưa có dữ liệu BOM để xuất Excel!'); return; }
       if (window.WorkshopExport) {
         try {
+          const pRec = currentProjectRecord || activeProject;
           const expRes = window.WorkshopExport.exportExcelXlsx({
-            project: currentProjectRecord || activeProject,
+            project: pRec,
             result: lastSolveResult,
             parts: (activeProject && activeProject.parts) || [],
             cutStatuses: {},
+            inventoryItems: inventoryItems || [],
+            stockOffcuts: stockOffcuts || [],
+            inventoryDeductedAt: (pRec && (pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
+            inventoryDeductedBy: (pRec && (pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
             exportedBy: currentUser ? currentUser.username : ''
           });
           showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);
@@ -1970,16 +1975,21 @@
         return;
       }
       let cutMap = {};
-      const pid = (currentProjectRecord && currentProjectRecord.id) || (activeProject && activeProject.currentProjectId);
+      const pRec = currentProjectRecord || activeProject;
+      const pid = (pRec && pRec.id) || (activeProject && activeProject.currentProjectId);
       if (pid && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
         try { cutMap = await window.SupabaseDB.getCutProgress(pid); } catch (e) {}
       }
       if (window.WorkshopExport) {
         window.WorkshopExport.printProductionSheet({
-          project: currentProjectRecord || activeProject,
+          project: pRec,
           result: lastSolveResult,
           parts: (activeProject && activeProject.parts) || [],
           cutStatuses: cutMap,
+          inventoryItems: inventoryItems || [],
+          stockOffcuts: stockOffcuts || [],
+          inventoryDeductedAt: (pRec && (pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
+          inventoryDeductedBy: (pRec && (pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
           exportedBy: currentUser ? currentUser.username : ''
         });
       } else {

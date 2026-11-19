@@ -490,6 +490,141 @@ function runWorkshopExportTests() {
   assert.equal(rep.sheetOffcuts[4][5], 'Phôi cũ đầu kỳ');
   assert.equal(rep.sheetLedger.length, 5);
   assert.equal(rep.sheetLedger[4][2], 'Tồn đầu kỳ');
+
+  // =========================================================================
+  // TEST ĐỐI CHIẾU TỒN KHO & PHIẾU A4 / EXCEL (SINGLE SOURCE OF TRUTH)
+  // =========================================================================
+  const mockResult11 = {
+    bars: new Array(11).fill({}),
+    totalNewBars: 11,
+    totalExistingUsed: 0,
+    totalPiecesCut: 38,
+    summaryByProfile: [
+      { profile: 'Hộp 20x20x1.1', bars: 4 },
+      { profile: 'Hộp 40x20x1.4', bars: 3 },
+      { profile: 'Hộp 40x40x1.4', bars: 4 }
+    ],
+    byStockType: [
+      { profile: 'Hộp 20x20x1.1', label: 'Cây mới 6m (Hộp 20x20x1.1)', length: 6000, availableQty: null, usedQty: 4 },
+      { profile: 'Hộp 40x20x1.4', label: 'Cây mới 6m (Hộp 40x20x1.4)', length: 6000, availableQty: null, usedQty: 3 },
+      { profile: 'Hộp 40x40x1.4', label: 'Cây mới 6m (Hộp 40x40x1.4)', length: 6000, availableQty: null, usedQty: 4 }
+    ],
+    usageStats: { totalNominalLength: 66000, totalCutLength: 61500, totalWasteLength: 4500, totalInterlockSaving: 800 },
+    patterns: [
+      { profile: 'Hộp 20x20x1.1', count: 4, stockLength: 6000, stockLabel: 'Cây mới 6.000', cuts: [{ label: 'p1', length: 1200, endStyle: 'thang' }], waste: 120, clampTail: 80, usableLength: 5920 },
+      { profile: 'Hộp 40x20x1.4', count: 3, stockLength: 6000, stockLabel: 'Cây mới 6.000', cuts: [{ label: 'p2', length: 1500, endStyle: 'thang' }], waste: 200, clampTail: 80, usableLength: 5920 },
+      { profile: 'Hộp 40x40x1.4', count: 4, stockLength: 6000, stockLabel: 'Cây mới 6.000', cuts: [{ label: 'p3', length: 1400, endStyle: 'thang' }], waste: 150, clampTail: 80, usableLength: 5920 }
+    ]
+  };
+
+  const mockInventory15 = [
+    { profileName: 'Hộp 20x20x1.1', stockQty: 10, standardLengthMm: 6000 },
+    { profileName: 'Hộp 40x20x1.4', stockQty: 5, standardLengthMm: 6000 },
+    { profileName: 'Hộp 40x40x1.4', stockQty: 6, standardLengthMm: 6000 }
+  ];
+
+  // Test 1: Dự án đã xuất kho (inventoryDeductedAt có giá trị)
+  const cmpDispatched = WE.computeWarehouseBomComparison({
+    result: mockResult11,
+    inventoryItems: mockInventory15,
+    inventoryDeductedAt: '2026-11-19T16:25:00+07:00',
+    inventoryDeductedBy: 'admin'
+  });
+  assert.equal(cmpDispatched.isDispatched, true);
+  assert.equal(cmpDispatched.kpis.totalBars, 11);
+  assert.equal(cmpDispatched.kpis.totalToBuyBars, 0, 'Khi đã xuất kho, cần mua thêm phải bằng 0');
+  assert.equal(cmpDispatched.kpis.totalWarehouseBarsTaken, 11, 'Số cây lấy từ kho phải là 11');
+  assert.equal(cmpDispatched.items.length, 3);
+  assert.equal(cmpDispatched.items[0].sourceText, '✅ Đã xuất kho');
+  assert.equal(cmpDispatched.items[0].toBuyQty, 0);
+  assert.equal(cmpDispatched.items[0].label, 'Cây chuẩn 6.000 (Hộp 20x20x1.1)', 'Phải trung tính hóa tên phôi');
+
+  // Test 2: Dự án CHƯA xuất kho nhưng tồn kho đủ
+  const cmpNotDispatchedEnough = WE.computeWarehouseBomComparison({
+    result: mockResult11,
+    inventoryItems: mockInventory15,
+    inventoryDeductedAt: null
+  });
+  assert.equal(cmpNotDispatchedEnough.isDispatched, false);
+  assert.equal(cmpNotDispatchedEnough.kpis.totalToBuyBars, 0);
+  assert.equal(cmpNotDispatchedEnough.kpis.totalWarehouseBarsTaken, 11);
+  assert.equal(cmpNotDispatchedEnough.items[0].sourceText, '✅ Lấy từ kho (Đủ)');
+  assert.equal(cmpNotDispatchedEnough.items[0].toBuyQty, 0);
+
+  // Test 3: Dự án CHƯA xuất kho và kho thiếu một phần (vd: Hộp 20x20x1.1 chỉ có 2 cây trong khi cần 4 cây)
+  const partialInv = [
+    { profileName: 'Hộp 20x20x1.1', stockQty: 2, standardLengthMm: 6000 },
+    { profileName: 'Hộp 40x20x1.4', stockQty: 3, standardLengthMm: 6000 },
+    { profileName: 'Hộp 40x40x1.4', stockQty: 4, standardLengthMm: 6000 }
+  ];
+  const cmpPartial = WE.computeWarehouseBomComparison({
+    result: mockResult11,
+    inventoryItems: partialInv,
+    inventoryDeductedAt: null
+  });
+  assert.equal(cmpPartial.kpis.totalToBuyBars, 2, 'Cần mua thêm 2 cây');
+  assert.equal(cmpPartial.kpis.totalWarehouseBarsTaken, 9, 'Lấy từ kho 9 cây');
+  assert.equal(cmpPartial.items[0].sourceText, 'Kho: 2 cây · Mua thêm: 2 cây');
+  assert.equal(cmpPartial.items[0].toBuyQty, 2);
+
+  // Test 4: Xuất HTML Phiếu A4
+  const a4Html = WE.buildA4SheetHtml({
+    project: {
+      id: 'proj_xe_day_01',
+      name: 'Xe đẩy inox',
+      customer: 'Nhà máy A',
+      inventoryDeductedAt: '2026-11-19T16:25:00+07:00',
+      inventoryDeductedBy: 'admin'
+    },
+    result: mockResult11,
+    inventoryItems: mockInventory15,
+    exportedBy: 'admin'
+  });
+  assert(a4Html.includes('✅ Đã xuất kho (16:25 · @admin)'), 'Header phải hiển thị huy hiệu Đã xuất kho');
+  assert(a4Html.includes('0 cây</strong><span>Cần mua thêm</span>'), 'Thẻ KPI Cần mua thêm phải là 0 cây');
+  assert(a4Html.includes('11 cây</strong><span>Lấy từ kho (Nguyên / Đề-xê)</span>'), 'Thẻ KPI Lấy từ kho phải là 11 cây');
+  assert(a4Html.includes('>Tồn kho</th>'), 'Bảng BOM phải có cột Tồn kho');
+  assert(a4Html.includes('>Cần mua</th>'), 'Bảng BOM phải có cột Cần mua');
+  assert(a4Html.includes('>Nguồn cấp</th>'), 'Bảng BOM phải có cột Nguồn cấp');
+  assert(a4Html.includes('Cây chuẩn 6.000 (Hộp 20x20x1.1)'), 'Tên phôi trong bảng BOM phải trung tính');
+  assert(!a4Html.includes('>Cây mới 6.000<'), 'Không được để nhãn Cây mới chưa trung tính');
+
+  // Test 5: Xuất dữ liệu Excel (.xlsx)
+  const excelData = WE.buildExcelSheetsData({
+    project: {
+      id: 'proj_xe_day_01',
+      name: 'Xe đẩy inox',
+      customer: 'Nhà máy A',
+      inventoryDeductedAt: '2026-11-19T16:25:00+07:00',
+      inventoryDeductedBy: 'admin'
+    },
+    result: mockResult11,
+    inventoryItems: mockInventory15,
+    exportedBy: 'admin'
+  });
+  assert(excelData.sheet1Rows.length > 6);
+  assert.equal(excelData.sheet1Rows[3][3], 'Trạng thái kho:');
+  assert(excelData.sheet1Rows[3][4].includes('✅ Đã xuất kho'));
+  assert.equal(JSON.stringify(excelData.sheet1Rows[6]), JSON.stringify([
+    'STT', 'Quy cách thép', 'Tên phôi vật tư', 'Chiều dài (mm)', 'Cần dùng (cây)',
+    'Tồn kho xưởng', 'Lấy từ kho', 'Cần mua thêm', 'Nguồn cấp', 'Tổng chiều dài (m)'
+  ]));
+  // Dòng 1 vật tư: Hộp 20x20x1.1
+  const row1 = excelData.sheet1Rows[7];
+  assert.equal(row1[1], 'Hộp 20x20x1.1');
+  assert.equal(row1[4], 4); // Cần dùng
+  assert.equal(row1[6], 4); // Lấy từ kho
+  assert.equal(row1[7], 0); // Cần mua thêm
+  assert.equal(row1[8], '✅ Đã xuất kho');
+  // Dòng tổng cộng
+  const summaryRow = excelData.sheet1Rows[excelData.sheet1Rows.length - 2];
+  assert.equal(summaryRow[0], 'TỔNG CỘNG');
+  assert.equal(summaryRow[4], 11);
+  assert.equal(summaryRow[6], 11);
+  assert.equal(summaryRow[7], 0);
+  assert.equal(summaryRow[8], 'Lấy từ kho: 11 | Cần mua: 0');
+  // Sheet 2 chi tiết: tên phôi được trung tính hóa
+  assert.equal(excelData.sheet2Rows[2][4], 'Cây chuẩn 6.000');
 }
 
 function verifySqlAndSecurity() {

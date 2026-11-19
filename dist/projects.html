@@ -1021,14 +1021,29 @@
           }))
         });
         let cutStatuses = {};
+        let invItems = [];
+        let stockOffcuts = [];
         if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
-          try { cutStatuses = await window.SupabaseDB.getCutProgress(p.id); } catch (e) {}
+          try {
+            const [cRes, iRes, oRes] = await Promise.all([
+              window.SupabaseDB.getCutProgress(p.id).catch(() => ({})),
+              window.SupabaseDB.getInventory().catch(() => []),
+              window.SupabaseDB.getStockOffcuts().catch(() => [])
+            ]);
+            cutStatuses = cRes || {};
+            invItems = iRes || [];
+            stockOffcuts = oRes || [];
+          } catch (e) {}
         }
         return {
           project: p,
           result,
           parts: d.parts || [],
           cutStatuses,
+          inventoryItems: invItems,
+          stockOffcuts: stockOffcuts,
+          inventoryDeductedAt: p.inventory_deducted_at || (d && d.inventoryDeductedAt) || null,
+          inventoryDeductedBy: p.inventory_deducted_by || (d && d.inventoryDeductedBy) || '',
           exportedBy: currentUser ? currentUser.username : ''
         };
       } catch (err) {

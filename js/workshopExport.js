@@ -75,6 +75,30 @@
     return 'Rev ' + yyyy + mm + dd + '-' + hh + min;
   }
 
+  function formatShortTime(isoOrDate, user) {
+    if (!isoOrDate) return '';
+    var d = (isoOrDate instanceof Date) ? isoOrDate : new Date(isoOrDate);
+    if (isNaN(d.getTime())) return '';
+    var hh = String(d.getHours()).padStart(2, '0');
+    var min = String(d.getMinutes()).padStart(2, '0');
+    var timePart = hh + ':' + min;
+    var byPart = user ? (' · @' + String(user).replace(/^@/, '')) : '';
+    return timePart + byPart;
+  }
+
+  function neutralizeStockLabel(label, isOffcut, length) {
+    var raw = String(label || '').trim();
+    var clean = raw
+      .replace(/^Cây mới 6m\b/i, 'Cây chuẩn 6.000')
+      .replace(/^Cây mới 6000\b/i, 'Cây chuẩn 6.000')
+      .replace(/^Cây mới\b/i, 'Cây chuẩn')
+      .replace(/^Cay moi\b/i, 'Cây chuẩn');
+    if (!clean) {
+      clean = isOffcut ? ('Phôi lẻ ' + numVN(length)) : ('Cây chuẩn ' + numVN(length || 6000));
+    }
+    return clean;
+  }
+
   function normalizeExportContext(opts) {
     var o = opts || {};
     var rawProj = o.project || {};
@@ -95,6 +119,39 @@
     var cutStatuses = o.cutStatuses || {};
     var exportedBy = o.exportedBy || '';
     var result = o.result || null;
+
+    var winState = (typeof window !== 'undefined' && window.state && typeof window.state === 'object') ? window.state : null;
+
+    var inventoryDeductedAt = o.inventoryDeductedAt ||
+      rawProj.inventoryDeductedAt ||
+      rawProj.inventory_deducted_at ||
+      (d && (d.inventoryDeductedAt || d.inventory_deducted_at)) ||
+      (winState && winState.inventoryDeductedAt) ||
+      null;
+
+    var inventoryDeductedBy = o.inventoryDeductedBy ||
+      rawProj.inventoryDeductedBy ||
+      rawProj.inventory_deducted_by ||
+      (d && (d.inventoryDeductedBy || d.inventory_deducted_by)) ||
+      (winState && winState.inventoryDeductedBy) ||
+      '';
+
+    var inventoryDeductedSnapshot = o.inventoryDeductedSnapshot ||
+      rawProj.inventoryDeductedSnapshot ||
+      rawProj.inventory_deducted_snapshot ||
+      (d && (d.inventoryDeductedSnapshot || d.inventory_deducted_snapshot)) ||
+      (winState && winState.inventoryDeductedSnapshot) ||
+      null;
+
+    var inventoryItems = Array.isArray(o.inventoryItems)
+      ? o.inventoryItems
+      : (winState && Array.isArray(winState.inventoryItems) ? winState.inventoryItems : []);
+
+    var stockOffcuts = Array.isArray(o.stockOffcuts)
+      ? o.stockOffcuts
+      : (winState && Array.isArray(winState.stockOffcuts) ? winState.stockOffcuts : []);
+
+    var isDispatched = Boolean(inventoryDeductedAt);
 
     var isRealProj = Boolean(projectId && projectId !== '__draft__');
     var cncUrl = isRealProj
@@ -117,7 +174,13 @@
       cutStatuses: cutStatuses,
       exportedBy: exportedBy,
       result: result,
-      cncUrl: cncUrl
+      cncUrl: cncUrl,
+      inventoryDeductedAt: inventoryDeductedAt,
+      inventoryDeductedBy: inventoryDeductedBy,
+      inventoryDeductedSnapshot: inventoryDeductedSnapshot,
+      inventoryItems: inventoryItems,
+      stockOffcuts: stockOffcuts,
+      isDispatched: isDispatched
     };
   }
 
@@ -207,9 +270,275 @@
       return { text: 'Mua mới 6m', color: '#C2410C' };
     }
     if (lbl.indexOf('♻️') !== -1 || /đề-xê|de-xe|offcut/i.test(lbl)) {
-      return { text: '♻️ Tận dụng đề-xê kho', color: '#0F766E' };
+      return { text: '♻️ Kho đề-xê', color: '#0F766E' };
     }
     return { text: 'Lấy tồn kho lẻ', color: '#0369A1' };
+  }
+
+  function computeWarehouseBomComparison(opts) {
+    var o = opts || {};
+    var res = o.result || null;
+    if (!res || !Array.isArray(res.bars) || !res.bars.length) {
+      return {
+        isValid: false,
+        items: [],
+        profiles: [],
+        summaryLines: [],
+        kpis: {
+          totalBars: 0,
+          totalFullBars: 0,
+          totalOffcuts: 0,
+          totalWarehouseBarsTaken: 0,
+          totalToBuyBars: 0,
+          totalPiecesCut: 0,
+          efficiency: 0,
+          wasteM: 0,
+          savingM: 0
+        },
+        isDispatched: false,
+        deductedAt: null,
+        deductedBy: ''
+      };
+    }
+
+    var rawProj = o.project || {};
+    var d = (rawProj.data && typeof rawProj.data === 'object') ? rawProj.data : {};
+    var winState = (typeof window !== 'undefined' && window.state && typeof window.state === 'object') ? window.state : null;
+
+    var deductedAt = o.inventoryDeductedAt ||
+      rawProj.inventoryDeductedAt ||
+      rawProj.inventory_deducted_at ||
+      (d && (d.inventoryDeductedAt || d.inventory_deducted_at)) ||
+      (winState && winState.inventoryDeductedAt) ||
+      null;
+
+    var deductedBy = o.inventoryDeductedBy ||
+      rawProj.inventoryDeductedBy ||
+      rawProj.inventory_deducted_by ||
+      (d && (d.inventoryDeductedBy || d.inventory_deducted_by)) ||
+      (winState && winState.inventoryDeductedBy) ||
+      '';
+
+    var isDispatched = Boolean(deductedAt);
+
+    var invList = Array.isArray(o.inventoryItems)
+      ? o.inventoryItems
+      : (winState && Array.isArray(winState.inventoryItems) ? winState.inventoryItems : []);
+    var invMap = {};
+    invList.forEach(function (r) {
+      if (!r) return;
+      var name = r.profileName || r.profile_name || r.name;
+      if (name) invMap[name] = r;
+    });
+
+    var offcutsList = Array.isArray(o.stockOffcuts)
+      ? o.stockOffcuts
+      : (winState && Array.isArray(winState.stockOffcuts) ? winState.stockOffcuts : []);
+    var offcutCountMap = {};
+    offcutsList.filter(function (off) {
+      if (!off) return false;
+      var qty = Number(off.quantity != null ? off.quantity : off.qty) || 0;
+      var st = String(off.status || 'available');
+      return qty > 0 && (st === 'available' || st === 'opening_stock');
+    }).forEach(function (off) {
+      var p = off.profile || 'Chung';
+      var qty = Number(off.quantity != null ? off.quantity : off.qty) || 0;
+      offcutCountMap[p] = (offcutCountMap[p] || 0) + qty;
+    });
+
+    var profiles = (res.summaryByProfile && res.summaryByProfile.length)
+      ? res.summaryByProfile.map(function (s) { return s.profile; })
+      : ['Chung'];
+
+    var usedStocks = (res.byStockType || []).filter(function (s) { return (s.usedQty || 0) > 0; });
+
+    var profileComparisons = [];
+    var comparisonLines = [];
+    var items = [];
+    var totalWarehouseBarsTaken = 0;
+    var totalToBuyBars = 0;
+    var totalFullBarsNeeded = 0;
+    var totalOffcutsUsed = 0;
+
+    profiles.forEach(function (prof) {
+      var profStocks = usedStocks.filter(function (s) { return (s.profile || 'Chung') === prof; });
+      if (!profStocks.length) return;
+
+      var invRow = invMap[prof];
+      var hasInvData = invList.length > 0;
+      var whFullQty = invRow ? Math.max(0, Number(invRow.stockQty != null ? invRow.stockQty : invRow.stock_qty) || 0) : 0;
+      var whOffPieces = offcutCountMap[prof] || 0;
+
+      var needFullBarsInProf = profStocks.filter(function (s) { return s.availableQty === null; })
+        .reduce(function (a, b) { return a + (Number(b.usedQty) || 0); }, 0);
+      var offcutsUsedInProf = profStocks.filter(function (s) { return s.availableQty !== null; })
+        .reduce(function (a, b) { return a + (Number(b.usedQty) || 0); }, 0);
+
+      totalFullBarsNeeded += needFullBarsInProf;
+      totalOffcutsUsed += offcutsUsedInProf;
+
+      var toBuyInProf = 0;
+      var takenFromWhInProf = 0;
+
+      if (isDispatched) {
+        toBuyInProf = 0;
+        takenFromWhInProf = needFullBarsInProf + offcutsUsedInProf;
+      } else if (!hasInvData) {
+        toBuyInProf = needFullBarsInProf;
+        takenFromWhInProf = offcutsUsedInProf;
+      } else {
+        toBuyInProf = Math.max(0, needFullBarsInProf - whFullQty);
+        var takenFull = Math.min(needFullBarsInProf, whFullQty);
+        takenFromWhInProf = takenFull + offcutsUsedInProf;
+      }
+
+      totalToBuyBars += toBuyInProf;
+      totalWarehouseBarsTaken += takenFromWhInProf;
+
+      var summaryLine = '';
+      if (isDispatched) {
+        summaryLine = '• <b>' + escapeHtml(prof) + ':</b> ✅ Đã xuất kho đủ ' + numVN(needFullBarsInProf) + ' cây cho dự án' +
+          (whOffPieces > 0 ? ' (kho còn ' + numVN(whOffPieces) + ' đoạn đề-xê)' : '');
+      } else if (!hasInvData) {
+        summaryLine = '• <b>' + escapeHtml(prof) + ':</b> Cần dùng ' + numVN(needFullBarsInProf) + ' cây 6m' +
+          (offcutsUsedInProf > 0 ? ' + ' + numVN(offcutsUsedInProf) + ' đoạn đề-xê' : '');
+      } else {
+        summaryLine = '• <b>' + escapeHtml(prof) + ':</b> Trong kho có: <b style="color:#0F766E;">' + numVN(whFullQty) + ' cây nguyên</b> + <b>' + numVN(whOffPieces) + ' đoạn lẻ</b> → ' +
+          (toBuyInProf > 0
+            ? '<b style="color:#C2410C;">Cần mua thêm: ' + numVN(toBuyInProf) + ' cây</b>'
+            : '<b style="color:#15803D;">Đủ trong kho (0 cần mua)</b>');
+      }
+      comparisonLines.push(summaryLine);
+
+      var remainingWhForItems = whFullQty;
+
+      profStocks.forEach(function (st) {
+        var used = Number(st.usedQty) || 0;
+        var len = Number(st.length) || 0;
+        var meters = (len * used) / 1000;
+        var isOff = st.availableQty !== null || /đề-xê|de-xe|offcut|tồn|ton/i.test(st.label || '');
+        var cleanLbl = neutralizeStockLabel(st.label, isOff, len);
+
+        var itemTakenWh = 0;
+        var itemToBuy = 0;
+        var sourceText = '';
+        var sourceColor = '';
+        var sourceBadgeHtml = '';
+        var whDisplay = '';
+
+        if (isOff) {
+          itemTakenWh = used;
+          itemToBuy = 0;
+          sourceText = '♻️ Kho đề-xê';
+          sourceColor = '#0F766E';
+          sourceBadgeHtml = '<span style="color:#0F766E;font-weight:700;">♻️ Kho đề-xê</span>';
+          whDisplay = whOffPieces > 0 ? (numVN(whOffPieces) + ' đoạn') : (st.availableQty != null ? (numVN(st.availableQty) + ' đoạn') : 'Kho đề-xê');
+        } else if (isDispatched) {
+          itemTakenWh = used;
+          itemToBuy = 0;
+          sourceText = '✅ Đã xuất kho';
+          sourceColor = '#15803D';
+          sourceBadgeHtml = '<span style="color:#15803D;font-weight:800;">✅ Đã xuất kho</span>';
+          whDisplay = hasInvData ? (numVN(whFullQty) + ' cây') : 'Đã xuất';
+        } else if (!hasInvData) {
+          itemTakenWh = 0;
+          itemToBuy = used;
+          sourceText = 'Mua mới 6m';
+          sourceColor = '#C2410C';
+          sourceBadgeHtml = '<span style="color:#C2410C;font-weight:700;">Mua mới 6m</span>';
+          whDisplay = '—';
+        } else {
+          whDisplay = whOffPieces > 0 ? (numVN(whFullQty) + ' cây (+' + numVN(whOffPieces) + ' lẻ)') : (numVN(whFullQty) + ' cây');
+          if (toBuyInProf === 0) {
+            itemTakenWh = used;
+            itemToBuy = 0;
+            sourceText = '✅ Lấy từ kho (Đủ)';
+            sourceColor = '#15803D';
+            sourceBadgeHtml = '<span style="color:#15803D;font-weight:800;">✅ Lấy từ kho (Đủ)</span>';
+          } else if (whFullQty > 0) {
+            itemTakenWh = Math.min(used, remainingWhForItems);
+            remainingWhForItems = Math.max(0, remainingWhForItems - itemTakenWh);
+            itemToBuy = used - itemTakenWh;
+            if (itemTakenWh > 0 && itemToBuy > 0) {
+              sourceText = 'Kho: ' + itemTakenWh + ' cây · Mua thêm: ' + itemToBuy + ' cây';
+              sourceColor = '#C2410C';
+              sourceBadgeHtml = '<span style="color:#C2410C;font-weight:800;">Kho: ' + numVN(itemTakenWh) + ' · Mua: ' + numVN(itemToBuy) + '</span>';
+            } else if (itemTakenWh > 0 && itemToBuy === 0) {
+              sourceText = '✅ Lấy từ kho (' + itemTakenWh + ' cây)';
+              sourceColor = '#15803D';
+              sourceBadgeHtml = '<span style="color:#15803D;font-weight:800;">✅ Lấy từ kho</span>';
+            } else {
+              sourceText = '🛒 Mua mới 6m (' + itemToBuy + ' cây)';
+              sourceColor = '#C2410C';
+              sourceBadgeHtml = '<span style="color:#C2410C;font-weight:800;">🛒 Mua mới ' + numVN(itemToBuy) + ' cây</span>';
+            }
+          } else {
+            itemTakenWh = 0;
+            itemToBuy = used;
+            sourceText = '🛒 Mua mới 6m';
+            sourceColor = '#C2410C';
+            sourceBadgeHtml = '<span style="color:#C2410C;font-weight:800;">🛒 Mua mới ' + numVN(used) + ' cây</span>';
+          }
+        }
+
+        var itemObj = {
+          profile: prof,
+          rawLabel: st.label || '',
+          label: cleanLbl,
+          length: len,
+          usedQty: used,
+          totalMeters: meters,
+          isOffcut: isOff,
+          warehouseFullQty: whFullQty,
+          warehouseOffcutQty: whOffPieces,
+          warehouseDisplay: whDisplay,
+          takenFromWarehouseQty: itemTakenWh,
+          toBuyQty: itemToBuy,
+          sourceText: sourceText,
+          sourceColor: sourceColor,
+          sourceBadgeHtml: sourceBadgeHtml,
+          isDispatched: isDispatched
+        };
+        items.push(itemObj);
+      });
+
+      profileComparisons.push({
+        profile: prof,
+        warehouseFullQty: whFullQty,
+        warehouseOffcutQty: whOffPieces,
+        needFullBars: needFullBarsInProf,
+        offcutsUsed: offcutsUsedInProf,
+        toBuy: toBuyInProf,
+        takenFromWarehouse: takenFromWhInProf,
+        isDispatched: isDispatched
+      });
+    });
+
+    var u = res.usageStats || {};
+    var eff = u.totalNominalLength > 0 ? (u.totalCutLength / u.totalNominalLength * 100) : 0;
+    var wasteM = (u.totalWasteLength || 0) / 1000;
+    var savingM = (u.totalInterlockSaving || 0) / 1000;
+
+    return {
+      isValid: true,
+      items: items,
+      profiles: profileComparisons,
+      summaryLines: comparisonLines,
+      kpis: {
+        totalBars: res.bars.length,
+        totalFullBars: totalFullBarsNeeded,
+        totalOffcuts: totalOffcutsUsed,
+        totalWarehouseBarsTaken: totalWarehouseBarsTaken,
+        totalToBuyBars: totalToBuyBars,
+        totalPiecesCut: Number(res.totalPiecesCut) || 0,
+        efficiency: eff,
+        wasteM: wasteM,
+        savingM: savingM
+      },
+      isDispatched: isDispatched,
+      deductedAt: deductedAt,
+      deductedBy: deductedBy
+    };
   }
 
   function buildA4SheetHtml(opts) {
@@ -219,12 +548,23 @@
       return '<div style="padding:20px;text-align:center;">Chưa có dữ liệu kết quả xếp phôi để in phiếu lệnh sản xuất.</div>';
     }
 
-    var u = res.usageStats || {};
-    var eff = u.totalNominalLength > 0 ? (u.totalCutLength / u.totalNominalLength * 100) : 0;
-    var wasteM = (u.totalWasteLength || 0) / 1000;
-    var savingM = (u.totalInterlockSaving || 0) / 1000;
+    var cmp = computeWarehouseBomComparison({
+      result: res,
+      inventoryItems: ctx.inventoryItems,
+      stockOffcuts: ctx.stockOffcuts,
+      inventoryDeductedAt: ctx.inventoryDeductedAt,
+      inventoryDeductedBy: ctx.inventoryDeductedBy,
+      inventoryDeductedSnapshot: ctx.inventoryDeductedSnapshot
+    });
+
     var qrSvg = generateQrSvg(ctx.cncUrl);
     var exportedAtStr = formatDateTimeVN(new Date());
+
+    var dispatchBadgeHtml = '';
+    if (ctx.isDispatched) {
+      var shortDeductStr = formatShortTime(ctx.inventoryDeductedAt, ctx.inventoryDeductedBy);
+      dispatchBadgeHtml = ' <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#DCFCE7;color:#15803D;border:1.2px solid #86EFAC;font-size:10px;font-weight:800;vertical-align:middle;">✅ Đã xuất kho (' + escapeHtml(shortDeductStr) + ')</span>';
+    }
 
     var headerHtml = [
       '<div class="a4-header">',
@@ -237,7 +577,7 @@
       '      </div>',
       '    </div>',
       '    <div class="a4-meta-grid">',
-      '      <div><b>Đơn hàng / Dự án:</b> ' + escapeHtml(ctx.projectName) + (ctx.isLocked ? ' 🔒' : '') + '</div>',
+      '      <div><b>Đơn hàng / Dự án:</b> ' + escapeHtml(ctx.projectName) + (ctx.isLocked ? ' 🔒' : '') + dispatchBadgeHtml + '</div>',
       '      <div><b>Ngày xuất phiếu:</b> ' + escapeHtml(exportedAtStr) + (ctx.exportedBy ? ' (@' + escapeHtml(ctx.exportedBy) + ')' : '') + '</div>',
       '      <div style="grid-column:1/-1;"><b>Khách hàng:</b> ' + escapeHtml(ctx.customer || '—') + ' · <b>Thông số máy cắt:</b> Mạch cắt ' + numVN(ctx.kerf) + ' mm · Kẹp đuôi ' + numVN(ctx.clamp) + ' mm · Xen kẽ ke 45°: ' + (ctx.interlock ? 'BẬT' : 'TẮT') + (ctx.interlock && ctx.gap > 0 ? ' (Hở ' + numVN(ctx.gap) + ' mm)' : '') + '</div>',
       (ctx.notes ? '      <div style="grid-column:1/-1;"><b>Ghi chú:</b> ' + escapeHtml(ctx.notes) + '</div>' : ''),
@@ -250,38 +590,38 @@
       '</div>'
     ].join('');
 
+    var toBuyColor = cmp.kpis.totalToBuyBars > 0 ? '#C2410C' : '#15803D';
     var kpiHtml = [
       '<div class="a4-kpi-row">',
-      '  <div class="a4-kpi-cell"><strong>' + numVN(res.bars.length) + ' cây</strong><span>Tổng cây phôi</span></div>',
-      '  <div class="a4-kpi-cell"><strong>' + numVN(res.totalNewBars) + ' cây</strong><span>Mua mới 6m</span></div>',
-      '  <div class="a4-kpi-cell"><strong>' + numVN(res.totalExistingUsed) + ' cây</strong><span>Tồn / Đề-xê</span></div>',
-      '  <div class="a4-kpi-cell"><strong>' + numVN(res.totalPiecesCut) + ' thanh</strong><span>Tổng chi tiết</span></div>',
-      '  <div class="a4-kpi-cell"><strong>' + numVN(eff, 1) + '%</strong><span>Hiệu suất cắt</span></div>',
-      '  <div class="a4-kpi-cell"><strong>' + numVN(wasteM, 2) + ' m</strong><span>Dư (' + (savingM > 0 ? 'bớt ke ' + numVN(savingM, 2) + 'm' : 'tổng phôi dư') + ')</span></div>',
+      '  <div class="a4-kpi-cell"><strong>' + numVN(cmp.kpis.totalBars) + ' cây</strong><span>Tổng cây phôi</span></div>',
+      '  <div class="a4-kpi-cell"><strong style="color:' + toBuyColor + ';">' + numVN(cmp.kpis.totalToBuyBars) + ' cây</strong><span>Cần mua thêm</span></div>',
+      '  <div class="a4-kpi-cell"><strong style="color:#0F766E;">' + numVN(cmp.kpis.totalWarehouseBarsTaken) + ' cây</strong><span>Lấy từ kho (Nguyên / Đề-xê)</span></div>',
+      '  <div class="a4-kpi-cell"><strong>' + numVN(cmp.kpis.totalPiecesCut) + ' thanh</strong><span>Tổng chi tiết</span></div>',
+      '  <div class="a4-kpi-cell"><strong>' + numVN(cmp.kpis.efficiency, 1) + '%</strong><span>Hiệu suất cắt</span></div>',
+      '  <div class="a4-kpi-cell"><strong>' + numVN(cmp.kpis.wasteM, 2) + ' m</strong><span>Dư (' + (cmp.kpis.savingM > 0 ? 'bớt ke ' + numVN(cmp.kpis.savingM, 2) + 'm' : 'tổng phôi dư') + ')</span></div>',
       '</div>'
     ].join('');
 
     var bomRowsHtml = '';
-    var usedStocks = (res.byStockType || []).filter(function (s) { return (s.usedQty || 0) > 0; });
-    usedStocks.forEach(function (st, idx) {
-      var srcInfo = detectSourceTag(st);
-      var totalMeters = ((Number(st.length) || 0) * (Number(st.usedQty) || 0)) / 1000;
+    cmp.items.forEach(function (it, idx) {
+      var toBuyStr = it.toBuyQty > 0 ? ('<b style="color:#C2410C;">' + numVN(it.toBuyQty) + ' cây</b>') : '0 cây';
       bomRowsHtml += '<tr>' +
-        '<td>' + (idx + 1) + '</td>' +
-        '<td><b>' + escapeHtml(st.profile || 'Chung') + '</b></td>' +
-        '<td>' + escapeHtml(st.label || '') + '</td>' +
-        '<td class="r">' + numVN(st.length) + '</td>' +
-        '<td class="r"><b>' + numVN(st.usedQty) + '</b></td>' +
-        '<td class="r">' + numVN(totalMeters, 2) + ' m</td>' +
-        '<td style="font-weight:700;color:' + srcInfo.color + ';">' + escapeHtml(srcInfo.text) + '</td>' +
+        '<td class="c">' + (idx + 1) + '</td>' +
+        '<td><b>' + escapeHtml(it.profile || 'Chung') + '</b></td>' +
+        '<td>' + escapeHtml(it.label || '') + '</td>' +
+        '<td class="r">' + numVN(it.length) + '</td>' +
+        '<td class="r"><b>' + numVN(it.usedQty) + '</b><br><span style="font-size:9px;color:#64748B;">' + numVN(it.totalMeters, 2) + 'm</span></td>' +
+        '<td class="r" style="color:#0F766E;font-weight:700;">' + escapeHtml(it.warehouseDisplay) + '</td>' +
+        '<td class="r">' + toBuyStr + '</td>' +
+        '<td style="font-weight:700;color:' + it.sourceColor + ';">' + escapeHtml(it.sourceText) + '</td>' +
       '</tr>';
     });
 
     var bomTableHtml = [
-      '<div class="a4-sec-title">1. Bảng Tổng Hợp Vật Tư (BOM)</div>',
+      '<div class="a4-sec-title">1. Bảng Tổng Hợp Vật Tư &amp; Đối Chiếu Tồn Kho (BOM)</div>',
       '<table class="a4-bom-table">',
-      '  <thead><tr><th style="width:32px;">STT</th><th>Quy cách thép</th><th>Tên phôi vật tư</th><th class="r">Dài (mm)</th><th class="r">SL dùng</th><th class="r">Tổng dài</th><th>Nguồn cấp</th></tr></thead>',
-      '  <tbody>' + (bomRowsHtml || '<tr><td colspan="7" style="text-align:center;">Không có dữ liệu vật tư</td></tr>') + '</tbody>',
+      '  <thead><tr><th style="width:28px;" class="c">STT</th><th style="width:115px;">Quy cách thép</th><th>Tên phôi vật tư</th><th class="r" style="width:62px;">Dài (mm)</th><th class="r" style="width:58px;">Cần dùng</th><th class="r" style="width:72px;">Tồn kho</th><th class="r" style="width:65px;">Cần mua</th><th style="width:145px;">Nguồn cấp</th></tr></thead>',
+      '  <tbody>' + (bomRowsHtml || '<tr><td colspan="8" style="text-align:center;">Không có dữ liệu vật tư</td></tr>') + '</tbody>',
       '</table>'
     ].join('');
 
@@ -373,13 +713,14 @@
           checklistHtml = '<span class="a4-check-item">☐ Đã cắt: ' + (cutDone > 0 ? ('<b>' + cutDone + '</b>') : '_____') + ' / ' + p.count + ' cây</span>';
         }
 
+        var cleanPatStockLabel = neutralizeStockLabel(p.stockLabel, false, stockW);
         patternsSectionHtml += [
           '<div class="a4-pattern-card">',
           '  <div class="a4-pat-top">',
           '    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">',
           '      <span class="a4-pat-badge">Mẫu ' + letter + '</span>',
           '      <b>× ' + p.count + ' cây</b>',
-          '      <span style="color:#475569;font-size:10px;">' + escapeHtml(p.stockLabel || '') + ' · ' + numVN(stockW) + ' mm · cắt ' + (p.cuts ? p.cuts.length : 0) + ' ct · dư <b>' + numVN(wasteW) + ' mm</b>' + (p.interlockSaving > 0 ? ' · bớt ke ' + numVN(p.interlockSaving) + ' mm' : '') + '</span>',
+          '      <span style="color:#475569;font-size:10px;">' + escapeHtml(cleanPatStockLabel) + ' · ' + numVN(stockW) + ' mm · cắt ' + (p.cuts ? p.cuts.length : 0) + ' ct · dư <b>' + numVN(wasteW) + ' mm</b>' + (p.interlockSaving > 0 ? ' · bớt ke ' + numVN(p.interlockSaving) + ' mm' : '') + '</span>',
           '    </div>',
           '    <div class="a4-checklist">' + checklistHtml + '</div>',
           '  </div>',
@@ -453,40 +794,66 @@
       throw new Error('Chưa có dữ liệu tối ưu xếp phôi để xuất Excel!');
     }
 
+    var cmp = computeWarehouseBomComparison({
+      result: res,
+      inventoryItems: ctx.inventoryItems,
+      stockOffcuts: ctx.stockOffcuts,
+      inventoryDeductedAt: ctx.inventoryDeductedAt,
+      inventoryDeductedBy: ctx.inventoryDeductedBy,
+      inventoryDeductedSnapshot: ctx.inventoryDeductedSnapshot
+    });
+
     var u = res.usageStats || {};
     var eff = u.totalNominalLength > 0 ? Math.round((u.totalCutLength / u.totalNominalLength) * 1000) / 10 : 0;
-    var usedStocks = (res.byStockType || []).filter(function (s) { return (s.usedQty || 0) > 0; });
 
-    // Sheet 1: Tổng hợp BOM vật tư
+    var dispatchStatusExcel = ctx.isDispatched
+      ? ('✅ Đã xuất kho (' + formatShortTime(ctx.inventoryDeductedAt, ctx.inventoryDeductedBy) + ')')
+      : 'Chưa xuất kho';
+
+    // Sheet 1: Tổng hợp BOM vật tư & Đối chiếu tồn kho
     var sheet1Rows = [
-      ['CƠ KHÍ AN BÌNH — PHIẾU TỔNG HỢP VẬT TƯ (BOM)'],
+      ['CƠ KHÍ AN BÌNH — PHIẾU TỔNG HỢP VẬT TƯ (BOM) & ĐỐI CHIẾU TỒN KHO'],
       ['Đơn hàng / Dự án:', ctx.projectName, '', 'Mã dự án:', ctx.isRealProj ? ctx.projectId : 'Nháp'],
       ['Khách hàng:', ctx.customer || '—', '', 'Ngày xuất:', formatDateTimeVN(new Date())],
-      ['Thông số cắt:', 'Mạch ' + ctx.kerf + 'mm | Kẹp đuôi ' + ctx.clamp + 'mm | Xen kẽ ke: ' + (ctx.interlock ? 'Bật' : 'Tắt'), '', 'Link CNC:', ctx.cncUrl],
+      ['Thông số cắt:', 'Mạch ' + ctx.kerf + 'mm | Kẹp đuôi ' + ctx.clamp + 'mm | Xen kẽ ke: ' + (ctx.interlock ? 'Bật' : 'Tắt'), '', 'Trạng thái kho:', dispatchStatusExcel],
+      ['Link CNC:', ctx.cncUrl, '', 'Người xuất:', ctx.exportedBy ? ('@' + ctx.exportedBy) : '—'],
       [],
-      ['STT', 'Quy cách thép', 'Tên phôi vật tư', 'Chiều dài (mm)', 'Đang có', 'Cần dùng (cây)', 'Nguồn cấp', 'Tổng chiều dài (m)']
+      ['STT', 'Quy cách thép', 'Tên phôi vật tư', 'Chiều dài (mm)', 'Cần dùng (cây)', 'Tồn kho xưởng', 'Lấy từ kho', 'Cần mua thêm', 'Nguồn cấp', 'Tổng chiều dài (m)']
     ];
 
     var sumMeters = 0;
-    usedStocks.forEach(function (st, idx) {
-      var srcInfo = detectSourceTag(st);
-      var meters = Math.round(((Number(st.length) || 0) * (Number(st.usedQty) || 0)) / 10) / 100;
-      sumMeters += meters;
+    cmp.items.forEach(function (it, idx) {
+      sumMeters += it.totalMeters;
       sheet1Rows.push([
         idx + 1,
-        st.profile || 'Chung',
-        st.label || '',
-        Number(st.length) || 0,
-        st.availableQty === null ? 'Không giới hạn' : Number(st.availableQty),
-        Number(st.usedQty) || 0,
-        srcInfo.text,
-        meters
+        it.profile || 'Chung',
+        it.label || '',
+        Number(it.length) || 0,
+        Number(it.usedQty) || 0,
+        it.warehouseDisplay,
+        Number(it.takenFromWarehouseQty) || 0,
+        Number(it.toBuyQty) || 0,
+        it.sourceText,
+        Math.round(it.totalMeters * 100) / 100
       ]);
     });
 
     sheet1Rows.push([]);
-    sheet1Rows.push(['TỔNG CỘNG', '', '', '', '', res.bars.length, 'Mới: ' + res.totalNewBars + ' | Tồn/Đề-xê: ' + res.totalExistingUsed, Math.round(sumMeters * 100) / 100]);
-    sheet1Rows.push(['HIỆU SUẤT CẮT (%)', eff, 'Tổng chi tiết:', res.totalPiecesCut, 'Tổng phôi dư (m):', Math.round(((u.totalWasteLength || 0) / 1000) * 100) / 100, 'Tiết kiệm ke (m):', Math.round(((u.totalInterlockSaving || 0) / 1000) * 100) / 100]);
+    sheet1Rows.push([
+      'TỔNG CỘNG', '', '', '',
+      cmp.kpis.totalBars,
+      '',
+      cmp.kpis.totalWarehouseBarsTaken,
+      cmp.kpis.totalToBuyBars,
+      'Lấy từ kho: ' + cmp.kpis.totalWarehouseBarsTaken + ' | Cần mua: ' + cmp.kpis.totalToBuyBars,
+      Math.round(sumMeters * 100) / 100
+    ]);
+    sheet1Rows.push([
+      'HIỆU SUẤT CẮT (%)', eff,
+      'Tổng chi tiết:', cmp.kpis.totalPiecesCut,
+      'Tổng phôi dư (m):', Math.round(((u.totalWasteLength || 0) / 1000) * 100) / 100,
+      'Tiết kiệm ke (m):', Math.round(((u.totalInterlockSaving || 0) / 1000) * 100) / 100
+    ]);
 
     // Sheet 2: Chi tiết sơ đồ cắt từng cây
     var sheet2Rows = [
@@ -516,12 +883,14 @@
           return namePrefix + c.length + styleTxt;
         }).join(' + ');
 
+        var cleanPStockLabel = neutralizeStockLabel(p.stockLabel, false, p.stockLength);
+
         sheet2Rows.push([
           stt++,
           prof,
           'Mẫu ' + letter,
           Number(p.count) || 1,
-          p.stockLabel || '',
+          cleanPStockLabel,
           Number(p.stockLength) || 0,
           (p.cuts || []).length,
           cutsSummary,
@@ -552,8 +921,16 @@
       var wb = XLSX.utils.book_new();
       var ws1 = XLSX.utils.aoa_to_sheet(data.sheet1Rows);
       ws1['!cols'] = [
-        { wch: 10 }, { wch: 22 }, { wch: 28 }, { wch: 15 },
-        { wch: 14 }, { wch: 15 }, { wch: 24 }, { wch: 18 }
+        { wch: 6 },  // STT
+        { wch: 20 }, // Quy cách thép
+        { wch: 28 }, // Tên phôi vật tư
+        { wch: 14 }, // Chiều dài (mm)
+        { wch: 14 }, // Cần dùng (cây)
+        { wch: 16 }, // Tồn kho xưởng
+        { wch: 13 }, // Lấy từ kho
+        { wch: 14 }, // Cần mua thêm
+        { wch: 26 }, // Nguồn cấp
+        { wch: 18 }  // Tổng chiều dài (m)
       ];
       var ws2 = XLSX.utils.aoa_to_sheet(data.sheet2Rows);
       ws2['!cols'] = [
@@ -873,6 +1250,8 @@
   global.WorkshopExport = {
     TX_TYPE_LABELS: TX_TYPE_LABELS,
     OFFCUT_SOURCE_LABELS: OFFCUT_SOURCE_LABELS,
+    neutralizeStockLabel: neutralizeStockLabel,
+    computeWarehouseBomComparison: computeWarehouseBomComparison,
     generateQrSvg: generateQrSvg,
     buildA4SheetHtml: buildA4SheetHtml,
     printProductionSheet: printProductionSheet,

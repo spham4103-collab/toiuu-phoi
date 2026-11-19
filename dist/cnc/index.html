@@ -1532,11 +1532,14 @@
             return;
           }
           if (window.WorkshopExport) {
+            const pRec = currentProjectRecord || activeProject;
             window.WorkshopExport.printProductionSheet({
-              project: currentProjectRecord || activeProject,
+              project: pRec,
               result: currentResult,
               parts: (activeProject && activeProject.parts) || [],
               cutStatuses,
+              inventoryDeductedAt: (pRec && (pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
+              inventoryDeductedBy: (pRec && (pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
               exportedBy: currentUser ? currentUser.username : ''
             });
           } else {
@@ -1552,11 +1555,14 @@
             return;
           }
           try {
+            const pRec = currentProjectRecord || activeProject;
             const expRes = window.WorkshopExport.exportExcelXlsx({
-              project: currentProjectRecord || activeProject,
+              project: pRec,
               result: currentResult,
               parts: (activeProject && activeProject.parts) || [],
               cutStatuses,
+              inventoryDeductedAt: (pRec && (pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
+              inventoryDeductedBy: (pRec && (pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
               exportedBy: currentUser ? currentUser.username : ''
             });
             showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);
