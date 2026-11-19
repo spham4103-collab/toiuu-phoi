@@ -15,6 +15,7 @@
   const DP_COMPLEXITY_LIMIT = 4000000, DP_MAX_DISTINCT = 40;
   const EXACT_STATE_SPACE_LIMIT = 400000, EXACT_PATTERN_LIMIT = 20000, EXACT_WORK_LIMIT = 6000000, EXACT_ENUM_LIMIT = 300000;
   const SUBSET_WORK_LIMIT = 40000000;
+  const DEFAULT_OFFCUT_THRESHOLD = 800;
 
   // ---------- mẫu cắt cho chi tiết cắt thẳng (demand: chiều dài → số lượng) ----------
   // knapsack có chặn số lượng, cửa sổ trượt theo lớp dư — giống best_pattern_dp bản Python
@@ -375,103 +376,698 @@
     return groupPlan(list);
   }
 
-  // ---------- giải 1 quy cách ----------
-  function solveProfile(profilePieces, rows, kerf, interlock, gap) {
+  // ---------- đánh giá 1 cây & chấm điểm đa tầng 4 ưu tiên ----------
+  function calcMiterSavingFast(cuts, gap) {
     gap = gap || 0;
-    const demand = {}, queues = {};
-    profilePieces.forEach(p => { demand[p.length] = (demand[p.length] || 0) + 1; (queues[p.length] || (queues[p.length] = [])).push({ label: p.label, endStyle: p.endStyle, mat: p.mat }); });
-    const distinct = Object.keys(demand).map(Number).filter(L => demand[L] > 0);
-    const maxBin = Math.max(0, ...rows.map(r => r.usableLength));
-    const useDp = distinct.length > 0 && distinct.length <= DP_MAX_DISTINCT && distinct.length * maxBin <= DP_COMPLEXITY_LIMIT;
-    const remainingTypeCounts = () => { const c = {}; Object.keys(queues).forEach(Ls => queues[Ls].forEach(it => { const k = typeKey(Number(Ls), it, interlock, gap); c[k] = (c[k] || 0) + 1; })); return c; };
-    const coKe = () => interlock && Object.keys(remainingTypeCounts()).some(k => parseTypeKey(k).style !== 'thang');
-    // mẫu 1 cây: có ke thì dùng DP biết xen kẽ (trả khoá loại), không thì DP cắt thẳng (trả chiều dài)
-    const computePattern = bin => {
-      if (coKe()) { const p = bestTypedDP(remainingTypeCounts(), bin, kerf); return { typed: true, p }; }
-      return { typed: false, p: useDp ? bestPatternDP(demand, bin, kerf) : subsetPattern(demand, bin, kerf) };
+    const grp = {};
+    for (let i = 0; i < cuts.length; i++) {
+      const tk = parseTypeKey(typeKey(cuts[i].length, cuts[i], true, gap));
+      if (tk.style === 'ke' || tk.style === 'ke1') {
+        const g = grp[tk.w] || (grp[tk.w] = [0, 0]);
+        if (tk.style === 'ke') g[0]++; else g[1]++;
+      }
+    }
+    let saving = 0;
+    const svKeys = Object.keys(grp);
+    for (let i = 0; i < svKeys.length; i++) {
+      const sv = Number(svKeys[i]), km = grp[svKeys[i]];
+      saving += sv * jointsFor(km[0], km[1]);
+    }
+    return Math.round(saving * 100) / 100;
+  }
+
+  function evalBar(cuts, sd, kerf, interlock, gap) {
+    let cutTotal = 0;
+    for (let i = 0; i < cuts.length; i++) cutTotal += cuts[i].length;
+    const kerfTotal = kerf * cuts.length;
+    const saving = interlock ? calcMiterSavingFast(cuts, gap) : 0;
+    const used = cutTotal + kerfTotal - saving;
+    const waste = Math.round((sd.usableLength - used) * 100) / 100;
+    return {
+      feasible: used <= sd.usableLength + 1e-6,
+      cutTotal,
+      kerfTotal,
+      saving,
+      used,
+      waste
     };
-    const patVal = r => Object.keys(r.p).reduce((a, k) => a + (r.typed ? parseTypeKey(k).length : Number(k)) * r.p[k], 0);
-    const totalRemaining = () => Object.keys(demand).reduce((a, L) => a + Math.max(0, demand[L]), 0);
-    const bars = [], usedCounts = {};
-    function makeBar(ridx, cuts) {
-      const sd = rows[ridx];
-      const cutTotal = cuts.reduce((a, c) => a + c.length, 0), kerfTotal = kerf * cuts.length;
-      let saving = 0, chains = [], gapCost = 0;
-      if (interlock) { const a = arrangeBar(cuts, gap); cuts = a.cuts; saving = Math.round(a.saving * 100) / 100; chains = a.chains; chains.forEach(ch => { gapCost += ch.gapCost; }); }
-      else cuts.forEach(c => { c.net = c.length; c.run = -1; c.pos = 0; c.runLen = 1; });
-      bars.push({ stockRow: ridx, stockLabel: sd.label, stockLength: sd.length, usableLength: sd.usableLength, clampTail: sd.clampTail, isNewPurchase: sd.qty === null,
-        cuts, cutTotal, kerfTotal, interlockSaving: saving, interlockGapCost: gapCost, chains, waste: Math.round((sd.usableLength - cutTotal - kerfTotal + saving) * 100) / 100 });
-      usedCounts[ridx] = (usedCounts[ridx] || 0) + 1;
+  }
+
+  function barCutSig(cuts) {
+    const cnt = {};
+    for (let i = 0; i < cuts.length; i++) {
+      const c = cuts[i];
+      const k = (c.label || '') + '/' + c.length + '/' + (c.endStyle || 'thang') + '/' + (c.mat || '');
+      cnt[k] = (cnt[k] || 0) + 1;
     }
-    function applyPattern(pattern, ridx) {
-      const cuts = [];
-      Object.keys(pattern).forEach(Ls => { const L = Number(Ls), c = pattern[Ls]; for (let i = 0; i < c; i++) { const it = queues[L].shift(); cuts.push({ length: L, label: it.label, endStyle: it.endStyle, mat: it.mat }); } demand[L] -= c; });
-      makeBar(ridx, cuts);
+    return Object.keys(cnt).sort().map(k => k + ':' + cnt[k]).join(',');
+  }
+
+  function scoreSolution(bars, unfulfilledCount, rows, kerf, interlock, gap, threshold) {
+    const T = threshold > 0 ? threshold : DEFAULT_OFFCUT_THRESHOLD;
+    let newPurchaseLen = 0, totalStockLen = 0, offcutQuality = 0, maxWaste = 0, totalSaving = 0;
+    const patSet = new Set();
+    for (let i = 0; i < bars.length; i++) {
+      const b = bars[i], sd = rows[b.ridx];
+      if (!b.cuts.length) continue;
+      const ev = evalBar(b.cuts, sd, kerf, interlock, gap);
+      if (!ev.feasible) return null;
+      const w = Math.max(0, ev.waste);
+      if (sd.qty === null) newPurchaseLen += sd.length;
+      totalStockLen += sd.length;
+      totalSaving += ev.saving;
+      if (w > maxWaste) maxWaste = w;
+      // Chỉ thưởng bình phương & chọn maxWaste cho khúc dư hữu dụng (>= T); phôi vụn (< T) chỉ tính tổng hao hụt tuyến tính
+      // để tránh xé nhỏ mẫu cắt lặp lại (Ưu tiên 4) chỉ vì dịch vài chục mm phế liệu.
+      if (w >= T) offcutQuality += w * w;
+      else if (w > 0) offcutQuality -= 200 * w;
+      patSet.add(b.ridx + '|' + barCutSig(b.cuts));
     }
-    function applyTyped(pattern, ridx) {
-      const cuts = [];
-      Object.keys(pattern).forEach(tk => {
-        const t = parseTypeKey(tk), c = pattern[tk], dq = queues[t.length];
-        for (let i = 0; i < c; i++) { const j = dq.findIndex(it => typeKey(t.length, it, interlock, gap) === tk); const it = dq.splice(j, 1)[0]; cuts.push({ length: t.length, label: it.label, endStyle: it.endStyle, mat: it.mat }); }
-        demand[t.length] -= c;
-      });
-      makeBar(ridx, cuts);
-    }
-    const apply = (r, ridx) => r.typed ? applyTyped(r.p, ridx) : applyPattern(r.p, ridx);
-    const limited = [], unlimited = [];
-    rows.forEach((sd, ridx) => { if (sd.qty === null) unlimited.push(ridx); else for (let i = 0; i < sd.qty; i++) limited.push(ridx); });
+    const maxUsefulWaste = maxWaste >= T ? maxWaste : 0;
+    return {
+      unfulfilled: unfulfilledCount,
+      newPurchaseLen: Math.round(newPurchaseLen * 100) / 100,
+      totalBars: bars.length,
+      totalStockLen: Math.round(totalStockLen * 100) / 100,
+      offcutQuality,
+      maxUsefulWaste: Math.round(maxUsefulWaste * 100) / 100,
+      maxWaste: Math.round(maxWaste * 100) / 100,
+      totalSaving: Math.round(totalSaving * 100) / 100,
+      uniquePatterns: patSet.size
+    };
+  }
+
+  function isScoreBetter(a, b) {
+    if (!a) return false;
+    if (!b) return true;
+    if (a.unfulfilled !== b.unfulfilled) return a.unfulfilled < b.unfulfilled;
+    if (Math.abs(a.newPurchaseLen - b.newPurchaseLen) > 1e-6) return a.newPurchaseLen < b.newPurchaseLen;
+    if (a.totalBars !== b.totalBars) return a.totalBars < b.totalBars;
+    if (Math.abs(a.totalStockLen - b.totalStockLen) > 1e-6) return a.totalStockLen < b.totalStockLen;
+    if (Math.abs(a.offcutQuality - b.offcutQuality) > 1e-3) return a.offcutQuality > b.offcutQuality;
+    if (Math.abs(a.maxUsefulWaste - b.maxUsefulWaste) > 1e-6) return a.maxUsefulWaste > b.maxUsefulWaste;
+    if (Math.abs(a.totalSaving - b.totalSaving) > 1e-6) return a.totalSaving > b.totalSaving;
+    if (a.uniquePatterns !== b.uniquePatterns) return a.uniquePatterns < b.uniquePatterns;
+    if (Math.abs(a.maxWaste - b.maxWaste) > 1e-6) return a.maxWaste > b.maxWaste;
+    return false;
+  }
+
+  // ---------- giải 1 quy cách (Pha 1 Đa chiến lược + Pha 2 Hậu tối ưu gom đề-xê) ----------
+  function solveProfile(profilePieces, rows, kerf, interlock, gap, opts) {
+    gap = gap || 0;
+    const options = opts || {};
+    const threshold = Number(options.offcutThreshold) > 0 ? Number(options.offcutThreshold) : DEFAULT_OFFCUT_THRESHOLD;
+    const deadline = options.deadline || (Date.now() + 200);
+    const isBaseline = Boolean(options.isBaseline);
+
+    const maxBin = Math.max(0, ...rows.map(r => r.usableLength));
+    const distinctLengths = [...new Set(profilePieces.map(p => p.length))];
+    const useDp = distinctLengths.length > 0 && distinctLengths.length <= DP_MAX_DISTINCT && distinctLengths.length * maxBin <= DP_COMPLEXITY_LIMIT;
+
+    const limitedSlots = [], unlimitedRows = [];
+    const limitedTotalQty = {};
+    rows.forEach((sd, ridx) => {
+      if (sd.qty === null) unlimitedRows.push(ridx);
+      else {
+        limitedTotalQty[ridx] = sd.qty;
+        for (let i = 0; i < sd.qty; i++) limitedSlots.push(ridx);
+      }
+    });
     const cmpRow = (a, b) => rows[a].priority !== rows[b].priority ? rows[a].priority - rows[b].priority : rows[a].usableLength - rows[b].usableLength;
-    limited.sort(cmpRow); unlimited.sort(cmpRow);
-    // 1) tồn kho lẻ: từng cây một
-    for (const ridx of limited) {
-      if (!totalRemaining()) break;
-      const r = computePattern(rows[ridx].usableLength);
-      if (Object.keys(r.p).length) apply(r, ridx);
+    limitedSlots.sort(cmpRow);
+    unlimitedRows.sort(cmpRow);
+
+    function clonePool() {
+      return profilePieces.map(p => ({ length: p.length, label: p.label, endStyle: p.endStyle, mat: p.mat }));
     }
-    // 2) một loại cây mới ở tầng ưu tiên cao nhất: giải chính xác, đơn lớn thì LP (không xen kẽ) hoặc tham lam biết xen kẽ
-    if (totalRemaining() > 0 && unlimited.length) {
-      const minP = Math.min(...unlimited.map(r => rows[r].priority)), tier = unlimited.filter(r => rows[r].priority === minP);
-      if (tier.length === 1) {
-        const ridx = tier[0], W = rows[ridx].usableLength;
-        const usage = exactPack(remainingTypeCounts(), W, kerf, interlock);
-        if (usage !== null) usage.forEach(u => { for (let i = 0; i < u.count; i++) applyTyped(u.pattern, ridx); });
-        else if (!coKe()) {
-          const rem = {}; Object.keys(demand).forEach(L => { if (demand[L] > 0) rem[L] = demand[L]; });
-          let pG = null, pL = null;
-          try { pG = greedyPlan(rem, W, kerf, useDp); } catch (e) { }
-          try { pL = lpPlan(rem, W, kerf, useDp); } catch (e) { }
-          const plan = planBars(pL) < planBars(pG) ? pL : pG;
-          if (plan) plan.forEach(u => { for (let i = 0; i < u.count; i++) applyPattern(u.pattern, ridx); });
+
+    function buildQueuesState(pool) {
+      const demand = {}, queues = {};
+      // Giữ các chi tiết giống hệt nhau (cùng label) liền kề để tăng tỉ lệ gom mẫu giống nhau
+      const sorted = pool.slice().sort((a, b) => (b.length - a.length) || String(a.label || '').localeCompare(String(b.label || '')));
+      sorted.forEach(p => {
+        demand[p.length] = (demand[p.length] || 0) + 1;
+        (queues[p.length] || (queues[p.length] = [])).push(p);
+      });
+      return { demand, queues };
+    }
+
+    function runDpStrategy(strategyMode) {
+      const { demand, queues } = buildQueuesState(clonePool());
+      const bars = [];
+      const remainingTypeCounts = () => {
+        const c = {};
+        Object.keys(queues).forEach(Ls => queues[Ls].forEach(it => { const k = typeKey(Number(Ls), it, interlock, gap); c[k] = (c[k] || 0) + 1; }));
+        return c;
+      };
+      const coKe = () => interlock && Object.keys(remainingTypeCounts()).some(k => parseTypeKey(k).style !== 'thang');
+      const totalRemaining = () => Object.keys(demand).reduce((a, L) => a + Math.max(0, demand[L]), 0);
+      const computePattern = bin => {
+        if (coKe()) return { typed: true, p: bestTypedDP(remainingTypeCounts(), bin, kerf) };
+        return { typed: false, p: useDp ? bestPatternDP(demand, bin, kerf) : subsetPattern(demand, bin, kerf) };
+      };
+      const patVal = r => Object.keys(r.p).reduce((a, k) => a + (r.typed ? parseTypeKey(k).length : Number(k)) * r.p[k], 0);
+      const canRepeat = r => {
+        const keys = Object.keys(r.p);
+        if (!keys.length) return false;
+        if (r.typed) {
+          const tc = remainingTypeCounts();
+          return keys.every(tk => (tc[tk] || 0) >= r.p[tk]);
+        }
+        return keys.every(Ls => (demand[Number(Ls)] || 0) >= r.p[Ls]);
+      };
+      const takePattern = (r, ridx) => {
+        const cuts = [];
+        if (r.typed) {
+          Object.keys(r.p).forEach(tk => {
+            const t = parseTypeKey(tk), c = r.p[tk], dq = queues[t.length];
+            for (let i = 0; i < c; i++) {
+              const j = dq.findIndex(it => typeKey(t.length, it, interlock, gap) === tk);
+              cuts.push(dq.splice(j, 1)[0]);
+            }
+            demand[t.length] -= c;
+          });
+        } else {
+          Object.keys(r.p).forEach(Ls => {
+            const L = Number(Ls), c = r.p[Ls];
+            for (let i = 0; i < c; i++) cuts.push(queues[L].shift());
+            demand[L] -= c;
+          });
+        }
+        bars.push({ ridx, cuts });
+      };
+
+      // 1) Tận dụng tồn kho lẻ & đề-xê theo thứ tự ưu tiên trước
+      for (const ridx of limitedSlots) {
+        if (!totalRemaining()) break;
+        const r = computePattern(rows[ridx].usableLength);
+        if (Object.keys(r.p).length) takePattern(r, ridx);
+      }
+
+      // 2) Chiến lược 1: Exact / LP khi chọn giải pháp ban đầu
+      if (strategyMode === 'exact' && totalRemaining() > 0 && unlimitedRows.length) {
+        const minP = rows[unlimitedRows[0]].priority;
+        const tier = unlimitedRows.filter(r => rows[r].priority === minP);
+        if (tier.length === 1) {
+          const ridx = tier[0], W = rows[ridx].usableLength;
+          const usage = exactPack(remainingTypeCounts(), W, kerf, interlock);
+          if (usage !== null) {
+            usage.forEach(u => { for (let i = 0; i < u.count; i++) takePattern({ typed: true, p: u.pattern }, ridx); });
+          } else if (!coKe()) {
+            const rem = {}; Object.keys(demand).forEach(L => { if (demand[L] > 0) rem[L] = demand[L]; });
+            let pG = null, pL = null;
+            try { pG = greedyPlan(rem, W, kerf, useDp); } catch (e) {}
+            try { pL = lpPlan(rem, W, kerf, useDp); } catch (e) {}
+            const plan = planBars(pL) < planBars(pG) ? pL : pG;
+            if (plan) plan.forEach(u => { for (let i = 0; i < u.count; i++) takePattern({ typed: false, p: u.pattern }, ridx); });
+          }
         }
       }
-    }
-    // 2b) tham lam: mỗi lần chọn cây + mẫu lấp đầy nhất; mẫu tốt thì lặp lại luôn khi còn đủ chi tiết
-    let guard = 0;
-    while (totalRemaining() > 0 && unlimited.length && guard++ < 100000) {
-      const minP = Math.min(...unlimited.map(r => rows[r].priority)), tier = unlimited.filter(r => rows[r].priority === minP);
-      let best = null;
-      tier.forEach(ridx => { const r = computePattern(rows[ridx].usableLength); if (!Object.keys(r.p).length) return; const v = patVal(r); if (!best || v > best.v) best = { v, ridx, r }; });
-      if (!best) {
-        const others = unlimited.filter(r => !tier.includes(r)).sort((a, b) => rows[a].priority - rows[b].priority);
-        let found = false;
-        for (const ridx of others) { const r = computePattern(rows[ridx].usableLength); if (Object.keys(r.p).length) { apply(r, ridx); found = true; break; } }
-        if (!found) break;
-        continue;
+
+      // 3) Vét phần còn lại theo từng cây DP (tight-pack hoặc repeat-pattern)
+      let guard = 0;
+      while (totalRemaining() > 0 && unlimitedRows.length && guard++ < 100000) {
+        const minP = rows[unlimitedRows[0]].priority;
+        const tier = unlimitedRows.filter(r => rows[r].priority === minP);
+        let best = null;
+        tier.forEach(ridx => {
+          const r = computePattern(rows[ridx].usableLength);
+          if (!Object.keys(r.p).length) return;
+          const v = patVal(r);
+          if (!best || v > best.v) best = { v, ridx, r };
+        });
+        if (!best) {
+          const others = unlimitedRows.filter(r => !tier.includes(r));
+          let found = false;
+          for (const ridx of others) {
+            const r = computePattern(rows[ridx].usableLength);
+            if (Object.keys(r.p).length) { takePattern(r, ridx); found = true; break; }
+          }
+          if (!found) break;
+          continue;
+        }
+        takePattern(best.r, best.ridx);
+        if (strategyMode === 'repeat') {
+          while (totalRemaining() > 0 && canRepeat(best.r)) takePattern(best.r, best.ridx);
+        }
       }
-      apply(best.r, best.ridx);
+
+      const unfulfilled = [];
+      Object.keys(demand).forEach(Ls => {
+        const L = Number(Ls);
+        if (demand[L] > 0) queues[L].forEach(it => unfulfilled.push({ length: L, label: it.label }));
+      });
+      return { bars, unfulfilled };
     }
-    const unfulfilled = [];
-    Object.keys(demand).forEach(Ls => {
-      const L = Number(Ls); if (demand[L] <= 0) return;
-      const cnt = {}; queues[L].forEach(it => { cnt[it.label] = (cnt[it.label] || 0) + 1; });
-      Object.keys(cnt).forEach(lbl => unfulfilled.push({ length: L, label: lbl, qtyMissing: cnt[lbl] }));
+
+    function runFitStrategy(fitMode) {
+      const pieces = clonePool();
+      if (fitMode === 'bfd_ke') {
+        pieces.sort((a, b) => {
+          const ka = a.endStyle !== 'thang' ? 1 : 0, kb = b.endStyle !== 'thang' ? 1 : 0;
+          if (ka !== kb) return kb - ka;
+          const ma = ka ? (parseMat(a.mat) || 0) : 0, mb = kb ? (parseMat(b.mat) || 0) : 0;
+          if (ma !== mb) return mb - ma;
+          return (b.length - a.length) || String(a.label || '').localeCompare(String(b.label || ''));
+        });
+      } else {
+        pieces.sort((a, b) => (b.length - a.length) || String(a.label || '').localeCompare(String(b.label || '')));
+      }
+
+      const bars = [], unfulfilled = [];
+      const usedLim = {};
+      const limUnique = [...new Set(limitedSlots)].sort(cmpRow);
+
+      for (let i = 0; i < pieces.length; i++) {
+        const pc = pieces[i];
+        let bestBarIdx = -1, bestBarRem = Infinity, bestBarHasKeMatch = -1;
+        for (let bi = 0; bi < bars.length; bi++) {
+          const b = bars[bi], sd = rows[b.ridx];
+          const ev = evalBar(b.cuts.concat([pc]), sd, kerf, interlock, gap);
+          if (!ev.feasible) continue;
+          const keMatch = (interlock && pc.endStyle !== 'thang' && b.cuts.some(c => c.endStyle !== 'thang' && parseMat(c.mat) === parseMat(pc.mat))) ? 1 : 0;
+          if (fitMode === 'ffd_plain') {
+            bestBarIdx = bi;
+            break;
+          } else {
+            if (keMatch > bestBarHasKeMatch || (keMatch === bestBarHasKeMatch && ev.waste < bestBarRem - 1e-6)) {
+              bestBarIdx = bi;
+              bestBarRem = ev.waste;
+              bestBarHasKeMatch = keMatch;
+            }
+          }
+        }
+        if (bestBarIdx >= 0) {
+          bars[bestBarIdx].cuts.push(pc);
+          continue;
+        }
+        // Mở cây mới: ưu tiên phôi tồn kho/đề-xê lắp vừa ngắn nhất trước, sau mới tới cây mới
+        let chosenRidx = -1;
+        for (let j = 0; j < limUnique.length; j++) {
+          const ridx = limUnique[j];
+          if ((usedLim[ridx] || 0) < (limitedTotalQty[ridx] || 0) && evalBar([pc], rows[ridx], kerf, interlock, gap).feasible) {
+            chosenRidx = ridx;
+            break;
+          }
+        }
+        if (chosenRidx < 0) {
+          for (let j = 0; j < unlimitedRows.length; j++) {
+            const ridx = unlimitedRows[j];
+            if (evalBar([pc], rows[ridx], kerf, interlock, gap).feasible) {
+              chosenRidx = ridx;
+              break;
+            }
+          }
+        }
+        if (chosenRidx >= 0) {
+          bars.push({ ridx: chosenRidx, cuts: [pc] });
+          if (rows[chosenRidx].qty !== null) usedLim[chosenRidx] = (usedLim[chosenRidx] || 0) + 1;
+        } else {
+          unfulfilled.push({ length: pc.length, label: pc.label });
+        }
+      }
+      return { bars, unfulfilled };
+    }
+
+    function makeCandidate(raw) {
+      const cleanBars = raw.bars.filter(b => b.cuts && b.cuts.length > 0).map(b => ({ ridx: b.ridx, cuts: b.cuts.slice() }));
+      const sc = scoreSolution(cleanBars, raw.unfulfilled.length, rows, kerf, interlock, gap, threshold);
+      return { bars: cleanBars, unfulfilled: raw.unfulfilled, score: sc };
+    }
+
+    function candidateSig(cand) {
+      return cand.bars.map(b => b.ridx + ':' + barCutSig(b.cuts)).sort().join('||');
+    }
+
+    // ---------- Pha 2: Hậu tối ưu cục bộ (Shift / Pairwise Repack / Swap / Downgrade) ----------
+    function repackTwoBarsDP(cutsPool, sdTarget, forceStraight) {
+      const demand = {}, queues = {};
+      cutsPool.slice().sort((a, b) => (b.length - a.length) || String(a.label || '').localeCompare(String(b.label || ''))).forEach(c => {
+        demand[c.length] = (demand[c.length] || 0) + 1;
+        (queues[c.length] || (queues[c.length] = [])).push(c);
+      });
+      const coKePool = !forceStraight && interlock && cutsPool.some(c => parseTypeKey(typeKey(c.length, c, true, gap)).style !== 'thang');
+      const taken = [];
+      if (coKePool) {
+        const tc = {};
+        cutsPool.forEach(c => { const k = typeKey(c.length, c, true, gap); tc[k] = (tc[k] || 0) + 1; });
+        const pat = bestTypedDP(tc, sdTarget.usableLength, kerf);
+        Object.keys(pat).forEach(tk => {
+          const t = parseTypeKey(tk), cnt = pat[tk], dq = queues[t.length];
+          for (let i = 0; i < cnt; i++) {
+            const j = dq.findIndex(it => typeKey(t.length, it, interlock, gap) === tk);
+            if (j >= 0) taken.push(dq.splice(j, 1)[0]);
+          }
+        });
+      } else {
+        const distinctP = Object.keys(demand).map(Number);
+        const canDpP = distinctP.length <= DP_MAX_DISTINCT && distinctP.length * sdTarget.usableLength <= DP_COMPLEXITY_LIMIT;
+        const pat = canDpP ? bestPatternDP(demand, sdTarget.usableLength, kerf) : subsetPattern(demand, sdTarget.usableLength, kerf);
+        Object.keys(pat).forEach(Ls => {
+          const L = Number(Ls), cnt = pat[Ls];
+          for (let i = 0; i < cnt; i++) taken.push(queues[L].shift());
+        });
+      }
+      const rem = [];
+      Object.keys(queues).forEach(Ls => queues[Ls].forEach(c => rem.push(c)));
+      return { taken, rem };
+    }
+
+    function uniqueCutReps(cuts) {
+      const seen = new Set(), reps = [];
+      for (let i = 0; i < cuts.length; i++) {
+        const c = cuts[i];
+        const k = (c.label || '') + '/' + c.length + '/' + (c.endStyle || 'thang') + '/' + (c.mat || '');
+        if (!seen.has(k)) { seen.add(k); reps.push({ idx: i, cut: c, key: k }); }
+      }
+      return reps;
+    }
+
+    function uniquePairReps(cuts) {
+      const reps = uniqueCutReps(cuts);
+      const counts = {};
+      for (let i = 0; i < cuts.length; i++) {
+        const c = cuts[i], k = (c.label || '') + '/' + c.length + '/' + (c.endStyle || 'thang') + '/' + (c.mat || '');
+        if (!counts[k]) counts[k] = [];
+        counts[k].push(i);
+      }
+      const pairs = [], seenP = new Set();
+      for (let a = 0; a < reps.length; a++) {
+        const rA = reps[a], idxsA = counts[rA.key];
+        if (idxsA.length >= 2) {
+          const pk = rA.key + '+' + rA.key;
+          if (!seenP.has(pk)) { seenP.add(pk); pairs.push([idxsA[0], idxsA[1]]); }
+        }
+        for (let b = a + 1; b < reps.length; b++) {
+          const rB = reps[b], idxsB = counts[rB.key];
+          const pk = rA.key < rB.key ? (rA.key + '+' + rB.key) : (rB.key + '+' + rA.key);
+          if (!seenP.has(pk)) { seenP.add(pk); pairs.push([idxsA[0], idxsB[0]]); }
+        }
+      }
+      return pairs;
+    }
+
+    function postOptimizeProfile(cand) {
+      let curBars = cand.bars.map(b => ({ ridx: b.ridx, cuts: b.cuts.slice() }));
+      let curScore = cand.score;
+      if (!curScore || curBars.length < 1) return cand;
+      const unfulCount = cand.unfulfilled.length;
+
+      function tryShiftPass() {
+        let bestMove = null, bestSc = curScore;
+        for (let j = 0; j < curBars.length; j++) {
+          if (Date.now() > deadline) break;
+          const bFrom = curBars[j];
+          const reps = uniqueCutReps(bFrom.cuts);
+          for (let r = 0; r < reps.length; r++) {
+            const rep = reps[r];
+            for (let i = 0; i < curBars.length; i++) {
+              if (i === j) continue;
+              const bTo = curBars[i];
+              if (!evalBar(bTo.cuts.concat([rep.cut]), rows[bTo.ridx], kerf, interlock, gap).feasible) continue;
+              const nextBars = curBars.map((b, idx) => {
+                if (idx === j) return { ridx: b.ridx, cuts: b.cuts.filter((_, ci) => ci !== rep.idx) };
+                if (idx === i) return { ridx: b.ridx, cuts: b.cuts.concat([rep.cut]) };
+                return b;
+              }).filter(b => b.cuts.length > 0);
+              const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+              if (isScoreBetter(sc, bestSc)) { bestSc = sc; bestMove = { bars: nextBars, score: sc }; }
+            }
+          }
+        }
+        if (bestMove) { curBars = bestMove.bars; curScore = bestMove.score; return true; }
+        return false;
+      }
+
+      function tryPairwiseRepackPass() {
+        if (curBars.length < 2) return false;
+        const wastes = curBars.map(b => Math.max(0, evalBar(b.cuts, rows[b.ridx], kerf, interlock, gap).waste));
+        const pairs = [];
+        for (let i = 0; i < curBars.length; i++) {
+          for (let j = i + 1; j < curBars.length; j++) {
+            if (wastes[i] > 1e-6 || wastes[j] > 1e-6) {
+              pairs.push({ i, j, prio: Math.min(wastes[i], wastes[j]) * 1000 + Math.max(wastes[i], wastes[j]) });
+            }
+          }
+        }
+        pairs.sort((a, b) => b.prio - a.prio);
+        let bestMove = null, bestSc = curScore;
+
+        for (let pi = 0; pi < pairs.length && pi < 40; pi++) {
+          if (Date.now() > deadline) break;
+          const { i, j } = pairs[pi];
+          const bI = curBars[i], bJ = curBars[j], sdI = rows[bI.ridx], sdJ = rows[bJ.ridx];
+          const pool = bI.cuts.concat(bJ.cuts);
+          if (!pool.length) continue;
+
+          // 1) Thử gộp 2 cây thành 1 cây nếu nhét lọt
+          const mergedTargets = [
+            { keepIdx: i, ridx: bI.ridx, dropIdx: j },
+            { keepIdx: j, ridx: bJ.ridx, dropIdx: i }
+          ];
+          for (let t = 0; t < mergedTargets.length; t++) {
+            const mt = mergedTargets[t];
+            if (evalBar(pool, rows[mt.ridx], kerf, interlock, gap).feasible) {
+              const nextBars = curBars.filter((_, idx) => idx !== mt.dropIdx).map((b, idx2) => {
+                const origIdx = idx2 < mt.dropIdx ? idx2 : idx2 + 1;
+                return origIdx === mt.keepIdx ? { ridx: mt.ridx, cuts: pool.slice() } : b;
+              });
+              const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+              if (isScoreBetter(sc, bestSc)) { bestSc = sc; bestMove = { bars: nextBars, score: sc }; }
+            }
+          }
+
+          // 2) Tái đóng gói 2 cây bằng DP (thử cả ưu tiên I, ưu tiên J, và biến thể không ép cứng chuỗi ke)
+          const attempts = [
+            [i, j, false], [j, i, false],
+            [i, j, true], [j, i, true]
+          ];
+          for (let a = 0; a < attempts.length; a++) {
+            const [firstIdx, secondIdx, forceStraight] = attempts[a];
+            if (forceStraight && !interlock) continue;
+            const sdFirst = rows[curBars[firstIdx].ridx], sdSecond = rows[curBars[secondIdx].ridx];
+            const { taken, rem } = repackTwoBarsDP(pool, sdFirst, forceStraight);
+            if (!taken.length || !rem.length) continue;
+            if (!evalBar(taken, sdFirst, kerf, interlock, gap).feasible) continue;
+            if (!evalBar(rem, sdSecond, kerf, interlock, gap).feasible) continue;
+            const nextBars = curBars.map((b, idx) => {
+              if (idx === firstIdx) return { ridx: b.ridx, cuts: taken };
+              if (idx === secondIdx) return { ridx: b.ridx, cuts: rem };
+              return b;
+            });
+            const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+            if (isScoreBetter(sc, bestSc)) { bestSc = sc; bestMove = { bars: nextBars, score: sc }; }
+          }
+        }
+        if (bestMove) { curBars = bestMove.bars; curScore = bestMove.score; return true; }
+        return false;
+      }
+
+      function trySwapPass() {
+        if (curBars.length < 2 || curBars.length > 60) return false;
+        let bestMove = null, bestSc = curScore;
+        const barPairReps = curBars.map(b => uniquePairReps(b.cuts));
+        const barSingleReps = curBars.map(b => uniqueCutReps(b.cuts));
+
+        for (let i = 0; i < curBars.length; i++) {
+          for (let j = i + 1; j < curBars.length; j++) {
+            if (Date.now() > deadline) break;
+            const bI = curBars[i], bJ = curBars[j], sdI = rows[bI.ridx], sdJ = rows[bJ.ridx];
+            if (bI.ridx === bJ.ridx && barCutSig(bI.cuts) === barCutSig(bJ.cuts)) continue;
+
+            // Swap 1-1
+            const sI = barSingleReps[i], sJ = barSingleReps[j];
+            for (let a = 0; a < sI.length; a++) {
+              for (let b = 0; b < sJ.length; b++) {
+                if (sI[a].key === sJ[b].key) continue;
+                const newI = bI.cuts.slice(); newI.splice(sI[a].idx, 1, sJ[b].cut);
+                const newJ = bJ.cuts.slice(); newJ.splice(sJ[b].idx, 1, sI[a].cut);
+                if (!evalBar(newI, sdI, kerf, interlock, gap).feasible) continue;
+                if (!evalBar(newJ, sdJ, kerf, interlock, gap).feasible) continue;
+                const nextBars = curBars.map((bar, idx) => idx === i ? { ridx: bar.ridx, cuts: newI } : (idx === j ? { ridx: bar.ridx, cuts: newJ } : bar));
+                const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+                if (isScoreBetter(sc, bestSc)) { bestSc = sc; bestMove = { bars: nextBars, score: sc }; }
+              }
+            }
+
+            if (isBaseline || Date.now() > deadline) continue;
+
+            // Swap 2-1 (2 thanh từ i đổi 1 thanh từ j, và ngược lại)
+            const pI = barPairReps[i], pJ = barPairReps[j];
+            for (let a = 0; a < pI.length && a < 24; a++) {
+              const [idx1, idx2] = pI[a];
+              for (let b = 0; b < sJ.length; b++) {
+                const newI = bI.cuts.filter((_, ci) => ci !== idx1 && ci !== idx2).concat([sJ[b].cut]);
+                const newJ = bJ.cuts.filter((_, ci) => ci !== sJ[b].idx).concat([bI.cuts[idx1], bI.cuts[idx2]]);
+                if (!evalBar(newI, sdI, kerf, interlock, gap).feasible) continue;
+                if (!evalBar(newJ, sdJ, kerf, interlock, gap).feasible) continue;
+                const nextBars = curBars.map((bar, idx) => idx === i ? { ridx: bar.ridx, cuts: newI } : (idx === j ? { ridx: bar.ridx, cuts: newJ } : bar));
+                const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+                if (isScoreBetter(sc, bestSc)) { bestSc = sc; bestMove = { bars: nextBars, score: sc }; }
+              }
+            }
+            for (let a = 0; a < pJ.length && a < 24; a++) {
+              const [idx1, idx2] = pJ[a];
+              for (let b = 0; b < sI.length; b++) {
+                const newJ = bJ.cuts.filter((_, ci) => ci !== idx1 && ci !== idx2).concat([sI[b].cut]);
+                const newI = bI.cuts.filter((_, ci) => ci !== sI[b].idx).concat([bJ.cuts[idx1], bJ.cuts[idx2]]);
+                if (!evalBar(newI, sdI, kerf, interlock, gap).feasible) continue;
+                if (!evalBar(newJ, sdJ, kerf, interlock, gap).feasible) continue;
+                const nextBars = curBars.map((bar, idx) => idx === i ? { ridx: bar.ridx, cuts: newI } : (idx === j ? { ridx: bar.ridx, cuts: newJ } : bar));
+                const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+                if (isScoreBetter(sc, bestSc)) { bestSc = sc; bestMove = { bars: nextBars, score: sc }; }
+              }
+            }
+
+            // Swap 2-2 (chạy cho đơn nhỏ/vừa <= 10 cây để giữ tổng < 180ms)
+            if (curBars.length <= 10) {
+              for (let a = 0; a < pI.length && a < 10; a++) {
+                const [i1, i2] = pI[a];
+                for (let b = 0; b < pJ.length && b < 10; b++) {
+                  const [j1, j2] = pJ[b];
+                  const newI = bI.cuts.filter((_, ci) => ci !== i1 && ci !== i2).concat([bJ.cuts[j1], bJ.cuts[j2]]);
+                  const newJ = bJ.cuts.filter((_, ci) => ci !== j1 && ci !== j2).concat([bI.cuts[i1], bI.cuts[i2]]);
+                  if (!evalBar(newI, sdI, kerf, interlock, gap).feasible) continue;
+                  if (!evalBar(newJ, sdJ, kerf, interlock, gap).feasible) continue;
+                  const nextBars = curBars.map((bar, idx) => idx === i ? { ridx: bar.ridx, cuts: newI } : (idx === j ? { ridx: bar.ridx, cuts: newJ } : bar));
+                  const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+                  if (isScoreBetter(sc, bestSc)) { bestSc = sc; bestMove = { bars: nextBars, score: sc }; }
+                }
+              }
+            }
+          }
+        }
+        if (bestMove) { curBars = bestMove.bars; curScore = bestMove.score; return true; }
+        return false;
+      }
+
+      function tryStockDowngradePass() {
+        if (!limitedSlots.length) return false;
+        const limUnique = [...new Set(limitedSlots)].sort(cmpRow);
+        let changed = false;
+        const usedLim = {};
+        curBars.forEach(b => { if (rows[b.ridx].qty !== null) usedLim[b.ridx] = (usedLim[b.ridx] || 0) + 1; });
+        for (let i = 0; i < curBars.length; i++) {
+          const b = curBars[i], sdCur = rows[b.ridx];
+          for (let j = 0; j < limUnique.length; j++) {
+            const ridx2 = limUnique[j], sd2 = rows[ridx2];
+            if (ridx2 === b.ridx || (usedLim[ridx2] || 0) >= (limitedTotalQty[ridx2] || 0)) continue;
+            if ((sdCur.qty === null || sd2.length < sdCur.length) && evalBar(b.cuts, sd2, kerf, interlock, gap).feasible) {
+              const nextBars = curBars.map((bar, idx) => idx === i ? { ridx: ridx2, cuts: bar.cuts } : bar);
+              const sc = scoreSolution(nextBars, unfulCount, rows, kerf, interlock, gap, threshold);
+              if (isScoreBetter(sc, curScore)) {
+                if (sdCur.qty !== null) usedLim[b.ridx]--;
+                usedLim[ridx2] = (usedLim[ridx2] || 0) + 1;
+                curBars = nextBars;
+                curScore = sc;
+                changed = true;
+                break;
+              }
+            }
+          }
+        }
+        return changed;
+      }
+
+      let outerGuard = 0;
+      while (Date.now() <= deadline && outerGuard++ < 25) {
+        let improved = false;
+        if (tryShiftPass()) improved = true;
+        if (Date.now() <= deadline && tryPairwiseRepackPass()) improved = true;
+        if (!improved && Date.now() <= deadline && trySwapPass()) improved = true;
+        if (Date.now() <= deadline && tryStockDowngradePass()) improved = true;
+        if (!improved) break;
+      }
+
+      return { bars: curBars, unfulfilled: cand.unfulfilled, score: curScore };
+    }
+
+    // ---------- Chạy Pha 1 + Pha 2 ----------
+    const rawStrategies = [];
+    const seenSigs = new Set();
+    const pushCand = raw => {
+      const c = makeCandidate(raw);
+      if (!c.score) return;
+      const sg = candidateSig(c);
+      if (!seenSigs.has(sg)) { seenSigs.add(sg); rawStrategies.push(c); }
+    };
+
+    pushCand(runDpStrategy('exact'));
+    if (!isBaseline || Date.now() <= deadline) pushCand(runDpStrategy('tight'));
+    if (!isBaseline && Date.now() <= deadline) pushCand(runDpStrategy('repeat'));
+    if (Date.now() <= deadline) pushCand(runFitStrategy('ffd_plain'));
+    if (!isBaseline && Date.now() <= deadline) pushCand(runFitStrategy('bfd_ke'));
+
+    rawStrategies.sort((a, b) => (isScoreBetter(a.score, b.score) ? -1 : (isScoreBetter(b.score, a.score) ? 1 : 0)));
+
+    let bestWinner = rawStrategies[0] || makeCandidate({ bars: [], unfulfilled: clonePool().map(p => ({ length: p.length, label: p.label })) });
+    const optCount = isBaseline ? 1 : Math.min(2, rawStrategies.length);
+    for (let k = 0; k < optCount; k++) {
+      if (k > 0 && Date.now() > deadline) break;
+      const opt = postOptimizeProfile(rawStrategies[k]);
+      if (isScoreBetter(opt.score, bestWinner.score)) bestWinner = opt;
+    }
+
+    // Sắp xếp lại thứ tự cây gọn gàng: cây tồn/đề-xê & cây đầy xếp trước, khúc dư lớn nhất nằm cuối cùng
+    const finalizedOrder = bestWinner.bars.slice().sort((a, b) => {
+      const sdA = rows[a.ridx], sdB = rows[b.ridx];
+      if ((sdA.qty !== null) !== (sdB.qty !== null)) return sdA.qty !== null ? -1 : 1;
+      const wA = evalBar(a.cuts, sdA, kerf, interlock, gap).waste;
+      const wB = evalBar(b.cuts, sdB, kerf, interlock, gap).waste;
+      if (Math.abs(wA - wB) > 1e-6) return wA - wB;
+      return barCutSig(a.cuts).localeCompare(barCutSig(b.cuts));
     });
+
+    const bars = [], usedCounts = {};
+    finalizedOrder.forEach(item => {
+      const sd = rows[item.ridx];
+      let cuts = item.cuts.map(c => ({ length: c.length, label: c.label, endStyle: c.endStyle, mat: c.mat }));
+      const cutTotal = cuts.reduce((a, c) => a + c.length, 0), kerfTotal = kerf * cuts.length;
+      let saving = 0, chains = [], gapCost = 0;
+      if (interlock) {
+        const a = arrangeBar(cuts, gap);
+        cuts = a.cuts;
+        saving = Math.round(a.saving * 100) / 100;
+        chains = a.chains;
+        chains.forEach(ch => { gapCost += ch.gapCost; });
+      } else {
+        cuts.forEach(c => { c.net = c.length; c.run = -1; c.pos = 0; c.runLen = 1; });
+      }
+      bars.push({
+        stockRow: item.ridx,
+        stockLabel: sd.label,
+        stockLength: sd.length,
+        usableLength: sd.usableLength,
+        clampTail: sd.clampTail,
+        isNewPurchase: sd.qty === null,
+        cuts,
+        cutTotal,
+        kerfTotal,
+        interlockSaving: saving,
+        interlockGapCost: gapCost,
+        chains,
+        waste: Math.round((sd.usableLength - cutTotal - kerfTotal + saving) * 100) / 100
+      });
+      usedCounts[item.ridx] = (usedCounts[item.ridx] || 0) + 1;
+    });
+
+    const unfulCnt = {};
+    bestWinner.unfulfilled.forEach(u => {
+      const k = u.length + '|' + (u.label || '');
+      unfulCnt[k] = (unfulCnt[k] || 0) + 1;
+    });
+    const unfulfilled = Object.keys(unfulCnt).map(k => {
+      const sep = k.indexOf('|');
+      return { length: Number(k.slice(0, sep)), label: k.slice(sep + 1), qtyMissing: unfulCnt[k] };
+    });
+
     return { bars, unfulfilled, usedCounts };
   }
 
   // ---------- giải cả đơn ----------
   function solve(data, isBaseline) {
     const t0 = Date.now();
+    const overallDeadline = t0 + (isBaseline ? 55 : 260);
     const interlock = !!data.interlock, gap = interlock ? (data.gap || 0) : 0;
     const baseInput = interlock && !isBaseline ? JSON.parse(JSON.stringify(data)) : null;
     const rawStock = (data.stock || []).map((sd, i) => {
@@ -486,7 +1082,12 @@
       const pp = pieces.filter(p => p.profile === profile), ps = rawStock.filter(s => s.profile === profile);
       if (!pp.length) return;
       if (!ps.length) { pp.forEach(p => allUnf.push({ length: p.length, label: p.label, profile, qtyMissing: 1 })); return; }
-      const res = solveProfile(pp, ps, kerf, interlock, gap);
+      const profDeadline = Math.min(overallDeadline, Date.now() + (isBaseline ? 40 : 180));
+      const res = solveProfile(pp, ps, kerf, interlock, gap, {
+        offcutThreshold: data.offcutThreshold,
+        deadline: profDeadline,
+        isBaseline: Boolean(isBaseline)
+      });
       res.bars.forEach(b => { b.profile = profile; allBars.push(b); });
       res.unfulfilled.forEach(u => { u.profile = profile; allUnf.push(u); });
       ps.forEach((sd, i) => byStockType.push({ profile, label: sd.label, length: sd.length, usableLength: sd.usableLength, clampTail: sd.clampTail, availableQty: sd.qty, usedQty: res.usedCounts[i] || 0 }));
@@ -496,7 +1097,7 @@
     allBars.forEach(b => { totalWaste = Math.round((totalWaste + b.waste) * 100) / 100; totalPiecesCut += b.cuts.length; if (b.isNewPurchase) totalNewBars++; else totalExistingUsed++; });
     const patterns = [], pIdx = {};
     allBars.forEach(b => {
-      const lc = {}; b.cuts.forEach(c => { const k2 = c.length + '/' + (c.endStyle || 'thang') + '/' + (c.mat || ''); lc[k2] = (lc[k2] || 0) + 1; });
+      const lc = {}; b.cuts.forEach(c => { const k2 = (c.label || '') + '/' + c.length + '/' + (c.endStyle || 'thang') + '/' + (c.mat || ''); lc[k2] = (lc[k2] || 0) + 1; });
       const key = [b.profile, b.stockLabel, b.stockLength, b.isNewPurchase, Object.keys(lc).sort().map(k => k + ':' + lc[k]).join(',')].join('|');
       if (key in pIdx) { const p = patterns[pIdx[key]]; p.count++; p.barNos.push(b.barNo); return; }
       pIdx[key] = patterns.length;
@@ -917,4 +1518,4 @@
   if (typeof document === 'undefined' && typeof postMessage === 'function' && typeof importScripts === 'function') {
     root.onmessage = e => { try { postMessage({ id: e.data.id, kq: solve(e.data.data) }); } catch (err) { postMessage({ id: e.data.id, loi: String(err && err.message || err) }); } };
   }
-})(typeof self !== 'undefined' ? self : this);
+})(typeof self !== 'undefined' ? self : (typeof globalThis !== 'undefined' ? globalThis : this));

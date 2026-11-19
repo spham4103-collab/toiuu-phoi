@@ -1,9 +1,9 @@
 /**
  * Service Worker - PWA for Xếp Phôi CNC An Bình
- * Cache Version 13 - Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
- * Network-First cho HTML và toàn bộ /js/ với fallback đúng từng nhánh URL
+ * Cache Version 14 - Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
+ * Network-First cho HTML, /toi-uu-engine.js và toàn bộ /js/ với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v13';
+const CACHE_NAME = 'toiuu-phoi-pwa-v14';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -61,10 +61,11 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Network-First cho trang HTML chính và toàn bộ /js/ để luôn nhận cấu hình/code mới nhất
+  // Network-First cho trang HTML chính, /toi-uu-engine.js và toàn bộ /js/ để luôn nhận code mới nhất
   if (
     req.mode === 'navigate' ||
     req.destination === 'document' ||
+    url.pathname === '/toi-uu-engine.js' ||
     url.pathname.startsWith('/js/')
   ) {
     event.respondWith(

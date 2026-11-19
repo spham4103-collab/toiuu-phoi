@@ -6457,9 +6457,9 @@
     // ==========================================
     function initNetworkAndPWA() {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=13').then(reg => {
+        navigator.serviceWorker.register('/sw.js?v=14').then(reg => {
           reg.update();
-          console.log('PWA Service Worker registered & updated v13:', reg.scope);
+          console.log('PWA Service Worker registered & updated v14:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
