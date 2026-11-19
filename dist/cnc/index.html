@@ -14,6 +14,9 @@
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="/js/workshopExport.js"></script>
   <style>
     :root {
       --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
@@ -60,7 +63,7 @@
     .btn-sm { min-height: 34px; padding: 5px 12px; font-size: 12.5px; }
 
     .card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 20px; box-shadow: var(--sh); margin-bottom: 18px; }
-    input[type=text], input[type=password], select { width: 100%; min-height: 38px; padding: 7px 12px; border-radius: 8px; border: 1.5px solid #CBD5E1; font: 600 14px var(--font); color: #0F172A; background: #fff; }
+    input[type=text], input[type=number], input[type=password], select { width: 100%; min-height: 38px; padding: 7px 12px; border-radius: 8px; border: 1.5px solid #CBD5E1; font: 600 14px var(--font); color: #0F172A; background: #fff; }
 
     .profile-tabs-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; border-bottom: 2px solid var(--edge); }
     .profile-tab { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--edge); font-size: 13px; font-weight: 700; color: var(--mut); cursor: pointer; white-space: nowrap; }
@@ -88,9 +91,44 @@
     .pattern-item-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 7px; border-radius: 999px; background: var(--mu); font-size: 12.5px; font-weight: 600; }
     .pattern-item-pill i { width: 11px; height: 11px; border-radius: 50%; background: var(--c); flex: none; }
 
-    /* Nút cảm ứng to cho thợ CNC */
-    .btn-cut-toggle { min-height: 44px; padding: 8px 16px !important; font-size: 13.5px !important; font-weight: 800 !important; border-radius: 10px !important; }
-    .btn-export-bar { min-height: 44px; padding: 8px 14px !important; font-size: 13px !important; font-weight: 800 !important; border-radius: 10px !important; }
+    /* Nút cảm ứng to >= 48x48px cho thợ CNC (Shop-floor Touch Mode) */
+    .cut-step-group { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .btn-touch-step {
+      min-width: 52px; min-height: 52px; padding: 8px 12px !important;
+      font-size: 16px !important; font-weight: 800 !important; border-radius: 12px !important;
+      touch-action: manipulation; user-select: none;
+    }
+    .btn-touch-plus {
+      min-width: 112px; min-height: 52px; padding: 8px 16px !important;
+      font-size: 15px !important; font-weight: 800 !important; border-radius: 12px !important;
+      touch-action: manipulation; user-select: none;
+    }
+    .btn-touch-reset {
+      min-width: 48px; min-height: 52px; padding: 8px 11px !important;
+      font-size: 14px !important; font-weight: 800 !important; border-radius: 12px !important;
+      touch-action: manipulation; user-select: none;
+    }
+    .cut-status-pill {
+      min-height: 52px; min-width: 128px; padding: 6px 14px;
+      display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+      border-radius: 12px; font-weight: 800; font-size: 13px; line-height: 1.2; text-align: center;
+    }
+    .btn-export-bar, .btn-offcut-push {
+      min-width: 48px; min-height: 48px; padding: 8px 14px !important;
+      font-size: 13px !important; font-weight: 800 !important; border-radius: 10px !important;
+      touch-action: manipulation;
+    }
+    .igs-source-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 800;
+    }
+    .igs-badge-fusion { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+    .igs-badge-web { background: #FEF9C3; color: #854D0E; border: 1px solid #FDE047; }
+    .cut-updated-meta {
+      margin-top: 8px; padding-top: 7px; border-top: 1px dashed #E2E8F0;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+      font-size: 12px; color: #475569; font-weight: 600;
+    }
 
     #toast { position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff; padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1000; opacity: 0; transform: translateY(12px); transition: all 0.25s ease; pointer-events: none; }
     #toast.show { opacity: 1; transform: translateY(0); }
@@ -98,7 +136,7 @@
     body.role-operator .eng-only { display: none !important; }
 
     @media print {
-      .top, .no-print, .btn-cut-toggle, .btn-export-bar, .btn-export-all-bars { display: none !important; }
+      .top, .no-print, .cut-step-group, .btn-export-bar, .btn-export-all-bars, .btn-offcut-push { display: none !important; }
       body { background: #fff; }
       .pattern-card, .profile-group-section { box-shadow: none !important; page-break-inside: avoid; }
     }
@@ -110,8 +148,10 @@
       .top-actions { width: 100%; justify-content: flex-start; gap: 4px; }
       .subnav-inner { padding: 5px 10px; }
       .pattern-header { flex-direction: column; align-items: stretch; }
-      .btn-cut-toggle, .btn-export-bar { width: 100%; justify-content: center; }
-      input[type=text], input[type=password], select { font-size: 16px !important; }
+      .cut-step-group { width: 100%; justify-content: space-between; }
+      .btn-touch-plus { flex: 1; }
+      .btn-export-bar, .btn-offcut-push { width: 100%; justify-content: center; }
+      input[type=text], input[type=number], input[type=password], select { font-size: 16px !important; }
     }
   </style>
 </head>
@@ -176,15 +216,31 @@
 
   <!-- Main Content -->
   <main class="wrap" id="mainContent" style="display:none; padding-top:16px; padding-bottom:60px;">
+    <!-- Banner Khóa đọc & Cảnh báo khi Kỹ sư vừa sửa sơ đồ cắt (Mục 3.2.2) -->
+    <div id="engineerUpdateAlertBanner" class="no-print" style="display:none; position:sticky; top:66px; z-index:35; background:linear-gradient(90deg, #FFF7ED 0%, #FEF2F2 100%); border:2px solid #EA580C; border-radius:12px; padding:12px 16px; margin-bottom:14px; box-shadow:0 8px 20px rgba(234,88,12,0.18); align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <div id="engineerUpdateAlertText" style="color:#9A3412; font-weight:800; font-size:14px; line-height:1.4; flex:1; min-width:240px;">
+        ⚠️ Kỹ sư vừa cập nhật bản vẽ — Bấm để tải sơ đồ mới.
+      </div>
+      <button type="button" id="btnApplyEngineerUpdate" class="btn" style="background:#EA580C; color:#FFFFFF; min-height:48px; min-width:48px; padding:8px 18px; border-radius:10px; font-size:14px; font-weight:800; touch-action:manipulation;">
+        🔄 Bấm để tải sơ đồ mới
+      </button>
+    </div>
+
     <!-- Thanh chọn nhanh dự án sản xuất -->
     <div class="card no-print" style="padding:14px 18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; border-left:5px solid #0F766E;">
       <div style="flex:1; min-width:240px;">
         <div style="font-size:12px; font-weight:700; color:var(--p);">CHỌN DỰ ÁN SẢN XUẤT TẠI MÁY CNC:</div>
         <div style="display:flex; align-items:center; gap:8px; margin-top:4px; flex-wrap:wrap;">
-          <select id="selCncProject" style="max-width:420px; font-weight:700;"></select>
-          <a href="/index.html" class="btn btn-soft btn-sm">📐 Chỉnh chi tiết cắt</a>
-          <button type="button" class="btn btn-soft btn-sm" onclick="window.print()">🖨️ In phiếu cắt</button>
+          <select id="selCncProject" style="max-width:400px; font-weight:700;"></select>
+          <a href="/index.html" class="btn btn-soft btn-sm eng-only" style="min-height:40px;">📐 Chỉnh chi tiết cắt</a>
+          <button type="button" class="btn btn-soft btn-sm" id="btnPrintA4Cnc" style="min-height:40px;">🖨️ In Phiếu A4 (QR)</button>
+          <button type="button" class="btn btn-soft btn-sm" id="btnExportXlsxCnc" style="min-height:40px;">📊 Xuất Excel (.xlsx)</button>
         </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; background:#F0FDFA; border:1px solid #99F6E4; padding:7px 12px; border-radius:10px; flex-wrap:wrap;">
+        <label for="inpOffcutMinMm" style="font-size:12px; font-weight:800; color:#0F766E; white-space:nowrap;">♻️ Ngưỡng đề-xê hữu dụng ≥</label>
+        <input type="number" id="inpOffcutMinMm" value="800" min="100" step="50" style="width:86px; min-height:36px; text-align:right; font-weight:800; padding:4px 8px;">
+        <span style="font-size:12px; font-weight:700; color:#475569;">mm</span>
       </div>
     </div>
 
@@ -242,6 +298,7 @@
 
     const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
     const LS_CNC_OFFLINE_QUEUE = 'toiuu_cnc_offline_queue_v1';
+    const LS_OFFCUT_MIN_MM = 'toiuu_offcut_min_mm_v1';
 
     let currentUser = null;
     let savedProjects = [];
@@ -249,6 +306,7 @@
     let currentProjectRecord = null;
     let activeProject = null;
     let cutStatuses = {};
+    let stockOffcuts = [];
     let currentResult = null;
     let filterProf = 'ALL';
     let filterStatus = 'ALL';
@@ -256,13 +314,18 @@
     let cncRealtimeUnsub = null;
     let authUnsub = null;
     const inFlightByKey = new Set();
+    const inFlightOffcutKeys = new Set();
     let flushQueuePromise = null;
+    let offcutMinMm = Math.max(100, parseInt(localStorage.getItem(LS_OFFCUT_MIN_MM) || '800', 10) || 800);
+    let renderedProjectSignature = '';
+    let pendingProjectUpdate = null;
+    let sharedAudioCtx = null;
 
     const $ = id => document.getElementById(id);
     function showToast(msg) {
       const t = $('toast'); if (!t) return;
       t.textContent = msg; t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 3000);
+      setTimeout(() => t.classList.remove('show'), 3200);
     }
     function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s])); }
     function numVN(n, dec) {
@@ -277,6 +340,93 @@
       if (m) return Math.max(parseInt(m[1]), parseInt(m[2]));
       const mR = pName.match(/(?:Ø|D|Phi)\s*(\d+)/i);
       return mR ? parseInt(mR[1]) : 30;
+    }
+
+    function computeProjectCutSignature(projRec) {
+      if (!projRec) return '';
+      const d = projRec.data || {};
+      const payload = {
+        parts: (Array.isArray(d.parts) ? d.parts : []).map(p => ({
+          id: p.id || '',
+          profile: p.profile || 'Chung',
+          length: Number(p.length) || 0,
+          qty: Number(p.qty) || 0,
+          style: p.style || 'thang',
+          mat: Number(p.mat) || 0
+        })),
+        stock: (Array.isArray(d.stock) ? d.stock : []).map(s => ({
+          profile: s.profile || 'Chung',
+          length: Number(s.length) || 0,
+          qty: (s.qty === '' || s.qty == null) ? null : Number(s.qty)
+        })),
+        kerf: Number(d.kerf) || 0,
+        clamp: d.clamp != null ? Number(d.clamp) : 80,
+        interlock: d.interlock != null ? Boolean(d.interlock) : true,
+        gap: Number(d.gap) || 0
+      };
+      return JSON.stringify(payload);
+    }
+
+    function formatShortTime(isoStr) {
+      if (!isoStr) return '';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      const now = new Date();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      if (d.toDateString() === now.toDateString()) return `${hh}:${mm}`;
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mo} ${hh}:${mm}`;
+    }
+
+    function unlockWorkshopAudio() {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+        if (sharedAudioCtx.state === 'suspended') sharedAudioCtx.resume().catch(() => {});
+      } catch (e) {}
+    }
+
+    function playWorkshopAlertBeep() {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+        if (sharedAudioCtx.state === 'suspended') sharedAudioCtx.resume().catch(() => {});
+        const now = sharedAudioCtx.currentTime;
+        [880, 1046.5].forEach((freq, idx) => {
+          const osc = sharedAudioCtx.createOscillator();
+          const gain = sharedAudioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.18);
+          gain.gain.setValueAtTime(0.001, now + idx * 0.18);
+          gain.gain.exponentialRampToValueAtTime(0.14, now + idx * 0.18 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.18 + 0.15);
+          osc.connect(gain);
+          gain.connect(sharedAudioCtx.destination);
+          osc.start(now + idx * 0.18);
+          osc.stop(now + idx * 0.18 + 0.16);
+        });
+      } catch (e) {}
+    }
+
+    function showEngineerUpdateAlert(projRec) {
+      pendingProjectUpdate = projRec;
+      const banner = $('engineerUpdateAlertBanner');
+      const txt = $('engineerUpdateAlertText');
+      if (!banner || !txt) return;
+      const tStr = formatShortTime((projRec && projRec.updatedAt) || new Date().toISOString()) || 'vừa xong';
+      txt.innerHTML = `⚠️ Kỹ sư vừa cập nhật bản vẽ <b>"${escapeHtml((projRec && projRec.name) || '')}"</b> lúc <b>${escapeHtml(tStr)}</b> — Màn hình đang giữ sơ đồ cũ để tránh thợ cắt nhầm.`;
+      banner.style.display = 'flex';
+      playWorkshopAlertBeep();
+    }
+
+    function hideEngineerUpdateAlert() {
+      pendingProjectUpdate = null;
+      const banner = $('engineerUpdateAlertBanner');
+      if (banner) banner.style.display = 'none';
     }
 
     function applyLoggedInUserUI(found) {
@@ -470,6 +620,7 @@
       if (!projRec) {
         activeProjectId = null;
         activeProject = null;
+        renderedProjectSignature = '';
         return;
       }
       activeProjectId = projRec.id;
@@ -481,6 +632,8 @@
         currentProjectNotes: projRec.notes || '',
         igsFiles: projRec.igsFiles || []
       });
+      renderedProjectSignature = computeProjectCutSignature(projRec);
+      hideEngineerUpdateAlert();
     }
 
     function renderProjectSelector() {
@@ -501,6 +654,7 @@
       if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
         savedProjects = [];
         cutStatuses = {};
+        stockOffcuts = [];
         applySelectedProject(null);
         renderProjectSelector();
         solveAndRender();
@@ -508,7 +662,11 @@
       }
       window.SupabaseDB.setLoading(true, 'Đang tải sơ đồ cắt & tiến độ CNC...');
       try {
-        const allProjs = await window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true });
+        const [allProjs, loadedOffcuts] = await Promise.all([
+          window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true }),
+          window.SupabaseDB.getStockOffcuts().catch(() => [])
+        ]);
+        stockOffcuts = Array.isArray(loadedOffcuts) ? loadedOffcuts : [];
         savedProjects = allProjs.filter(p => !p.isDraft || (p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0));
 
         const urlProjId = new URLSearchParams(window.location.search).get('project');
@@ -616,6 +774,59 @@
       });
     }
 
+    function resolveBarIgsInfo(letter, prof, len, count, pieces) {
+      const normP = s => String(s || '').toLowerCase().replace(/[\s_]+/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const cleanProf = toAscii(prof).replace(/[^\w\.\-]/g, '_');
+      const defaultFileName = `Cay_${letter}_${cleanProf}_L${Math.round(len)}_SL_${count}.igs`;
+
+      const nestedBarsList = (activeProject && activeProject.fusionProject && Array.isArray(activeProject.fusionProject.nested_bars))
+        ? activeProject.fusionProject.nested_bars
+        : ((activeProject && Array.isArray(activeProject.nested_bars)) ? activeProject.nested_bars : []);
+
+      const fusionBar = nestedBarsList.find(nb => nb.letter === letter && normP(nb.profile) === normP(prof))
+        || nestedBarsList.find(nb => nb.letter === letter && (normP(nb.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(nb.profile))));
+
+      const igsMetaFile = (currentProjectRecord && Array.isArray(currentProjectRecord.igsFiles))
+        ? currentProjectRecord.igsFiles.find(f => f.letter === letter && (!f.profile || normP(f.profile) === normP(prof)))
+        : null;
+
+      let isMatch = false;
+      if (fusionBar) {
+        if (Array.isArray(fusionBar.pieces) && fusionBar.pieces.length > 0 && pieces && pieces.length > 0) {
+          isMatch = (fusionBar.pieces.length === pieces.length) && fusionBar.pieces.every((fb, i) => {
+            const cp = pieces[i];
+            const cpLen = cp.c ? cp.c.length : cp.length;
+            return Math.abs(fb.length - cpLen) < 1.0;
+          });
+        } else if (pieces && pieces.length > 0) {
+          isMatch = (!fusionBar.cuts_count || fusionBar.cuts_count === pieces.length || fusionBar.letter === letter);
+        } else {
+          isMatch = true;
+        }
+      }
+
+      const rawBarName = (fusionBar && fusionBar.name) || (igsMetaFile && igsMetaFile.name) || defaultFileName;
+      const dlName = (toAscii(rawBarName).replace(/[^\w\.\-]/g, '_') + '.igs').replace(/\.igs\.igs$/i, '.igs');
+
+      const candidateSources = [];
+      if (igsMetaFile && (igsMetaFile.storage_path || igsMetaFile.public_url)) {
+        candidateSources.push(igsMetaFile.storage_path || igsMetaFile.public_url);
+      }
+      if (isMatch && fusionBar && fusionBar.igs_url && !/^\/api\//i.test(fusionBar.igs_url)) {
+        candidateSources.push(fusionBar.igs_url);
+      }
+      if ((isMatch || igsMetaFile) && window.SupabaseDB && window.SupabaseDB.isConfigured() && activeProjectId) {
+        candidateSources.push(`storage://${window.SupabaseDB.toAsciiSafe(activeProjectId)}/${dlName}`);
+      }
+      if (isMatch && fusionBar && fusionBar.igs_url && /^\/api\//i.test(fusionBar.igs_url)) {
+        candidateSources.push(fusionBar.igs_url);
+      }
+
+      const uniqueSources = Array.from(new Set(candidateSources.filter(Boolean)));
+      const hasFusionSolid = Boolean((igsMetaFile && (igsMetaFile.storage_path || igsMetaFile.public_url)) || (isMatch && fusionBar));
+      return { dlName, uniqueSources, hasFusionSolid };
+    }
+
     function renderPatterns() {
       const container = $('patternsContainer');
       if (!currentResult || !currentResult.patterns) return;
@@ -653,6 +864,11 @@
           L.H = Math.max(40, ...ke.map(g => g.w));
           HINH_CACHE[cacheIdx] = { p, L };
 
+          const igsInfo = resolveBarIgsInfo(letter, prof, p.stockLength, p.count, L.pieces);
+          const sourceBadgeHtml = igsInfo.hasFusionSolid
+            ? `<span class="igs-source-badge igs-badge-fusion" title="File Solid 3D đồng bộ từ Fusion 360 trên Storage bảo mật">🟢 File Solid Fusion 360</span>`
+            : `<span class="igs-source-badge igs-badge-web" title="File 3D IGES được trình duyệt tự động dựng từ sơ đồ cắt">🟡 Sinh tự động từ web</span>`;
+
           const grouped = new Map();
           L.pieces.forEach(g => {
             const pid = g.c.label;
@@ -682,6 +898,26 @@
           if ((wasteW / stockW) * 100 > 5) labelsHtml += `<div class="cut-label waste-label" style="left:${(L.end/stockW)*100}%;width:${(wasteW/stockW)*100}%;">dư ${numVN(wasteW)}</div>`;
           if (clampW > 0 && (clampW / stockW) * 100 > 1.2) labelsHtml += `<div class="cut-label waste-label" style="left:${(usableW/stockW)*100}%;width:${(clampW/stockW)*100}%;">kẹp ${numVN(clampW)}</div>`;
 
+          const statusBoxStyle = st === 'done'
+            ? 'border:2px solid #16A34A;background:#DCFCE7;color:#15803D;'
+            : (st === 'cutting' ? 'border:2px solid #F59E0B;background:#FEF3C7;color:#B45309;' : 'border:1.5px solid #CBD5E1;background:#F8FAFC;color:#334155;');
+          const statusTitle = st === 'done' ? '✅ ĐÃ CẮT XONG' : (st === 'cutting' ? '⏳ ĐANG CẮT' : '⚪ Chưa cắt');
+
+          const offcutBarKey = activeProjectId === '__draft__' ? `${barKey}__${patternHash || 'draft'}` : barKey;
+          const alreadyOffcut = stockOffcuts.some(o => o.sourceProjectId === activeProjectId && o.sourceBarKey === offcutBarKey);
+          let offcutBtnHtml = '';
+          if (st === 'done' && Math.round(wasteW) >= offcutMinMm) {
+            if (alreadyOffcut) {
+              offcutBtnHtml = `<button type="button" class="btn btn-soft btn-offcut-push" disabled style="background:#ECFDF5; color:#15803D; border-color:#86EFAC; opacity:1; cursor:default;">✅ Đã nhập kho đề-xê (${numVN(Math.round(wasteW))} mm)</button>`;
+            } else {
+              offcutBtnHtml = `<button type="button" class="btn btn-soft btn-offcut-push" data-key="${escapeHtml(offcutBarKey)}" data-prof="${escapeHtml(prof)}" data-waste="${Math.round(wasteW)}" data-count="${p.count}" style="background:#ECFDF5; color:#0F766E; border:2px solid #0F766E;">📥 Nhập kho đề-xê (${p.count} × ${numVN(Math.round(wasteW))} mm)</button>`;
+            }
+          }
+
+          const updatedMetaStr = cutRecord && (cutRecord.updatedBy || cutRecord.updatedAt)
+            ? `👤 Cập nhật bởi <b>@${escapeHtml(cutRecord.updatedBy || 'xưởng')}</b>${cutRecord.updatedAt ? ' · ' + escapeHtml(formatShortTime(cutRecord.updatedAt)) : ''}`
+            : 'Chưa có lượt tích cắt nào cho mẫu này';
+
           cardsHtml += `
             <div class="pattern-card ${st === 'done' ? 'pattern-card-done' : ''}" style="${isHashMismatch ? 'border:2px solid #DC2626; background:#FEF2F2;' : ''}">
               ${isHashMismatch ? `<div style="margin-bottom:10px; padding:8px 12px; border-radius:8px; background:#FEE2E2; border:1.5px solid #F87171; color:#991B1B; font-size:13px; font-weight:800;">⚠️ CẢNH BÁO ĐỎ: Sơ đồ cắt cây ${letter} vừa được Kỹ sư thay đổi sau khi bạn đã bắt đầu cắt (${curCut}/${p.count} cây)! Vui lòng đối chiếu lại kích thước trước khi cắt tiếp.</div>` : ''}
@@ -689,13 +925,27 @@
                 <span class="pattern-letter">${letter}</span>
                 <span class="pattern-multiplier">× ${p.count} cây</span>
                 <span class="pattern-meta">${escapeHtml(p.stockLabel)} · ${numVN(p.stockLength)} mm · cắt ${p.cuts.length} chi tiết · dư ${numVN(wasteW)} mm</span>
-                <button type="button" class="btn btn-cut-toggle" data-key="${escapeHtml(barKey)}" data-total="${p.count}" data-hash="${escapeHtml(patternHash)}" style="border:1.5px solid ${st === 'done' ? '#16A34A;background:#DCFCE7;color:#15803D' : (st === 'cutting' ? '#F59E0B;background:#FEF3C7;color:#B45309' : '#CBD5E1;background:#FFF;color:#334155')};">
-                  ${st === 'done' ? `✅ ĐÃ CẮT XONG (${curCut}/${p.count})` : (st === 'cutting' ? `⏳ ĐANG CẮT (${curCut}/${p.count})` : `⚪ Chưa cắt (${curCut}/${p.count})`)}
-                </button>
-                <button type="button" class="btn btn-p btn-export-bar" data-letter="${letter}" data-prof="${escapeHtml(prof)}" data-len="${p.stockLength}" data-idx="${cacheIdx}" data-count="${p.count}">
-                  💾 Lưu file .IGS (${letter})
-                </button>
+                ${sourceBadgeHtml}
               </div>
+
+              <div class="no-print" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;">
+                <div class="cut-step-group">
+                  <button type="button" class="btn btn-soft btn-touch-step btn-cut-minus" data-key="${escapeHtml(barKey)}" data-total="${p.count}" data-hash="${escapeHtml(patternHash)}" ${curCut <= 0 ? 'disabled style="opacity:0.45;"' : ''} title="Giảm 1 cây đã cắt">−1</button>
+                  <div class="cut-status-pill" style="${statusBoxStyle}">
+                    <span>${statusTitle}</span>
+                    <span style="font-size:15px;">${curCut} / ${p.count} cây</span>
+                  </div>
+                  <button type="button" class="btn btn-p btn-touch-plus btn-cut-plus" data-key="${escapeHtml(barKey)}" data-total="${p.count}" data-hash="${escapeHtml(patternHash)}" ${curCut >= p.count ? 'disabled style="opacity:0.45;"' : ''} title="Tăng +1 cây đã cắt xong">+1 cây</button>
+                  ${curCut > 0 ? `<button type="button" class="btn btn-danger btn-touch-reset btn-cut-reset" data-key="${escapeHtml(barKey)}" data-total="${p.count}" data-hash="${escapeHtml(patternHash)}" title="Đặt lại về 0">↺ 0</button>` : ''}
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                  ${offcutBtnHtml}
+                  <button type="button" class="btn btn-p btn-export-bar" data-letter="${letter}" data-prof="${escapeHtml(prof)}" data-len="${p.stockLength}" data-idx="${cacheIdx}" data-count="${p.count}">
+                    💾 Tải .IGS (${letter})
+                  </button>
+                </div>
+              </div>
+
               <div class="bar-visual-wrap" data-i="${cacheIdx}">
                 <svg viewBox="0 0 ${stockW} ${H}" preserveAspectRatio="none">
                   <rect x="0" y="0" width="${usableW}" height="${H}" fill="var(--steel2)"/>
@@ -706,6 +956,10 @@
               </div>
               <div class="bar-ruler"><span>0</span><span>${numVN(p.stockLength)} mm</span></div>
               <div class="pattern-items-list">${pillsHtml}</div>
+              <div class="cut-updated-meta">
+                <span>${updatedMetaStr}</span>
+                <span>Mã cây: <code>${escapeHtml(barKey)}</code></span>
+              </div>
             </div>
           `;
         });
@@ -718,7 +972,7 @@
             <h3 style="font-size:18px;">📦 ${escapeHtml(prof)}</h3>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <span class="profile-badge-pill">Tổng ${totalBars} cây</span>
-              <button type="button" class="btn btn-soft btn-sm btn-export-all-bars" data-prof="${escapeHtml(prof)}" style="border-color:var(--p); color:var(--p);">
+              <button type="button" class="btn btn-soft btn-sm btn-export-all-bars" data-prof="${escapeHtml(prof)}" style="border-color:var(--p); color:var(--p); min-height:42px;">
                 📥 Tải tất cả file .IGS (${escapeHtml(prof)})
               </button>
             </div>
@@ -732,72 +986,32 @@
         container.innerHTML = `<div class="card" style="text-align:center; padding:32px; color:#64748B;">Không có cây cắt nào khớp với bộ lọc hiện tại.</div>`;
       }
 
-      container.querySelectorAll('.btn-cut-toggle').forEach(b => b.onclick = () => toggleCut(b.dataset.key, parseInt(b.dataset.total) || 1, b.dataset.hash || ''));
+      container.querySelectorAll('.btn-cut-plus').forEach(b => b.onclick = () => changeCutCount(b.dataset.key, parseInt(b.dataset.total, 10) || 1, 1, b.dataset.hash || ''));
+      container.querySelectorAll('.btn-cut-minus').forEach(b => b.onclick = () => changeCutCount(b.dataset.key, parseInt(b.dataset.total, 10) || 1, -1, b.dataset.hash || ''));
+      container.querySelectorAll('.btn-cut-reset').forEach(b => b.onclick = () => changeCutCount(b.dataset.key, parseInt(b.dataset.total, 10) || 1, 'reset', b.dataset.hash || ''));
+      container.querySelectorAll('.btn-offcut-push').forEach(b => b.onclick = () => {
+        if (b.disabled) return;
+        pushOffcutToWarehouse(b.dataset.key, b.dataset.prof, parseFloat(b.dataset.waste) || 0, parseInt(b.dataset.count, 10) || 1);
+      });
       container.querySelectorAll('.btn-export-bar').forEach(b => b.onclick = () => {
         const letter = b.dataset.letter;
         const prof = b.dataset.prof;
         const len = parseFloat(b.dataset.len) || 6000;
-        const count = parseInt(b.dataset.count) || 1;
+        const count = parseInt(b.dataset.count, 10) || 1;
         const c = HINH_CACHE[+b.dataset.idx];
         const pieces = c && c.L ? c.L.pieces : null;
-
-        const normP = s => String(s || '').toLowerCase().replace(/[\s_]+/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const cleanProf = toAscii(prof).replace(/[^\w\.\-]/g, '_');
-        const defaultFileName = `Cay_${letter}_${cleanProf}_L${Math.round(len)}_SL_${count}.igs`;
-
-        const nestedBarsList = (activeProject && activeProject.fusionProject && Array.isArray(activeProject.fusionProject.nested_bars))
-          ? activeProject.fusionProject.nested_bars
-          : ((activeProject && Array.isArray(activeProject.nested_bars)) ? activeProject.nested_bars : []);
-
-        const fusionBar = nestedBarsList.find(nb => nb.letter === letter && normP(nb.profile) === normP(prof))
-          || nestedBarsList.find(nb => nb.letter === letter && (normP(nb.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(nb.profile))));
-
-        const igsMetaFile = (currentProjectRecord && Array.isArray(currentProjectRecord.igsFiles))
-          ? currentProjectRecord.igsFiles.find(f => f.letter === letter && (!f.profile || normP(f.profile) === normP(prof)))
-          : null;
-
-        let isMatch = false;
-        if (fusionBar) {
-          if (Array.isArray(fusionBar.pieces) && fusionBar.pieces.length > 0 && pieces && pieces.length > 0) {
-            isMatch = (fusionBar.pieces.length === pieces.length) && fusionBar.pieces.every((fb, i) => {
-              const cp = pieces[i];
-              const cpLen = cp.c ? cp.c.length : cp.length;
-              return Math.abs(fb.length - cpLen) < 1.0;
-            });
-          } else if (pieces && pieces.length > 0) {
-            isMatch = (!fusionBar.cuts_count || fusionBar.cuts_count === pieces.length || fusionBar.letter === letter);
-          } else {
-            isMatch = true;
-          }
-        }
-
-        const rawBarName = (fusionBar && fusionBar.name) || (igsMetaFile && igsMetaFile.name) || defaultFileName;
-        const dlName = (toAscii(rawBarName).replace(/[^\w\.\-]/g, '_') + '.igs').replace(/\.igs\.igs$/i, '.igs');
+        const { dlName, uniqueSources, hasFusionSolid } = resolveBarIgsInfo(letter, prof, len, count, pieces);
 
         // 1. Ưu tiên tải file Solid .IGS từ Supabase Storage bảo mật hoặc API cục bộ
-        const candidateSources = [];
-        if (igsMetaFile && (igsMetaFile.storage_path || igsMetaFile.public_url)) {
-          candidateSources.push(igsMetaFile.storage_path || igsMetaFile.public_url);
-        }
-        if (isMatch && fusionBar && fusionBar.igs_url && !/^\/api\//i.test(fusionBar.igs_url)) {
-          candidateSources.push(fusionBar.igs_url);
-        }
-        if (window.SupabaseDB && window.SupabaseDB.isConfigured() && activeProjectId) {
-          candidateSources.push(`storage://${window.SupabaseDB.toAsciiSafe(activeProjectId)}/${dlName}`);
-        }
-        if (isMatch && fusionBar && fusionBar.igs_url && /^\/api\//i.test(fusionBar.igs_url)) {
-          candidateSources.push(fusionBar.igs_url);
-        }
-
-        const uniqueSources = Array.from(new Set(candidateSources.filter(Boolean)));
-        if (uniqueSources.length && (isMatch || igsMetaFile)) {
+        if (uniqueSources.length && hasFusionSolid) {
           const tryFetch = async (idx) => {
             if (idx >= uniqueSources.length) {
               exportNestedBarIGES(dlName, prof, len, pieces);
               return;
             }
+            const src = uniqueSources[idx];
             try {
-              const blob = await window.SupabaseDB.downloadIgsBlob(uniqueSources[idx]);
+              const blob = await window.SupabaseDB.downloadIgsBlob(src);
               if (!blob || blob.size < 100) throw new Error('Empty blob');
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
@@ -809,6 +1023,29 @@
               setTimeout(() => URL.revokeObjectURL(url), 1000);
               showToast(`✓ Đã tải file 3D Solid từ Supabase Storage: ${dlName}`);
             } catch (err) {
+              try {
+                if (window.SupabaseDB && typeof window.SupabaseDB.getIgsSignedUrl === 'function') {
+                  const signedUrl = await window.SupabaseDB.getIgsSignedUrl(src, 180);
+                  if (signedUrl && signedUrl !== src) {
+                    const r = await fetch(signedUrl);
+                    if (r.ok) {
+                      const signedBlob = await r.blob();
+                      if (signedBlob && signedBlob.size >= 100) {
+                        const sUrl = URL.createObjectURL(signedBlob);
+                        const a = document.createElement('a');
+                        a.href = sUrl;
+                        a.download = dlName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(sUrl), 1000);
+                        showToast(`✓ Đã tải file 3D Solid (Signed URL): ${dlName}`);
+                        return;
+                      }
+                    }
+                  }
+                }
+              } catch (signedErr) {}
               tryFetch(idx + 1);
             }
           };
@@ -817,7 +1054,7 @@
         }
 
         // 2. Fallback: Tự sinh file 3D IGES chuẩn ASCII 80 ký tự ngay trên trình duyệt
-        exportNestedBarIGES(defaultFileName, prof, len, pieces);
+        exportNestedBarIGES(dlName, prof, len, pieces);
       });
       container.querySelectorAll('.btn-export-all-bars').forEach(b => b.onclick = () => {
         const btns = container.querySelectorAll(`.btn-export-bar[data-prof="${b.dataset.prof}"]`);
@@ -849,7 +1086,7 @@
       });
     }
 
-    async function toggleCut(key, total, patternHash = '') {
+    async function changeCutCount(key, total, deltaOrReset, patternHash = '') {
       if (!activeProjectId) {
         showToast('⚠️ Chưa có dự án đang mở để lưu tiến độ!');
         return;
@@ -858,15 +1095,29 @@
 
       const prev = cutStatuses[key] ? Object.assign({}, cutStatuses[key]) : null;
       const cur = prev ? (prev.cutCount || 0) : 0;
+
+      // Bảo vệ chống bấm nhầm mất dấu khi cây ĐÃ CẮT XONG hoặc bấm đặt lại về 0
+      if (cur >= total && (deltaOrReset === -1 || deltaOrReset === 'reset')) {
+        const okDone = confirm(`⚠️ Cây ${key.replace('__', ' - ')} đang ở trạng thái ĐÃ CẮT XONG (${cur}/${total}).\n\nBạn có chắc chắn muốn ${deltaOrReset === 'reset' ? 'đặt lại về 0' : 'giảm số cây xuống'} không?`);
+        if (!okDone) return;
+      } else if (deltaOrReset === 'reset' && cur > 0) {
+        const okReset = confirm(`Đặt lại tiến độ cắt của cây ${key.replace('__', ' - ')} từ ${cur}/${total} về 0?`);
+        if (!okReset) return;
+      }
+
       const isMismatch = cur > 0 && Boolean(prev && prev.patternHash && patternHash && prev.patternHash !== patternHash);
-      if (isMismatch) {
+      if (isMismatch && deltaOrReset === 1) {
         const ok = confirm(`⚠️ CẢNH BÁO: Sơ đồ cây ${key.replace('__', ' - ')} đã thay đổi so với lúc bạn bắt đầu cắt!\n\nBấm [OK] chỉ khi bạn đã kiểm tra kỹ bản vẽ mới để tiếp tục cập nhật tiến độ.`);
         if (!ok) return;
       }
 
+      const next = deltaOrReset === 'reset'
+        ? 0
+        : Math.max(0, Math.min(total, cur + (Number(deltaOrReset) || 0)));
+      if (next === cur) return;
+
       inFlightByKey.add(key);
       try {
-        const next = cur + 1 > total ? 0 : cur + 1;
         const nextStatus = next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending');
         const mutationPayload = {
           projectId: activeProjectId,
@@ -897,7 +1148,17 @@
         }
 
         try {
-          await window.SupabaseDB.updateCutStatus(activeProjectId, key, mutationPayload);
+          const savedRow = await window.SupabaseDB.updateCutStatus(activeProjectId, key, mutationPayload);
+          if (savedRow) {
+            cutStatuses[key] = {
+              cutCount: savedRow.cutCount,
+              totalCount: savedRow.totalCount,
+              status: savedRow.status,
+              patternHash: savedRow.patternHash || patternHash || '',
+              updatedBy: savedRow.updatedBy || mutationPayload.updatedBy,
+              updatedAt: savedRow.updatedAt || mutationPayload.updatedAt
+            };
+          }
           removeQueuedCut(activeProjectId, key);
           showToast(next >= total ? `✅ Đã hoàn thành ${key.replace('__', ' - ')} (${next}/${total})` : `✂️ Cập nhật: ${next}/${total} cây`);
         } catch (err) {
@@ -917,6 +1178,52 @@
         }
       } finally {
         inFlightByKey.delete(key);
+      }
+    }
+
+    async function pushOffcutToWarehouse(barKey, prof, wasteMm, count) {
+      if (!activeProjectId || !barKey) return;
+      if (inFlightOffcutKeys.has(barKey)) return;
+      const cleanLen = Math.round(Number(wasteMm) || 0);
+      const qty = Math.max(1, parseInt(count, 10) || 1);
+      if (cleanLen <= 0) return;
+
+      if (stockOffcuts.some(o => o.sourceProjectId === activeProjectId && o.sourceBarKey === barKey)) {
+        showToast('✅ Đề-xê của cây này đã có trong kho trước đó!');
+        return;
+      }
+
+      inFlightOffcutKeys.add(barKey);
+      try {
+        window.SupabaseDB.setLoading(true, 'Đang nhập phôi đề-xê vào kho chung...');
+        const created = await window.SupabaseDB.addStockOffcut({
+          profile: prof,
+          lengthMm: cleanLen,
+          quantity: qty,
+          sourceProjectId: activeProjectId,
+          sourceProjectName: (activeProject && activeProject.currentProjectName) || '',
+          sourceBarKey: barKey,
+          notes: `Đề-xê tự động từ ${barKey.replace('__', ' - ')}`,
+          createdBy: currentUser ? currentUser.username : ''
+        });
+        if (created && !stockOffcuts.some(o => o.id === created.id)) {
+          stockOffcuts.unshift(created);
+        }
+        renderPatterns();
+        showToast(`♻️ Đã nhập kho đề-xê: ${qty} đoạn ${prof} (${numVN(cleanLen)} mm)!`);
+      } catch (err) {
+        if (err && err.code === '23505') {
+          try {
+            stockOffcuts = await window.SupabaseDB.getStockOffcuts();
+          } catch (e) {}
+          renderPatterns();
+          showToast('✅ Đề-xê của cây này đã được nhập kho trước đó!');
+        } else {
+          showToast('❌ Không nhập được kho đề-xê: ' + err.message);
+        }
+      } finally {
+        inFlightOffcutKeys.delete(barKey);
+        window.SupabaseDB.setLoading(false);
       }
     }
 
@@ -997,9 +1304,30 @@
           }
           renderProjectSelector();
           if (rec.id === activeProjectId) {
-            applySelectedProject(rec);
-            solveAndRender();
+            const newSig = computeProjectCutSignature(rec);
+            if (renderedProjectSignature && newSig !== renderedProjectSignature) {
+              // Mục 3.2.2: Khóa đọc — KHÔNG âm thầm ghi đè sơ đồ khi thợ đang đứng máy!
+              showEngineerUpdateAlert(rec);
+            } else {
+              currentProjectRecord = rec;
+              if (activeProject) {
+                activeProject.currentProjectName = rec.name;
+                activeProject.currentProjectCustomer = rec.customer || '';
+                activeProject.currentProjectNotes = rec.notes || '';
+                activeProject.igsFiles = rec.igsFiles || [];
+              }
+            }
           }
+        },
+        stock_offcuts: (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          if (ev.eventType === 'DELETE' && old && old.id) {
+            stockOffcuts = stockOffcuts.filter(o => o.id !== old.id);
+          } else if (rec && rec.id) {
+            stockOffcuts = [rec, ...stockOffcuts.filter(o => o.id !== rec.id)];
+          }
+          renderPatterns();
         },
         profiles: (ev) => {
           if (currentUser && ev.newRecord && ev.newRecord.id === currentUser.id) {
@@ -1013,7 +1341,33 @@
       }, {
         onResync: async () => {
           await flushOfflineQueue();
-          await loadWorkshopData();
+          if (!window.SupabaseDB || !window.SupabaseDB.isConfigured() || !currentUser) return;
+          try {
+            const [allProjs, loadedOffcuts, latestActive, latestCuts] = await Promise.all([
+              window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true }),
+              window.SupabaseDB.getStockOffcuts().catch(() => stockOffcuts),
+              activeProjectId ? window.SupabaseDB.getProjectById(activeProjectId) : Promise.resolve(null),
+              activeProjectId ? window.SupabaseDB.getCutProgress(activeProjectId) : Promise.resolve({})
+            ]);
+            savedProjects = allProjs.filter(p => !p.isDraft || (p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0));
+            stockOffcuts = Array.isArray(loadedOffcuts) ? loadedOffcuts : stockOffcuts;
+            if (activeProjectId) {
+              cutStatuses = latestCuts || {};
+              applyOfflineQueueToStatuses(activeProjectId);
+            }
+            renderProjectSelector();
+            if (latestActive && latestActive.id === activeProjectId) {
+              const latestSig = computeProjectCutSignature(latestActive);
+              if (renderedProjectSignature && latestSig !== renderedProjectSignature) {
+                showEngineerUpdateAlert(latestActive);
+                updateProgressUI();
+                renderPatterns();
+                return;
+              }
+            }
+            updateProgressUI();
+            renderPatterns();
+          } catch (e) {}
         }
       });
     }
@@ -1123,6 +1477,90 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener('pointerdown', unlockWorkshopAudio, { once: true });
+      document.addEventListener('keydown', unlockWorkshopAudio, { once: true });
+
+      if ($('inpOffcutMinMm')) {
+        $('inpOffcutMinMm').value = String(offcutMinMm);
+        const onThresholdChange = () => {
+          const val = Math.max(100, parseInt($('inpOffcutMinMm').value, 10) || 800);
+          offcutMinMm = val;
+          try { localStorage.setItem(LS_OFFCUT_MIN_MM, String(val)); } catch (e) {}
+          renderPatterns();
+        };
+        $('inpOffcutMinMm').addEventListener('change', onThresholdChange);
+        $('inpOffcutMinMm').addEventListener('input', onThresholdChange);
+      }
+
+      if ($('btnApplyEngineerUpdate')) {
+        $('btnApplyEngineerUpdate').onclick = async () => {
+          if (!pendingProjectUpdate) {
+            hideEngineerUpdateAlert();
+            return;
+          }
+          window.SupabaseDB.setLoading(true, 'Đang tải sơ đồ mới nhất từ Kỹ sư...');
+          try {
+            let full = pendingProjectUpdate;
+            if (full.id && (!full.data || full.isSummary)) {
+              const fetched = await window.SupabaseDB.getProjectById(full.id);
+              if (fetched) full = fetched;
+            }
+            applySelectedProject(full);
+            if (activeProjectId) {
+              cutStatuses = await window.SupabaseDB.getCutProgress(activeProjectId);
+              applyOfflineQueueToStatuses(activeProjectId);
+            }
+            solveAndRender();
+            showToast(`🔄 Đã cập nhật sơ đồ mới nhất cho "${full.name}"!`);
+          } catch (err) {
+            showToast('❌ Lỗi tải sơ đồ mới: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
+        };
+      }
+
+      if ($('btnPrintA4Cnc')) {
+        $('btnPrintA4Cnc').onclick = () => {
+          if (!currentResult || !currentResult.bars || !currentResult.bars.length) {
+            showToast('⚠️ Chưa có sơ đồ cắt để in!');
+            return;
+          }
+          if (window.WorkshopExport) {
+            window.WorkshopExport.printProductionSheet({
+              project: currentProjectRecord || activeProject,
+              result: currentResult,
+              parts: (activeProject && activeProject.parts) || [],
+              cutStatuses,
+              exportedBy: currentUser ? currentUser.username : ''
+            });
+          } else {
+            window.print();
+          }
+        };
+      }
+
+      if ($('btnExportXlsxCnc')) {
+        $('btnExportXlsxCnc').onclick = () => {
+          if (!currentResult || !currentResult.bars || !currentResult.bars.length) {
+            showToast('⚠️ Chưa có sơ đồ cắt để xuất Excel!');
+            return;
+          }
+          try {
+            const expRes = window.WorkshopExport.exportExcelXlsx({
+              project: currentProjectRecord || activeProject,
+              result: currentResult,
+              parts: (activeProject && activeProject.parts) || [],
+              cutStatuses,
+              exportedBy: currentUser ? currentUser.username : ''
+            });
+            showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);
+          } catch (err) {
+            showToast('❌ Lỗi xuất Excel: ' + err.message);
+          }
+        };
+      }
+
       $('btnSubmitLogin').onclick = handleLogin;
       $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
       $('btnLogout').onclick = async () => {

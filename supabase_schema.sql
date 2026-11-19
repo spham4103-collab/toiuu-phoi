@@ -92,6 +92,29 @@ CREATE TABLE IF NOT EXISTS public.cut_progress (
 CREATE INDEX IF NOT EXISTS idx_cut_progress_project_id ON public.cut_progress (project_id);
 
 -- ============================================================================
+-- 6B. BẢNG KHO PHÔI DƯ TÁI SỬ DỤNG / ĐỀ-XÊ (public.stock_offcuts)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.stock_offcuts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile TEXT NOT NULL,
+  length_mm NUMERIC NOT NULL CHECK (length_mm > 0),
+  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 0),
+  source_project_id TEXT REFERENCES public.projects(id) ON DELETE SET NULL,
+  source_project_name TEXT NOT NULL DEFAULT '',
+  source_bar_key TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_offcuts_profile ON public.stock_offcuts (profile);
+CREATE INDEX IF NOT EXISTS idx_stock_offcuts_created_at ON public.stock_offcuts (created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_offcuts_unique_source_bar
+  ON public.stock_offcuts (source_project_id, source_bar_key)
+  WHERE source_project_id IS NOT NULL AND source_bar_key <> '';
+
+-- ============================================================================
 -- 7. GẮN TRIGGER updated_at & REPLICA IDENTITY CHO REALTIME
 -- ============================================================================
 DROP TRIGGER IF EXISTS trg_profiles_updated_at ON public.profiles;
@@ -114,19 +137,25 @@ CREATE TRIGGER trg_cut_progress_updated_at
   BEFORE UPDATE ON public.cut_progress
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+DROP TRIGGER IF EXISTS trg_stock_offcuts_updated_at ON public.stock_offcuts;
+CREATE TRIGGER trg_stock_offcuts_updated_at
+  BEFORE UPDATE ON public.stock_offcuts
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 ALTER TABLE public.profiles REPLICA IDENTITY FULL;
 ALTER TABLE public.inventory REPLICA IDENTITY FULL;
 ALTER TABLE public.projects REPLICA IDENTITY DEFAULT;
 ALTER TABLE public.cut_progress REPLICA IDENTITY FULL;
+ALTER TABLE public.stock_offcuts REPLICA IDENTITY FULL;
 
 -- ============================================================================
--- 8. BẬT REALTIME PUBLICATION CHO CẢ 4 BẢNG
+-- 8. BẬT REALTIME PUBLICATION CHO CẢ 5 BẢNG
 -- ============================================================================
 DO $$
 DECLARE
   tbl TEXT;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['profiles', 'inventory', 'projects', 'cut_progress']
+  FOREACH tbl IN ARRAY ARRAY['profiles', 'inventory', 'projects', 'cut_progress', 'stock_offcuts']
   LOOP
     IF NOT EXISTS (
       SELECT 1
@@ -250,14 +279,15 @@ CREATE POLICY "igs_files_auth_delete"
 -- ============================================================================
 -- 11. THU HỒI QUYỀN ANON & SIẾT ROW LEVEL SECURITY (RLS) THEO VAI TRÒ
 -- ============================================================================
-REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress FROM anon;
-REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress FROM authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress TO authenticated;
+REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts FROM anon;
+REVOKE ALL ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles, public.projects, public.inventory, public.cut_progress, public.stock_offcuts TO authenticated;
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cut_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_offcuts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profiles_select_self_or_admin" ON public.profiles;
 CREATE POLICY "profiles_select_self_or_admin"
@@ -338,6 +368,27 @@ CREATE POLICY "cut_progress_update_authenticated_member"
 DROP POLICY IF EXISTS "cut_progress_delete_engineer_admin" ON public.cut_progress;
 CREATE POLICY "cut_progress_delete_engineer_admin"
   ON public.cut_progress FOR DELETE TO authenticated
+  USING (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "stock_offcuts_select_authenticated_member" ON public.stock_offcuts;
+CREATE POLICY "stock_offcuts_select_authenticated_member"
+  ON public.stock_offcuts FOR SELECT TO authenticated
+  USING (public.is_workshop_member());
+
+DROP POLICY IF EXISTS "stock_offcuts_insert_authenticated_member" ON public.stock_offcuts;
+CREATE POLICY "stock_offcuts_insert_authenticated_member"
+  ON public.stock_offcuts FOR INSERT TO authenticated
+  WITH CHECK (public.is_workshop_member());
+
+DROP POLICY IF EXISTS "stock_offcuts_update_engineer_admin" ON public.stock_offcuts;
+CREATE POLICY "stock_offcuts_update_engineer_admin"
+  ON public.stock_offcuts FOR UPDATE TO authenticated
+  USING (public.is_admin_or_engineer())
+  WITH CHECK (public.is_admin_or_engineer());
+
+DROP POLICY IF EXISTS "stock_offcuts_delete_engineer_admin" ON public.stock_offcuts;
+CREATE POLICY "stock_offcuts_delete_engineer_admin"
+  ON public.stock_offcuts FOR DELETE TO authenticated
   USING (public.is_admin_or_engineer());
 
 -- ============================================================================

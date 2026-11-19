@@ -10,8 +10,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="/toi-uu-engine.js"></script>
+  <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="/js/workshopExport.js"></script>
   <style>
     :root {
       --bg: #FFFFFF;
@@ -727,6 +732,8 @@
               ` : `
                 <button type="button" class="btn btn-sm btn-p btn-open-main" data-id="${p.id}">🚀 Mở xếp phôi</button>
                 <button type="button" class="btn btn-sm btn-cta btn-open-cnc" data-id="${p.id}">⚡ Sơ đồ CNC</button>
+                <button type="button" class="btn btn-sm btn-soft btn-print-a4" data-id="${p.id}">🖨️ Phiếu A4</button>
+                <button type="button" class="btn btn-sm btn-soft btn-exp-xlsx" data-id="${p.id}">📊 .xlsx</button>
                 <button type="button" class="btn btn-sm btn-soft btn-lock eng-only" data-id="${p.id}">${p.isLocked ? '🔓 Mở khóa' : '🔒 Khóa'}</button>
                 <button type="button" class="btn btn-sm btn-soft btn-edit eng-only" data-id="${p.id}" ${p.isLocked ? 'disabled style="opacity:0.45;"' : ''}>✏️ Sửa</button>
                 <button type="button" class="btn btn-sm btn-soft btn-dup eng-only" data-id="${p.id}">📋 Nhân bản</button>
@@ -750,6 +757,23 @@
         if (p) {
           activateProjectSelection(p);
           window.location.href = `/cnc.html?project=${encodeURIComponent(p.id)}`;
+        }
+      });
+      wrap.querySelectorAll('.btn-print-a4').forEach(b => b.onclick = async () => {
+        const expOpts = await prepareProjectExportPayload(b.dataset.id);
+        if (!expOpts) return;
+        if (window.WorkshopExport) {
+          window.WorkshopExport.printProductionSheet(expOpts);
+        }
+      });
+      wrap.querySelectorAll('.btn-exp-xlsx').forEach(b => b.onclick = async () => {
+        const expOpts = await prepareProjectExportPayload(b.dataset.id);
+        if (!expOpts) return;
+        try {
+          const expRes = window.WorkshopExport.exportExcelXlsx(expOpts);
+          showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);
+        } catch (err) {
+          showToast('❌ Lỗi xuất Excel: ' + err.message);
         }
       });
       wrap.querySelectorAll('.btn-lock').forEach(b => b.onclick = async () => {
@@ -932,6 +956,84 @@
         renderAll();
       } catch (err) {
         showToast('❌ Lỗi lưu dự án: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    function extractMatFromProfile(pName) {
+      if (!pName) return 30;
+      const m = String(pName).match(/(?:Hộp|Ống|V|U)?\s*(\d+)(?:x|X|\*)(\d+)/);
+      if (m) return Math.max(parseInt(m[1], 10), parseInt(m[2], 10));
+      const mR = String(pName).match(/(?:Ø|D|Phi)\s*(\d+)/i);
+      return mR ? parseInt(mR[1], 10) : 30;
+    }
+
+    async function prepareProjectExportPayload(projId) {
+      let p = projectsList.find(x => x.id === projId);
+      if (!p) return null;
+      if (typeof RC === 'undefined') {
+        showToast('⚠️ Bộ giải tối ưu chưa sẵn sàng, vui lòng tải lại trang!');
+        return null;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang chuẩn bị phiếu lệnh sản xuất...');
+      try {
+        if (p.isSummary && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          const fullP = await window.SupabaseDB.getProjectById(p.id);
+          if (fullP) {
+            p = fullP;
+            projectsList = projectsList.map(x => x.id === fullP.id ? fullP : x);
+          }
+        }
+        const d = p.data || {};
+        const validParts = Array.isArray(d.parts) ? d.parts.filter(pt => Number(pt.length) > 0 && Number(pt.qty) > 0) : [];
+        if (!validParts.length) {
+          showToast(`⚠️ Dự án "${p.name}" chưa có chi tiết cắt nào!`);
+          return null;
+        }
+        const clampTail = d.clamp != null ? Number(d.clamp) : 80;
+        const partProfiles = new Set(validParts.map(pt => pt.profile || 'Chung'));
+        const stockForEngine = (Array.isArray(d.stock) ? d.stock : []).filter(s => Number(s.length) > 0).map((s, idx) => ({
+          label: s.name || (s.qty === null ? `Cây mới ${s.length}` : `Cây tồn ${s.length}`),
+          length: Number(s.length),
+          clampTail,
+          qty: (s.qty === '' || s.qty == null) ? null : Number(s.qty),
+          priority: s._fromOffcut ? (-1000 + idx) : idx,
+          profile: s.profile || 'Chung'
+        }));
+        partProfiles.forEach(prof => {
+          if (!stockForEngine.some(s => s.profile === prof)) {
+            stockForEngine.push({ label: `Cây mới 6m (${prof})`, length: 6000, clampTail, qty: null, priority: 99, profile: prof });
+          }
+        });
+        const result = RC.solve({
+          kerf: Number(d.kerf) || 0,
+          interlock: d.interlock != null ? Boolean(d.interlock) : true,
+          gap: Number(d.gap) || 0,
+          stock: stockForEngine,
+          parts: validParts.map(pt => ({
+            label: pt.id,
+            length: Number(pt.length),
+            qty: Number(pt.qty),
+            end_style: pt.style || 'thang',
+            mat: pt.style === 'thang' ? 0 : ((pt.mat && pt.mat >= 5) ? Number(pt.mat) : extractMatFromProfile(pt.profile)),
+            profile: pt.profile || 'Chung'
+          }))
+        });
+        let cutStatuses = {};
+        if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          try { cutStatuses = await window.SupabaseDB.getCutProgress(p.id); } catch (e) {}
+        }
+        return {
+          project: p,
+          result,
+          parts: d.parts || [],
+          cutStatuses,
+          exportedBy: currentUser ? currentUser.username : ''
+        };
+      } catch (err) {
+        showToast('❌ Lỗi chuẩn bị phiếu xuất: ' + err.message);
+        return null;
       } finally {
         window.SupabaseDB.setLoading(false);
       }

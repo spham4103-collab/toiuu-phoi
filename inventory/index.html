@@ -14,6 +14,9 @@
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="/js/workshopExport.js"></script>
   <style>
     :root {
       --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
@@ -87,6 +90,11 @@
     .pill-blue { background: #E0F2FE; color: #0369A1; }
     .pill-orange { background: #FFEDD5; color: #C2410C; }
     .pill-slate { background: #F1F5F9; color: #475569; }
+    .inv-tabs-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+    .inv-tab-btn { border-radius: 999px; font-weight: 800; }
+    .qty-stepper { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+    .qty-step-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #CBD5E1; background: #fff; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .qty-step-btn:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
 
     #toast {
       position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff;
@@ -206,16 +214,88 @@
         </div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">♻️</div>
+        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">🪵</div>
         <div>
           <div class="kpi-val" id="kpiExistingStockCount">0</div>
-          <div class="kpi-label">Cây tồn kho lẻ trong kho</div>
+          <div class="kpi-label">Cây tồn kho trong đơn</div>
+        </div>
+      </div>
+      <div class="kpi-card" style="border-color:#99F6E4; background:linear-gradient(135deg,#F0FDFA,#FFFFFF);">
+        <div class="kpi-icon" style="background:#CCFBF1; color:#0F766E;">♻️</div>
+        <div>
+          <div class="kpi-val" id="kpiOffcutsCount">0</div>
+          <div class="kpi-label" id="kpiOffcutsLabel">Đoạn đề-xê tái sử dụng</div>
         </div>
       </div>
     </div>
 
+    <!-- Thanh Tab Khu Vực Quản Lý -->
+    <div class="inv-tabs-bar" id="invTabsBar">
+      <button type="button" class="btn btn-sm btn-p inv-tab-btn" data-tab="all">📋 Tất cả khu vực</button>
+      <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="offcuts" style="border-color:#0F766E; color:#0F766E;">♻️ Kho Đề-xê (<span id="tabOffcutsBadge">0</span>)</button>
+      <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="library">📏 Quy cách &amp; Phôi</button>
+      <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="bom">📊 Bảng BOM &amp; Xuất</button>
+    </div>
+
+    <!-- Section 0: Kho Đề-xê Tái Sử Dụng (Offcuts) -->
+    <section class="card" id="sectionOffcuts" style="border:1.5px solid #99F6E4;">
+      <div class="card-head">
+        <div>
+          <h2>♻️ Kho Phôi Đề-xê Tái Sử Dụng (Dùng chung toàn xưởng)</h2>
+          <div class="card-sub" style="margin-bottom:0;">Tổng hợp các đoạn thép dư hữu dụng từ máy cắt CNC. Thợ CNC và Kỹ sư đều có thể nhập kho; Kỹ sư tận dụng khi xếp phôi để tiết kiệm cây mới.</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <select id="selFilterOffcutProf" style="min-width:175px; min-height:34px; font-size:13px;">
+            <option value="ALL">Tất cả quy cách</option>
+          </select>
+          <input type="text" id="inpSearchOffcut" placeholder="🔍 Tìm dự án / ghi chú..." style="max-width:200px; min-height:34px; font-size:13px;">
+        </div>
+      </div>
+
+      <div id="offcutsMigrationWarn" style="display:none; margin:10px 0; padding:10px 14px; border-radius:10px; background:#FEF3C7; border:1.5px solid #F59E0B; color:#92400E; font-size:13px; font-weight:700;">
+        ⚠️ Bảng <code>public.stock_offcuts</code> chưa được tạo trên Supabase. Admin vui lòng chạy file <code>supabase_migration_dot3_offcuts_ux.sql</code> trong Supabase SQL Editor để bật Kho đề-xê!
+      </div>
+
+      <!-- Form nhập kho đề-xê thủ công (cả operator, engineer, admin đều được INSERT theo RLS) -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; margin:12px 0; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; align-items:end;">
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Quy cách thép *</label>
+          <select id="selOffcutProf"></select>
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Chiều dài dư (mm) *</label>
+          <input type="number" id="inpOffcutLen" value="1200" min="50" step="10">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Số đoạn *</label>
+          <input type="number" id="inpOffcutQty" value="1" min="1">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Ghi chú / Vị trí kệ</label>
+          <input type="text" id="inpOffcutNotes" placeholder="Vd: Kệ B2 · Dư cắt khung">
+        </div>
+        <button type="button" class="btn btn-p" id="btnAddOffcut" style="min-height:38px;">📥 + Nhập kho đề-xê</button>
+      </div>
+
+      <div class="table-responsive" style="margin-top:10px;">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Quy cách</th>
+              <th class="r">Chiều dài (mm)</th>
+              <th class="r">Số lượng còn</th>
+              <th>Nguồn / Dự án tạo</th>
+              <th>Người nhập &amp; Ghi chú</th>
+              <th class="r eng-only">Thanh lý</th>
+            </tr>
+          </thead>
+          <tbody id="offcutsTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Section 1: Thư viện Quy cách Hộp & Ống -->
-    <section class="card">
+    <section class="card" id="sectionProfiles">
       <div class="card-head">
         <div>
           <h2>1. Thư Viện Bộ Nhớ Quy Cách Hộp &amp; Ống</h2>
@@ -250,7 +330,7 @@
     </section>
 
     <!-- Section 2: Quản lý Cây Phôi Nguyên & Phôi Tồn Kho Lẻ -->
-    <section class="card">
+    <section class="card" id="sectionStock">
       <div class="card-head">
         <div>
           <h2>2. Cây Phôi Nguyên &amp; Phôi Tồn Kho Lẻ (Dự Án Đang Mở)</h2>
@@ -296,7 +376,7 @@
     </section>
 
     <!-- Section 3: Bảng Tổng Hợp Vật Tư Cần Đặt Hàng (BOM) -->
-    <section class="card">
+    <section class="card" id="sectionBom">
       <div class="card-head">
         <div>
           <h2>3. Bảng Tổng Hợp Vật Tư Cần Đặt Hàng (BOM)</h2>
@@ -304,7 +384,8 @@
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button type="button" class="btn btn-soft btn-sm" id="btnCopyBomZalo">📋 Chép bảng vật tư Zalo</button>
-          <button type="button" class="btn btn-p btn-sm" id="btnExportBomCsv">📊 Xuất Excel (.CSV)</button>
+          <button type="button" class="btn btn-soft btn-sm" id="btnPrintA4Inv">🖨️ In Phiếu A4 (QR)</button>
+          <button type="button" class="btn btn-p btn-sm" id="btnExportBomCsv">📊 Xuất Excel (.xlsx)</button>
         </div>
       </div>
 
@@ -319,6 +400,8 @@
 
     let currentUser = null;
     let savedProfiles = [];
+    let stockOffcuts = [];
+    let activeInvTab = (window.location.hash === '#offcuts') ? 'offcuts' : 'all';
     let currentProjectRecord = null;
     let activeProject = null;
     let lastSolveResult = null;
@@ -495,16 +578,19 @@
     async function loadInventoryData() {
       if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
         savedProfiles = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_PROFILES : []).slice();
+        stockOffcuts = [];
         applyProjectRecord(null);
         renderAll();
         return;
       }
       window.SupabaseDB.setLoading(true, 'Đang tải kho quy cách & vật tư...');
       try {
-        const [invRows, allProjs] = await Promise.all([
+        const [invRows, allProjs, loadedOffcuts] = await Promise.all([
           window.SupabaseDB.getInventory(),
-          window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true })
+          window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true }),
+          window.SupabaseDB.getStockOffcuts().catch(() => [])
         ]);
+        stockOffcuts = Array.isArray(loadedOffcuts) ? loadedOffcuts : [];
         savedProfiles = invRows.map(r => r.profileName).filter(Boolean);
         if (!savedProfiles.length) {
           savedProfiles = window.SupabaseDB.DEFAULT_PROFILES.slice();
@@ -528,6 +614,7 @@
 
         applyProjectRecord(chosen);
         window.SupabaseDB.clearConnectionError();
+        switchInvTab(activeInvTab);
         renderAll();
         initRealtime();
       } catch (err) {
@@ -596,6 +683,16 @@
             renderAll();
           }
         },
+        stock_offcuts: (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          if (ev.eventType === 'DELETE' && old && old.id) {
+            stockOffcuts = stockOffcuts.filter(o => o.id !== old.id);
+          } else if (rec && rec.id) {
+            stockOffcuts = [rec, ...stockOffcuts.filter(o => o.id !== rec.id)];
+          }
+          renderOffcutsSection();
+        },
         profiles: (ev) => {
           if (currentUser && ev.newRecord && ev.newRecord.id === currentUser.id) {
             applyLoggedInUserUI(Object.assign({}, currentUser, ev.newRecord));
@@ -652,6 +749,154 @@
       return lastSolveResult;
     }
 
+    function switchInvTab(tabName) {
+      activeInvTab = tabName || 'all';
+      const secOff = $('sectionOffcuts');
+      const secProf = $('sectionProfiles');
+      const secStock = $('sectionStock');
+      const secBom = $('sectionBom');
+      if (secOff) secOff.style.display = (activeInvTab === 'all' || activeInvTab === 'offcuts') ? 'block' : 'none';
+      if (secProf) secProf.style.display = (activeInvTab === 'all' || activeInvTab === 'library') ? 'block' : 'none';
+      if (secStock) secStock.style.display = (activeInvTab === 'all' || activeInvTab === 'library') ? 'block' : 'none';
+      if (secBom) secBom.style.display = (activeInvTab === 'all' || activeInvTab === 'bom') ? 'block' : 'none';
+
+      document.querySelectorAll('.inv-tab-btn').forEach(btn => {
+        const isAct = btn.dataset.tab === activeInvTab;
+        btn.className = isAct ? 'btn btn-sm btn-p inv-tab-btn' : 'btn btn-sm btn-soft inv-tab-btn';
+        if (btn.dataset.tab === 'offcuts' && !isAct) {
+          btn.style.borderColor = '#0F766E';
+          btn.style.color = '#0F766E';
+        } else {
+          btn.style.borderColor = '';
+          btn.style.color = '';
+        }
+      });
+    }
+
+    function formatShortDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderOffcutsSection() {
+      const warn = $('offcutsMigrationWarn');
+      if (warn && window.SupabaseDB && typeof window.SupabaseDB.isOffcutsTableReady === 'function') {
+        warn.style.display = window.SupabaseDB.isOffcutsTableReady() ? 'none' : 'block';
+      }
+
+      const allProfs = Array.from(new Set([...((activeProject && activeProject.activeProfiles) || []), ...savedProfiles, ...stockOffcuts.map(o => o.profile).filter(Boolean)]));
+      const selAdd = $('selOffcutProf');
+      if (selAdd) {
+        const prevVal = selAdd.value;
+        selAdd.innerHTML = allProfs.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+        if (prevVal && allProfs.includes(prevVal)) selAdd.value = prevVal;
+      }
+
+      const selFilter = $('selFilterOffcutProf');
+      if (selFilter) {
+        const prevFilter = selFilter.value || 'ALL';
+        const usedProfs = Array.from(new Set(stockOffcuts.map(o => o.profile).filter(Boolean)));
+        selFilter.innerHTML = '<option value="ALL">Tất cả quy cách</option>' + usedProfs.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+        selFilter.value = (prevFilter === 'ALL' || usedProfs.includes(prevFilter)) ? prevFilter : 'ALL';
+      }
+
+      const totalPieces = stockOffcuts.reduce((acc, o) => acc + Math.max(0, Number(o.quantity) || 0), 0);
+      const totalMeters = stockOffcuts.reduce((acc, o) => acc + ((Number(o.lengthMm) || 0) * Math.max(0, Number(o.quantity) || 0)) / 1000, 0);
+      if ($('kpiOffcutsCount')) $('kpiOffcutsCount').textContent = numVN(totalPieces);
+      if ($('kpiOffcutsLabel')) $('kpiOffcutsLabel').textContent = `Đoạn đề-xê (${numVN(totalMeters, 2)} m)`;
+      if ($('tabOffcutsBadge')) $('tabOffcutsBadge').textContent = numVN(totalPieces);
+
+      const tbody = $('offcutsTableBody');
+      if (!tbody) return;
+      const filterP = selFilter ? selFilter.value : 'ALL';
+      const q = ($('inpSearchOffcut') ? $('inpSearchOffcut').value : '').trim().toLowerCase();
+
+      const filtered = stockOffcuts.filter(o => {
+        if (filterP !== 'ALL' && o.profile !== filterP) return false;
+        if (!q) return true;
+        return `${o.profile} ${o.sourceProjectName} ${o.sourceBarKey} ${o.notes} ${o.createdBy} ${o.lengthMm}`.toLowerCase().includes(q);
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:26px; color:#64748B;">Chưa có đoạn đề-xê nào trong kho. Thợ CNC có thể bấm <b>"📥 Nhập kho đề-xê"</b> trên màn hình <code>/cnc</code> hoặc nhập thủ công ở form phía trên.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(o => {
+        const srcHtml = o.sourceProjectName || o.sourceBarKey
+          ? `<div><b>${escapeHtml(o.sourceProjectName || 'Dự án xưởng')}</b></div>${o.sourceBarKey ? `<div style="font-size:11.5px; color:#64748B;">Cây: <code>${escapeHtml(o.sourceBarKey.replace('__', ' - '))}</code></div>` : ''}`
+          : '<span style="color:#64748B;">Nhập thủ công tại kho</span>';
+        const metaHtml = `
+          ${o.createdBy ? `<span class="pill pill-slate">@${escapeHtml(o.createdBy)}</span>` : ''}
+          ${o.createdAt ? `<span style="font-size:11.5px; color:#64748B; margin-left:4px;">${escapeHtml(formatShortDate(o.createdAt))}</span>` : ''}
+          ${o.notes ? `<div style="font-size:12px; color:#334155; margin-top:3px;">${escapeHtml(o.notes)}</div>` : ''}
+        `;
+        return `
+          <tr>
+            <td><span class="pill pill-teal">${escapeHtml(o.profile)}</span></td>
+            <td class="r" style="font-weight:800; color:var(--dark); font-size:15px;">${numVN(o.lengthMm)} mm</td>
+            <td class="r">
+              <div class="qty-stepper">
+                <button type="button" class="qty-step-btn eng-only btn-offcut-qty" data-id="${escapeHtml(o.id)}" data-delta="-1" title="Giảm 1 đoạn">−</button>
+                <strong style="min-width:28px; text-align:center; font-size:15px; color:${o.quantity > 0 ? '#0F766E' : '#94A3B8'};">${numVN(o.quantity)}</strong>
+                <button type="button" class="qty-step-btn eng-only btn-offcut-qty" data-id="${escapeHtml(o.id)}" data-delta="1" title="Tăng 1 đoạn">+</button>
+              </div>
+            </td>
+            <td>${srcHtml}</td>
+            <td>${metaHtml || '—'}</td>
+            <td class="r eng-only">
+              <button type="button" class="btn btn-sm btn-danger btn-del-offcut" data-id="${escapeHtml(o.id)}" title="Thanh lý / Xóa khỏi kho đề-xê">🗑️ Xóa</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('.btn-offcut-qty').forEach(b => b.onclick = async () => {
+        const off = stockOffcuts.find(x => x.id === b.dataset.id);
+        if (!off) return;
+        const delta = parseInt(b.dataset.delta, 10) || 0;
+        const nextQty = Math.max(0, (Number(off.quantity) || 0) + delta);
+        if (nextQty === 0) {
+          if (!confirm(`Số lượng đề-xê ${off.profile} (${numVN(off.lengthMm)} mm) sẽ về 0. Xóa luôn khỏi kho đề-xê?`)) return;
+        }
+        window.SupabaseDB.setLoading(true, 'Đang cập nhật số lượng đề-xê...');
+        try {
+          const res = await window.SupabaseDB.updateStockOffcut(off.id, { quantity: nextQty, deleteIfZero: true });
+          if (res && res.deleted) {
+            stockOffcuts = stockOffcuts.filter(x => x.id !== off.id);
+            showToast('🗑️ Đã xóa đoạn đề-xê đã dùng hết khỏi kho');
+          } else if (res) {
+            stockOffcuts = stockOffcuts.map(x => x.id === off.id ? res : x);
+            showToast(`✓ Đã cập nhật còn ${numVN(res.quantity)} đoạn`);
+          }
+          renderOffcutsSection();
+        } catch (err) {
+          showToast('❌ Lỗi cập nhật đề-xê: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
+      });
+
+      tbody.querySelectorAll('.btn-del-offcut').forEach(b => b.onclick = async () => {
+        const off = stockOffcuts.find(x => x.id === b.dataset.id);
+        if (!off) return;
+        if (!confirm(`Thanh lý / xóa đoạn đề-xê "${off.profile} · ${numVN(off.lengthMm)} mm (SL: ${off.quantity})" khỏi kho?`)) return;
+        window.SupabaseDB.setLoading(true, 'Đang xóa đề-xê...');
+        try {
+          await window.SupabaseDB.deleteStockOffcut(off.id);
+          stockOffcuts = stockOffcuts.filter(x => x.id !== off.id);
+          renderOffcutsSection();
+          showToast('🗑️ Đã xóa đoạn đề-xê khỏi kho');
+        } catch (err) {
+          showToast('❌ Lỗi xóa đề-xê: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
+      });
+    }
+
     function renderAll() {
       const res = solveBOM();
       $('kpiTotalProfiles').textContent = savedProfiles.length;
@@ -660,6 +905,7 @@
       const existingCount = (activeProject && activeProject.stock ? activeProject.stock : []).filter(s => s.qty != null && s.qty !== '').reduce((a, b) => a + (Number(b.qty) || 0), 0);
       $('kpiExistingStockCount').textContent = numVN(existingCount);
 
+      renderOffcutsSection();
       renderProfilesTable();
       renderStockSelectAndTable();
       renderBOM(res);
@@ -844,7 +1090,22 @@
     }
 
     function exportBomCsv() {
-      if (!lastSolveResult) { showToast('Chưa có dữ liệu BOM để xuất CSV!'); return; }
+      if (!lastSolveResult) { showToast('Chưa có dữ liệu BOM để xuất Excel!'); return; }
+      if (window.WorkshopExport) {
+        try {
+          const expRes = window.WorkshopExport.exportExcelXlsx({
+            project: currentProjectRecord || activeProject,
+            result: lastSolveResult,
+            parts: (activeProject && activeProject.parts) || [],
+            cutStatuses: {},
+            exportedBy: currentUser ? currentUser.username : ''
+          });
+          showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);
+          return;
+        } catch (err) {
+          console.warn('Fallback CSV BOM export:', err);
+        }
+      }
       const rows = [['Loại hộp', 'Cây vật tư', 'Chiều dài (mm)', 'Số lượng có sẵn', 'Cần dùng', 'Ghi chú']];
       lastSolveResult.byStockType.filter(s => s.usedQty > 0).forEach(s => {
         rows.push([s.profile || 'Chung', s.label, s.length, s.availableQty === null ? 'Vô hạn' : s.availableQty, s.usedQty, s.availableQty === null ? 'Mua mới' : 'Lấy tồn kho']);
@@ -857,6 +1118,29 @@
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
       showToast('📊 Đã xuất file Excel CSV bảng vật tư!');
+    }
+
+    async function printBomA4Sheet() {
+      if (!lastSolveResult || !lastSolveResult.bars || !lastSolveResult.bars.length) {
+        showToast('⚠️ Chưa có dữ liệu xếp phôi để in phiếu A4!');
+        return;
+      }
+      let cutMap = {};
+      const pid = (currentProjectRecord && currentProjectRecord.id) || (activeProject && activeProject.currentProjectId);
+      if (pid && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        try { cutMap = await window.SupabaseDB.getCutProgress(pid); } catch (e) {}
+      }
+      if (window.WorkshopExport) {
+        window.WorkshopExport.printProductionSheet({
+          project: currentProjectRecord || activeProject,
+          result: lastSolveResult,
+          parts: (activeProject && activeProject.parts) || [],
+          cutStatuses: cutMap,
+          exportedBy: currentUser ? currentUser.username : ''
+        });
+      } else {
+        window.print();
+      }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -924,7 +1208,49 @@
         showToast(`✓ Đã thêm cây phôi "${name}" (${numVN(len)} mm)!`);
       };
 
+      document.querySelectorAll('.inv-tab-btn').forEach(btn => {
+        btn.onclick = () => switchInvTab(btn.dataset.tab || 'all');
+      });
+      window.addEventListener('hashchange', () => {
+        if (window.location.hash === '#offcuts') switchInvTab('offcuts');
+      });
+      if ($('selFilterOffcutProf')) $('selFilterOffcutProf').onchange = renderOffcutsSection;
+      if ($('inpSearchOffcut')) $('inpSearchOffcut').oninput = renderOffcutsSection;
+      if ($('btnAddOffcut')) {
+        $('btnAddOffcut').onclick = async () => {
+          const prof = ($('selOffcutProf') && $('selOffcutProf').value) || 'Hộp 30x30x1.8';
+          const len = parseFloat($('inpOffcutLen').value) || 0;
+          const qty = Math.max(1, parseInt($('inpOffcutQty').value, 10) || 1);
+          const notes = ($('inpOffcutNotes').value || '').trim();
+          if (len <= 0) {
+            showToast('⚠️ Chiều dài đề-xê phải lớn hơn 0 mm!');
+            return;
+          }
+          window.SupabaseDB.setLoading(true, 'Đang nhập kho đề-xê...');
+          try {
+            const created = await window.SupabaseDB.addStockOffcut({
+              profile: prof,
+              lengthMm: len,
+              quantity: qty,
+              notes: notes,
+              createdBy: currentUser ? currentUser.username : ''
+            });
+            if (created && !stockOffcuts.some(o => o.id === created.id)) {
+              stockOffcuts.unshift(created);
+            }
+            if ($('inpOffcutNotes')) $('inpOffcutNotes').value = '';
+            renderOffcutsSection();
+            showToast(`♻️ Đã nhập kho đề-xê: ${qty} đoạn ${prof} (${numVN(len)} mm)!`);
+          } catch (err) {
+            showToast('❌ Lỗi nhập kho đề-xê: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
+        };
+      }
+
       $('btnCopyBomZalo').onclick = copyBomZalo;
+      if ($('btnPrintA4Inv')) $('btnPrintA4Inv').onclick = printBomA4Sheet;
       $('btnExportBomCsv').onclick = exportBomCsv;
 
       if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {

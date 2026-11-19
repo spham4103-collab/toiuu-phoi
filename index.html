@@ -15,6 +15,9 @@
   <script src="toi-uu-engine.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="/js/workshopExport.js"></script>
   <script id="embeddedFusionData" type="application/json"></script>
   <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
   <style>
@@ -1913,6 +1916,19 @@
             Cây tồn kho nhập số lượng có sẵn (ưu tiên vét trước). Cây mua mới 6m luôn sẵn sàng.
           </p>
 
+          <!-- Gợi ý tận dụng Kho Đề-xê tái sử dụng (Mục 3.1.1) -->
+          <div id="offcutSuggestionBox" class="no-print" style="display:none; margin-bottom:12px; padding:10px 12px; background:#F0FDFA; border:1.5px solid #5EEAD4; border-radius:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+              <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-weight:800; font-size:13px; color:#0F766E;">
+                <input type="checkbox" id="chkUseWarehouseOffcuts" style="width:16px; height:16px; accent-color:#0F766E;">
+                <span>♻️ Ưu tiên cắt từ phôi đề-xê đang có trong kho</span>
+              </label>
+              <a href="/inventory.html#offcuts" style="font-size:11.5px; font-weight:700; color:#0F766E; text-decoration:underline;">Mở Kho đề-xê ↗</a>
+            </div>
+            <div id="offcutSuggestionDetail" style="font-size:12px; color:#134E4A; line-height:1.45;"></div>
+            <div id="offcutActionRow" style="display:none; margin-top:7px;"></div>
+          </div>
+
           <!-- Stock Table Responsive Wrapper -->
           <div class="table-responsive stock-table-wrap">
             <div class="stock-header">
@@ -2001,11 +2017,11 @@
           </button>
           <button class="btn btn-soft btn-sm" id="btnPrintPDF">
             <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            In / PDF
+            In Phiếu A4 (QR)
           </button>
           <button class="btn btn-soft btn-sm" id="btnExportCSV">
             <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Xuất Excel
+            Xuất Excel (.xlsx)
           </button>
         </div>
       </div>
@@ -2435,6 +2451,10 @@
       isApplyingRemoteChange: false,
       userRole: "operator",
       cutStatuses: {},
+      stockOffcuts: [],
+      useWarehouseOffcuts: false,
+      offcutsDeducted: false,
+      offcutsDeductedAt: null,
       users: [],
       currentUser: null
     };
@@ -2732,6 +2752,9 @@
         clamp: state.clamp,
         interlock: state.interlock,
         gap: state.gap,
+        useWarehouseOffcuts: Boolean(state.useWarehouseOffcuts),
+        offcutsDeducted: Boolean(state.offcutsDeducted),
+        offcutsDeductedAt: state.offcutsDeductedAt || null,
         fusionProject: state.fusionProject || null,
         isBlankReset: !!state.isBlankReset
       };
@@ -2816,6 +2839,9 @@
       state.clamp = d.clamp != null ? d.clamp : 80;
       state.interlock = d.interlock != null ? d.interlock : true;
       state.gap = d.gap != null ? d.gap : 0;
+      state.useWarehouseOffcuts = Boolean(d.useWarehouseOffcuts);
+      state.offcutsDeducted = Boolean(d.offcutsDeducted);
+      state.offcutsDeductedAt = d.offcutsDeductedAt || null;
 
       if (state.currentProjectId) {
         try { localStorage.setItem(LS_CURRENT_PROJ_ID, state.currentProjectId); } catch (e) {}
@@ -2996,17 +3022,296 @@
       }
     }
 
+    function formatShortCutTime(isoStr) {
+      if (!isoStr) return '';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      const now = new Date();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      if (d.toDateString() === now.toDateString()) return `${hh}:${mm}`;
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mo} ${hh}:${mm}`;
+    }
+
+    async function initStockOffcuts() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        state.stockOffcuts = [];
+        return [];
+      }
+      try {
+        const rows = await window.SupabaseDB.getStockOffcuts({ onlyAvailable: true });
+        state.stockOffcuts = Array.isArray(rows) ? rows : [];
+        return state.stockOffcuts;
+      } catch (err) {
+        console.warn('Lỗi tải kho đề-xê:', err);
+        return state.stockOffcuts || [];
+      }
+    }
+
+    function getUsedOffcutsFromResult(resultObj, stockArr) {
+      const res = resultObj || state.result;
+      const stList = Array.isArray(stockArr) ? stockArr : state.stock;
+      if (!res || !Array.isArray(res.byStockType) || !Array.isArray(stList)) return [];
+
+      const out = [];
+      const seenProfiles = new Set(res.byStockType.map(b => b.profile || 'Chung'));
+      seenProfiles.forEach(prof => {
+        const ps = stList.filter(s => Number(s.length) > 0 && (s.profile || 'Chung') === prof);
+        const bts = res.byStockType.filter(b => (b.profile || 'Chung') === prof);
+        for (let i = 0; i < Math.min(ps.length, bts.length); i++) {
+          const srcStock = ps[i];
+          const resStock = bts[i];
+          if (srcStock && srcStock._fromOffcut && srcStock.offcutId && resStock && (Number(resStock.usedQty) || 0) > 0) {
+            out.push({
+              id: srcStock.offcutId,
+              profile: prof,
+              lengthMm: Number(srcStock.length) || 0,
+              usedQty: Number(resStock.usedQty) || 0
+            });
+          }
+        }
+      });
+      return out;
+    }
+
+    function computeUsedOffcutsForAnyProject(projRec) {
+      if (!projRec) return [];
+      if (projRec.id === state.currentProjectId && state.result) {
+        return getUsedOffcutsFromResult(state.result, state.stock);
+      }
+      const d = projRec.data || {};
+      const parts = Array.isArray(d.parts) ? d.parts.filter(p => Number(p.length) > 0 && Number(p.qty) > 0) : [];
+      const stList = Array.isArray(d.stock) ? d.stock : [];
+      if (!parts.length || !stList.some(s => s._fromOffcut && s.offcutId) || typeof RC === 'undefined') return [];
+
+      const clampTail = d.clamp != null ? Number(d.clamp) : 80;
+      const stockForEngine = stList.filter(s => Number(s.length) > 0).map((s, idx) => ({
+        label: s.name || (s.qty === null ? `Cây mới ${numVN(s.length)}` : `Cây tồn ${numVN(s.length)}`),
+        length: Number(s.length),
+        clampTail,
+        qty: s.qty,
+        priority: s._fromOffcut ? (-1000 + idx) : idx,
+        profile: s.profile || 'Chung'
+      }));
+      try {
+        const simRes = RC.solve({
+          kerf: Number(d.kerf) || 0,
+          interlock: d.interlock != null ? Boolean(d.interlock) : true,
+          gap: Number(d.gap) || 0,
+          stock: stockForEngine,
+          parts: parts.map(p => ({
+            label: p.id,
+            length: Number(p.length),
+            qty: Number(p.qty),
+            end_style: p.style || 'thang',
+            mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? Number(p.mat) : extractMatFromProfile(p.profile)),
+            profile: p.profile || 'Chung'
+          }))
+        });
+        return getUsedOffcutsFromResult(simRes, stList);
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function syncOffcutsIntoProjectStock(enable) {
+      const keepManual = (state.stock || []).filter(s => !s._fromOffcut);
+      if (!enable) {
+        state.stock = keepManual;
+        state.useWarehouseOffcuts = false;
+        return;
+      }
+      state.useWarehouseOffcuts = true;
+      const targetProfiles = new Set([
+        ...(state.activeProfiles || []),
+        ...((state.parts || []).map(p => p.profile || 'Chung'))
+      ]);
+      const matchedOffcuts = (state.stockOffcuts || []).filter(o => Number(o.quantity) > 0 && targetProfiles.has(o.profile));
+      const offcutRows = matchedOffcuts.map(off => ({
+        id: 'off_' + off.id,
+        offcutId: off.id,
+        _fromOffcut: true,
+        profile: off.profile,
+        name: `♻️ Đề-xê kho (${numVN(off.lengthMm)}mm${off.sourceBarKey ? ' · ' + off.sourceBarKey.split('__').pop() : ''})`,
+        length: Number(off.lengthMm),
+        qty: Number(off.quantity),
+        clamp: state.clamp
+      }));
+      state.stock = offcutRows.concat(keepManual);
+    }
+
+    function renderOffcutSuggestionBox() {
+      const box = $('offcutSuggestionBox');
+      const detail = $('offcutSuggestionDetail');
+      const chk = $('chkUseWarehouseOffcuts');
+      const actRow = $('offcutActionRow');
+      if (!box || !detail || !chk) return;
+
+      const curProfiles = (state.selectedTabProfile && state.selectedTabProfile !== 'ALL')
+        ? [state.selectedTabProfile]
+        : (state.activeProfiles || []);
+      const allRelevantProfiles = new Set([
+        ...curProfiles,
+        ...(state.activeProfiles || []),
+        ...((state.parts || []).map(p => p.profile || 'Chung'))
+      ]);
+
+      const availableAll = (state.stockOffcuts || []).filter(o => Number(o.quantity) > 0 && allRelevantProfiles.has(o.profile));
+      const hasExistingOffcutInStock = (state.stock || []).some(s => s._fromOffcut);
+
+      if (!availableAll.length && !hasExistingOffcutInStock && !state.useWarehouseOffcuts && !state.offcutsDeducted) {
+        box.style.display = 'none';
+        return;
+      }
+
+      box.style.display = 'block';
+      chk.checked = Boolean(state.useWarehouseOffcuts);
+
+      const curProj = state.currentProjectId ? (state.savedProjects || []).find(p => p.id === state.currentProjectId) : null;
+      const locked = Boolean(curProj && curProj.isLocked) || state.userRole === 'operator';
+      chk.disabled = locked || Boolean(state.offcutsDeducted);
+
+      if (availableAll.length) {
+        const byProf = {};
+        availableAll.forEach(o => {
+          if (!byProf[o.profile]) byProf[o.profile] = [];
+          byProf[o.profile].push(`${o.quantity}×${numVN(o.lengthMm)}mm`);
+        });
+        detail.innerHTML = Object.keys(byProf).map(p => `• <b>${escapeHtml(p)}:</b> ${escapeHtml(byProf[p].join(', '))}`).join('<br>');
+      } else {
+        detail.innerHTML = '<span style="color:#64748B;">Hiện kho đề-xê cho quy cách này đang trống.</span>';
+      }
+
+      if (actRow) {
+        const usedItems = getUsedOffcutsFromResult();
+        if (state.offcutsDeducted) {
+          actRow.style.display = 'block';
+          actRow.innerHTML = `<span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:#15803D;">✅ Đã trừ đề-xê sử dụng khỏi kho chung${state.offcutsDeductedAt ? ' (' + formatShortCutTime(state.offcutsDeductedAt) + ')' : ''}</span>`;
+        } else if (usedItems.length > 0 && state.userRole !== 'operator') {
+          const totalUsed = usedItems.reduce((a, b) => a + b.usedQty, 0);
+          actRow.style.display = 'flex';
+          actRow.style.alignItems = 'center';
+          actRow.style.gap = '8px';
+          actRow.style.flexWrap = 'wrap';
+          actRow.innerHTML = `
+            <span style="font-size:12px; font-weight:700; color:#0F766E;">✓ Đang tận dụng <b>${totalUsed}</b> đoạn đề-xê cho phương án này.</span>
+            <button type="button" class="btn btn-p btn-sm" id="btnDeductUsedOffcuts" style="min-height:30px; padding:3px 10px; font-size:12px;">✅ Trừ ${totalUsed} đoạn khỏi kho</button>
+          `;
+          const btnDed = $('btnDeductUsedOffcuts');
+          if (btnDed) btnDed.onclick = () => deductUsedOffcutsFromWarehouse();
+        } else {
+          actRow.style.display = 'none';
+          actRow.innerHTML = '';
+        }
+      }
+    }
+
+    async function deductUsedOffcutsFromWarehouse(skipAlert = false) {
+      if (state.offcutsDeducted) return true;
+      const usedItems = getUsedOffcutsFromResult();
+      if (!usedItems.length) {
+        if (!skipAlert) showToast('Phương án hiện tại chưa sử dụng đoạn đề-xê nào!');
+        return false;
+      }
+      const totalUsed = usedItems.reduce((a, b) => a + b.usedQty, 0);
+      if (!skipAlert && !confirm(`Xác nhận trừ ${totalUsed} đoạn đề-xê đã dùng khỏi Kho Đề-xê chung trên Supabase?`)) {
+        return false;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang trừ kho đề-xê trên Supabase...');
+      try {
+        await window.SupabaseDB.consumeStockOffcuts(usedItems);
+        state.offcutsDeducted = true;
+        state.offcutsDeductedAt = new Date().toISOString();
+        await initStockOffcuts();
+        state.hasPendingActiveSave = false;
+        clearTimeout(state.activeSaveTimer);
+        state.lastLocalProjectWriteAt = Date.now();
+        const snap = buildActiveDataSnapshot();
+        if (state.currentProjectId) {
+          const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+          if (!curProj || !curProj.isLocked) {
+            const updated = await window.SupabaseDB.updateProjectFields(state.currentProjectId, { data: snap });
+            if (curProj && updated) Object.assign(curProj, updated);
+          }
+        } else {
+          await window.SupabaseDB.saveDraftProject(snap);
+        }
+        renderOffcutSuggestionBox();
+        showToast(`♻️ Đã trừ ${totalUsed} đoạn đề-xê khỏi kho chung!`);
+        return true;
+      } catch (err) {
+        showToast('❌ Lỗi trừ kho đề-xê: ' + err.message);
+        return false;
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
     async function toggleProjectLock(projId) {
       const p = (state.savedProjects || []).find(x => x.id === projId);
       if (!p) return;
       const nextLocked = !p.isLocked;
       state.lastLocalProjectWriteAt = Date.now();
+
+      if (nextLocked) {
+        let targetProj = p;
+        if (targetProj.isSummary && targetProj.id !== state.currentProjectId && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          try {
+            const fullP = await window.SupabaseDB.getProjectById(projId);
+            if (fullP) { Object.assign(targetProj, fullP); }
+          } catch (e) {}
+        }
+        const alreadyDeducted = projId === state.currentProjectId
+          ? Boolean(state.offcutsDeducted)
+          : Boolean(targetProj.data && targetProj.data.offcutsDeducted);
+        const usedItems = !alreadyDeducted ? computeUsedOffcutsForAnyProject(targetProj) : [];
+        if (usedItems.length > 0) {
+          const totalUsed = usedItems.reduce((a, b) => a + b.usedQty, 0);
+          const wantDeduct = confirm(
+            `♻️ Đơn hàng "${targetProj.name}" có sử dụng ${totalUsed} đoạn phôi đề-xê từ kho chung.\n\n` +
+            `• Bấm [OK] để TRỪ ${totalUsed} đoạn đề-xê khỏi kho và Khóa bảo vệ dự án.\n` +
+            `• Bấm [Cancel] để giữ nguyên kho đề-xê (vẫn Khóa bảo vệ dự án).`
+          );
+          if (wantDeduct) {
+            window.SupabaseDB.setLoading(true, 'Đang trừ đề-xê khỏi kho...');
+            try {
+              await window.SupabaseDB.consumeStockOffcuts(usedItems);
+              const deductedAt = new Date().toISOString();
+              if (projId === state.currentProjectId) {
+                state.offcutsDeducted = true;
+                state.offcutsDeductedAt = deductedAt;
+                const snap = buildActiveDataSnapshot();
+                const updatedData = await window.SupabaseDB.updateProjectFields(projId, { data: snap });
+                Object.assign(p, updatedData);
+              } else {
+                const nextData = Object.assign({}, targetProj.data || {}, {
+                  offcutsDeducted: true,
+                  offcutsDeductedAt: deductedAt
+                });
+                const updatedData = await window.SupabaseDB.updateProjectFields(projId, { data: nextData });
+                Object.assign(p, updatedData);
+              }
+              await initStockOffcuts();
+              renderOffcutSuggestionBox();
+              showToast(`♻️ Đã trừ ${totalUsed} đoạn đề-xê khỏi kho!`);
+            } catch (err) {
+              showToast('⚠️ Chưa trừ được kho đề-xê: ' + err.message);
+            } finally {
+              window.SupabaseDB.setLoading(false);
+            }
+          }
+        }
+      }
+
       window.SupabaseDB.setLoading(true, 'Đang cập nhật khóa dự án...');
       try {
         const updated = await window.SupabaseDB.updateProjectFields(projId, { isLocked: nextLocked });
         Object.assign(p, updated);
         if (state.currentProjectId === projId) {
           updateProjectActiveBanner();
+          renderOffcutSuggestionBox();
         }
         renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
         if (p.isLocked) {
@@ -3458,6 +3763,9 @@
       state.clamp = d.clamp != null ? d.clamp : 80;
       state.interlock = d.interlock != null ? d.interlock : true;
       state.gap = d.gap != null ? d.gap : 0;
+      state.useWarehouseOffcuts = Boolean(d.useWarehouseOffcuts);
+      state.offcutsDeducted = Boolean(d.offcutsDeducted);
+      state.offcutsDeductedAt = d.offcutsDeductedAt || null;
 
       // Đảm bảo các loại hộp của dự án xuất hiện trong bộ nhớ mẫu
       let addedToMemory = false;
@@ -3839,6 +4147,9 @@
       state.fusionProject = null;
       state.result = null;
       state.cutStatuses = {};
+      state.useWarehouseOffcuts = false;
+      state.offcutsDeducted = false;
+      state.offcutsDeductedAt = null;
       try { localStorage.removeItem(LS_CURRENT_PROJ_ID); } catch (e) {}
 
       state.activeProfiles = ['Hộp 30x30x1.8'];
@@ -3986,6 +4297,20 @@
           updateLiveCuttingProgressUI();
           if (state.result) renderPatternsGrouped(state.result);
         },
+        stock_offcuts: (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          if (ev.eventType === 'DELETE' && old && old.id) {
+            state.stockOffcuts = (state.stockOffcuts || []).filter(o => o.id !== old.id);
+          } else if (rec && rec.id) {
+            if (Number(rec.quantity) > 0) {
+              state.stockOffcuts = [rec, ...(state.stockOffcuts || []).filter(o => o.id !== rec.id)];
+            } else {
+              state.stockOffcuts = (state.stockOffcuts || []).filter(o => o.id !== rec.id);
+            }
+          }
+          renderOffcutSuggestionBox();
+        },
         profiles: async (ev) => {
           if (!state.currentUser) return;
           const rec = ev.newRecord;
@@ -4004,8 +4329,12 @@
         }
       }, {
         onResync: async () => {
-          await initProjectsManager();
-          await loadCutProgressForActiveProject();
+          await Promise.all([
+            initProjectsManager(),
+            initStockOffcuts(),
+            loadCutProgressForActiveProject()
+          ]);
+          renderOffcutSuggestionBox();
         }
       });
     }
@@ -4081,6 +4410,9 @@
       state.clamp = 80;
       state.interlock = true;
       state.gap = 0;
+      state.useWarehouseOffcuts = false;
+      state.offcutsDeducted = false;
+      state.offcutsDeductedAt = null;
 
       updateInputsFromState();
       renderProfileTabs();
@@ -4112,6 +4444,9 @@
       state.clamp = 80;
       state.interlock = true;
       state.gap = 0;
+      state.useWarehouseOffcuts = false;
+      state.offcutsDeducted = false;
+      state.offcutsDeductedAt = null;
 
       updateInputsFromState();
       renderProfileTabs();
@@ -4545,6 +4880,12 @@
       stocksToShow.forEach(stock => {
         const row = document.createElement('div');
         row.className = 'stock-row';
+        if (stock._fromOffcut) {
+          row.style.background = '#F0FDFA';
+          row.style.borderLeft = '3px solid #0F766E';
+          row.style.borderRadius = '6px';
+          row.title = 'Phôi đề-xê lấy từ Kho Đề-xê dùng chung';
+        }
 
         row.innerHTML = `
           <div>
@@ -4577,6 +4918,8 @@
 
         container.appendChild(row);
       });
+
+      renderOffcutSuggestionBox();
     }
 
     // Optimization Calculation (Guaranteed NO auto-scroll while typing!)
@@ -4636,7 +4979,7 @@
           length: s.length,
           clampTail: clampTail,
           qty: s.qty,
-          priority: idx,
+          priority: s._fromOffcut ? (-1000 + idx) : idx,
           profile: s.profile || 'Chung'
         })),
         parts: validParts.map(p => ({
@@ -4779,6 +5122,7 @@
 
       // Grouped Patterns with SVG
       renderPatternsGrouped(res);
+      renderOffcutSuggestionBox();
 
       $('printDate').textContent = `Ngày tính: ${new Date().toLocaleDateString('vi-VN')} · Tổng ${res.totalPiecesCut} chi tiết · ${numProfiles} loại hộp · ${res.bars.length} cây`;
     }
@@ -4964,6 +5308,17 @@
           const isDone = currentCut >= p.count;
           const isPartiallyDone = currentCut > 0 && currentCut < p.count;
 
+          const normP = s => String(s || '').toLowerCase().replace(/[\s_]+/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const curProjForIgs = state.currentProjectId ? (state.savedProjects || []).find(x => x.id === state.currentProjectId) : null;
+          const hasIgsMeta = Boolean(curProjForIgs && Array.isArray(curProjForIgs.igsFiles) && curProjForIgs.igsFiles.some(f => f.letter === letter && (!f.profile || normP(f.profile) === normP(prof))));
+          const hasFusionNested = Boolean(state.fusionProject && Array.isArray(state.fusionProject.nested_bars) && state.fusionProject.nested_bars.some(b => b.letter === letter && (normP(b.profile) === normP(prof) || normP(b.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(b.profile)))));
+          const igsOriginBadge = (hasIgsMeta || hasFusionNested)
+            ? '<span style="font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#166534; border:1px solid #86EFAC;">🟢 File Solid Fusion 360</span>'
+            : '<span style="font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; background:#FEF9C3; color:#854D0E; border:1px solid #FDE047;">🟡 Sinh tự động từ web</span>';
+          const cutByLine = (cutRecord && (cutRecord.updatedBy || cutRecord.updatedAt))
+            ? `<div style="margin-top:6px; font-size:11.5px; color:#475569; font-weight:600;">👤 Cập nhật bởi <b>@${escapeHtml(cutRecord.updatedBy || 'xưởng')}</b>${cutRecord.updatedAt ? ' · ' + escapeHtml(formatShortCutTime(cutRecord.updatedAt)) : ''}</div>`
+            : '';
+
           patternsHTML += `
             <div class="pattern-card ${isDone ? 'pattern-card-done' : ''}" style="${isHashMismatch ? 'border:2px solid #DC2626; background:#FEF2F2;' : (isDone ? 'border:2px solid #16A34A; background:#F0FDF4;' : '')}">
               ${isHashMismatch ? `<div style="margin-bottom:8px; padding:7px 11px; border-radius:8px; background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; font-size:12px; font-weight:700;">⚠️ CẢNH BÁO LỆCH SƠ ĐỒ CẮT: Sơ đồ cây ${letter} đã thay đổi sau khi bắt đầu cắt (${currentCut}/${p.count} cây). Vui lòng kiểm tra lại trước khi cắt tiếp!</div>` : ''}
@@ -4974,6 +5329,7 @@
                   ${escapeHtml(p.stockLabel)} · ${numVN(p.stockLength)} mm ${p.isNewPurchase ? '' : '(tồn)'} · cắt ${p.cuts.length} chi tiết · dư ${numVN(Math.max(0, p.waste))} mm ${clampW > 0 ? `· kẹp đuôi ${numVN(clampW)} mm` : ''}
                   ${p.interlockSaving > 0 ? `· <span class="saving-badge">xen kẽ bớt ${numVN(p.interlockSaving)} mm</span>` : ''}
                 </span>
+                ${igsOriginBadge}
 
                 <!-- Nút Tích Hoàn Thành Cắt Thực Tế (Live Cut Tracker) -->
                 <button type="button" class="btn btn-sm btn-cut-toggle" data-key="${barKey}" data-total="${p.count}" data-hash="${escapeHtml(patternHash)}" style="font-size:12px; padding:4px 12px; display:inline-flex; align-items:center; gap:5px; font-weight:800; border-radius:8px; cursor:pointer; ${isDone ? 'background:#DCFCE7; color:#15803D; border:1.5px solid #16A34A;' : (isPartiallyDone ? 'background:#FEF3C7; color:#B45309; border:1.5px solid #F59E0B;' : 'background:#FFFFFF; color:#334155; border:1.5px solid #CBD5E1;')}">
@@ -5005,6 +5361,7 @@
               <div class="pattern-items-list">
                 ${pillsHTML}
               </div>
+              ${cutByLine}
             </div>
           `;
         });
@@ -6100,9 +6457,9 @@
     // ==========================================
     function initNetworkAndPWA() {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=12').then(reg => {
+        navigator.serviceWorker.register('/sw.js?v=13').then(reg => {
           reg.update();
-          console.log('PWA Service Worker registered & updated v12:', reg.scope);
+          console.log('PWA Service Worker registered & updated v13:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
@@ -6153,10 +6510,12 @@
       try {
         const results = await Promise.all([
           initSavedProfiles(),
-          initProjectsManager()
+          initProjectsManager(),
+          initStockOffcuts()
         ]);
         draftProject = results[1];
         renderMemoryLibraryChips();
+        renderOffcutSuggestionBox();
       } catch (err) {
         console.error('Lỗi khởi động dữ liệu Supabase:', err);
         if (window.SupabaseDB) window.SupabaseDB.showConnectionError('❌ Không thể tải dữ liệu ban đầu từ Supabase: ' + err.message);
@@ -6388,6 +6747,23 @@
         }
       };
 
+      if ($('chkUseWarehouseOffcuts')) {
+        $('chkUseWarehouseOffcuts').onchange = (e) => {
+          if (checkProjectLockedForEdit()) {
+            e.target.checked = Boolean(state.useWarehouseOffcuts);
+            return;
+          }
+          const wantUse = Boolean(e.target.checked);
+          syncOffcutsIntoProjectStock(wantUse);
+          renderStockList();
+          calculateOptimization(false);
+          saveActiveProject();
+          showToast(wantUse
+            ? '♻️ Đã nạp phôi đề-xê từ kho — ưu tiên vét trước cây 6m mới!'
+            : 'Đã tắt tận dụng đề-xê tự động cho dự án này.');
+        };
+      }
+
       // Add Stock for active box
       $('btnAddStock').onclick = () => {
         const targetProf = state.selectedTabProfile !== 'ALL' ? state.selectedTabProfile : (state.activeProfiles[0] || 'Hộp 30x30x1.8');
@@ -6503,13 +6879,72 @@
         showToast('✓ Đã sao chép vào bộ nhớ tạm!');
       }
 
-      // Print PDF
+      // Print PDF / Phiếu A4 chuẩn xưởng có QR
       $('btnPrintPDF').onclick = () => {
-        window.print();
+        if (!state.result || !state.result.bars || !state.result.bars.length) {
+          showToast('⚠️ Chưa có kết quả xếp phôi để in phiếu A4!');
+          return;
+        }
+        const curProjRec = state.currentProjectId
+          ? (state.savedProjects || []).find(p => p.id === state.currentProjectId)
+          : null;
+        if (window.WorkshopExport) {
+          window.WorkshopExport.printProductionSheet({
+            project: Object.assign({}, curProjRec || {}, {
+              id: state.currentProjectId || '__draft__',
+              name: state.currentProjectName || 'Dự án hiện hành (Nháp)',
+              customer: state.currentProjectCustomer || '',
+              notes: state.currentProjectNotes || '',
+              kerf: state.kerf,
+              clamp: state.clamp,
+              interlock: state.interlock,
+              gap: state.gap
+            }),
+            result: state.result,
+            parts: state.parts || [],
+            cutStatuses: state.cutStatuses || {},
+            exportedBy: state.currentUser ? state.currentUser.username : ''
+          });
+        } else {
+          window.print();
+        }
       };
 
-      // Export CSV
-      $('btnExportCSV').onclick = exportCSV;
+      // Export Excel (.xlsx) 2 sheet (BOM + Sơ đồ cắt)
+      $('btnExportCSV').onclick = () => {
+        if (!state.result || !state.result.bars || !state.result.bars.length) {
+          showToast('⚠️ Chưa có kết quả xếp phôi để xuất Excel!');
+          return;
+        }
+        if (window.WorkshopExport) {
+          try {
+            const curProjRec = state.currentProjectId
+              ? (state.savedProjects || []).find(p => p.id === state.currentProjectId)
+              : null;
+            const expRes = window.WorkshopExport.exportExcelXlsx({
+              project: Object.assign({}, curProjRec || {}, {
+                id: state.currentProjectId || '__draft__',
+                name: state.currentProjectName || 'Dự án hiện hành (Nháp)',
+                customer: state.currentProjectCustomer || '',
+                notes: state.currentProjectNotes || '',
+                kerf: state.kerf,
+                clamp: state.clamp,
+                interlock: state.interlock,
+                gap: state.gap
+              }),
+              result: state.result,
+              parts: state.parts || [],
+              cutStatuses: state.cutStatuses || {},
+              exportedBy: state.currentUser ? state.currentUser.username : ''
+            });
+            showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);
+            return;
+          } catch (err) {
+            console.warn('Fallback exportCSV:', err);
+          }
+        }
+        exportCSV();
+      };
 
       // Paste Modal
       $('btnOpenPaste').onclick = () => { $('modalPaste').style.display = 'flex'; $('txtPaste').focus(); };

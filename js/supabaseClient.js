@@ -33,6 +33,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   var _retryHandler = null;
   var _stylesInjected = false;
   var _supportsPatternHash = true;
+  var _offcutsTableReady = true;
 
   function usernameToEmail(input) {
     var clean = String(input || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -383,6 +384,23 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       patternHash: row.pattern_hash || '',
       updatedBy: row.updated_by || null,
       updatedAt: row.updated_at || new Date().toISOString()
+    };
+  }
+
+  function mapOffcutFromDb(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      profile: row.profile || '',
+      lengthMm: Number(row.length_mm) || 0,
+      quantity: row.quantity != null ? Number(row.quantity) : 0,
+      sourceProjectId: row.source_project_id || null,
+      sourceProjectName: row.source_project_name || '',
+      sourceBarKey: row.source_bar_key || '',
+      notes: row.notes || '',
+      createdBy: row.created_by || '',
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || row.created_at || null
     };
   }
 
@@ -801,6 +819,171 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var res = await client.from('cut_progress').delete().eq('project_id', projectId);
     throwIfError(res, 'Không đặt lại được tiến độ cắt');
     return true;
+  }
+
+  // =========================================================================
+  // CRUD: STOCK OFFCUTS (KHO PHÔI ĐỀ-XÊ TÁI SỬ DỤNG - ĐỢT 3)
+  // =========================================================================
+  function _isMissingOffcutsTableError(err) {
+    if (!err) return false;
+    var msg = String(err.message || '') + ' ' + String(err.details || '') + ' ' + String(err.hint || '');
+    if (err.code === 'PGRST205' || err.code === '42P01') return true;
+    return /stock_offcuts/i.test(msg) && /does not exist|schema cache|not find/i.test(msg);
+  }
+
+  function isOffcutsTableReady() {
+    return _offcutsTableReady;
+  }
+
+  async function getStockOffcuts(opts) {
+    var options = opts || {};
+    var client = getClient();
+    var query = client
+      .from('stock_offcuts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (options.onlyAvailable) {
+      query = query.gt('quantity', 0);
+    }
+    if (options.profile) {
+      query = query.eq('profile', String(options.profile).trim());
+    }
+    var res = await query;
+    if (res && res.error && _isMissingOffcutsTableError(res.error)) {
+      _offcutsTableReady = false;
+      return [];
+    }
+    _offcutsTableReady = true;
+    var rows = throwIfError(res, 'Không tải được kho phôi đề-xê') || [];
+    return rows.map(mapOffcutFromDb);
+  }
+
+  async function addStockOffcut(payload) {
+    var p = payload || {};
+    var profile = String(p.profile || '').trim();
+    var rawLen = p.lengthMm != null ? p.lengthMm : p.length_mm;
+    var lengthMm = Math.round(Number(rawLen) * 100) / 100;
+    var quantity = Math.max(1, parseInt(p.quantity != null ? p.quantity : 1, 10) || 1);
+
+    if (!profile) throw new Error('Thiếu quy cách hộp/ống cho phôi đề-xê');
+    if (!(lengthMm > 0)) throw new Error('Chiều dài phôi đề-xê phải lớn hơn 0 mm');
+
+    var client = getClient();
+    var row = {
+      profile: profile,
+      length_mm: lengthMm,
+      quantity: quantity,
+      source_project_id: p.sourceProjectId || p.source_project_id || null,
+      source_project_name: String(p.sourceProjectName || p.source_project_name || ''),
+      source_bar_key: String(p.sourceBarKey || p.source_bar_key || ''),
+      notes: String(p.notes || ''),
+      created_by: String(p.createdBy || p.created_by || '')
+    };
+
+    var res = await client
+      .from('stock_offcuts')
+      .insert(row)
+      .select()
+      .single();
+
+    if (res && res.error) {
+      if (_isMissingOffcutsTableError(res.error)) {
+        _offcutsTableReady = false;
+        var tblErr = new Error('Bảng public.stock_offcuts chưa được tạo trên Supabase. Vui lòng chạy file supabase_migration_dot3_offcuts_ux.sql trong SQL Editor!');
+        tblErr.code = res.error.code;
+        throw tblErr;
+      }
+      if (res.error.code === '23505') {
+        var dupErr = new Error('Đoạn đề-xê của cây này đã được nhập kho trước đó!');
+        dupErr.code = '23505';
+        throw dupErr;
+      }
+    }
+
+    _offcutsTableReady = true;
+    var saved = throwIfError(res, 'Không nhập được kho đề-xê');
+    return mapOffcutFromDb(saved);
+  }
+
+  async function updateStockOffcut(id, patch) {
+    if (!id || !patch) return null;
+    if (patch.deleteIfZero && patch.quantity !== undefined && Number(patch.quantity) <= 0) {
+      await deleteStockOffcut(id);
+      return { deleted: true, id: id };
+    }
+    var client = getClient();
+    var updateObj = { updated_at: new Date().toISOString() };
+    if (patch.profile !== undefined) updateObj.profile = String(patch.profile || '').trim();
+    if (patch.lengthMm !== undefined || patch.length_mm !== undefined) {
+      var len = Math.round(Number(patch.lengthMm !== undefined ? patch.lengthMm : patch.length_mm) * 100) / 100;
+      if (!(len > 0)) throw new Error('Chiều dài phôi đề-xê phải lớn hơn 0 mm');
+      updateObj.length_mm = len;
+    }
+    if (patch.quantity !== undefined) {
+      updateObj.quantity = Math.max(0, parseInt(patch.quantity, 10) || 0);
+    }
+    if (patch.notes !== undefined) {
+      updateObj.notes = String(patch.notes || '');
+    }
+    var res = await client
+      .from('stock_offcuts')
+      .update(updateObj)
+      .eq('id', id)
+      .select()
+      .single();
+    var updated = throwIfError(res, 'Không cập nhật được phôi đề-xê');
+    return mapOffcutFromDb(updated);
+  }
+
+  async function deleteStockOffcut(id) {
+    if (!id) return false;
+    var client = getClient();
+    var res = await client.from('stock_offcuts').delete().eq('id', id);
+    throwIfError(res, 'Không xóa được phôi đề-xê');
+    return true;
+  }
+
+  async function consumeStockOffcuts(items) {
+    var list = Array.isArray(items) ? items : [];
+    var merged = {};
+    list.forEach(function (it) {
+      if (!it || !it.id) return;
+      var q = Math.max(0, Math.round(Number(it.usedQty != null ? it.usedQty : it.qty) || 0));
+      if (q > 0) {
+        merged[it.id] = (merged[it.id] || 0) + q;
+      }
+    });
+    var ids = Object.keys(merged);
+    if (!ids.length) return { updatedCount: 0, deletedCount: 0, details: [] };
+
+    var client = getClient();
+    var updatedCount = 0;
+    var deletedCount = 0;
+    var details = [];
+
+    for (var i = 0; i < ids.length; i++) {
+      var offId = ids[i];
+      var usedQty = merged[offId];
+      var curRes = await client
+        .from('stock_offcuts')
+        .select('id, profile, length_mm, quantity')
+        .eq('id', offId)
+        .maybeSingle();
+      var cur = throwIfError(curRes, 'Không đọc được số lượng phôi đề-xê hiện tại');
+      if (!cur) continue;
+
+      var remaining = Math.max(0, (Number(cur.quantity) || 0) - usedQty);
+      if (remaining <= 0) {
+        await deleteStockOffcut(offId);
+        deletedCount++;
+        details.push({ id: offId, profile: cur.profile, lengthMm: Number(cur.length_mm), usedQty: usedQty, remaining: 0, action: 'deleted' });
+      } else {
+        await updateStockOffcut(offId, { quantity: remaining });
+        updatedCount++;
+        details.push({ id: offId, profile: cur.profile, lengthMm: Number(cur.length_mm), usedQty: usedQty, remaining: remaining, action: 'updated' });
+      }
+    }
+    return { updatedCount: updatedCount, deletedCount: deletedCount, details: details };
   }
 
   // =========================================================================
@@ -1271,6 +1454,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           raw: payload
         };
       }
+      if (table === 'stock_offcuts') {
+        return {
+          eventType: eventType,
+          newRecord: mapOffcutFromDb(payload.new),
+          oldRecord: mapOffcutFromDb(payload.old),
+          raw: payload
+        };
+      }
       return payload;
     };
 
@@ -1400,6 +1591,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     mapProfileFromDb: mapProfileFromDb,
     mapInventoryFromDb: mapInventoryFromDb,
     mapCutRow: mapCutRow,
+    mapOffcutFromDb: mapOffcutFromDb,
     getAccessToken: getAccessToken,
     signInWithUsername: signInWithUsername,
     signOut: signOut,
@@ -1434,6 +1626,12 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,
     resetCutProgress: resetCutProgress,
+    isOffcutsTableReady: isOffcutsTableReady,
+    getStockOffcuts: getStockOffcuts,
+    addStockOffcut: addStockOffcut,
+    updateStockOffcut: updateStockOffcut,
+    deleteStockOffcut: deleteStockOffcut,
+    consumeStockOffcuts: consumeStockOffcuts,
     extractIgsStoragePath: extractIgsStoragePath,
     downloadIgsBlob: downloadIgsBlob,
     downloadIgsFile: downloadIgsFile,
