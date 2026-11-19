@@ -22,7 +22,8 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <script src="/database/workshop_db.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
 
   <style>
 
@@ -1185,960 +1186,519 @@
   <div id="toast"></div>
 
   <script>
-
     // ========================================================
-
-    // QUẢN TRỊ VIÊN HỆ THỐNG & NHÂN SỰ XƯỞNG AN BÌNH
-
+    // QUẢN TRỊ VIÊN HỆ THỐNG & NHÂN SỰ XƯỞNG AN BÌNH (SUPABASE)
     // ========================================================
-
-    const USERS_STORAGE_KEY = 'toiuu_users_list_v1';
-
     const SESSION_STORAGE_KEY = 'toiuu_logged_user_v1';
 
-    const DEFAULT_USERS = [
-
-      {
-
-        username: 'admin',
-
-        password: '123456',
-
-        fullName: 'Kỹ Sư Thiết Kế (Admin)',
-
-        role: 'engineer',
-
-        createdAt: '2026-01-01T00:00:00.000Z'
-
-      },
-
-      {
-
-        username: 'kt1',
-
-        password: '12345',
-
-        fullName: 'Sơn KT (Kỹ Sư)',
-
-        role: 'engineer',
-
-        createdAt: '2026-01-01T00:00:00.000Z'
-
-      },
-
-      {
-
-        username: 'thocnc',
-
-        password: '1234',
-
-        fullName: 'Thợ Vận Hành Máy CNC',
-
-        role: 'operator',
-
-        createdAt: '2026-01-01T00:00:00.000Z'
-
-      }
-
-    ];
-
     let usersList = [];
-
     let currentUser = null;
+    let adminRealtimeUnsub = null;
 
     function $(id) { return document.getElementById(id); }
 
     function showToast(msg) {
-
       const t = $('toast');
-
       if (!t) return;
-
       t.textContent = msg;
-
       t.classList.add('show');
-
       setTimeout(() => t.classList.remove('show'), 3200);
-
     }
 
     function escapeHtml(str) {
-
       return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
-
     }
 
-    function loadUsersFromStorage() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        if (Array.isArray(dbInit.users) && dbInit.users.length) {
-          usersList = dbInit.users.slice();
+    async function loadUsersFromSupabase() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        usersList = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_USERS : []).slice();
+        if (window.SupabaseDB) {
+          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!', () => checkAuthSession());
+        }
+        return false;
+      }
+      try {
+        usersList = await window.SupabaseDB.getUsers();
+        if (!usersList.length) {
+          usersList = window.SupabaseDB.DEFAULT_USERS.slice();
+        }
+        window.SupabaseDB.clearConnectionError();
+        return true;
+      } catch (err) {
+        console.error('Lỗi tải workshop_users:', err);
+        window.SupabaseDB.showConnectionError('❌ Không thể kết nối Supabase để tải nhân sự: ' + err.message, () => checkAuthSession());
+        return false;
+      }
+    }
+
+    function initRealtime() {
+      if (adminRealtimeUnsub || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      adminRealtimeUnsub = window.SupabaseDB.subscribeTables({
+        workshop_users: async () => {
+          try {
+            usersList = await window.SupabaseDB.getUsers();
+            renderDashboard();
+          } catch (e) {}
+        }
+      });
+    }
+
+    async function checkAuthSession() {
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kết nối Supabase...');
+      try {
+        await loadUsersFromSupabase();
+        initRealtime();
+
+        let session = null;
+        try {
+          const raw = sessionStorage.getItem(SESSION_STORAGE_KEY) || localStorage.getItem(SESSION_STORAGE_KEY);
+          if (raw) session = JSON.parse(raw);
+        } catch (e) {}
+
+        if (!session || !session.username) {
+          $('adminLoginGate').style.display = 'block';
+          $('accessDeniedGate').style.display = 'none';
+          $('adminMainContent').style.display = 'none';
+          $('topAdminBadge').style.display = 'none';
+          $('btnAdminLogout').style.display = 'none';
           return;
         }
-      }
-      try {
-        const raw = localStorage.getItem(USERS_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length) {
-            usersList = parsed;
-          }
+
+        const found = usersList.find(u => u.username.toLowerCase() === String(session.username).toLowerCase());
+        if (!found) {
+          $('adminLoginGate').style.display = 'block';
+          $('accessDeniedGate').style.display = 'none';
+          $('adminMainContent').style.display = 'none';
+          return;
         }
-      } catch (e) {}
-      if (!usersList.length) {
-        usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
-        saveUsersToStorage();
-      }
-    }
 
-    function saveUsersToStorage() {
-      try {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
-      } catch (e) {}
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync({ users: usersList }, 'update_users');
-      }
-    }
-
-    let adminRealtimeWired = false;
-    function initRealtime() {
-      if (adminRealtimeWired) return;
-      adminRealtimeWired = true;
-      if (window.WorkshopDB) {
-        window.WorkshopDB.onChange((dbState) => {
-          if (Array.isArray(dbState.users) && dbState.users.length) {
-            usersList = dbState.users.slice();
-            renderUsersTable();
-          }
-        });
-        return;
-      }
-    }
-
-    function checkAuthSession() {
-
-      loadUsersFromStorage();
-      initRealtime();
-      fetchCloudUsers();
-
-      let session = null;
-
-      try {
-
-        const raw = sessionStorage.getItem(SESSION_STORAGE_KEY) || localStorage.getItem(SESSION_STORAGE_KEY);
-
-        if (raw) session = JSON.parse(raw);
-
-      } catch (e) {}
-
-      if (!session || !session.username) {
-
-        // Chưa đăng nhập -> Hiện màn hình đăng nhập Admin
-
-        $('adminLoginGate').style.display = 'block';
-
-        $('accessDeniedGate').style.display = 'none';
-
-        $('adminMainContent').style.display = 'none';
-
-        $('topAdminBadge').style.display = 'none';
-
-        $('btnAdminLogout').style.display = 'none';
-
-        return;
-
-      }
-
-      const found = usersList.find(u => u.username.toLowerCase() === String(session.username).toLowerCase());
-
-      if (!found) {
-
-        $('adminLoginGate').style.display = 'block';
-
-        $('accessDeniedGate').style.display = 'none';
-
-        $('adminMainContent').style.display = 'none';
-
-        return;
-
-      }
-
-      currentUser = found;
-
-      // KIỂM TRA QUYỀN HẠN TỐI CAO: CHỈ TÀI KHOẢN ADMIN MỚI ĐƯỢC PHÉP TRUY CẬP TRANG NÀY!
-
-      if (found.username.toLowerCase() !== 'admin') {
+        currentUser = found;
+        if (found.username.toLowerCase() !== 'admin') {
+          $('adminLoginGate').style.display = 'none';
+          $('accessDeniedGate').style.display = 'block';
+          $('adminMainContent').style.display = 'none';
+          $('deniedUsername').textContent = '@' + found.username;
+          $('deniedRoleName').textContent = found.role === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Máy CNC';
+          return;
+        }
 
         $('adminLoginGate').style.display = 'none';
-
-        $('accessDeniedGate').style.display = 'block';
-
-        $('adminMainContent').style.display = 'none';
-
-        $('deniedUsername').textContent = '@' + found.username;
-
-        $('deniedRoleName').textContent = found.role === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Máy CNC';
-
-        return;
-
+        $('accessDeniedGate').style.display = 'none';
+        $('adminMainContent').style.display = 'block';
+        $('topAdminBadge').style.display = 'inline-flex';
+        $('btnAdminLogout').style.display = 'inline-flex';
+        $('topAdminUser').textContent = '@' + found.username;
+        renderDashboard();
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
       }
-
-      // Đã đăng nhập đúng quyền Admin -> Hiển thị Bảng Quản Trị
-
-      $('adminLoginGate').style.display = 'none';
-
-      $('accessDeniedGate').style.display = 'none';
-
-      $('adminMainContent').style.display = 'block';
-
-      $('topAdminBadge').style.display = 'inline-flex';
-
-      $('btnAdminLogout').style.display = 'inline-flex';
-
-      $('topAdminUser').textContent = '@' + found.username;
-
-      renderDashboard();
-
     }
 
-    function handleAdminLogin() {
-
+    async function handleAdminLogin() {
       const u = ($('inpAdminLoginUser').value || '').trim().toLowerCase();
-
       const p = ($('inpAdminLoginPass').value || '').trim();
-
       const err = $('loginGateError');
-
       if (!u || !p) {
-
         err.textContent = '⚠️ Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!';
-
         err.style.display = 'block';
-
         return;
-
       }
 
-      loadUsersFromStorage();
-
-      const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
-
-      if (!adminAcc || u !== 'admin' || String(adminAcc.password).trim() !== p) {
-
-        err.textContent = '❌ Mật khẩu hoặc tài khoản Admin không chính xác!';
-
-        err.style.display = 'block';
-
-        return;
-
-      }
-
-      err.style.display = 'none';
-
-      currentUser = adminAcc;
-
-      const sessData = JSON.stringify({ username: adminAcc.username, loginAt: new Date().toISOString() });
-
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang xác thực Admin...');
       try {
+        await loadUsersFromSupabase();
+        const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
+        if (!adminAcc || u !== 'admin' || String(adminAcc.password).trim() !== p) {
+          err.textContent = '❌ Mật khẩu hoặc tài khoản Admin không chính xác!';
+          err.style.display = 'block';
+          return;
+        }
 
-        sessionStorage.setItem(SESSION_STORAGE_KEY, sessData);
+        err.style.display = 'none';
+        currentUser = adminAcc;
+        const sessData = JSON.stringify({ username: adminAcc.username, loginAt: new Date().toISOString() });
+        try {
+          sessionStorage.setItem(SESSION_STORAGE_KEY, sessData);
+          localStorage.setItem(SESSION_STORAGE_KEY, sessData);
+        } catch (e) {}
 
-        localStorage.setItem(SESSION_STORAGE_KEY, sessData);
-
-      } catch (e) {}
-
-      $('inpAdminLoginPass').value = '';
-
-      showToast('🎉 Đăng nhập Quản Trị Viên thành công!');
-
-      checkAuthSession();
-
+        $('inpAdminLoginPass').value = '';
+        showToast('🎉 Đăng nhập Quản Trị Viên thành công!');
+        await checkAuthSession();
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+      }
     }
 
     function handleAdminLogout() {
-
       currentUser = null;
-
+      if (adminRealtimeUnsub) { adminRealtimeUnsub(); adminRealtimeUnsub = null; }
       try {
-
         sessionStorage.removeItem(SESSION_STORAGE_KEY);
-
         localStorage.removeItem(SESSION_STORAGE_KEY);
-
       } catch (e) {}
-
       showToast('👋 Đã đăng xuất khỏi tài khoản Quản trị!');
-
       checkAuthSession();
-
     }
 
     function renderDashboard() {
-
-      loadUsersFromStorage();
-
-      // Cập nhật KPIs
-
       const total = usersList.length;
-
       const engineers = usersList.filter(u => u.role === 'engineer').length;
-
       const operators = usersList.filter(u => u.role === 'operator').length;
 
       $('kpiTotalUsers').textContent = total;
-
       $('kpiTotalEngineers').textContent = engineers;
-
       $('kpiTotalOperators').textContent = operators;
-
-      let wsCode = 'ANBINH';
-
-      try {
-
-        const savedCode = localStorage.getItem('toiuu_cloud_workspace_id_v1') || localStorage.getItem('toiuu_cloud_sync_code');
-
-        if (savedCode) wsCode = savedCode;
-
-      } catch (e) {}
-
-      $('kpiWorkshopCode').textContent = wsCode;
-
+      $('kpiWorkshopCode').textContent = 'ANBINH';
       renderUsersTable();
-
     }
 
     function renderUsersTable() {
-
       const tbody = $('adminUsersTableBody');
-
       if (!tbody) return;
-
       const search = ($('inpSearchUser').value || '').trim().toLowerCase();
-
       const roleFilter = $('selFilterRole').value;
 
       let filtered = usersList.filter(u => {
-
         if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
-
         if (search) {
-
           const uName = (u.username || '').toLowerCase();
-
           const fName = (u.fullName || '').toLowerCase();
-
           return uName.includes(search) || fName.includes(search);
-
         }
-
         return true;
-
       });
 
       if (!filtered.length) {
-
         tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748B;">Không tìm thấy nhân sự nào phù hợp với từ khóa tìm kiếm.</td></tr>`;
-
         return;
-
       }
 
       let html = '';
-
       filtered.forEach((u, idx) => {
-
         const isCurrentAdmin = u.username.toLowerCase() === 'admin';
-
         const isEng = u.role === 'engineer';
-
         const createdDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mặc định';
 
         html += `
-
           <tr>
-
             <td>
-
               <div style="display:flex; align-items:center; gap:8px;">
-
                 <span style="width:32px; height:32px; border-radius:50%; background:${isEng ? '#CCFBF1' : '#FFEDD5'}; color:${isEng ? '#0F766E' : '#C2410C'}; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800;">
-
                   ${isCurrentAdmin ? '👑' : (isEng ? '📐' : '👷')}
-
                 </span>
-
                 <div>
-
                   <strong style="font-family:monospace; font-size:14px; color:#0F172A;">@${escapeHtml(u.username)}</strong>
-
                   ${isCurrentAdmin ? '<span class="role-pill role-admin" style="font-size:10px; margin-left:4px;">Admin</span>' : ''}
-
                 </div>
-
               </div>
-
             </td>
-
+            <td><strong style="color:#1E293B;">${escapeHtml(u.fullName || u.username)}</strong></td>
+            <td><span class="role-pill ${isEng ? 'role-eng' : 'role-op'}">${isEng ? '📐 Kỹ Sư Thiết Kế' : '👷 Thợ Máy CNC'}</span></td>
             <td>
-
-              <strong style="color:#1E293B;">${escapeHtml(u.fullName || u.username)}</strong>
-
-            </td>
-
-            <td>
-
-              <span class="role-pill ${isEng ? 'role-eng' : 'role-op'}">
-
-                ${isEng ? '📐 Kỹ Sư Thiết Kế' : '👷 Thợ Máy CNC'}
-
-              </span>
-
-            </td>
-
-            <td>
-
               <div style="display:flex; align-items:center; gap:6px; font-family:monospace;">
-
                 <span id="passMask_${idx}" style="letter-spacing:2px; font-weight:800; color:#64748B;">••••••••</span>
-
                 <span id="passPlain_${idx}" style="display:none; color:#0F766E; font-weight:700;">${escapeHtml(u.password)}</span>
-
                 <button type="button" class="btn-toggle-pass" data-idx="${idx}" style="background:none; border:none; cursor:pointer; font-size:14px; padding:2px;" title="Xem / Ẩn mật khẩu">👁️</button>
-
               </div>
-
             </td>
-
             <td style="color:#64748B; font-size:12.5px;">${createdDate}</td>
-
             <td style="text-align:right; white-space:nowrap;">
-
-              <button type="button" class="btn btn-soft btn-sm btn-change-pass" data-user="${escapeHtml(u.username)}" title="Đổi mật khẩu cho tài khoản này">
-
-                🔑 Đổi MK
-
-              </button>
-
-              <button type="button" class="btn btn-soft btn-sm btn-toggle-role" data-user="${escapeHtml(u.username)}" title="Chuyển đổi vai trò Kỹ sư / Thợ CNC" style="margin-left:4px;">
-
-                ⇄ Đổi quyền
-
-              </button>
-
-              ${!isCurrentAdmin ? `
-
-                <button type="button" class="btn btn-danger btn-sm btn-del-user" data-user="${escapeHtml(u.username)}" title="Xóa tài khoản này" style="margin-left:4px;">
-
-                  ✕ Xóa
-
-                </button>
-
-              ` : ''}
-
+              <button type="button" class="btn btn-soft btn-sm btn-change-pass" data-user="${escapeHtml(u.username)}" title="Đổi mật khẩu cho tài khoản này">🔑 Đổi MK</button>
+              <button type="button" class="btn btn-soft btn-sm btn-toggle-role" data-user="${escapeHtml(u.username)}" title="Chuyển đổi vai trò Kỹ sư / Thợ CNC" style="margin-left:4px;">⇄ Đổi quyền</button>
+              ${!isCurrentAdmin ? `<button type="button" class="btn btn-danger btn-sm btn-del-user" data-user="${escapeHtml(u.username)}" title="Xóa tài khoản này" style="margin-left:4px;">✕ Xóa</button>` : ''}
             </td>
-
           </tr>
-
         `;
-
       });
 
       tbody.innerHTML = html;
 
-      // Event: Xem / Ẩn mật khẩu
-
       tbody.querySelectorAll('.btn-toggle-pass').forEach(btn => {
-
         btn.onclick = () => {
-
           const idx = btn.getAttribute('data-idx');
-
           const mask = $('passMask_' + idx);
-
           const plain = $('passPlain_' + idx);
-
           if (mask && plain) {
-
             const isHidden = plain.style.display === 'none';
-
             plain.style.display = isHidden ? 'inline' : 'none';
-
             mask.style.display = isHidden ? 'none' : 'inline';
-
             btn.style.opacity = isHidden ? '1' : '0.65';
-
           }
-
         };
-
       });
-
-      // Event: Đổi mật khẩu
 
       tbody.querySelectorAll('.btn-change-pass').forEach(btn => {
-
-        btn.onclick = () => {
-
+        btn.onclick = async () => {
           const uname = btn.getAttribute('data-user');
-
           const target = usersList.find(x => x.username.toLowerCase() === uname.toLowerCase());
-
           if (!target) return;
-
           const newPass = prompt(`🔑 Nhập mật khẩu mới cho tài khoản @${target.username} (${target.fullName || ''}):`, '');
-
           if (newPass === null) return;
-
           const cleanPass = String(newPass || '').trim();
-
           if (!cleanPass || cleanPass.length < 4) {
-
             alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
-
             return;
-
           }
-
-          target.password = cleanPass;
-
-          target.updatedAt = new Date().toISOString();
-
-          saveUsersToStorage();
-
-          renderDashboard();
-
-          showToast(`✓ Đã cập nhật mật khẩu cho @${target.username}!`);
-
+          window.SupabaseDB.setLoading(true, 'Đang cập nhật mật khẩu...');
+          try {
+            const updated = await window.SupabaseDB.updateUser(target.username, { password: cleanPass });
+            Object.assign(target, updated);
+            renderDashboard();
+            showToast(`✓ Đã cập nhật mật khẩu cho @${target.username}!`);
+          } catch (err) {
+            showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
         };
-
       });
-
-      // Event: Chuyển đổi quyền
 
       tbody.querySelectorAll('.btn-toggle-role').forEach(btn => {
-
-        btn.onclick = () => {
-
+        btn.onclick = async () => {
           const uname = btn.getAttribute('data-user');
-
           const target = usersList.find(x => x.username.toLowerCase() === uname.toLowerCase());
-
           if (!target) return;
-
           const newRole = target.role === 'engineer' ? 'operator' : 'engineer';
-
           const roleLabel = newRole === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Vận Hành CNC';
-
           if (!confirm(`Bạn có chắc chắn muốn đổi quyền của @${target.username} thành [${roleLabel}] không?`)) return;
 
-          target.role = newRole;
-
-          target.updatedAt = new Date().toISOString();
-
-          saveUsersToStorage();
-
-          renderDashboard();
-
-          showToast(`✓ Đã đổi quyền của @${target.username} thành ${roleLabel}!`);
-
+          window.SupabaseDB.setLoading(true, 'Đang cập nhật phân quyền...');
+          try {
+            const updated = await window.SupabaseDB.updateUser(target.username, { role: newRole });
+            Object.assign(target, updated);
+            renderDashboard();
+            showToast(`✓ Đã đổi quyền của @${target.username} thành ${roleLabel}!`);
+          } catch (err) {
+            showToast('❌ Lỗi đổi quyền: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
         };
-
       });
-
-      // Event: Xóa tài khoản
 
       tbody.querySelectorAll('.btn-del-user').forEach(btn => {
-
-        btn.onclick = () => {
-
+        btn.onclick = async () => {
           const uname = btn.getAttribute('data-user');
-
           if (uname.toLowerCase() === 'admin') {
-
             alert('🔒 Không thể xóa tài khoản Quản trị viên tối cao (Admin)!');
-
             return;
-
           }
-
           if (!confirm(`⚠️ CẢNH BÁO: Bạn có chắc chắn muốn XÓA vĩnh viễn tài khoản [@${uname}] khỏi xưởng không?`)) return;
 
-          usersList = usersList.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
-
-          saveUsersToStorage();
-
-          renderDashboard();
-
-          showToast(`🗑️ Đã xóa tài khoản @${uname} thành công!`);
-
+          window.SupabaseDB.setLoading(true, 'Đang xóa tài khoản...');
+          try {
+            await window.SupabaseDB.deleteUser(uname);
+            usersList = usersList.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
+            renderDashboard();
+            showToast(`🗑️ Đã xóa tài khoản @${uname} thành công!`);
+          } catch (err) {
+            showToast('❌ Lỗi xóa tài khoản: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
         };
-
       });
-
     }
 
-    function handleAddNewUser() {
-
+    async function handleAddNewUser() {
       const u = ($('inpNewUsername').value || '').trim().toLowerCase().replace(/\s+/g, '');
-
       const p = ($('inpNewPassword').value || '').trim();
-
       const fn = ($('inpNewFullName').value || '').trim();
-
       const r = $('selNewRole').value;
 
       if (!u || u.length < 3) {
-
         alert('⚠️ Tên đăng nhập phải có ít nhất 3 ký tự (viết liền không dấu)!');
-
         return;
-
       }
-
       if (!p || p.length < 4) {
-
         alert('⚠️ Mật khẩu phải có ít nhất 4 ký tự!');
-
         return;
-
       }
-
       if (usersList.some(x => x.username.toLowerCase() === u)) {
-
         alert(`❌ Tài khoản [@${u}] đã tồn tại trong xưởng! Vui lòng chọn tên khác.`);
-
         return;
-
       }
 
       const newUser = {
-
         username: u,
-
         password: p,
-
         fullName: fn || (r === 'engineer' ? `Kỹ sư (${u})` : `Thợ CNC (${u})`),
-
         role: r,
-
         createdAt: new Date().toISOString()
-
       };
 
-      usersList.push(newUser);
-
-      saveUsersToStorage();
-
-      renderDashboard();
-
-      $('inpNewUsername').value = '';
-
-      $('inpNewPassword').value = '';
-
-      $('inpNewFullName').value = '';
-
-      showToast(`🎉 Đã cấp tài khoản [@${u}] (${r === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
-
-    }
-
-    function handleSaveAdminPass() {
-
-      const newPass = ($('inpSelfAdminPass').value || '').trim();
-
-      if (!newPass || newPass.length < 4) {
-
-        alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
-
-        return;
-
-      }
-
-      const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
-
-      if (adminAcc) {
-
-        adminAcc.password = newPass;
-
-        adminAcc.updatedAt = new Date().toISOString();
-
-        saveUsersToStorage();
-
+      window.SupabaseDB.setLoading(true, 'Đang tạo tài khoản mới...');
+      try {
+        const saved = await window.SupabaseDB.upsertUser(newUser);
+        usersList.push(saved);
         renderDashboard();
-
-        $('inpSelfAdminPass').value = '';
-
-        showToast('🔑 Đã cập nhật mật khẩu Admin mới thành công!');
-
+        $('inpNewUsername').value = '';
+        $('inpNewPassword').value = '';
+        $('inpNewFullName').value = '';
+        showToast(`🎉 Đã cấp tài khoản [@${u}] (${r === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
+      } catch (err) {
+        showToast('❌ Lỗi tạo tài khoản: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
-
     }
 
-    function handleBackupDataJson() {
-
-      loadUsersFromStorage();
-
-      let projects = [];
-
+    async function handleSaveAdminPass() {
+      const newPass = ($('inpSelfAdminPass').value || '').trim();
+      if (!newPass || newPass.length < 4) {
+        alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang đổi mật khẩu Admin...');
       try {
+        const updated = await window.SupabaseDB.updateUser('admin', { password: newPass });
+        const adminAcc = usersList.find(x => x.username.toLowerCase() === 'admin');
+        if (adminAcc) Object.assign(adminAcc, updated);
+        renderDashboard();
+        $('inpSelfAdminPass').value = '';
+        showToast('🔑 Đã cập nhật mật khẩu Admin mới thành công!');
+      } catch (err) {
+        showToast('❌ Lỗi cập nhật mật khẩu Admin: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
 
-        const rawP = localStorage.getItem('toiuu_saved_projects_list_v1');
-
-        if (rawP) projects = JSON.parse(rawP);
-
-      } catch (e) {}
-
-      let profiles = [];
-
+    async function handleBackupDataJson() {
+      window.SupabaseDB.setLoading(true, 'Đang xuất sao lưu toàn xưởng từ Supabase...');
       try {
+        const [uRows, invRows, projRows, cutRows] = await Promise.all([
+          window.SupabaseDB.getUsers(),
+          window.SupabaseDB.getInventory(),
+          window.SupabaseDB.getProjects({ includeTrash: true, includeDraft: true }),
+          window.SupabaseDB.getAllCutProgress()
+        ]);
 
-        const rawProf = localStorage.getItem('toiuu_saved_box_profiles_v2');
+        const backupObj = {
+          version: 'toiuu-phoi-supabase-backup-v3',
+          exportedAt: new Date().toISOString(),
+          workshopCode: 'ANBINH',
+          users: uRows,
+          profiles: invRows.map(r => r.profileName),
+          projects: projRows,
+          cutProgress: cutRows
+        };
 
-        if (rawProf) profiles = JSON.parse(rawProf);
-
-      } catch (e) {}
-
-      let activeProject = null;
-
-      try {
-
-        const rawActive = localStorage.getItem('toiuu_active_project_v2');
-
-        if (rawActive) activeProject = JSON.parse(rawActive);
-
-      } catch (e) {}
-
-      let cutStatuses = {};
-
-      try {
-
-        const rawCuts = localStorage.getItem('toiuu_cut_statuses');
-
-        if (rawCuts) cutStatuses = JSON.parse(rawCuts);
-
-      } catch (e) {}
-
-      const backupObj = {
-
-        version: 'toiuu-phoi-backup-v2',
-
-        exportedAt: new Date().toISOString(),
-
-        workshopCode: localStorage.getItem('toiuu_cloud_workspace_id_v1') || 'ANBINH',
-
-        users: usersList,
-
-        profiles: profiles,
-
-        projects: projects,
-
-        activeProject: activeProject,
-
-        cutStatuses: cutStatuses
-
-      };
-
-      const jsonStr = JSON.stringify(backupObj, null, 2);
-
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-
-      const dateStr = new Date().toISOString().slice(0, 10);
-
-      a.href = url;
-
-      a.download = `sao_luu_xuong_an_binh_${dateStr}.json`;
-
-      document.body.appendChild(a);
-
-      a.click();
-
-      document.body.removeChild(a);
-
-      URL.revokeObjectURL(url);
-
-      showToast('💾 Đã xuất file sao lưu dữ liệu toàn xưởng thành công!');
-
+        const jsonStr = JSON.stringify(backupObj, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `sao_luu_xuong_an_binh_${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('💾 Đã xuất file sao lưu toàn bộ dữ liệu Supabase!');
+      } catch (err) {
+        showToast('❌ Lỗi xuất backup: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
     function handleRestoreBackupFile(event) {
-
       const file = event.target.files && event.target.files[0];
-
       if (!file) return;
-
       const reader = new FileReader();
-
-      reader.onload = (e) => {
-
+      reader.onload = async (e) => {
         try {
-
           const data = JSON.parse(e.target.result);
-
           if (!data || (!Array.isArray(data.users) && !Array.isArray(data.projects))) {
-
             alert('❌ File không đúng định dạng sao lưu của hệ thống Xếp Phôi An Bình!');
-
             return;
-
           }
+          if (!confirm(`⚠️ Bạn có chắc chắn muốn khôi phục dữ liệu từ file backup ngày [${data.exportedAt || 'không rõ'}] lên Supabase không?`)) return;
 
-          if (!confirm(`⚠️ Bạn có chắc chắn muốn khôi phục dữ liệu từ file backup ngày [${data.exportedAt || 'không rõ'}] không? Dữ liệu hiện tại sẽ được cập nhật.`)) return;
-
-          if (Array.isArray(data.users) && data.users.length) {
-
-            usersList = data.users;
-
-            saveUsersToStorage();
-
+          window.SupabaseDB.setLoading(true, 'Đang khôi phục dữ liệu lên Supabase...');
+          try {
+            if (Array.isArray(data.users) && data.users.length) {
+              for (const u of data.users) {
+                if (u && u.username) await window.SupabaseDB.upsertUser(u);
+              }
+              usersList = await window.SupabaseDB.getUsers();
+            }
+            if (Array.isArray(data.profiles) && data.profiles.length) {
+              await window.SupabaseDB.addProfilesBulk(data.profiles);
+            }
+            if (Array.isArray(data.projects)) {
+              for (const p of data.projects) {
+                if (p && p.id) await window.SupabaseDB.saveProject(p);
+              }
+            }
+            if (data.activeProject && Array.isArray(data.activeProject.parts) && data.activeProject.parts.length && !data.activeProject.currentProjectId) {
+              await window.SupabaseDB.saveDraftProject(data.activeProject);
+            }
+            if (Array.isArray(data.cutProgress)) {
+              for (const cp of data.cutProgress) {
+                if (cp && cp.projectId && cp.barKey) {
+                  await window.SupabaseDB.updateCutStatus(cp.projectId, cp.barKey, cp);
+                }
+              }
+            } else if (data.cutStatuses && typeof data.cutStatuses === 'object') {
+              const targetPid = (data.activeProject && data.activeProject.currentProjectId) || window.SupabaseDB.DRAFT_PROJECT_ID;
+              for (const k of Object.keys(data.cutStatuses)) {
+                await window.SupabaseDB.updateCutStatus(targetPid, k, data.cutStatuses[k]);
+              }
+            }
+            renderDashboard();
+            showToast('🎉 Đã khôi phục dữ liệu toàn xưởng lên Supabase thành công!');
+          } finally {
+            window.SupabaseDB.setLoading(false);
           }
-
-          if (Array.isArray(data.projects)) {
-
-            localStorage.setItem('toiuu_saved_projects_list_v1', JSON.stringify(data.projects));
-
-          }
-
-          if (Array.isArray(data.profiles)) {
-
-            localStorage.setItem('toiuu_saved_box_profiles_v2', JSON.stringify(data.profiles));
-
-          }
-
-          if (data.activeProject) {
-
-            localStorage.setItem('toiuu_active_project_v2', JSON.stringify(data.activeProject));
-
-          }
-
-          if (data.cutStatuses) {
-
-            localStorage.setItem('toiuu_cut_statuses', JSON.stringify(data.cutStatuses));
-
-          }
-
-          if (data.workshopCode) {
-
-            localStorage.setItem('toiuu_cloud_workspace_id_v1', data.workshopCode);
-
-          }
-
-          if (window.WorkshopDB) {
-            window.WorkshopDB.sync({
-              users: usersList,
-              savedProjects: Array.isArray(data.projects) ? data.projects : undefined,
-              savedProfiles: Array.isArray(data.profiles) ? data.profiles : undefined,
-              activeProject: data.activeProject,
-              cutStatuses: data.cutStatuses
-            }, 'restore_backup');
-          }
-
-          renderDashboard();
-
-          showToast('🎉 Đã khôi phục dữ liệu toàn xưởng từ file backup thành công!');
-
         } catch (err) {
-
-          alert('❌ Lỗi đọc file backup JSON: ' + err.message);
-
+          alert('❌ Lỗi đọc hoặc khôi phục file JSON: ' + err.message);
         }
-
       };
-
       reader.readAsText(file);
-
       event.target.value = '';
-
     }
 
-    function handleResetDefaultAccounts() {
-
+    async function handleResetDefaultAccounts() {
       if (!confirm('⚠️ Bạn có chắc chắn muốn đặt lại danh sách nhân sự về 3 tài khoản mặc định (admin, kt1, thocnc) không?')) return;
-
-      usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
-
-      saveUsersToStorage();
-
-      renderDashboard();
-
-      showToast('🔄 Đã khôi phục danh sách tài khoản mẫu ban đầu!');
-
+      window.SupabaseDB.setLoading(true, 'Đang khôi phục tài khoản mặc định...');
+      try {
+        usersList = await window.SupabaseDB.resetDefaultUsers();
+        renderDashboard();
+        showToast('🔄 Đã khôi phục danh sách tài khoản mẫu ban đầu!');
+      } catch (err) {
+        showToast('❌ Lỗi đặt lại tài khoản: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
-
-    // Gắn sự kiện khi DOM tải xong
 
     document.addEventListener('DOMContentLoaded', () => {
-
       $('btnSubmitAdminLogin').onclick = handleAdminLogin;
-
       $('btnAdminLogout').onclick = handleAdminLogout;
-
       $('btnDeniedLogout').onclick = handleAdminLogout;
-
       $('inpAdminLoginPass').addEventListener('keydown', (e) => {
-
         if (e.key === 'Enter') handleAdminLogin();
-
       });
 
       $('inpSearchUser').oninput = renderUsersTable;
-
       $('selFilterRole').onchange = renderUsersTable;
-
       $('btnSaveAdminPass').onclick = handleSaveAdminPass;
-
       $('btnBackupDataJson').onclick = handleBackupDataJson;
-
       $('btnExportFullBackup').onclick = handleBackupDataJson;
-
       $('inpRestoreBackupFile').onchange = handleRestoreBackupFile;
-
       $('btnResetDefaultAccounts').onclick = handleResetDefaultAccounts;
 
       $('btnScrollToAddUser').onclick = () => {
-
         $('cardAddUser').scrollIntoView({ behavior: 'smooth' });
-
         $('inpNewUsername').focus();
-
       };
 
-      // Kiểm tra phiên đăng nhập
-
       checkAuthSession();
-
     });
-
-  
-    async function fetchCloudUsers() {
-      if (window.WorkshopDB) {
-        return window.WorkshopDB.fetchLatest();
-      }
-    }
-
-    function mergeUsersList(remUsers) {
-      if (!Array.isArray(remUsers)) return;
-      const uMap = new Map();
-      usersList.forEach(u => uMap.set(u.username.toLowerCase(), u));
-      let changed = false;
-      remUsers.forEach(ru => {
-        if (ru && ru.username) {
-          const k = ru.username.toLowerCase();
-          if (!uMap.has(k) || JSON.stringify(uMap.get(k)) !== JSON.stringify(ru)) {
-            uMap.set(k, ru);
-            changed = true;
-          }
-        }
-      });
-      if (changed) {
-        usersList = Array.from(uMap.values());
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersList));
-        renderUsersTable();
-      }
-    }
-</script>
+  </script>
 
 </body>
 

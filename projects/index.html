@@ -10,7 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="/database/workshop_db.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
   <style>
     :root {
       --bg: #FFFFFF;
@@ -452,28 +453,17 @@
   <div id="toast"></div>
 
   <script>
-    const LS_USERS = 'toiuu_users_list_v1';
     const LS_SESSION = 'toiuu_logged_user_v1';
-    const LS_PROJECTS = 'toiuu_saved_projects_list_v1';
-    const LS_TRASH = 'toiuu_trash_projects_v1';
-    const LS_DELETED_IDS = 'toiuu_deleted_proj_ids_v1';
     const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
-    const LS_ACTIVE_PROJ = 'toiuu_active_project_v2';
-
-    const DEFAULT_USERS = [
-      { username: 'admin', password: '123456', fullName: 'Kỹ Sư Thiết Kế (Admin)', role: 'engineer' },
-      { username: 'kt1', password: '12345', fullName: 'Sơn KT (Kỹ Sư)', role: 'engineer' },
-      { username: 'thocnc', password: '1234', fullName: 'Thợ Vận Hành Máy CNC', role: 'operator' }
-    ];
 
     let usersList = [];
     let currentUser = null;
     let projectsList = [];
     let trashList = [];
-    let deletedIds = [];
     let currentProjId = null;
     let activeTab = 'active';
     let editingId = null;
+    let realtimeUnsub = null;
 
     const $ = id => document.getElementById(id);
 
@@ -489,213 +479,170 @@
       return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
     }
 
-    function loadUsers() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        if (Array.isArray(dbInit.users) && dbInit.users.length) {
-          usersList = dbInit.users.slice();
-          return;
+    async function loadUsers() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        usersList = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_USERS : []).slice();
+        if (window.SupabaseDB) {
+          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!', () => checkAuth());
         }
+        return false;
       }
       try {
-        const raw = localStorage.getItem(LS_USERS);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length) usersList = parsed;
+        usersList = await window.SupabaseDB.getUsers();
+        if (!usersList.length) {
+          usersList = window.SupabaseDB.DEFAULT_USERS.slice();
         }
-      } catch (e) {}
-      if (!usersList.length) {
-        usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
-        localStorage.setItem(LS_USERS, JSON.stringify(usersList));
+        window.SupabaseDB.clearConnectionError();
+        return true;
+      } catch (err) {
+        console.error('Lỗi tải users:', err);
+        window.SupabaseDB.showConnectionError('❌ Không thể kết nối Supabase để tải danh sách tài khoản: ' + err.message, () => checkAuth());
+        return false;
       }
     }
 
-    function checkAuth() {
-      loadUsers();
-      let sess = null;
+    async function checkAuth() {
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kết nối Supabase...');
       try {
-        const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
-        if (raw) sess = JSON.parse(raw);
-      } catch (e) {}
+        await loadUsers();
+        let sess = null;
+        try {
+          const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
+          if (raw) sess = JSON.parse(raw);
+        } catch (e) {}
 
-      if (sess && sess.username) {
-        const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
-        if (found) {
-          currentUser = found;
-          const isOp = found.role === 'operator';
-          const isSuperAdmin = found.username.toLowerCase() === 'admin';
-          document.body.classList.toggle('role-operator', isOp);
-          $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
-          $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
-          $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
-          $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
-          $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
-          if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
-          $('loginGateWrap').style.display = 'none';
-          $('mainContent').style.display = 'block';
-          loadData();
-          return;
+        if (sess && sess.username) {
+          const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
+          if (found) {
+            currentUser = found;
+            const isOp = found.role === 'operator';
+            const isSuperAdmin = found.username.toLowerCase() === 'admin';
+            document.body.classList.toggle('role-operator', isOp);
+            $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+            $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
+            $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+            $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
+            $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
+            if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+            $('loginGateWrap').style.display = 'none';
+            $('mainContent').style.display = 'block';
+            await loadData();
+            return;
+          }
         }
+        currentUser = null;
+        if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+        $('loginGateWrap').style.display = 'block';
+        $('mainContent').style.display = 'none';
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
       }
-      currentUser = null;
-      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
-      $('loginGateWrap').style.display = 'block';
-      $('mainContent').style.display = 'none';
     }
 
-    function handleLogin() {
-      loadUsers();
-      const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
-      const p = ($('inpLoginPass').value || '').trim();
-      const err = $('loginErr');
-      const found = usersList.find(x => {
-        const xc = String(x.username || '').toLowerCase().replace(/\s+/g, '');
-        return xc === u && (String(x.password).trim() === p || (xc === 'kt1' && (p === '12345' || p === '123456')));
-      });
-      if (!found) {
-        err.textContent = '❌ Tên tài khoản hoặc mật khẩu không chính xác!';
-        err.style.display = 'block';
-        return;
+    async function handleLogin() {
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang xác thực tài khoản...');
+      try {
+        await loadUsers();
+        const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
+        const p = ($('inpLoginPass').value || '').trim();
+        const err = $('loginErr');
+        const found = usersList.find(x => {
+          const xc = String(x.username || '').toLowerCase().replace(/\s+/g, '');
+          return xc === u && (String(x.password).trim() === p || (xc === 'kt1' && (p === '12345' || p === '123456')));
+        });
+        if (!found) {
+          err.textContent = '❌ Tên tài khoản hoặc mật khẩu không chính xác!';
+          err.style.display = 'block';
+          return;
+        }
+        err.style.display = 'none';
+        const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+        sessionStorage.setItem(LS_SESSION, sessData);
+        localStorage.setItem(LS_SESSION, sessData);
+        $('inpLoginPass').value = '';
+        await checkAuth();
+        showToast(`✓ Xin chào ${found.fullName || found.username}!`);
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
       }
-      err.style.display = 'none';
-      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
-      sessionStorage.setItem(LS_SESSION, sessData);
-      localStorage.setItem(LS_SESSION, sessData);
-      $('inpLoginPass').value = '';
-      checkAuth();
-      showToast(`✓ Xin chào ${found.fullName || found.username}!`);
     }
 
     function handleLogout() {
       sessionStorage.removeItem(LS_SESSION);
       localStorage.removeItem(LS_SESSION);
+      if (realtimeUnsub) { realtimeUnsub(); realtimeUnsub = null; }
       checkAuth();
       showToast('👋 Đã đăng xuất!');
     }
 
-    function loadData() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        projectsList = Array.isArray(dbInit.savedProjects) ? dbInit.savedProjects.slice() : [];
-        trashList = Array.isArray(dbInit.trashProjects) ? dbInit.trashProjects.slice() : [];
-        deletedIds = Array.isArray(dbInit.deletedProjectIds) ? dbInit.deletedProjectIds.slice() : [];
-        currentProjId = localStorage.getItem(LS_CUR_PROJ_ID) || (dbInit.activeProject && dbInit.activeProject.currentProjectId) || null;
+    function sortByUpdatedDesc(arr) {
+      arr.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+    }
+
+    async function loadData() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        projectsList = [];
+        trashList = [];
         renderAll();
-        initRealtime();
-        fetchCloudProjects();
         return;
       }
-      try { projectsList = JSON.parse(localStorage.getItem(LS_PROJECTS) || '[]'); } catch (e) { projectsList = []; }
-      try { trashList = JSON.parse(localStorage.getItem(LS_TRASH) || '[]'); } catch (e) { trashList = []; }
-      try { deletedIds = JSON.parse(localStorage.getItem(LS_DELETED_IDS) || '[]'); } catch (e) { deletedIds = []; }
-      if (!Array.isArray(projectsList)) projectsList = [];
-      if (!Array.isArray(trashList)) trashList = [];
-      currentProjId = localStorage.getItem(LS_CUR_PROJ_ID) || null;
+      window.SupabaseDB.setLoading(true, 'Đang tải danh sách dự án...');
       try {
-        const ap = JSON.parse(localStorage.getItem(LS_ACTIVE_PROJ) || 'null');
-        if (ap && ap.currentProjectId && !currentProjId) currentProjId = ap.currentProjectId;
-      } catch (e) {}
-      renderAll();
-      fetchCloudProjects();
-      initRealtime();
-    }
-
-    async function fetchCloudProjects() {
-      if (window.WorkshopDB) {
-        return window.WorkshopDB.fetchLatest();
-      }
-      try {
-        const res = await fetch('/api/projects');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.success && Array.isArray(data.projects)) {
-            mergeRemoteProjects(data.projects, data.deletedProjectIds);
-          }
-        }
-      } catch (e) {}
-    }
-
-    function mergeRemoteProjects(remoteList, remDeletedIds) {
-      if (!Array.isArray(remoteList)) return;
-      if (Array.isArray(remDeletedIds)) {
-        remDeletedIds.forEach(id => { if (!deletedIds.includes(id)) deletedIds.push(id); });
-        localStorage.setItem(LS_DELETED_IDS, JSON.stringify(deletedIds));
-      }
-      const localMap = new Map(projectsList.map(p => [p.id, p]));
-      let changed = false;
-      remoteList.forEach(cp => {
-        const inTrash = trashList.some(tp => tp.id === cp.id);
-        if (deletedIds.includes(cp.id) || inTrash) return;
-        const loc = localMap.get(cp.id);
-        if (!loc) {
-          projectsList.push(cp);
-          localMap.set(cp.id, cp);
-          changed = true;
-        } else {
-          const cpTime = new Date(cp.updatedAt || cp.createdAt || 0).getTime();
-          const locTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
-          if (cpTime > locTime) {
-            Object.assign(loc, cp);
-            changed = true;
-          }
-        }
-      });
-      if (changed) {
-        projectsList.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
-        localStorage.setItem(LS_PROJECTS, JSON.stringify(projectsList));
+        const allProjs = await window.SupabaseDB.getProjects({ includeTrash: true, includeDraft: false });
+        projectsList = allProjs.filter(p => !p.isTrashed && !p.isDraft);
+        trashList = allProjs.filter(p => p.isTrashed && !p.isDraft);
+        sortByUpdatedDesc(projectsList);
+        sortByUpdatedDesc(trashList);
+        currentProjId = localStorage.getItem(LS_CUR_PROJ_ID) || null;
+        window.SupabaseDB.clearConnectionError();
         renderAll();
+        initRealtime();
+      } catch (err) {
+        console.error('Lỗi tải dự án:', err);
+        window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải dự án: ' + err.message, () => loadData());
+        showToast('❌ Không thể tải dữ liệu từ máy chủ Supabase!');
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
-    }
-
-    function saveDataAndSync() {
-      localStorage.setItem(LS_PROJECTS, JSON.stringify(projectsList));
-      localStorage.setItem(LS_TRASH, JSON.stringify(trashList));
-      localStorage.setItem(LS_DELETED_IDS, JSON.stringify(deletedIds));
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync({
-          savedProjects: projectsList,
-          trashProjects: trashList,
-          deletedProjectIds: deletedIds
-        }, 'save_project');
-      }
-      renderAll();
     }
 
     function initRealtime() {
-      if (window.WorkshopDB) {
-        window.WorkshopDB.onChange((dbState) => {
-          if (Array.isArray(dbState.deletedProjectIds)) deletedIds = dbState.deletedProjectIds.slice();
-          if (Array.isArray(dbState.trashProjects)) trashList = dbState.trashProjects.slice();
-          if (Array.isArray(dbState.savedProjects)) projectsList = dbState.savedProjects.slice();
-          if (Array.isArray(dbState.users) && dbState.users.length) usersList = dbState.users.slice();
+      if (realtimeUnsub || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      realtimeUnsub = window.SupabaseDB.subscribeTables({
+        projects: (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          if (ev.eventType === 'DELETE') {
+            const delId = old && old.id;
+            if (!delId) { loadData(); return; }
+            projectsList = projectsList.filter(p => p.id !== delId);
+            trashList = trashList.filter(p => p.id !== delId);
+            renderAll();
+            return;
+          }
+          if (!rec || rec.isDraft) return;
+          projectsList = projectsList.filter(p => p.id !== rec.id);
+          trashList = trashList.filter(p => p.id !== rec.id);
+          if (rec.isTrashed) {
+            trashList.unshift(rec);
+            sortByUpdatedDesc(trashList);
+          } else {
+            projectsList.unshift(rec);
+            sortByUpdatedDesc(projectsList);
+          }
           renderAll();
-        });
-        return;
-      }
+        },
+        workshop_users: async () => {
+          try {
+            usersList = await window.SupabaseDB.getUsers();
+          } catch (e) {}
+        }
+      });
     }
 
-    function activateProjectData(proj) {
+    function activateProjectSelection(proj) {
       if (!proj) return;
-      const d = proj.data || {};
-      const activePayload = {
-        currentProjectId: proj.id,
-        currentProjectName: proj.name,
-        currentProjectCustomer: proj.customer || '',
-        currentProjectNotes: proj.notes || '',
-        activeProfiles: Array.isArray(d.activeProfiles) && d.activeProfiles.length ? d.activeProfiles : ['Hộp 30x30x1.8'],
-        selectedTabProfile: d.selectedTabProfile || 'ALL',
-        parts: Array.isArray(d.parts) ? d.parts : [],
-        stock: Array.isArray(d.stock) ? d.stock : [],
-        method: d.method || 'cnc',
-        kerf: d.kerf != null ? d.kerf : 0,
-        clamp: d.clamp != null ? d.clamp : 80,
-        interlock: d.interlock != null ? d.interlock : true,
-        gap: d.gap != null ? d.gap : 0,
-        fusionProject: d.fusionProject || null,
-        isBlankReset: false
-      };
       localStorage.setItem(LS_CUR_PROJ_ID, proj.id);
-      localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activePayload));
     }
 
     function switchTab(tab) {
@@ -796,26 +743,35 @@
       wrap.querySelectorAll('.btn-open-main').forEach(b => b.onclick = () => {
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (p) {
-          activateProjectData(p);
+          activateProjectSelection(p);
           window.location.href = `/index.html?project=${encodeURIComponent(p.id)}`;
         }
       });
       wrap.querySelectorAll('.btn-open-cnc').forEach(b => b.onclick = () => {
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (p) {
-          activateProjectData(p);
-          window.location.href = '/cnc.html';
+          activateProjectSelection(p);
+          window.location.href = `/cnc.html?project=${encodeURIComponent(p.id)}`;
         }
       });
-      wrap.querySelectorAll('.btn-lock').forEach(b => b.onclick = () => {
+      wrap.querySelectorAll('.btn-lock').forEach(b => b.onclick = async () => {
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (!p) return;
-        p.isLocked = !p.isLocked;
-        saveDataAndSync();
-        showToast(p.isLocked ? `🔒 Đã khóa dự án "${p.name}"` : `🔓 Đã mở khóa dự án "${p.name}"`);
+        const nextLocked = !p.isLocked;
+        window.SupabaseDB.setLoading(true, 'Đang cập nhật khóa...');
+        try {
+          const updated = await window.SupabaseDB.updateProjectFields(p.id, { isLocked: nextLocked });
+          Object.assign(p, updated);
+          renderAll();
+          showToast(p.isLocked ? `🔒 Đã khóa dự án "${p.name}"` : `🔓 Đã mở khóa dự án "${p.name}"`);
+        } catch (err) {
+          showToast('❌ Lỗi cập nhật: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       });
       wrap.querySelectorAll('.btn-edit').forEach(b => b.onclick = () => openProjModal(b.dataset.id));
-      wrap.querySelectorAll('.btn-dup').forEach(b => b.onclick = () => {
+      wrap.querySelectorAll('.btn-dup').forEach(b => b.onclick = async () => {
         const src = projectsList.find(x => x.id === b.dataset.id);
         if (!src) return;
         const clone = {
@@ -824,51 +780,84 @@
           customer: src.customer || '',
           notes: src.notes || '',
           isLocked: false,
+          isTrashed: false,
+          isDraft: false,
+          source: src.source || 'web',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          data: JSON.parse(JSON.stringify(src.data || {}))
+          data: JSON.parse(JSON.stringify(src.data || {})),
+          igsFiles: JSON.parse(JSON.stringify(src.igsFiles || []))
         };
-        projectsList.unshift(clone);
-        saveDataAndSync();
-        showToast(`✓ Đã nhân bản "${clone.name}"`);
+        window.SupabaseDB.setLoading(true, 'Đang nhân bản dự án...');
+        try {
+          const saved = await window.SupabaseDB.saveProject(clone);
+          projectsList = [saved, ...projectsList.filter(x => x.id !== saved.id)];
+          renderAll();
+          showToast(`✓ Đã nhân bản "${saved.name}"`);
+        } catch (err) {
+          showToast('❌ Lỗi nhân bản: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       });
       wrap.querySelectorAll('.btn-exp').forEach(b => b.onclick = () => {
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (!p) return;
         downloadJson(p, `${(p.name || 'du_an').replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
       });
-      wrap.querySelectorAll('.btn-del').forEach(b => b.onclick = () => {
+      wrap.querySelectorAll('.btn-del').forEach(b => b.onclick = async () => {
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (!p || p.isLocked) return;
         if (!confirm(`Chuyển dự án "${p.name}" vào thùng rác?`)) return;
-        p.deletedAt = new Date().toISOString();
-        trashList.unshift(p);
-        projectsList = projectsList.filter(x => x.id !== p.id);
-        if (currentProjId === p.id) {
-          currentProjId = null;
-          localStorage.removeItem(LS_CUR_PROJ_ID);
+        window.SupabaseDB.setLoading(true, 'Đang chuyển vào thùng rác...');
+        try {
+          const trashed = await window.SupabaseDB.trashProject(p.id);
+          trashList = [trashed, ...trashList.filter(x => x.id !== p.id)];
+          projectsList = projectsList.filter(x => x.id !== p.id);
+          if (currentProjId === p.id) {
+            currentProjId = null;
+            localStorage.removeItem(LS_CUR_PROJ_ID);
+          }
+          renderAll();
+          showToast(`🗑️ Đã chuyển "${p.name}" vào thùng rác`);
+        } catch (err) {
+          showToast('❌ Lỗi xóa dự án: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
         }
-        saveDataAndSync();
-        showToast(`🗑️ Đã chuyển "${p.name}" vào thùng rác`);
       });
-      wrap.querySelectorAll('.btn-restore').forEach(b => b.onclick = () => {
+      wrap.querySelectorAll('.btn-restore').forEach(b => b.onclick = async () => {
         const p = trashList.find(x => x.id === b.dataset.id);
         if (!p) return;
-        delete p.deletedAt;
-        p.updatedAt = new Date().toISOString();
-        projectsList.unshift(p);
-        trashList = trashList.filter(x => x.id !== p.id);
-        saveDataAndSync();
-        showToast(`↩️ Đã khôi phục "${p.name}"`);
+        window.SupabaseDB.setLoading(true, 'Đang khôi phục...');
+        try {
+          const restored = await window.SupabaseDB.restoreProject(p.id);
+          projectsList = [restored, ...projectsList.filter(x => x.id !== p.id)];
+          trashList = trashList.filter(x => x.id !== p.id);
+          sortByUpdatedDesc(projectsList);
+          renderAll();
+          showToast(`↩️ Đã khôi phục "${p.name}"`);
+        } catch (err) {
+          showToast('❌ Lỗi khôi phục: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       });
-      wrap.querySelectorAll('.btn-perm-del').forEach(b => b.onclick = () => {
+      wrap.querySelectorAll('.btn-perm-del').forEach(b => b.onclick = async () => {
         const p = trashList.find(x => x.id === b.dataset.id);
         if (!p) return;
         if (!confirm(`Xóa vĩnh viễn "${p.name}"? Thao tác này không thể hoàn tác.`)) return;
-        if (!deletedIds.includes(p.id)) deletedIds.push(p.id);
-        trashList = trashList.filter(x => x.id !== p.id);
-        saveDataAndSync();
-        showToast(`❌ Đã xóa vĩnh viễn "${p.name}"`);
+        window.SupabaseDB.setLoading(true, 'Đang xóa vĩnh viễn...');
+        try {
+          await window.SupabaseDB.permanentDeleteProject(p.id);
+          trashList = trashList.filter(x => x.id !== p.id);
+          renderAll();
+          showToast(`❌ Đã xóa vĩnh viễn "${p.name}"`);
+        } catch (err) {
+          showToast('❌ Lỗi xóa vĩnh viễn: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       });
     }
 
@@ -891,37 +880,47 @@
       setTimeout(() => $('inpFormName').focus(), 50);
     }
 
-    function saveModalForm() {
+    async function saveModalForm() {
       const name = ($('inpFormName').value || '').trim();
       if (!name) { alert('Vui lòng nhập tên dự án!'); return; }
       const customer = ($('inpFormCustomer').value || '').trim();
       const notes = ($('inpFormNotes').value || '').trim();
       const now = new Date().toISOString();
 
-      if (editingId) {
-        const p = projectsList.find(x => x.id === editingId);
-        if (p) {
-          p.name = name; p.customer = customer; p.notes = notes; p.updatedAt = now;
+      window.SupabaseDB.setLoading(true, 'Đang lưu dự án...');
+      try {
+        if (editingId) {
+          const updated = await window.SupabaseDB.updateProjectFields(editingId, { name, customer, notes });
+          const p = projectsList.find(x => x.id === editingId);
+          if (p) Object.assign(p, updated);
+          showToast(`✓ Đã cập nhật "${name}"`);
+        } else {
+          const newProj = {
+            id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            name, customer, notes,
+            isLocked: false, isTrashed: false, isDraft: false, source: 'web',
+            createdAt: now, updatedAt: now,
+            data: {
+              activeProfiles: ['Hộp 30x30x1.8'],
+              selectedTabProfile: 'Hộp 30x30x1.8',
+              parts: [],
+              stock: [{ id: 's_def_' + Date.now(), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
+              method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
+            },
+            igsFiles: []
+          };
+          const saved = await window.SupabaseDB.saveProject(newProj);
+          projectsList = [saved, ...projectsList.filter(x => x.id !== saved.id)];
+          showToast(`✓ Đã tạo dự án mới "${name}"`);
         }
-        showToast(`✓ Đã cập nhật "${name}"`);
-      } else {
-        const newProj = {
-          id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-          name, customer, notes, isLocked: false,
-          createdAt: now, updatedAt: now,
-          data: {
-            activeProfiles: ['Hộp 30x30x1.8'],
-            selectedTabProfile: 'Hộp 30x30x1.8',
-            parts: [],
-            stock: [{ id: 's_def_' + Date.now(), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
-            method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
-          }
-        };
-        projectsList.unshift(newProj);
-        showToast(`✓ Đã tạo dự án mới "${name}"`);
+        $('modalProjForm').style.display = 'none';
+        sortByUpdatedDesc(projectsList);
+        renderAll();
+      } catch (err) {
+        showToast('❌ Lỗi lưu dự án: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
-      $('modalProjForm').style.display = 'none';
-      saveDataAndSync();
     }
 
     function downloadJson(obj, filename) {
@@ -958,23 +957,24 @@
         const f = e.target.files && e.target.files[0];
         if (!f) return;
         const r = new FileReader();
-        r.onload = ev => {
+        r.onload = async ev => {
           try {
             const parsed = JSON.parse(ev.target.result);
-            let added = 0;
+            const toImport = [];
             if (Array.isArray(parsed.projects)) {
               parsed.projects.forEach(p => {
-                if (p && p.name && !projectsList.some(x => x.id === p.id)) { projectsList.unshift(p); added++; }
+                if (p && p.name && !projectsList.some(x => x.id === p.id)) toImport.push(p);
               });
             } else if (parsed && parsed.name && parsed.data) {
               parsed.id = 'proj_imp_' + Date.now();
-              projectsList.unshift(parsed);
-              added = 1;
+              parsed.source = 'import';
+              toImport.push(parsed);
             } else if (parsed && Array.isArray(parsed.parts)) {
-              projectsList.unshift({
+              toImport.push({
                 id: 'proj_f360_' + Date.now(),
                 name: parsed.project_name || f.name.replace(/\.json$/i, ''),
                 customer: 'Nhập từ JSON / Fusion 360',
+                source: 'import',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 data: {
@@ -985,23 +985,43 @@
                   fusionProject: parsed
                 }
               });
-              added = 1;
             }
-            if (added) { saveDataAndSync(); showToast(`✓ Đã nhập ${added} dự án thành công!`); }
-            else alert('⚠️ File JSON không có dự án mới hoặc không đúng định dạng.');
-          } catch (err) { alert('❌ Lỗi đọc file JSON: ' + err.message); }
+            if (!toImport.length) {
+              alert('⚠️ File JSON không có dự án mới hoặc không đúng định dạng.');
+              return;
+            }
+            window.SupabaseDB.setLoading(true, 'Đang nhập dự án lên Supabase...');
+            try {
+              for (const p of toImport) {
+                const saved = await window.SupabaseDB.saveProject(p);
+                projectsList = [saved, ...projectsList.filter(x => x.id !== saved.id)];
+              }
+              sortByUpdatedDesc(projectsList);
+              renderAll();
+              showToast(`✓ Đã nhập ${toImport.length} dự án lên Supabase thành công!`);
+            } finally {
+              window.SupabaseDB.setLoading(false);
+            }
+          } catch (err) { alert('❌ Lỗi nhập file JSON: ' + err.message); }
         };
         r.readAsText(f);
         e.target.value = '';
       };
 
-      $('btnEmptyTrash').onclick = () => {
+      $('btnEmptyTrash').onclick = async () => {
         if (!trashList.length) return;
         if (!confirm(`Xóa vĩnh viễn toàn bộ ${trashList.length} dự án trong thùng rác?`)) return;
-        trashList.forEach(p => { if (!deletedIds.includes(p.id)) deletedIds.push(p.id); });
-        trashList = [];
-        saveDataAndSync();
-        showToast('🧹 Đã dọn sạch thùng rác!');
+        window.SupabaseDB.setLoading(true, 'Đang dọn sạch thùng rác...');
+        try {
+          await window.SupabaseDB.emptyTrash();
+          trashList = [];
+          renderAll();
+          showToast('🧹 Đã dọn sạch thùng rác!');
+        } catch (err) {
+          showToast('❌ Lỗi dọn thùng rác: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       };
 
       checkAuth();

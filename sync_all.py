@@ -40,10 +40,22 @@ def copy_db_files(target_dir):
     src_db_dir = os.path.join(toiuu_phoi_dir, 'database')
     dst_db_dir = os.path.join(target_dir, 'database')
     os.makedirs(dst_db_dir, exist_ok=True)
-    for fn in ['workshop_db.json', 'workshop_db.js']:
-        s = os.path.join(src_db_dir, fn)
-        if os.path.exists(s):
-            shutil.copy2(s, os.path.join(dst_db_dir, fn))
+    stale_js = os.path.join(dst_db_dir, 'workshop_db.js')
+    if os.path.exists(stale_js):
+        os.remove(stale_js)
+    src_json = os.path.join(src_db_dir, 'workshop_db.json')
+    if os.path.exists(src_json):
+        shutil.copy2(src_json, os.path.join(dst_db_dir, 'workshop_db.json'))
+
+def copy_js_files(target_dir):
+    src_js_dir = os.path.join(toiuu_phoi_dir, 'js')
+    dst_js_dir = os.path.join(target_dir, 'js')
+    os.makedirs(dst_js_dir, exist_ok=True)
+    if os.path.exists(src_js_dir):
+        for fn in os.listdir(src_js_dir):
+            s = os.path.join(src_js_dir, fn)
+            if os.path.isfile(s):
+                shutil.copy2(s, os.path.join(dst_js_dir, fn))
 
 # 1. Đồng bộ script Python sang Fusion Script dir
 py_in_fusion = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
@@ -57,6 +69,7 @@ for f in all_web_assets:
         shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
 copy_branches_to(fusion_script_dir)
 copy_db_files(fusion_script_dir)
+copy_js_files(fusion_script_dir)
 print('Copied web assets to Fusion Script dir')
 
 # 3. Copy web assets to Fusion360/toiuu-phoi
@@ -66,6 +79,7 @@ for f in all_web_assets + [src_py]:
         shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
 copy_branches_to(fusion_workspace_dir)
 copy_db_files(fusion_workspace_dir)
+copy_js_files(fusion_workspace_dir)
 print('Copied web assets to Fusion360/toiuu-phoi')
 
 # 4. Copy web assets to dist directory for Netlify/GitHub Pages deploy
@@ -75,6 +89,7 @@ for f in [src_html] + branch_htmls + [src_engine, src_logo, src_cfg, src_manifes
         shutil.copy2(f, os.path.join(dist_dir, os.path.basename(f)))
 copy_branches_to(dist_dir)
 copy_db_files(dist_dir)
+copy_js_files(dist_dir)
 print('Copied web assets to dist dir')
 
 # 5. Update export folders on Desktop if they exist

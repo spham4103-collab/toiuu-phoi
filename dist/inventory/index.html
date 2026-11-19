@@ -12,7 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="/toi-uu-engine.js"></script>
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
-  <script src="/database/workshop_db.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
   <style>
     :root {
       --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
@@ -314,28 +315,16 @@
   <div id="toast"></div>
 
   <script>
-    const LS_USERS = 'toiuu_users_list_v1';
     const LS_SESSION = 'toiuu_logged_user_v1';
-    const LS_SAVED_PROFILES = 'toiuu_saved_box_profiles_v2';
-    const LS_ACTIVE_PROJECT = 'toiuu_active_project_v2';
-    const LS_SAVED_PROJECTS = 'toiuu_saved_projects_list_v1';
-
-    const DEFAULT_USERS = [
-      { username: 'admin', password: '123456', fullName: 'Kỹ Sư Thiết Kế (Admin)', role: 'engineer' },
-      { username: 'kt1', password: '12345', fullName: 'Sơn KT (Kỹ Sư)', role: 'engineer' },
-      { username: 'thocnc', password: '1234', fullName: 'Thợ Vận Hành Máy CNC', role: 'operator' }
-    ];
-
-    const DEFAULT_PROFILES = [
-      'Hộp 20x20x1.4', 'Hộp 25x25x1.4', 'Hộp 30x30x1.8', 'Hộp 40x40x1.8', 'Hộp 50x50x2.0',
-      'Hộp 20x40x1.4', 'Hộp 25x50x1.8', 'Hộp 30x60x1.8', 'Hộp 40x80x2.0', 'Ống Ø27x1.4', 'Ống Ø34x1.4'
-    ];
+    const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
 
     let usersList = [];
     let currentUser = null;
     let savedProfiles = [];
+    let currentProjectRecord = null;
     let activeProject = null;
     let lastSolveResult = null;
+    let realtimeUnsub = null;
 
     const $ = id => document.getElementById(id);
 
@@ -378,185 +367,225 @@
       return { label: 'Khác', cls: 'pill-slate' };
     }
 
-    function loadUsers() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        if (Array.isArray(dbInit.users) && dbInit.users.length) {
-          usersList = dbInit.users.slice();
-          return;
+    async function loadUsers() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        usersList = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_USERS : []).slice();
+        if (window.SupabaseDB) {
+          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!', () => checkAuth());
         }
+        return false;
       }
       try {
-        const raw = localStorage.getItem(LS_USERS);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length) usersList = parsed;
-        }
-      } catch (e) {}
-      if (!usersList.length) usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
+        usersList = await window.SupabaseDB.getUsers();
+        if (!usersList.length) usersList = window.SupabaseDB.DEFAULT_USERS.slice();
+        window.SupabaseDB.clearConnectionError();
+        return true;
+      } catch (err) {
+        console.error('Lỗi tải users:', err);
+        window.SupabaseDB.showConnectionError('❌ Không thể kết nối Supabase: ' + err.message, () => checkAuth());
+        return false;
+      }
     }
 
-    function checkAuth() {
-      loadUsers();
-      let sess = null;
+    async function checkAuth() {
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kết nối Supabase...');
       try {
-        const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
-        if (raw) sess = JSON.parse(raw);
-      } catch (e) {}
+        await loadUsers();
+        let sess = null;
+        try {
+          const raw = sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION);
+          if (raw) sess = JSON.parse(raw);
+        } catch (e) {}
 
-      if (sess && sess.username) {
-        const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
-        if (found) {
-          currentUser = found;
-          const isOp = found.role === 'operator';
-          const isSuperAdmin = found.username.toLowerCase() === 'admin';
-          document.body.classList.toggle('role-operator', isOp);
-          $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
-          $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
-          $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
-          $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
-          $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
-          if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
-          $('loginGateWrap').style.display = 'none';
-          $('mainContent').style.display = 'block';
-          loadInventoryData();
+        if (sess && sess.username) {
+          const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
+          if (found) {
+            currentUser = found;
+            const isOp = found.role === 'operator';
+            const isSuperAdmin = found.username.toLowerCase() === 'admin';
+            document.body.classList.toggle('role-operator', isOp);
+            $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+            $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
+            $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+            $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
+            $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
+            if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+            $('loginGateWrap').style.display = 'none';
+            $('mainContent').style.display = 'block';
+            await loadInventoryData();
+            return;
+          }
+        }
+        currentUser = null;
+        if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+        $('loginGateWrap').style.display = 'block';
+        $('mainContent').style.display = 'none';
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function handleLogin() {
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang xác thực...');
+      try {
+        await loadUsers();
+        const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
+        const p = ($('inpLoginPass').value || '').trim();
+        const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
+        if (!found) {
+          $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!';
+          $('loginErr').style.display = 'block';
           return;
         }
+        $('loginErr').style.display = 'none';
+        const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+        sessionStorage.setItem(LS_SESSION, sessData);
+        localStorage.setItem(LS_SESSION, sessData);
+        $('inpLoginPass').value = '';
+        await checkAuth();
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
       }
-      currentUser = null;
-      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
-      $('loginGateWrap').style.display = 'block';
-      $('mainContent').style.display = 'none';
     }
 
-    function handleLogin() {
-      loadUsers();
-      const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
-      const p = ($('inpLoginPass').value || '').trim();
-      const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
-      if (!found) {
-        $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!';
-        $('loginErr').style.display = 'block';
+    function applyProjectRecord(projRec) {
+      currentProjectRecord = projRec;
+      const d = (projRec && projRec.data) ? projRec.data : {};
+      activeProject = {
+        currentProjectId: (projRec && !projRec.isDraft && projRec.id !== '__draft__') ? projRec.id : null,
+        currentProjectName: projRec ? projRec.name : 'Dự án hiện hành (Nháp)',
+        activeProfiles: Array.isArray(d.activeProfiles) && d.activeProfiles.length ? d.activeProfiles.slice() : ['Hộp 30x30x1.8'],
+        selectedTabProfile: d.selectedTabProfile || 'Hộp 30x30x1.8',
+        parts: Array.isArray(d.parts) ? JSON.parse(JSON.stringify(d.parts)) : [],
+        stock: Array.isArray(d.stock) ? JSON.parse(JSON.stringify(d.stock)) : [],
+        method: d.method || 'cnc',
+        kerf: d.kerf != null ? d.kerf : 0,
+        clamp: d.clamp != null ? d.clamp : 80,
+        interlock: d.interlock != null ? d.interlock : true,
+        gap: d.gap != null ? d.gap : 0,
+        fusionProject: d.fusionProject || null
+      };
+      if (!activeProject.stock.length) {
+        activeProject.stock.push({
+          id: 's_def_' + Date.now(),
+          profile: activeProject.activeProfiles[0] || 'Hộp 30x30x1.8',
+          name: 'Cây mới 6.000',
+          length: 6000,
+          qty: null,
+          clamp: activeProject.clamp || 80
+        });
+      }
+      $('activeProjTitle').textContent = activeProject.currentProjectName || 'Dự án hiện hành (Nháp)';
+    }
+
+    async function loadInventoryData() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        savedProfiles = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_PROFILES : []).slice();
+        applyProjectRecord(null);
+        renderAll();
         return;
       }
-      $('loginErr').style.display = 'none';
-      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
-      sessionStorage.setItem(LS_SESSION, sessData);
-      localStorage.setItem(LS_SESSION, sessData);
-      $('inpLoginPass').value = '';
-      checkAuth();
-    }
+      window.SupabaseDB.setLoading(true, 'Đang tải kho quy cách & vật tư...');
+      try {
+        const [invRows, allProjs] = await Promise.all([
+          window.SupabaseDB.getInventory(),
+          window.SupabaseDB.getProjects({ includeTrash: false, includeDraft: true })
+        ]);
+        savedProfiles = invRows.map(r => r.profileName).filter(Boolean);
+        if (!savedProfiles.length) {
+          savedProfiles = window.SupabaseDB.DEFAULT_PROFILES.slice();
+        }
 
-    function loadInventoryData() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        savedProfiles = (Array.isArray(dbInit.savedProfiles) && dbInit.savedProfiles.length)
-          ? dbInit.savedProfiles.slice()
-          : DEFAULT_PROFILES.slice();
-        activeProject = dbInit.activeProject ? JSON.parse(JSON.stringify(dbInit.activeProject)) : null;
-      } else {
-        try {
-          const sp = localStorage.getItem(LS_SAVED_PROFILES);
-          savedProfiles = sp ? JSON.parse(sp) : DEFAULT_PROFILES.slice();
-        } catch (e) { savedProfiles = DEFAULT_PROFILES.slice(); }
-        if (!Array.isArray(savedProfiles) || !savedProfiles.length) savedProfiles = DEFAULT_PROFILES.slice();
+        const urlProjId = new URLSearchParams(window.location.search).get('project');
+        const storedProjId = localStorage.getItem(LS_CUR_PROJ_ID);
+        const targetId = urlProjId || storedProjId;
 
-        try {
-          const ap = localStorage.getItem(LS_ACTIVE_PROJECT);
-          activeProject = ap ? JSON.parse(ap) : null;
-        } catch (e) { activeProject = null; }
-      }
+        let chosen = targetId ? allProjs.find(p => p.id === targetId) : null;
+        if (!chosen) {
+          chosen = allProjs.find(p => p.id === window.SupabaseDB.DRAFT_PROJECT_ID && p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0);
+        }
+        if (!chosen) {
+          chosen = allProjs.find(p => !p.isDraft && p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0) || allProjs[0] || null;
+        }
 
-      if (!activeProject) {
-        activeProject = {
-          activeProfiles: ['Hộp 30x30x1.8'],
-          selectedTabProfile: 'Hộp 30x30x1.8',
-          parts: [],
-          stock: [{ id: 's_def_' + Date.now(), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
-          method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
-        };
-      }
-      if (!Array.isArray(activeProject.stock)) activeProject.stock = [];
-      if (!Array.isArray(activeProject.parts)) activeProject.parts = [];
-      if (!Array.isArray(activeProject.activeProfiles)) activeProject.activeProfiles = ['Hộp 30x30x1.8'];
-
-      $('activeProjTitle').textContent = activeProject.currentProjectName || 'Dự án hiện hành (Nháp)';
-      renderAll();
-      initRealtime();
-      fetchCloudProfiles();
-    }
-
-    async function fetchCloudProfiles() {
-      if (window.WorkshopDB) {
-        return window.WorkshopDB.fetchLatest();
-      }
-    }
-
-    function mergeProfilesSet(remProfiles) {
-      if (!Array.isArray(remProfiles)) return;
-      const set = new Set(savedProfiles);
-      let changed = false;
-      remProfiles.forEach(p => {
-        if (p && !set.has(p)) { set.add(p); changed = true; }
-      });
-      if (changed) {
-        savedProfiles = Array.from(set);
-        localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(savedProfiles));
+        applyProjectRecord(chosen);
+        window.SupabaseDB.clearConnectionError();
         renderAll();
+        initRealtime();
+      } catch (err) {
+        console.error('Lỗi tải inventory:', err);
+        window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải kho quy cách: ' + err.message, () => loadInventoryData());
+        showToast('❌ Không thể tải dữ liệu từ Supabase!');
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
     }
 
-    function saveProfilesAndSync() {
-      localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(savedProfiles));
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync({ savedProfiles }, 'profiles');
-      }
-    }
+    async function saveActiveProjectAndSync() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      const mergedData = Object.assign({}, (currentProjectRecord && currentProjectRecord.data) || {}, {
+        activeProfiles: activeProject.activeProfiles,
+        selectedTabProfile: activeProject.selectedTabProfile,
+        parts: activeProject.parts,
+        stock: activeProject.stock,
+        method: activeProject.method,
+        kerf: activeProject.kerf,
+        clamp: activeProject.clamp,
+        interlock: activeProject.interlock,
+        gap: activeProject.gap,
+        fusionProject: activeProject.fusionProject || null
+      });
 
-    function saveActiveProjectAndSync() {
-      localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(activeProject));
-      let allProjs = null;
-      if (activeProject.currentProjectId) {
-        try {
-          allProjs = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]');
-          const idx = allProjs.findIndex(p => p.id === activeProject.currentProjectId);
-          if (idx >= 0) {
-            allProjs[idx].updatedAt = new Date().toISOString();
-            allProjs[idx].data = Object.assign(allProjs[idx].data || {}, {
-              activeProfiles: activeProject.activeProfiles,
-              stock: activeProject.stock
-            });
-            localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(allProjs));
-          }
-        } catch (e) {}
-      }
-      if (window.WorkshopDB) {
-        const patch = { activeProject };
-        if (Array.isArray(allProjs) && allProjs.length) patch.savedProjects = allProjs;
-        window.WorkshopDB.sync(patch, activeProject.currentProjectId ? 'save_project' : 'active_project');
+      window.SupabaseDB.setLoading(true, 'Đang lưu thay đổi kho phôi...');
+      try {
+        if (currentProjectRecord && currentProjectRecord.id && !currentProjectRecord.isDraft && currentProjectRecord.id !== window.SupabaseDB.DRAFT_PROJECT_ID) {
+          const updated = await window.SupabaseDB.updateProjectFields(currentProjectRecord.id, { data: mergedData });
+          currentProjectRecord = updated;
+        } else {
+          const savedDraft = await window.SupabaseDB.saveDraftProject(Object.assign({}, mergedData, {
+            currentProjectId: null,
+            currentProjectName: activeProject.currentProjectName || 'Dự án nháp'
+          }));
+          currentProjectRecord = savedDraft;
+        }
+      } catch (err) {
+        showToast('❌ Lỗi lưu dự án lên Supabase: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
     }
 
     function initRealtime() {
-      if (window.WorkshopDB) {
-        window.WorkshopDB.onChange((dbState) => {
-          if (Array.isArray(dbState.savedProfiles) && dbState.savedProfiles.length) {
-            savedProfiles = dbState.savedProfiles.slice();
+      if (realtimeUnsub || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      realtimeUnsub = window.SupabaseDB.subscribeTables({
+        inventory: async () => {
+          try {
+            const invRows = await window.SupabaseDB.getInventory();
+            savedProfiles = invRows.map(r => r.profileName).filter(Boolean);
+            renderAll();
+          } catch (e) {}
+        },
+        projects: (ev) => {
+          const rec = ev.newRecord;
+          if (!rec || !currentProjectRecord) return;
+          if (rec.id === currentProjectRecord.id) {
+            applyProjectRecord(rec);
+            renderAll();
           }
-          if ((!activeProject || !activeProject.parts || !activeProject.parts.length) && dbState.activeProject) {
-            activeProject = JSON.parse(JSON.stringify(dbState.activeProject));
-            $('activeProjTitle').textContent = activeProject.currentProjectName || 'Dự án hiện hành (Nháp)';
-          }
-          if (Array.isArray(dbState.users) && dbState.users.length) usersList = dbState.users.slice();
-          renderAll();
-        });
-        return;
-      }
+        },
+        workshop_users: async () => {
+          try {
+            usersList = await window.SupabaseDB.getUsers();
+          } catch (e) {}
+        }
+      });
     }
 
     function solveBOM() {
       lastSolveResult = null;
-      const validParts = (activeProject.parts || []).filter(p => Number(p.length) > 0 && Number(p.qty) > 0);
+      const validParts = (activeProject && Array.isArray(activeProject.parts))
+        ? activeProject.parts.filter(p => Number(p.length) > 0 && Number(p.qty) > 0)
+        : [];
       if (!validParts.length || typeof RC === 'undefined') return null;
 
       const kerf = Number(activeProject.kerf) || 0;
@@ -601,9 +630,9 @@
     function renderAll() {
       const res = solveBOM();
       $('kpiTotalProfiles').textContent = savedProfiles.length;
-      $('kpiProjProfiles').textContent = (activeProject.activeProfiles || []).length;
+      $('kpiProjProfiles').textContent = (activeProject && activeProject.activeProfiles ? activeProject.activeProfiles.length : 0);
       $('kpiNewBarsNeeded').textContent = res ? numVN(res.totalNewBars) : '0';
-      const existingCount = (activeProject.stock || []).filter(s => s.qty != null && s.qty !== '').reduce((a, b) => a + (Number(b.qty) || 0), 0);
+      const existingCount = (activeProject && activeProject.stock ? activeProject.stock : []).filter(s => s.qty != null && s.qty !== '').reduce((a, b) => a + (Number(b.qty) || 0), 0);
       $('kpiExistingStockCount').textContent = numVN(existingCount);
 
       renderProfilesTable();
@@ -624,8 +653,8 @@
       tbody.innerHTML = filtered.map(pName => {
         const cls = classifyProfile(pName);
         const matW = extractMatFromProfile(pName);
-        const pcsCount = (activeProject.parts || []).filter(pt => pt.profile === pName).reduce((a, b) => a + (Number(b.qty) || 0), 0);
-        const inProj = (activeProject.activeProfiles || []).includes(pName);
+        const pcsCount = ((activeProject && activeProject.parts) || []).filter(pt => pt.profile === pName).reduce((a, b) => a + (Number(b.qty) || 0), 0);
+        const inProj = ((activeProject && activeProject.activeProfiles) || []).includes(pName);
 
         return `
           <tr>
@@ -641,35 +670,42 @@
         `;
       }).join('');
 
-      tbody.querySelectorAll('.btn-use-prof').forEach(b => b.onclick = () => {
+      tbody.querySelectorAll('.btn-use-prof').forEach(b => b.onclick = async () => {
         const prof = b.dataset.prof;
         if (!activeProject.activeProfiles.includes(prof)) activeProject.activeProfiles.push(prof);
         if (!activeProject.stock.some(s => s.profile === prof)) {
           activeProject.stock.push({ id: 's_auto_' + Date.now(), profile: prof, name: `Cây mới 6.000 (${prof})`, length: 6000, qty: null, clamp: activeProject.clamp || 80 });
         }
         activeProject.selectedTabProfile = prof;
-        saveActiveProjectAndSync();
         renderAll();
+        await saveActiveProjectAndSync();
         showToast(`✓ Đã đưa "${prof}" vào dự án hiện hành!`);
       });
 
-      tbody.querySelectorAll('.btn-del-prof').forEach(b => b.onclick = () => {
+      tbody.querySelectorAll('.btn-del-prof').forEach(b => b.onclick = async () => {
         const prof = b.dataset.prof;
-        if (!confirm(`Xóa quy cách "${prof}" khỏi bộ nhớ thư viện xưởng?`)) return;
-        savedProfiles = savedProfiles.filter(x => x !== prof);
-        saveProfilesAndSync();
-        renderAll();
-        showToast(`🗑️ Đã xóa "${prof}" khỏi thư viện`);
+        if (!confirm(`Xóa quy cách "${prof}" khỏi thư viện Supabase?`)) return;
+        window.SupabaseDB.setLoading(true, 'Đang xóa quy cách...');
+        try {
+          await window.SupabaseDB.deleteProfile(prof);
+          savedProfiles = savedProfiles.filter(x => x !== prof);
+          renderAll();
+          showToast(`🗑️ Đã xóa "${prof}" khỏi thư viện`);
+        } catch (err) {
+          showToast('❌ Lỗi xóa quy cách: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       });
     }
 
     function renderStockSelectAndTable() {
       const sel = $('selNewStockProf');
-      const allProfs = Array.from(new Set([...(activeProject.activeProfiles || []), ...savedProfiles]));
+      const allProfs = Array.from(new Set([...((activeProject && activeProject.activeProfiles) || []), ...savedProfiles]));
       sel.innerHTML = allProfs.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
 
       const tbody = $('stockTableBody');
-      if (!activeProject.stock.length) {
+      if (!activeProject || !activeProject.stock.length) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:#64748B;">Chưa có cây phôi nào được khai báo.</td></tr>`;
         return;
       }
@@ -687,7 +723,7 @@
       `).join('');
 
       tbody.querySelectorAll('.stock-inp').forEach(inp => {
-        inp.onchange = () => {
+        inp.onchange = async () => {
           const id = inp.dataset.id;
           const field = inp.dataset.f;
           const item = activeProject.stock.find(s => s.id === id);
@@ -695,15 +731,15 @@
           if (field === 'name') item.name = inp.value;
           else if (field === 'length') item.length = parseFloat(inp.value) || 6000;
           else if (field === 'qty') item.qty = inp.value.trim() === '' ? null : Math.max(0, parseInt(inp.value) || 0);
-          saveActiveProjectAndSync();
           renderAll();
+          await saveActiveProjectAndSync();
         };
       });
 
-      tbody.querySelectorAll('.btn-del-stock').forEach(b => b.onclick = () => {
+      tbody.querySelectorAll('.btn-del-stock').forEach(b => b.onclick = async () => {
         activeProject.stock = activeProject.stock.filter(s => s.id !== b.dataset.id);
-        saveActiveProjectAndSync();
         renderAll();
+        await saveActiveProjectAndSync();
         showToast('🗑️ Đã xóa cây phôi');
       });
     }
@@ -754,7 +790,7 @@
     function copyBomZalo() {
       if (!lastSolveResult) { showToast('Chưa có bảng vật tư để chép!'); return; }
       const res = lastSolveResult;
-      const lines = [`📦 BẢNG VẬT TƯ XƯỞNG AN BÌNH · ${activeProject.currentProjectName || 'Dự án hiện hành'} (${new Date().toLocaleDateString('vi-VN')})`, `Tổng cộng: ${res.bars.length} cây (Mua mới: ${res.totalNewBars}, Tồn kho: ${res.totalExistingUsed})`, ''];
+      const lines = [`📦 BẢNG VẬT TƯ XƯỞNG AN BÌNH · ${(activeProject && activeProject.currentProjectName) || 'Dự án hiện hành'} (${new Date().toLocaleDateString('vi-VN')})`, `Tổng cộng: ${res.bars.length} cây (Mua mới: ${res.totalNewBars}, Tồn kho: ${res.totalExistingUsed})`, ''];
       (res.summaryByProfile || []).forEach(sp => {
         const stocks = res.byStockType.filter(s => (s.profile || 'Chung') === sp.profile && s.usedQty > 0);
         if (stocks.length) {
@@ -786,32 +822,52 @@
     document.addEventListener('DOMContentLoaded', () => {
       $('btnSubmitLogin').onclick = handleLogin;
       $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-      $('btnLogout').onclick = () => { sessionStorage.removeItem(LS_SESSION); localStorage.removeItem(LS_SESSION); checkAuth(); };
+      $('btnLogout').onclick = () => {
+        sessionStorage.removeItem(LS_SESSION);
+        localStorage.removeItem(LS_SESSION);
+        if (realtimeUnsub) { realtimeUnsub(); realtimeUnsub = null; }
+        checkAuth();
+      };
 
       $('inpSearchProf').oninput = renderProfilesTable;
-      $('btnAddProfToLib').onclick = () => {
+      $('btnAddProfToLib').onclick = async () => {
         const val = ($('inpNewProfName').value || '').trim();
         if (!val) return;
-        if (!savedProfiles.includes(val)) {
+        if (savedProfiles.includes(val)) {
+          showToast(`Quy cách "${val}" đã có sẵn trong bộ nhớ!`);
+          return;
+        }
+        window.SupabaseDB.setLoading(true, 'Đang lưu quy cách lên Supabase...');
+        try {
+          await window.SupabaseDB.addProfile(val);
           savedProfiles.push(val);
-          saveProfilesAndSync();
           $('inpNewProfName').value = '';
           renderAll();
-          showToast(`✓ Đã lưu "${val}" vào bộ nhớ xưởng!`);
-        } else {
-          showToast(`Quy cách "${val}" đã có sẵn trong bộ nhớ!`);
+          showToast(`✓ Đã lưu "${val}" lên Supabase!`);
+        } catch (err) {
+          showToast('❌ Lỗi lưu quy cách: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
         }
       };
 
-      $('btnResetDefaultProfs').onclick = () => {
+      $('btnResetDefaultProfs').onclick = async () => {
         if (!confirm('Khôi phục danh sách quy cách mặc định ban đầu (vẫn giữ thêm nếu bạn gõ mới)?')) return;
-        DEFAULT_PROFILES.forEach(p => { if (!savedProfiles.includes(p)) savedProfiles.push(p); });
-        saveProfilesAndSync();
-        renderAll();
-        showToast('🔄 Đã khôi phục danh sách quy cách mặc định!');
+        window.SupabaseDB.setLoading(true, 'Đang khôi phục quy cách mặc định...');
+        try {
+          await window.SupabaseDB.addProfilesBulk(window.SupabaseDB.DEFAULT_PROFILES);
+          const invRows = await window.SupabaseDB.getInventory();
+          savedProfiles = invRows.map(r => r.profileName).filter(Boolean);
+          renderAll();
+          showToast('🔄 Đã khôi phục danh sách quy cách mặc định!');
+        } catch (err) {
+          showToast('❌ Lỗi khôi phục: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       };
 
-      $('btnAddStockBar').onclick = () => {
+      $('btnAddStockBar').onclick = async () => {
         const prof = $('selNewStockProf').value || 'Hộp 30x30x1.8';
         const name = ($('inpNewStockName').value || '').trim() || `Cây tồn (${prof})`;
         const len = parseFloat($('inpNewStockLen').value) || 6000;
@@ -820,8 +876,8 @@
         activeProject.stock.push({ id: 's_inv_' + Date.now(), profile: prof, name, length: len, qty, clamp: activeProject.clamp || 80 });
         if (!activeProject.activeProfiles.includes(prof)) activeProject.activeProfiles.push(prof);
         $('inpNewStockName').value = '';
-        saveActiveProjectAndSync();
         renderAll();
+        await saveActiveProjectAndSync();
         showToast(`✓ Đã thêm cây phôi "${name}" (${numVN(len)} mm)!`);
       };
 

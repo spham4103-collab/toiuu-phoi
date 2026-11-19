@@ -13,7 +13,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="toi-uu-engine.js"></script>
-  <script src="/database/workshop_db.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
   <script id="embeddedFusionData" type="application/json"></script>
   <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
   <style>
@@ -1860,7 +1861,7 @@
             </div>
           </div>
           <div class="memory-chips-wrap" id="memoryChipsWrap">
-            <!-- Populated dynamically from localStorage -->
+            <!-- Danh sách dự án sẽ được nạp tự động từ Supabase -->
           </div>
         </div>
 
@@ -2422,16 +2423,11 @@
     ];
     const getColor = i => COLORS[i % COLORS.length];
 
-    // LocalStorage Keys
-    const LS_SAVED_PROFILES = 'toiuu_saved_box_profiles_v2';
-    const LS_ACTIVE_PROJECT = 'toiuu_active_project_v2';
-    const LS_SAVED_PROJECTS = 'toiuu_saved_projects_list_v1';
+    // Storage Keys (chỉ lưu cục bộ ID dự án đang mở và phiên đăng nhập riêng từng thiết bị)
     const LS_CURRENT_PROJ_ID = 'toiuu_current_proj_id_v1';
-    const LS_CLOUD_WORKSPACE = 'toiuu_cloud_workspace_id_v1';
-    const LS_CLOUD_PIN = 'toiuu_cloud_pin_v1';
-    const LS_FIREBASE_CONFIG = 'toiuu_firebase_config_custom_v1';
+    const LS_LOGGED_USER = 'toiuu_logged_user_v1';
 
-    // Default Saved Profiles Library
+    // Default Saved Profiles Library (fallback khi chưa cấu hình Supabase)
     const DEFAULT_SAVED_PROFILES = [
       'Hộp 20x20x1.4', 'Hộp 25x25x1.4', 'Hộp 30x30x1.8', 'Hộp 40x40x1.8', 'Hộp 50x50x2.0',
       'Hộp 20x40x1.4', 'Hộp 25x50x1.8', 'Hộp 30x60x1.8', 'Hộp 40x80x2.0', 'Ống Ø27x1.4', 'Ống Ø34x1.4'
@@ -2461,13 +2457,12 @@
       activeProjectsTab: 'active',
       editingProjectId: null,
       fusionProject: null,
-      // Đồng bộ Đám mây Mã Xưởng
+      // Trạng thái Supabase Realtime
       cloudConnected: false,
-      cloudWorkspaceId: '',
-      cloudPin: '',
-      cloudSyncStatus: 'disconnected',
-      cloudUnsubscribe: null,
-      firebaseDb: null,
+      cloudSyncStatus: 'connecting',
+      realtimeUnsub: null,
+      activeSaveTimer: null,
+      lastLocalProjectWriteAt: 0,
       isApplyingRemoteChange: false,
       userRole: "engineer",
       adminPin: "1234",
@@ -2649,46 +2644,41 @@
       return 30;
     }
 
-    // Load & Save Memory Library
-    function initSavedProfiles() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        if (Array.isArray(dbInit.savedProfiles) && dbInit.savedProfiles.length) {
-          state.savedProfiles = dbInit.savedProfiles.slice();
-          return;
-        }
+    // Load & Save Memory Library (Supabase inventory)
+    async function initSavedProfiles() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        state.savedProfiles = DEFAULT_SAVED_PROFILES.slice();
+        return;
       }
       try {
-        const stored = localStorage.getItem(LS_SAVED_PROFILES);
-        if (stored) {
-          state.savedProfiles = JSON.parse(stored);
-        } else {
-          state.savedProfiles = DEFAULT_SAVED_PROFILES.slice();
-          saveProfilesLibrary();
-        }
-      } catch (e) {
+        const invRows = await window.SupabaseDB.getInventory();
+        const names = invRows.map(r => r.profileName).filter(Boolean);
+        state.savedProfiles = names.length ? names : DEFAULT_SAVED_PROFILES.slice();
+      } catch (err) {
+        console.error('Lỗi tải thư viện quy cách từ Supabase:', err);
         state.savedProfiles = DEFAULT_SAVED_PROFILES.slice();
       }
     }
 
     function saveProfilesLibrary() {
-      try {
-        localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(state.savedProfiles));
-      } catch (e) {}
-      scheduleSyncToServer('profiles');
+      if (state.isApplyingRemoteChange || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      window.SupabaseDB.addProfilesBulk(state.savedProfiles).catch(err => {
+        console.warn('Lỗi đồng bộ quy cách lên Supabase:', err);
+      });
     }
 
-    function addProfileToMemory(pName) {
+    async function addProfileToMemory(pName) {
       pName = String(pName || '').trim();
       if (!pName) return;
       if (!state.savedProfiles.includes(pName)) {
         state.savedProfiles.push(pName);
-        saveProfilesLibrary();
+        if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          window.SupabaseDB.addProfile(pName).catch(err => showToast('❌ Lỗi lưu quy cách: ' + err.message));
+        }
       }
       if (!state.activeProfiles.includes(pName)) {
         state.activeProfiles.push(pName);
       }
-      // Ensure stock has 6m new stock for this profile
       ensureStockForProfile(pName);
       state.selectedTabProfile = pName;
       renderMemoryLibraryChips();
@@ -2697,15 +2687,25 @@
       renderStockList();
       calculateOptimization(false);
       saveActiveProject();
-      showToast(`Đã lưu "${pName}" vào bộ nhớ & thêm vào bản vẽ!`);
+      showToast(`Đã lưu "${pName}" lên Supabase & thêm vào bản vẽ!`);
     }
 
-    function removeProfileFromMemory(pName, e) {
+    async function removeProfileFromMemory(pName, e) {
       if (e) e.stopPropagation();
-      if (confirm(`Bạn có chắc muốn xóa quy cách "${pName}" khỏi danh sách bộ nhớ?`)) {
-        state.savedProfiles = state.savedProfiles.filter(p => p !== pName);
-        saveProfilesLibrary();
-        renderMemoryLibraryChips();
+      if (!confirm(`Bạn có chắc muốn xóa quy cách "${pName}" khỏi danh sách bộ nhớ?`)) return;
+      state.savedProfiles = state.savedProfiles.filter(p => p !== pName);
+      renderMemoryLibraryChips();
+      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        window.SupabaseDB.setLoading(true, 'Đang xóa quy cách...');
+        try {
+          await window.SupabaseDB.deleteProfile(pName);
+          showToast(`Đã xóa "${pName}" khỏi thư viện Supabase!`);
+        } catch (err) {
+          showToast('❌ Lỗi xóa quy cách: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
+      } else {
         showToast(`Đã xóa "${pName}" khỏi bộ nhớ!`);
       }
     }
@@ -2744,233 +2744,167 @@
     }
 
     // ==========================================
-    // Project Persistence & Management
+    // Project Persistence & Management (Supabase Single Source of Truth)
     // ==========================================
-    function saveActiveProject() {
-      try {
-        const data = {
-          currentProjectId: state.currentProjectId,
-          currentProjectName: state.currentProjectName,
-          currentProjectCustomer: state.currentProjectCustomer,
-          currentProjectNotes: state.currentProjectNotes,
-          activeProfiles: state.activeProfiles,
-          selectedTabProfile: state.selectedTabProfile,
-          parts: state.parts,
-          stock: state.stock,
-          method: state.method,
-          kerf: state.kerf,
-          clamp: state.clamp,
-          interlock: state.interlock,
-          gap: state.gap,
-          fusionProject: state.fusionProject,
-          isBlankReset: !!state.isBlankReset
-        };
-        localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(data));
-      } catch (e) {}
-      // Tự động đẩy lên Máy chủ & Đám mây 24/7 (debounce 800ms) để thiết bị khác mở là có ngay dữ liệu cũ!
-      scheduleSyncToServer('active_project');
+    function buildActiveDataSnapshot() {
+      const cleanSnap = {
+        currentProjectId: state.currentProjectId,
+        currentProjectName: state.currentProjectName,
+        currentProjectCustomer: state.currentProjectCustomer,
+        currentProjectNotes: state.currentProjectNotes,
+        activeProfiles: [...state.activeProfiles],
+        selectedTabProfile: state.selectedTabProfile,
+        parts: JSON.parse(JSON.stringify(state.parts)),
+        stock: JSON.parse(JSON.stringify(state.stock)),
+        method: state.method,
+        kerf: state.kerf,
+        clamp: state.clamp,
+        interlock: state.interlock,
+        gap: state.gap,
+        fusionProject: state.fusionProject || null,
+        isBlankReset: !!state.isBlankReset
+      };
+      return window.SupabaseDB ? window.SupabaseDB.stripHeavyIgs(cleanSnap) : cleanSnap;
     }
 
-    function loadActiveProject() {
-      try {
-        let data = null;
-        const stored = localStorage.getItem(LS_ACTIVE_PROJECT);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && Array.isArray(parsed.parts) && (parsed.parts.length > 0 || parsed.isBlankReset)) {
-            data = parsed;
+    function saveActiveProject() {
+      if (state.isApplyingRemoteChange || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      clearTimeout(state.activeSaveTimer);
+      state.activeSaveTimer = setTimeout(async () => {
+        if (state.isApplyingRemoteChange) return;
+        const snap = buildActiveDataSnapshot();
+        state.lastLocalProjectWriteAt = Date.now();
+        try {
+          if (state.currentProjectId) {
+            const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+            if (curProj && curProj.isLocked) return;
+            const updated = await window.SupabaseDB.updateProjectFields(state.currentProjectId, { data: snap });
+            if (curProj && updated) Object.assign(curProj, updated);
+          } else {
+            await window.SupabaseDB.saveDraftProject(snap);
           }
+        } catch (err) {
+          console.warn('Lỗi tự động lưu lên Supabase:', err);
         }
-        // Nếu thiết bị mới chưa có nháp cục bộ -> nạp TỨC THÌ (0ms) từ WorkshopDB đã nhúng từ máy chủ!
-        if (!data && window.WorkshopDB) {
-          const dbInit = window.WorkshopDB.getInitialState();
-          if (dbInit && dbInit.activeProject && Array.isArray(dbInit.activeProject.parts) && dbInit.activeProject.parts.length > 0) {
-            data = dbInit.activeProject;
-          }
-        }
-        if (data && Array.isArray(data.parts) && (data.parts.length > 0 || data.isBlankReset)) {
-          state.currentProjectId = data.currentProjectId || null;
-          state.currentProjectName = data.currentProjectName || '';
-          state.currentProjectCustomer = data.currentProjectCustomer || '';
-          state.currentProjectNotes = data.currentProjectNotes || '';
-          state.fusionProject = data.fusionProject || null;
-          state.isBlankReset = !!data.isBlankReset;
+      }, 800);
+    }
 
-          state.activeProfiles = data.activeProfiles || ['Hộp 30x30x1.8'];
-          state.selectedTabProfile = data.selectedTabProfile || state.activeProfiles[0];
-          state.parts = data.parts;
-          state.stock = data.stock || [];
-          state.method = data.method || 'cnc';
-          state.kerf = data.kerf != null ? data.kerf : 0;
-          state.clamp = data.clamp != null ? data.clamp : 80;
-          state.interlock = data.interlock != null ? data.interlock : true;
-          state.gap = data.gap != null ? data.gap : 0;
+    function applyProjectPayloadToWorkspace(proj) {
+      if (!proj) return false;
+      const d = proj.data || proj;
+      if (!d || !Array.isArray(d.parts)) return false;
 
-          updateInputsFromState();
-          ensureProfilesConsistency();
-          renderProfileTabs();
-          renderActiveProfileBanner();
-          renderPartsList();
-          renderStockList();
-          calculateOptimization(false);
-          updateProjectActiveBanner();
-          updateProjectsBadge();
-          return true;
+      state.currentProjectId = (proj.id && !proj.isDraft && proj.id !== '__draft__') ? proj.id : null;
+      state.currentProjectName = proj.name || d.currentProjectName || '';
+      state.currentProjectCustomer = proj.customer || d.currentProjectCustomer || '';
+      state.currentProjectNotes = proj.notes || d.currentProjectNotes || '';
+      state.fusionProject = d.fusionProject || null;
+      state.isBlankReset = !!d.isBlankReset;
+
+      state.activeProfiles = (Array.isArray(d.activeProfiles) && d.activeProfiles.length) ? d.activeProfiles.slice() : ['Hộp 30x30x1.8'];
+      state.selectedTabProfile = d.selectedTabProfile || state.activeProfiles[0];
+      state.parts = Array.isArray(d.parts) ? JSON.parse(JSON.stringify(d.parts)) : [];
+      state.stock = Array.isArray(d.stock) ? JSON.parse(JSON.stringify(d.stock)) : [];
+      state.method = d.method || 'cnc';
+      state.kerf = d.kerf != null ? d.kerf : 0;
+      state.clamp = d.clamp != null ? d.clamp : 80;
+      state.interlock = d.interlock != null ? d.interlock : true;
+      state.gap = d.gap != null ? d.gap : 0;
+
+      if (state.currentProjectId) {
+        try { localStorage.setItem(LS_CURRENT_PROJ_ID, state.currentProjectId); } catch (e) {}
+      }
+
+      updateInputsFromState();
+      ensureProfilesConsistency();
+      renderProfileTabs();
+      renderActiveProfileBanner();
+      renderPartsList();
+      renderStockList();
+      calculateOptimization(false);
+      updateProjectActiveBanner();
+      updateProjectsBadge();
+      return true;
+    }
+
+    async function loadActiveProject(urlProjId = null, draftProject = null) {
+      let chosen = null;
+
+      // 1. Ưu tiên ID từ query URL (?project=...)
+      if (urlProjId) {
+        chosen = (state.savedProjects || []).find(p => p.id === urlProjId) || null;
+        if (!chosen && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          try { chosen = await window.SupabaseDB.getProjectById(urlProjId); } catch (e) {}
         }
-      } catch (e) {}
+      }
+
+      // 2. Dự án đã mở lần trước trên thiết bị này
+      if (!chosen) {
+        let curId = null;
+        try { curId = localStorage.getItem(LS_CURRENT_PROJ_ID); } catch (e) {}
+        if (curId) {
+          chosen = (state.savedProjects || []).find(p => p.id === curId) || null;
+        }
+      }
+
+      // 3. Dự án có chi tiết mới nhất trên Supabase
+      if (!chosen) {
+        chosen = (state.savedProjects || []).find(p => p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0) || null;
+      }
+
+      // 4. Bản nháp chung (__draft__)
+      if (!chosen && draftProject && draftProject.data && Array.isArray(draftProject.data.parts) && (draftProject.data.parts.length > 0 || draftProject.data.isBlankReset)) {
+        chosen = draftProject;
+      }
+
+      if (chosen && applyProjectPayloadToWorkspace(chosen)) {
+        await loadCutProgressForActiveProject();
+        return true;
+      }
       return false;
     }
 
-    // Khởi tạo hệ thống quản lý danh sách dự án
-    function initProjectsManager() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        state.savedProjects = Array.isArray(dbInit.savedProjects) ? dbInit.savedProjects.slice() : [];
-        state.trashProjects = Array.isArray(dbInit.trashProjects) ? dbInit.trashProjects.slice() : [];
-        state.deletedProjectIds = Array.isArray(dbInit.deletedProjectIds) ? dbInit.deletedProjectIds.slice() : [];
-        if (Array.isArray(dbInit.lanUrls) && dbInit.lanUrls.length) state.serverLanUrls = dbInit.lanUrls;
-        if (dbInit.publicUrl) state.serverPublicUrl = dbInit.publicUrl;
-      } else {
-        try {
-          const raw = localStorage.getItem(LS_SAVED_PROJECTS);
-          state.savedProjects = raw ? JSON.parse(raw) : [];
-          if (!Array.isArray(state.savedProjects)) state.savedProjects = [];
-        } catch (e) {
-          state.savedProjects = [];
-        }
-
-        try {
-          const rawTrash = localStorage.getItem('toiuu_trash_projects_v1');
-          state.trashProjects = rawTrash ? JSON.parse(rawTrash) : [];
-          if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
-        } catch (e) {
-          state.trashProjects = [];
-        }
-
-        try {
-          const rawDel = localStorage.getItem('toiuu_deleted_proj_ids_v1');
-          state.deletedProjectIds = rawDel ? JSON.parse(rawDel) : [];
-          if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
-        } catch (e) {
-          state.deletedProjectIds = [];
-        }
+    async function loadCutProgressForActiveProject() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        state.cutStatuses = {};
+        return;
       }
-
+      const pid = state.currentProjectId || window.SupabaseDB.DRAFT_PROJECT_ID;
       try {
-        const curId = localStorage.getItem(LS_CURRENT_PROJ_ID);
-        if (curId && !state.currentProjectId) {
-          const found = state.savedProjects.find(p => p.id === curId);
-          if (found) {
-            state.currentProjectId = found.id;
-            state.currentProjectName = found.name;
-            state.currentProjectCustomer = found.customer || '';
-            state.currentProjectNotes = found.notes || '';
-          }
-        }
-      } catch (e) {}
-
-      updateProjectsBadge();
-      updateProjectActiveBanner();
-      fetchCloudProjects();
+        state.cutStatuses = await window.SupabaseDB.getCutProgress(pid);
+        updateLiveCuttingProgressUI();
+        if (state.result) renderPatternsGrouped(state.result);
+      } catch (err) {
+        console.warn('Lỗi tải tiến độ cắt:', err);
+      }
     }
 
-    function saveTrashProjectsToStorage() {
+    // Khởi tạo hệ thống quản lý danh sách dự án từ Supabase
+    async function initProjectsManager() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        state.savedProjects = [];
+        state.trashProjects = [];
+        updateProjectsBadge();
+        updateProjectActiveBanner();
+        return null;
+      }
       try {
-        localStorage.setItem('toiuu_trash_projects_v1', JSON.stringify(state.trashProjects || []));
-      } catch (e) {}
-      updateProjectsBadge();
+        const allRows = await window.SupabaseDB.getProjects({ includeTrash: true, includeDraft: true });
+        state.savedProjects = allRows.filter(p => !p.isTrashed && !p.isDraft);
+        state.trashProjects = allRows.filter(p => p.isTrashed && !p.isDraft);
+        const draftProject = allRows.find(p => p.isDraft || p.id === window.SupabaseDB.DRAFT_PROJECT_ID) || null;
+        updateProjectsBadge();
+        updateProjectActiveBanner();
+        return draftProject;
+      } catch (err) {
+        console.error('Lỗi tải danh sách dự án từ Supabase:', err);
+        window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải dự án: ' + err.message);
+        return null;
+      }
     }
 
     async function fetchCloudProjects() {
-      if (window.WorkshopDB) {
-        return window.WorkshopDB.fetchLatest();
-      }
-      let gotData = false;
-      try {
-        const res = await fetch(`${SERVER_API_BASE}/api/projects`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.success && Array.isArray(data.projects)) {
-            mergeRemoteProjectsList(data.projects);
-            gotData = true;
-          }
-        }
-      } catch (e) {}
-
-      if (!gotData) {
-        try {
-          const pollRes = await fetch(`${GLOBAL_CLOUD_URL}/json?poll=1&since=24h`);
-          if (pollRes.ok) {
-            const text = await pollRes.text();
-            const lines = text.trim().split('\n').filter(Boolean);
-            for (let i = lines.length - 1; i >= 0; i--) {
-              try {
-                const msg = JSON.parse(lines[i]);
-                if (msg.event === 'message') {
-                  let cloudDb = null;
-                  if (msg.attachment && msg.attachment.url) {
-                    const aRes = await fetch(msg.attachment.url);
-                    if (aRes.ok) cloudDb = await aRes.json();
-                  } else if (msg.message && msg.message.startsWith('{')) {
-                    cloudDb = JSON.parse(msg.message);
-                  }
-                  if (cloudDb && Array.isArray(cloudDb.savedProjects)) {
-                    mergeRemoteProjectsList(cloudDb.savedProjects);
-                    gotData = true;
-                    break;
-                  }
-                }
-              } catch (err) {}
-            }
-          }
-        } catch (e) {}
-      }
-    }
-
-    function mergeRemoteProjectsList(remoteProjects) {
-      if (!Array.isArray(remoteProjects)) return;
-      const localMap = new Map();
-      state.savedProjects.forEach(p => localMap.set(p.id, p));
-      let changed = false;
-      remoteProjects.forEach(cp => {
-        const inTrash = Array.isArray(state.trashProjects) && state.trashProjects.some(tp => tp.id === cp.id);
-        if (state.deletedProjectIds?.includes(cp.id) || inTrash) return;
-        const loc = localMap.get(cp.id);
-        if (!loc) {
-          state.savedProjects.push(cp);
-          localMap.set(cp.id, cp);
-          changed = true;
-        } else {
-          const cpTime = new Date(cp.updatedAt || cp.createdAt || 0).getTime();
-          const locTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
-          if (cpTime > locTime) {
-            Object.assign(loc, cp);
-            changed = true;
-            if (state.currentProjectId === cp.id) {
-              showProjectUpdateNotice(cp);
-            }
-          }
-        }
-      });
-      if (changed) {
-        updateProjectsBadge();
-        try {
-          localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects));
-        } catch (e) {}
-        const inp = $('inpSearchProjects');
-        if (inp) renderProjectsList(inp.value.trim());
-      }
-    }
-
-    function saveProjectsListToStorage() {
-      try {
-        localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects));
-        if (Array.isArray(state.deletedProjectIds)) {
-          localStorage.setItem('toiuu_deleted_proj_ids_v1', JSON.stringify(state.deletedProjectIds));
-        }
-      } catch (e) {}
-      updateProjectsBadge();
-      scheduleSyncToServer('save_project');
+      return initProjectsManager();
     }
 
     function updateProjectsBadge() {
@@ -3043,20 +2977,28 @@
       }
     }
 
-    function toggleProjectLock(projId) {
+    async function toggleProjectLock(projId) {
       const p = (state.savedProjects || []).find(x => x.id === projId);
       if (!p) return;
-      p.isLocked = !p.isLocked;
-      saveProjectsListToStorage();
-      if (state.currentProjectId === projId) {
-        updateProjectActiveBanner();
-      }
-      pushProjectToCloud(p);
-      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
-      if (p.isLocked) {
-        showToast(`🔒 Đã KHÓA BẢO VỆ dự án "${p.name}"! Chống xóa và sửa nhầm.`);
-      } else {
-        showToast(`🔓 Đã MỞ KHÓA dự án "${p.name}".`);
+      const nextLocked = !p.isLocked;
+      state.lastLocalProjectWriteAt = Date.now();
+      window.SupabaseDB.setLoading(true, 'Đang cập nhật khóa dự án...');
+      try {
+        const updated = await window.SupabaseDB.updateProjectFields(projId, { isLocked: nextLocked });
+        Object.assign(p, updated);
+        if (state.currentProjectId === projId) {
+          updateProjectActiveBanner();
+        }
+        renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+        if (p.isLocked) {
+          showToast(`🔒 Đã KHÓA BẢO VỆ dự án "${p.name}"! Chống xóa và sửa nhầm.`);
+        } else {
+          showToast(`🔓 Đã MỞ KHÓA dự án "${p.name}".`);
+        }
+      } catch (err) {
+        showToast('❌ Lỗi cập nhật khóa dự án: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
     }
 
@@ -3338,7 +3280,7 @@
       state.editingProjectId = null;
     }
 
-    function quickSaveActiveProject() {
+    async function quickSaveActiveProject() {
       if (!state.currentProjectId) {
         openSaveProjectModal();
         return;
@@ -3348,29 +3290,25 @@
         openSaveProjectModal();
         return;
       }
-      state.lastLocalMutationAt = Date.now();
       state.isBlankReset = false;
-      targetProj.updatedAt = new Date().toISOString();
-      targetProj.data = {
-        activeProfiles: [...state.activeProfiles],
-        selectedTabProfile: state.selectedTabProfile,
-        parts: JSON.parse(JSON.stringify(state.parts)),
-        stock: JSON.parse(JSON.stringify(state.stock)),
-        method: state.method,
-        kerf: state.kerf,
-        clamp: state.clamp,
-        interlock: state.interlock,
-        gap: state.gap,
-        fusionProject: state.fusionProject
-      };
-      saveProjectsListToStorage();
-      saveActiveProject();
-      pushStateToServer('save_project');
-      pushStateToGlobalCloud('save_project');
-      showToast(`✓ Đã lưu cập nhật vào dự án "${targetProj.name}"!`);
+      state.lastLocalProjectWriteAt = Date.now();
+      clearTimeout(state.activeSaveTimer);
+      const snap = buildActiveDataSnapshot();
+
+      window.SupabaseDB.setLoading(true, 'Đang lưu cập nhật lên Supabase...');
+      try {
+        const saved = await window.SupabaseDB.updateProjectFields(targetProj.id, { data: snap });
+        Object.assign(targetProj, saved);
+        updateProjectsBadge();
+        showToast(`✓ Đã lưu cập nhật "${targetProj.name}" lên Supabase!`);
+      } catch (err) {
+        showToast('❌ Lỗi lưu dự án: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
-    function confirmSaveProjectForm(forceNew = false) {
+    async function confirmSaveProjectForm(forceNew = false) {
       const name = $('inpSaveProjName').value.trim();
       if (!name) {
         showToast('Vui lòng nhập tên dự án!');
@@ -3380,94 +3318,83 @@
       const customer = $('inpSaveProjCustomer').value.trim();
       const notes = $('inpSaveProjNotes').value.trim();
       const nowStr = new Date().toISOString();
-      state.lastLocalMutationAt = Date.now();
       state.isBlankReset = false;
+      state.lastLocalProjectWriteAt = Date.now();
+      clearTimeout(state.activeSaveTimer);
 
-      if (state.editingProjectId) {
-        // Cập nhật thông tin dự án có sẵn từ danh sách
-        const target = state.savedProjects.find(p => p.id === state.editingProjectId);
-        if (target) {
-          target.name = name;
-          target.customer = customer;
-          target.notes = notes;
-          target.updatedAt = nowStr;
-          if (state.currentProjectId === target.id) {
+      window.SupabaseDB.setLoading(true, 'Đang lưu dự án lên Supabase...');
+      try {
+        if (state.editingProjectId) {
+          const target = state.savedProjects.find(p => p.id === state.editingProjectId);
+          const updated = await window.SupabaseDB.updateProjectFields(state.editingProjectId, { name, customer, notes });
+          if (target) Object.assign(target, updated);
+          if (state.currentProjectId === state.editingProjectId) {
             state.currentProjectName = name;
             state.currentProjectCustomer = customer;
             state.currentProjectNotes = notes;
             updateProjectActiveBanner();
-            saveActiveProject();
           }
-        }
-        showToast(`✓ Đã cập nhật dự án "${name}"!`);
-      } else {
-        const projectDataPayload = {
-          activeProfiles: [...state.activeProfiles],
-          selectedTabProfile: state.selectedTabProfile,
-          parts: JSON.parse(JSON.stringify(state.parts)),
-          stock: JSON.parse(JSON.stringify(state.stock)),
-          method: state.method,
-          kerf: state.kerf,
-          clamp: state.clamp,
-          interlock: state.interlock,
-          gap: state.gap,
-          fusionProject: state.fusionProject
-        };
-
-        let targetProj = (!forceNew && state.currentProjectId)
-          ? state.savedProjects.find(p => p.id === state.currentProjectId)
-          : null;
-
-        // Nếu người dùng đặt tên khác với tên dự án đang mở -> Tự động tạo thành Dự án mới (không ghi đè dự án cũ!)
-        if (targetProj && String(targetProj.name || '').trim().toLowerCase() !== name.toLowerCase()) {
-          targetProj = null;
-        }
-
-        if (targetProj) {
-          targetProj.name = name;
-          targetProj.customer = customer;
-          targetProj.notes = notes;
-          targetProj.updatedAt = nowStr;
-          targetProj.data = projectDataPayload;
-          showToast(`✓ Đã lưu cập nhật dự án "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
+          showToast(`✓ Đã cập nhật dự án "${name}"!`);
         } else {
-          const newId = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-          targetProj = {
-            id: newId,
-            name: name,
-            customer: customer,
-            notes: notes,
-            createdAt: nowStr,
-            updatedAt: nowStr,
-            data: projectDataPayload
-          };
-          state.savedProjects.unshift(targetProj);
-          state.currentProjectId = newId;
-          localStorage.setItem(LS_CURRENT_PROJ_ID, newId);
-          showToast(`✓ Đã thêm dự án mới "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
+          const projectDataPayload = buildActiveDataSnapshot();
+          let targetProj = (!forceNew && state.currentProjectId)
+            ? state.savedProjects.find(p => p.id === state.currentProjectId)
+            : null;
+
+          // Nếu đặt tên khác dự án đang mở -> Tự động tạo thành dự án mới
+          if (targetProj && String(targetProj.name || '').trim().toLowerCase() !== name.toLowerCase()) {
+            targetProj = null;
+          }
+
+          if (targetProj) {
+            const saved = await window.SupabaseDB.saveProject({
+              ...targetProj,
+              name, customer, notes,
+              isDraft: false, isTrashed: false,
+              updatedAt: nowStr,
+              data: projectDataPayload
+            });
+            Object.assign(targetProj, saved);
+            showToast(`✓ Đã lưu cập nhật dự án "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
+          } else {
+            const newId = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            const saved = await window.SupabaseDB.saveProject({
+              id: newId,
+              name, customer, notes,
+              isLocked: false, isTrashed: false, isDraft: false, source: 'web',
+              createdAt: nowStr, updatedAt: nowStr,
+              data: projectDataPayload,
+              igsFiles: []
+            });
+            state.savedProjects.unshift(saved);
+            state.currentProjectId = saved.id;
+            try { localStorage.setItem(LS_CURRENT_PROJ_ID, saved.id); } catch (e) {}
+            showToast(`✓ Đã thêm dự án mới "${name}"! (Tổng: ${state.savedProjects.length} dự án)`);
+          }
+
+          state.currentProjectName = name;
+          state.currentProjectCustomer = customer;
+          state.currentProjectNotes = notes;
+          updateProjectActiveBanner();
         }
 
-        state.currentProjectName = name;
-        state.currentProjectCustomer = customer;
-        state.currentProjectNotes = notes;
-        updateProjectActiveBanner();
-        saveActiveProject();
-      }
-
-      saveProjectsListToStorage();
-      updateProjectsBadge();
-      pushStateToServer('save_project');
-      pushStateToGlobalCloud('save_project');
-      closeSaveProjectModal();
-
-      // Nếu modal quản lý dự án đang mở, render lại danh sách
-      if ($('modalProjects').style.display === 'flex') {
-        renderProjectsList($('inpSearchProjects').value.trim());
+        updateProjectsBadge();
+        closeSaveProjectModal();
+        if ($('modalProjects').style.display === 'flex') {
+          renderProjectsList($('inpSearchProjects').value.trim());
+        }
+      } catch (err) {
+        showToast('❌ Lỗi lưu dự án lên Supabase: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
     }
 
-    function loadProjectById(projId) {
-      const proj = state.savedProjects.find(p => p.id === projId);
+    async function loadProjectById(projId) {
+      let proj = state.savedProjects.find(p => p.id === projId);
+      if (!proj && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        try { proj = await window.SupabaseDB.getProjectById(projId); } catch (e) {}
+      }
       if (!proj || !proj.data) {
         showToast('Không tìm thấy dữ liệu dự án!');
         return;
@@ -3479,11 +3406,12 @@
       state.currentProjectCustomer = proj.customer || '';
       state.currentProjectNotes = proj.notes || '';
       state.fusionProject = d.fusionProject || null;
+      state.isBlankReset = false;
 
-      state.activeProfiles = (d.activeProfiles && d.activeProfiles.length) ? d.activeProfiles : ['Hộp 30x30x1.8'];
+      state.activeProfiles = (d.activeProfiles && d.activeProfiles.length) ? d.activeProfiles.slice() : ['Hộp 30x30x1.8'];
       state.selectedTabProfile = d.selectedTabProfile || state.activeProfiles[0];
-      state.parts = Array.isArray(d.parts) ? d.parts : [];
-      state.stock = Array.isArray(d.stock) ? d.stock : [];
+      state.parts = Array.isArray(d.parts) ? JSON.parse(JSON.stringify(d.parts)) : [];
+      state.stock = Array.isArray(d.stock) ? JSON.parse(JSON.stringify(d.stock)) : [];
       state.method = d.method || 'cnc';
       state.kerf = d.kerf != null ? d.kerf : 0;
       state.clamp = d.clamp != null ? d.clamp : 80;
@@ -3503,8 +3431,7 @@
         renderMemoryLibraryChips();
       }
 
-      localStorage.setItem(LS_CURRENT_PROJ_ID, proj.id);
-      saveActiveProject();
+      try { localStorage.setItem(LS_CURRENT_PROJ_ID, proj.id); } catch (e) {}
 
       updateInputsFromState();
       ensureProfilesConsistency();
@@ -3514,12 +3441,13 @@
       renderStockList();
       calculateOptimization(false);
       updateProjectActiveBanner();
+      await loadCutProgressForActiveProject();
 
       closeProjectsManagerModal();
       showToast(`✓ Đã mở dự án "${proj.name}"!`);
     }
 
-    function deleteProject(projId) {
+    async function deleteProject(projId) {
       if (state.userRole === 'operator') {
         alert('🔒 CHẾ ĐỘ THỢ CNC (KHÓA AN TOÀN):\n\nBạn không có quyền xóa dự án!\nVui lòng liên hệ Kỹ sư thiết kế để mở khóa.');
         return;
@@ -3532,72 +3460,90 @@
       }
       if (!confirm(`Bạn có muốn chuyển dự án "${proj.name}" vào Thùng rác không?\n(Dự án sẽ được lưu trữ an toàn trong Thùng rác và bạn có thể khôi phục lại bất kỳ lúc nào).`)) return;
 
-      state.lastLocalMutationAt = Date.now();
-      proj.deletedAt = new Date().toISOString();
-      if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
-      state.trashProjects.unshift(proj);
+      state.lastLocalProjectWriteAt = Date.now();
+      window.SupabaseDB.setLoading(true, 'Đang chuyển vào thùng rác...');
+      try {
+        const trashed = await window.SupabaseDB.trashProject(projId);
+        if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
+        state.trashProjects.unshift(trashed);
+        state.savedProjects = state.savedProjects.filter(p => p.id !== projId);
 
-      state.savedProjects = state.savedProjects.filter(p => p.id !== projId);
-      if (state.currentProjectId === projId) {
-        state.currentProjectId = null;
-        state.currentProjectName = '';
-        state.currentProjectCustomer = '';
-        state.currentProjectNotes = '';
-        localStorage.removeItem(LS_CURRENT_PROJ_ID);
-        saveActiveProject();
-        updateProjectActiveBanner();
+        if (state.currentProjectId === projId) {
+          state.currentProjectId = null;
+          state.currentProjectName = '';
+          state.currentProjectCustomer = '';
+          state.currentProjectNotes = '';
+          try { localStorage.removeItem(LS_CURRENT_PROJ_ID); } catch (e) {}
+          updateProjectActiveBanner();
+        }
+        updateProjectsBadge();
+        renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+        showToast(`🗑️ Đã chuyển "${proj.name}" vào Thùng rác! (Bấm tab Thùng rác để khôi phục)`, 4500);
+      } catch (err) {
+        showToast('❌ Lỗi xóa dự án: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
-
-      saveTrashProjectsToStorage();
-      saveProjectsListToStorage();
-      updateProjectsBadge();
-      pushStateToServer('trash_project');
-      pushStateToGlobalCloud('trash_project');
-      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
-      showToast(`🗑️ Đã chuyển "${proj.name}" vào Thùng rác! (Bấm tab Thùng rác để khôi phục)`, 4500);
     }
 
-    function restoreProjectFromTrash(projId) {
+    async function restoreProjectFromTrash(projId) {
       if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
-      const idx = state.trashProjects.findIndex(p => p.id === projId);
-      if (idx === -1) return;
-      const proj = state.trashProjects.splice(idx, 1)[0];
-      delete proj.deletedAt;
-      proj.updatedAt = new Date().toISOString();
-      if (!Array.isArray(state.savedProjects)) state.savedProjects = [];
-      state.savedProjects.unshift(proj);
-      saveTrashProjectsToStorage();
-      saveProjectsListToStorage();
-      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
-      showToast(`↩️ Đã khôi phục dự án "${proj.name}"!`);
+      const proj = state.trashProjects.find(p => p.id === projId);
+      if (!proj) return;
+      state.lastLocalProjectWriteAt = Date.now();
+      window.SupabaseDB.setLoading(true, 'Đang khôi phục dự án...');
+      try {
+        const restored = await window.SupabaseDB.restoreProject(projId);
+        state.trashProjects = state.trashProjects.filter(p => p.id !== projId);
+        state.savedProjects = [restored, ...state.savedProjects.filter(p => p.id !== restored.id)];
+        updateProjectsBadge();
+        renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+        showToast(`↩️ Đã khôi phục dự án "${restored.name}"!`);
+      } catch (err) {
+        showToast('❌ Lỗi khôi phục: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
-    function permanentDeleteProject(projId) {
+    async function permanentDeleteProject(projId) {
       if (!Array.isArray(state.trashProjects)) state.trashProjects = [];
       const target = state.trashProjects.find(p => p.id === projId);
       if (!target) return;
       if (!confirm(`Xóa vĩnh viễn dự án "${target.name}"? Thao tác này không thể hoàn tác.`)) return;
-      state.trashProjects = state.trashProjects.filter(p => p.id !== projId);
-      if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
-      if (!state.deletedProjectIds.includes(projId)) state.deletedProjectIds.push(projId);
-      saveTrashProjectsToStorage();
-      saveProjectsListToStorage();
-      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
-      showToast(`❌ Đã xóa vĩnh viễn dự án "${target.name}"!`);
+
+      state.lastLocalProjectWriteAt = Date.now();
+      window.SupabaseDB.setLoading(true, 'Đang xóa vĩnh viễn...');
+      try {
+        await window.SupabaseDB.permanentDeleteProject(projId);
+        state.trashProjects = state.trashProjects.filter(p => p.id !== projId);
+        updateProjectsBadge();
+        renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+        showToast(`❌ Đã xóa vĩnh viễn dự án "${target.name}"!`);
+      } catch (err) {
+        showToast('❌ Lỗi xóa vĩnh viễn: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
-    function emptyTrashProjects() {
+    async function emptyTrashProjects() {
       if (!Array.isArray(state.trashProjects) || !state.trashProjects.length) return;
       if (!confirm(`Bạn có chắc muốn dọn sạch toàn bộ ${state.trashProjects.length} dự án trong Thùng rác?`)) return;
-      if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
-      state.trashProjects.forEach(p => {
-        if (!state.deletedProjectIds.includes(p.id)) state.deletedProjectIds.push(p.id);
-      });
-      state.trashProjects = [];
-      saveTrashProjectsToStorage();
-      saveProjectsListToStorage();
-      renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
-      showToast(`🗑️ Đã dọn sạch Thùng rác!`);
+
+      state.lastLocalProjectWriteAt = Date.now();
+      window.SupabaseDB.setLoading(true, 'Đang dọn sạch thùng rác...');
+      try {
+        await window.SupabaseDB.emptyTrash();
+        state.trashProjects = [];
+        updateProjectsBadge();
+        renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
+        showToast(`🗑️ Đã dọn sạch Thùng rác!`);
+      } catch (err) {
+        showToast('❌ Lỗi dọn thùng rác: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
     function showProjectUpdateNotice(remoteProj) {
@@ -3623,7 +3569,7 @@
       }
     }
 
-    function duplicateProject(projId) {
+    async function duplicateProject(projId) {
       const src = state.savedProjects.find(p => p.id === projId);
       if (!src) return;
 
@@ -3632,16 +3578,29 @@
         name: src.name + ' (Bản sao)',
         customer: src.customer || '',
         notes: src.notes || '',
+        isLocked: false,
+        isTrashed: false,
+        isDraft: false,
+        source: src.source || 'web',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        data: JSON.parse(JSON.stringify(src.data || {}))
+        data: JSON.parse(JSON.stringify(src.data || {})),
+        igsFiles: JSON.parse(JSON.stringify(src.igsFiles || []))
       };
 
-      state.savedProjects.unshift(clone);
-      saveProjectsListToStorage();
-      pushProjectToCloud(clone);
-      renderProjectsList($('inpSearchProjects').value.trim());
-      showToast(`✓ Đã nhân bản dự án thành "${clone.name}"!`);
+      state.lastLocalProjectWriteAt = Date.now();
+      window.SupabaseDB.setLoading(true, 'Đang nhân bản dự án...');
+      try {
+        const saved = await window.SupabaseDB.saveProject(clone);
+        state.savedProjects.unshift(saved);
+        updateProjectsBadge();
+        renderProjectsList($('inpSearchProjects').value.trim());
+        showToast(`✓ Đã nhân bản dự án thành "${saved.name}"!`);
+      } catch (err) {
+        showToast('❌ Lỗi nhân bản dự án: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
     function downloadJsonFile(filename, dataObj) {
@@ -3718,47 +3677,44 @@
     function importProjectFromFile(file) {
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = ev => {
+      reader.onload = async ev => {
         try {
           const parsed = JSON.parse(ev.target.result);
-          
+          state.lastLocalProjectWriteAt = Date.now();
+
           // Trường hợp 1: File sao lưu toàn bộ (chứa saved_projects)
           if (parsed && Array.isArray(parsed.saved_projects) && parsed.saved_projects.length > 0) {
             const count = parsed.saved_projects.length;
-            const overwrite = confirm(`File sao lưu này chứa ${count} dự án.\n\nBấm [OK] để GỘP thêm vào danh sách hiện tại.\nBấm [Cancel] để GHI ĐÈ thay thế toàn bộ bộ nhớ.`);
-            
-            if (overwrite) {
-              // Gộp thêm
-              let imported = 0;
+            const overwrite = confirm(`File sao lưu này chứa ${count} dự án.\n\nBấm [OK] để GỘP thêm vào danh sách hiện tại.\nBấm [Cancel] để GHI ĐÈ / cập nhật danh mục dự án trên Supabase.`);
+            window.SupabaseDB.setLoading(true, 'Đang nhập dự án lên Supabase...');
+            try {
+              const toSave = [];
               parsed.saved_projects.forEach(p => {
-                const exist = state.savedProjects.find(sp => sp.id === p.id || sp.name === p.name);
-                if (!exist) {
-                  state.savedProjects.push(p);
-                  imported++;
-                } else {
-                  // Đổi id và tạo mới
-                  p.id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-                  p.name = p.name + ' (Nhập)';
-                  state.savedProjects.push(p);
-                  imported++;
+                const cloned = JSON.parse(JSON.stringify(p));
+                const exist = state.savedProjects.find(sp => sp.id === cloned.id || sp.name === cloned.name);
+                if (overwrite && exist) {
+                  cloned.id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                  cloned.name = cloned.name + ' (Nhập)';
                 }
+                cloned.source = 'import';
+                toSave.push(cloned);
               });
-              saveProjectsListToStorage();
-              renderProjectsList('');
-              showToast(`✓ Đã gộp thành công ${imported} dự án vào bộ nhớ!`);
-            } else {
-              // Ghi đè
-              state.savedProjects = parsed.saved_projects;
-              if (Array.isArray(parsed.saved_profiles)) {
+              for (const p of toSave) {
+                const saved = await window.SupabaseDB.saveProject(p);
+                state.savedProjects = [saved, ...state.savedProjects.filter(x => x.id !== saved.id)];
+              }
+              if (Array.isArray(parsed.saved_profiles) && parsed.saved_profiles.length) {
+                await window.SupabaseDB.addProfilesBulk(parsed.saved_profiles);
                 parsed.saved_profiles.forEach(pr => {
                   if (!state.savedProfiles.includes(pr)) state.savedProfiles.push(pr);
                 });
-                saveProfilesLibrary();
                 renderMemoryLibraryChips();
               }
-              saveProjectsListToStorage();
+              updateProjectsBadge();
               renderProjectsList('');
-              showToast(`✓ Đã nạp ${count} dự án từ file sao lưu!`);
+              showToast(`✓ Đã nhập thành công ${toSave.length} dự án lên Supabase!`);
+            } finally {
+              window.SupabaseDB.setLoading(false);
             }
             return;
           }
@@ -3767,20 +3723,27 @@
           if (parsed && parsed.project && parsed.project.data) {
             const p = parsed.project;
             p.id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-            state.savedProjects.unshift(p);
-            saveProjectsListToStorage();
-            renderProjectsList('');
-            if (confirm(`Đã nạp dự án "${p.name}". Bạn có muốn mở dự án này ra làm việc ngay không?`)) {
-              loadProjectById(p.id);
-            } else {
-              showToast(`✓ Đã thêm dự án "${p.name}" vào danh sách!`);
+            p.source = 'import';
+            window.SupabaseDB.setLoading(true, 'Đang nhập dự án...');
+            try {
+              const saved = await window.SupabaseDB.saveProject(p);
+              state.savedProjects.unshift(saved);
+              updateProjectsBadge();
+              renderProjectsList('');
+              if (confirm(`Đã nạp dự án "${saved.name}". Bạn có muốn mở dự án này ra làm việc ngay không?`)) {
+                await loadProjectById(saved.id);
+              } else {
+                showToast(`✓ Đã thêm dự án "${saved.name}" vào Supabase!`);
+              }
+            } finally {
+              window.SupabaseDB.setLoading(false);
             }
             return;
           }
 
           // Trường hợp 3: File JSON xuất từ Fusion 360 (có parts, clamp_tail, project_name)
           if (parsed && (parsed.parts || Array.isArray(parsed))) {
-            loadFusionDataPayload(parsed);
+            await loadFusionDataPayload(parsed);
             closeProjectsManagerModal();
             showToast('✓ Đã nạp thành công dữ liệu từ file JSON!');
             return;
@@ -3788,18 +3751,19 @@
 
           showToast('Cấu trúc file JSON không được hỗ trợ!');
         } catch (err) {
-          showToast('Lỗi đọc file JSON: định dạng không hợp lệ!');
+          showToast('Lỗi đọc/nhập file JSON: ' + err.message);
         }
       };
       reader.readAsText(file);
     }
 
-    function resetToBlankNewProject(openSaveModalAfter = false) {
+    async function resetToBlankNewProject(openSaveModalAfter = false) {
       if (state.userRole === 'operator') {
-        alert('🔒 CHẾ ĐỘ THỢ CNC (KHÓA AN TOÀN):\n\nBạn không có quyền tạo mới hoặc xóa trắng bản vẽ!\nVui lòng nhập mã PIN Kỹ sư để mở khóa.');
+        alert('🔒 CHẾ ĐỘ THỢ CNC (KHÓA AN TOÀN):\n\nBạn không có quyền tạo mới hoặc xóa trắng bản vẽ!\nVui lòng liên hệ Kỹ sư thiết kế để mở khóa.');
         return;
       }
-      state.lastLocalMutationAt = Date.now();
+      clearTimeout(state.activeSaveTimer);
+      state.lastLocalProjectWriteAt = Date.now();
       state.isBlankReset = true;
       state.currentProjectId = null;
       state.currentProjectName = '';
@@ -3807,7 +3771,8 @@
       state.currentProjectNotes = '';
       state.fusionProject = null;
       state.result = null;
-      localStorage.removeItem(LS_CURRENT_PROJ_ID);
+      state.cutStatuses = {};
+      try { localStorage.removeItem(LS_CURRENT_PROJ_ID); } catch (e) {}
 
       state.activeProfiles = ['Hộp 30x30x1.8'];
       state.selectedTabProfile = 'Hộp 30x30x1.8';
@@ -3822,9 +3787,9 @@
       calculateOptimization(false);
       updateProjectActiveBanner();
       updateProjectsBadge();
-      saveActiveProject();
-      pushStateToServer('reset_new');
-      pushStateToGlobalCloud('reset_new');
+      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        window.SupabaseDB.saveDraftProject(buildActiveDataSnapshot()).catch(() => {});
+      }
       closeProjectsManagerModal();
 
       if (openSaveModalAfter) {
@@ -3848,469 +3813,129 @@
     }
 
     // ==========================================
-    // 24/7 Global Cloud Sync + Local Workshop Server Engine
-    // (Hoạt động 24/7 kể cả khi tắt nguồn máy tính cá nhân & đồng bộ từ mọi máy chạy Fusion 360)
+    // SUPABASE REALTIME SYNC (POSTGRES CHANGES)
+    // Nguồn dữ liệu duy nhất (Single Source of Truth)
     // ==========================================
-    const GLOBAL_CLOUD_TOPIC = 'toiuu_phoi_anbinh_db_v3';
-    const GLOBAL_CLOUD_URL = `https://ntfy.sh/${GLOBAL_CLOUD_TOPIC}`;
-    const SERVER_API_BASE = window.location.protocol.startsWith('http')
-      ? window.location.origin
-      : 'http://localhost:3000';
-
-    function getLiveServerApiBase() {
-      return (window.WorkshopDB && window.WorkshopDB.getApiBase()) || SERVER_API_BASE;
+    function sortProjectsDesc(list) {
+      return list.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
     }
 
-    state.clientId = (window.WorkshopDB && window.WorkshopDB.getClientId()) || ('dev_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
-    state.serverLanUrls = [];
-    state.serverPublicUrl = null;
-    state.clientsCount = 1;
-    let serverSyncTimeout = null;
-    let cloudSyncTimeout = null;
-    let sseSource = null;
-    let cloudSseSource = null;
-
-    // Loại bỏ chuỗi igs_content nặng khi đồng bộ lên Cloud 24/7 (giữ nguyên cấu trúc pieces để trình duyệt tự xuất 3D .IGS mọi nơi)
-    function stripHeavyIgsForCloud(projObj) {
-      if (!projObj) return projObj;
-      const clone = JSON.parse(JSON.stringify(projObj));
-      const cleanFusion = (fp) => {
-        if (fp && Array.isArray(fp.nested_bars)) {
-          fp.nested_bars.forEach(b => { delete b.igs_content; });
-        }
-      };
-      if (clone.fusionProject) cleanFusion(clone.fusionProject);
-      if (clone.data && clone.data.fusionProject) cleanFusion(clone.data.fusionProject);
-      return clone;
-    }
-
-    function getActiveProjectSnapshot(forCloud = false) {
-      const snap = {
-        currentProjectId: state.currentProjectId,
-        currentProjectName: state.currentProjectName,
-        currentProjectCustomer: state.currentProjectCustomer,
-        currentProjectNotes: state.currentProjectNotes,
-        activeProfiles: state.activeProfiles,
-        selectedTabProfile: state.selectedTabProfile,
-        parts: state.parts,
-        stock: state.stock,
-        method: state.method,
-        kerf: state.kerf,
-        clamp: state.clamp,
-        interlock: state.interlock,
-        gap: state.gap,
-        fusionProject: state.fusionProject,
-        isBlankReset: !!state.isBlankReset
-      };
-      return forCloud ? stripHeavyIgsForCloud(snap) : snap;
-    }
-
-    function buildSyncPatch() {
-      return {
-        savedProfiles: state.savedProfiles,
-        deletedProjectIds: state.deletedProjectIds || [],
-        trashProjects: state.trashProjects || [],
-        savedProjects: state.savedProjects,
-        activeProject: getActiveProjectSnapshot(true),
-        cutStatuses: state.cutStatuses || {},
-        users: state.users || []
-      };
-    }
-
-    function scheduleSyncToServer(actionName = 'sync') {
-      if (state.isApplyingRemoteChange) return;
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync(buildSyncPatch(), actionName);
+    function initCloudSyncSystem() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        updateCloudUIState('error', 'Chưa cấu hình Supabase');
         return;
       }
-      clearTimeout(serverSyncTimeout);
-      serverSyncTimeout = setTimeout(() => {
-        pushStateToServer(actionName);
-      }, 150);
+      if (state.realtimeUnsub) return;
+      updateCloudUIState('connecting');
 
-      clearTimeout(cloudSyncTimeout);
-      cloudSyncTimeout = setTimeout(() => {
-        pushStateToGlobalCloud(actionName);
-      }, 600);
-    }
+      state.realtimeUnsub = window.SupabaseDB.subscribeTables({
+        projects: async (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          const isRecentSelfWrite = (Date.now() - (state.lastLocalProjectWriteAt || 0)) < 2500;
 
-    async function pushStateToGlobalCloud(actionName = 'sync') {
-      if (state.isApplyingRemoteChange) return;
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync(buildSyncPatch(), actionName);
-        return;
-      }
-      try {
-        const cloudPayload = {
-          senderId: state.clientId,
-          action: actionName,
-          updatedAt: new Date().toISOString(),
-          savedProfiles: state.savedProfiles,
-          deletedProjectIds: state.deletedProjectIds || [],
-          savedProjects: (state.savedProjects || []).map(p => stripHeavyIgsForCloud(p)),
-          activeProject: getActiveProjectSnapshot(true),
-          cutStatuses: state.cutStatuses || {},
-          users: state.users || []
-        };
-        const res = await fetch(GLOBAL_CLOUD_URL, {
-          method: 'PUT',
-          headers: {
-            'Filename': 'workshop_db.json',
-            'Title': `AnBinh Sync (${actionName})`
-          },
-          body: JSON.stringify(cloudPayload)
-        });
-        if (res.ok && !state.cloudConnected) {
-          state.cloudConnected = true;
-          updateCloudUIState('connected');
-        }
-      } catch (e) {}
-    }
-
-    async function pullLatestFromGlobalCloud() {
-      try {
-        const pollRes = await fetch(`${GLOBAL_CLOUD_URL}/json?poll=1`);
-        if (!pollRes.ok) return;
-        const text = await pollRes.text();
-        const lines = text.trim().split('\n').filter(Boolean);
-        let latestMsg = null;
-        for (let i = lines.length - 1; i >= 0; i--) {
-          try {
-            const parsed = JSON.parse(lines[i]);
-            if (parsed.event === 'message' && (parsed.attachment || parsed.message)) {
-              latestMsg = parsed;
-              break;
+          if (ev.eventType === 'DELETE') {
+            const delId = old && old.id;
+            if (!delId) {
+              await initProjectsManager();
+              return;
             }
-          } catch (e) {}
-        }
-        if (!latestMsg) return;
-
-        let cloudDb = null;
-        if (latestMsg.attachment && latestMsg.attachment.url) {
-          const attRes = await fetch(latestMsg.attachment.url);
-          if (attRes.ok) cloudDb = await attRes.json();
-        } else if (latestMsg.message && latestMsg.message.startsWith('{')) {
-          cloudDb = JSON.parse(latestMsg.message);
-        }
-
-        if (cloudDb && (cloudDb.activeProject || cloudDb.savedProjects)) {
-          applyRemoteDbState(cloudDb, true);
-          state.cloudConnected = true;
-          updateCloudUIState('connected');
-        }
-      } catch (e) {}
-    }
-
-    function connectGlobalCloudStream() {
-      if (cloudSseSource) {
-        try { cloudSseSource.close(); } catch (e) {}
-      }
-      try {
-        cloudSseSource = new EventSource(`${GLOBAL_CLOUD_URL}/sse`);
-        cloudSseSource.onopen = () => {
-          state.cloudConnected = true;
-          updateCloudUIState('connected');
-        };
-        cloudSseSource.onmessage = async (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.event !== 'message') return;
-            let cloudDb = null;
-            if (data.attachment && data.attachment.url) {
-              const attRes = await fetch(data.attachment.url);
-              if (attRes.ok) cloudDb = await attRes.json();
-            } else if (data.message && data.message.startsWith('{')) {
-              cloudDb = JSON.parse(data.message);
+            state.savedProjects = state.savedProjects.filter(p => p.id !== delId);
+            state.trashProjects = state.trashProjects.filter(p => p.id !== delId);
+            updateProjectsBadge();
+            if ($('modalProjects') && $('modalProjects').style.display === 'flex') {
+              renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
             }
-            if (cloudDb && cloudDb.senderId !== state.clientId) {
-              const isFusion = cloudDb.action === 'fusion_import';
-              applyRemoteDbState(cloudDb, false, isFusion);
-              if (isFusion) {
-                showToast(`🚀 Đã nhận bản vẽ mới "${cloudDb.projectName || ''}" từ Fusion 360 qua Đám mây 24/7!`);
-              } else if (cloudDb.action === 'save_project') {
-                showToast('🔔 Đã đồng bộ danh mục dự án từ Đám mây 24/7!');
-              }
-            }
-          } catch (e) {}
-        };
-      } catch (e) {}
-    }
-
-    async function pushStateToServer(actionName = 'sync') {
-      if (state.isApplyingRemoteChange) return;
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync(buildSyncPatch(), actionName);
-        return;
-      }
-      try {
-        const payload = {
-          clientId: state.clientId,
-          action: actionName,
-          savedProfiles: state.savedProfiles,
-          deletedProjectIds: state.deletedProjectIds || [],
-          savedProjects: state.savedProjects,
-          activeProject: getActiveProjectSnapshot(),
-          cutStatuses: state.cutStatuses || {},
-          users: state.users || []
-        };
-        const res = await fetch(`${SERVER_API_BASE}/api/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Client-Id': state.clientId
-          },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.clientsCount != null) state.clientsCount = data.clientsCount;
-          if (!state.cloudConnected) {
-            state.cloudConnected = true;
-            updateCloudUIState('connected');
+            return;
           }
-        }
-      } catch (e) {
-      }
-    }
 
-    function pushProjectToCloud(proj) {
-      scheduleSyncToServer('save_project');
-    }
-
-    function deleteProjectFromCloud(projId) {
-      scheduleSyncToServer('delete_project');
-    }
-
-    function applyRemoteDbState(remoteDb, isInitial = false, isFusionImport = false) {
-      if (!remoteDb) return;
-      state.isApplyingRemoteChange = true;
-      try {
-        // 1. Đồng bộ tài khoản người dùng (hợp nhất theo username)
-        if (Array.isArray(remoteDb.users) && remoteDb.users.length) {
-          const userMap = new Map();
-          (state.users || []).forEach(u => { if (u && u.username) userMap.set(u.username.toLowerCase(), u); });
-          remoteDb.users.forEach(ru => {
-            if (ru && ru.username) userMap.set(ru.username.toLowerCase(), ru);
-          });
-          state.users = Array.from(userMap.values());
-          try { localStorage.setItem('toiuu_users_list_v1', JSON.stringify(state.users)); } catch (e) {}
-          if (typeof renderUsersManagementList === 'function') renderUsersManagementList();
-        }
-
-        // 2. Đồng bộ tiến độ cắt (giữ số lượng cắt cao nhất)
-        if (remoteDb.cutStatuses && typeof remoteDb.cutStatuses === 'object') {
-          if (!state.cutStatuses) state.cutStatuses = {};
-          Object.keys(remoteDb.cutStatuses).forEach(k => {
-            const rem = remoteDb.cutStatuses[k];
-            const loc = state.cutStatuses[k];
-            if (!loc) {
-              state.cutStatuses[k] = rem;
-            } else {
-              const remCount = (typeof rem === 'object' && rem.cutCount != null) ? rem.cutCount : (typeof rem === 'number' ? rem : 0);
-              const locCount = (typeof loc === 'object' && loc.cutCount != null) ? loc.cutCount : (typeof loc === 'number' ? loc : 0);
-              const maxCount = Math.max(remCount, locCount);
-              if (typeof rem === 'object') {
-                state.cutStatuses[k] = Object.assign({}, loc, rem, { cutCount: maxCount });
-              } else {
-                state.cutStatuses[k] = maxCount;
-              }
-            }
-          });
-          try { localStorage.setItem('toiuu_cut_statuses', JSON.stringify(state.cutStatuses)); } catch (e) {}
-          if (typeof updateLiveCuttingProgressUI === 'function') updateLiveCuttingProgressUI();
-        }
-
-        // 3. Đồng bộ quy cách hộp (Hợp tập hợp để không làm mất quy cách của bất kỳ máy nào)
-        if (Array.isArray(remoteDb.savedProfiles) && remoteDb.savedProfiles.length) {
-          const profSet = new Set(state.savedProfiles || []);
-          remoteDb.savedProfiles.forEach(p => { if (p && typeof p === 'string' && p.trim()) profSet.add(p.trim()); });
-          state.savedProfiles = Array.from(profSet);
-          try { localStorage.setItem(LS_SAVED_PROFILES, JSON.stringify(state.savedProfiles)); } catch (e) {}
-          renderMemoryLibraryChips();
-        }
-
-        // 4. Đồng bộ danh sách ID dự án đã xóa (tombstones)
-        if (Array.isArray(remoteDb.deletedProjectIds)) {
-          if (!Array.isArray(state.deletedProjectIds)) state.deletedProjectIds = [];
-          remoteDb.deletedProjectIds.forEach(did => {
-            if (!state.deletedProjectIds.includes(did)) state.deletedProjectIds.push(did);
-          });
-          try { localStorage.setItem('toiuu_deleted_proj_ids_v1', JSON.stringify(state.deletedProjectIds)); } catch (e) {}
-        }
-
-        // 5. Đồng bộ danh sách dự án song song (Merge thông minh theo ID và timestamp)
-        if (Array.isArray(remoteDb.savedProjects)) {
-          const delSet = new Set(state.deletedProjectIds || []);
-          const mergedMap = new Map();
-          (state.savedProjects || []).forEach(p => {
-            if (p && p.id && !delSet.has(p.id)) mergedMap.set(p.id, p);
-          });
-          remoteDb.savedProjects.forEach(rp => {
-            if (!rp || !rp.id || delSet.has(rp.id)) return;
-            const loc = mergedMap.get(rp.id);
-            if (!loc) {
-              mergedMap.set(rp.id, rp);
-            } else {
-              const rTime = new Date(rp.updatedAt || rp.createdAt || 0).getTime();
-              const lTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
-              if (rTime > lTime) {
-                mergedMap.set(rp.id, rp);
-                if (state.currentProjectId === rp.id) {
-                  showProjectUpdateNotice(rp);
-                }
-              }
-            }
-          });
-          state.savedProjects = Array.from(mergedMap.values()).sort((a, b) => {
-            return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
-          });
-          try { localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(state.savedProjects)); } catch (e) {}
+          if (!rec || rec.isDraft) return;
+          state.savedProjects = state.savedProjects.filter(p => p.id !== rec.id);
+          state.trashProjects = state.trashProjects.filter(p => p.id !== rec.id);
+          if (rec.isTrashed) {
+            state.trashProjects.unshift(rec);
+            sortProjectsDesc(state.trashProjects);
+          } else {
+            state.savedProjects.unshift(rec);
+            sortProjectsDesc(state.savedProjects);
+          }
           updateProjectsBadge();
           if ($('modalProjects') && $('modalProjects').style.display === 'flex') {
             renderProjectsList($('inpSearchProjects') ? $('inpSearchProjects').value.trim() : '');
           }
-        }
 
-        // =========================================================================
-        // activeProject: Tự động lấy dữ liệu cũ từ máy chủ khi mở trên thiết bị mới
-        // =========================================================================
-        const ap = remoteDb.activeProject;
-        const isDeviceBlank = (!state.parts || state.parts.length === 0) && !state.lastLocalMutationAt;
-        const shouldApplyActive = isFusionImport || (isInitial && (state.isBrandNewDevice || isDeviceBlank));
-
-        if (shouldApplyActive) {
-          let projToLoad = (ap && Array.isArray(ap.parts) && ap.parts.length > 0) ? ap : null;
-          // Nếu activeProject trống nhưng server có danh mục dự án đã lưu -> Nạp ngay dự án mới nhất!
-          if (!projToLoad && Array.isArray(remoteDb.savedProjects) && remoteDb.savedProjects.length > 0) {
-            const latest = remoteDb.savedProjects[0];
-            if (latest && latest.data) {
-              projToLoad = {
-                currentProjectId: latest.id,
-                currentProjectName: latest.name,
-                currentProjectCustomer: latest.customer || '',
-                currentProjectNotes: latest.notes || '',
-                ...latest.data
-              };
+          // Nếu là bản vẽ mới bắn từ Autodesk Fusion 360 -> nạp thẳng lên bàn xếp phôi
+          if (!rec.isTrashed && rec.source === 'fusion360' && !isRecentSelfWrite) {
+            state.isApplyingRemoteChange = true;
+            try {
+              applyProjectPayloadToWorkspace(rec);
+              await loadCutProgressForActiveProject();
+              showToast(`🚀 Đã tự động nhận bản vẽ "${rec.name}" từ Autodesk Fusion 360!`);
+            } finally {
+              setTimeout(() => { state.isApplyingRemoteChange = false; }, 120);
             }
+            return;
           }
 
-          if (projToLoad && Array.isArray(projToLoad.parts) && projToLoad.parts.length > 0) {
-            state.isBrandNewDevice = false;
-            state.currentProjectId = projToLoad.currentProjectId || null;
-            state.currentProjectName = projToLoad.currentProjectName || '';
-            state.currentProjectCustomer = projToLoad.currentProjectCustomer || '';
-            state.currentProjectNotes = projToLoad.currentProjectNotes || '';
-            state.fusionProject = projToLoad.fusionProject || null;
-            state.isBlankReset = !!projToLoad.isBlankReset;
-
-            state.activeProfiles = (projToLoad.activeProfiles && projToLoad.activeProfiles.length) ? projToLoad.activeProfiles : ['Hộp 30x30x1.8'];
-            state.selectedTabProfile = projToLoad.selectedTabProfile || state.activeProfiles[0];
-            state.parts = projToLoad.parts;
-            state.stock = Array.isArray(projToLoad.stock) ? projToLoad.stock : [];
-            state.method = projToLoad.method || 'cnc';
-            state.kerf = projToLoad.kerf != null ? projToLoad.kerf : 0;
-            state.clamp = projToLoad.clamp != null ? projToLoad.clamp : 80;
-            state.interlock = projToLoad.interlock != null ? projToLoad.interlock : true;
-            state.gap = projToLoad.gap != null ? projToLoad.gap : 0;
-
-            try { localStorage.setItem(LS_ACTIVE_PROJECT, JSON.stringify(projToLoad)); } catch (e) {}
-            if (state.currentProjectId) {
-              try { localStorage.setItem(LS_CURRENT_PROJ_ID, state.currentProjectId); } catch (e) {}
-            } else {
-              try { localStorage.removeItem(LS_CURRENT_PROJ_ID); } catch (e) {}
-            }
-
-            updateInputsFromState();
-            ensureProfilesConsistency();
-            renderProfileTabs();
-            renderActiveProfileBanner();
-            renderPartsList();
-            renderStockList();
-            calculateOptimization(false);
-            updateProjectActiveBanner();
-            updateProjectsBadge();
+          // Nếu dự án đang mở bị chỉnh sửa từ thiết bị khác -> hiện thông báo không ghi đè mất dữ liệu đang nhập
+          if (!rec.isTrashed && rec.id === state.currentProjectId && !isRecentSelfWrite) {
+            showProjectUpdateNotice(rec);
           }
-        }
-      } finally {
-        setTimeout(() => { state.isApplyingRemoteChange = false; }, 100);
-      }
-    }
-
-    function initCloudSyncSystem() {
-      if (window.WorkshopDB) {
-        state.cloudConnected = true;
-        updateCloudUIState('connected');
-        window.WorkshopDB.onChange((dbState, meta) => {
-          const isFusion = meta && meta.action === 'fusion_import';
-          applyRemoteDbState(dbState, false, isFusion);
-          updateCloudUIState('connected');
-          if (isFusion) {
-            showToast('🚀 Đã tự động nhận bản vẽ mới từ Autodesk Fusion 360!');
-          } else if (meta && meta.action === 'save_project') {
-            showToast('🔔 Đã cập nhật danh sách dự án mới!');
-          }
-        });
-        window.WorkshopDB.fetchLatest();
-        return;
-      }
-      updateCloudUIState('syncing');
-      pullLatestFromGlobalCloud();
-      connectGlobalCloudStream();
-      connectServerEventStream();
-    }
-
-    function connectServerEventStream() {
-      if (sseSource) {
-        try { sseSource.close(); } catch (e) {}
-      }
-
-      try {
-        sseSource = new EventSource(`${SERVER_API_BASE}/api/events?clientId=${encodeURIComponent(state.clientId)}`);
-
-        sseSource.onmessage = (event) => {
+        },
+        inventory: async () => {
           try {
-            const msg = JSON.parse(event.data);
-            if (msg.lanUrls) state.serverLanUrls = msg.lanUrls;
-            if (msg.publicUrl !== undefined) state.serverPublicUrl = msg.publicUrl;
-            if (msg.clientsCount != null) state.clientsCount = msg.clientsCount;
-
-            if (msg.type === 'connected') {
-              state.cloudConnected = true;
-              updateCloudUIState('connected');
-              // auto-synced
-
-              if (msg.db) {
-                applyRemoteDbState(msg.db, true, false);
-              }
-            } else if (msg.type === 'state_updated') {
-              if (msg.senderId !== state.clientId && msg.db) {
-                applyRemoteDbState(msg.db, false, false);
-                if (msg.action === 'save_project') {
-                  showToast('🔔 Đã đồng bộ danh mục dự án từ thiết bị khác!');
-                }
-              }
-              updateCloudUIState('connected');
-            } else if (msg.type === 'fusion_imported') {
-              if (msg.db) {
-                applyRemoteDbState(msg.db, false, true);
-                showToast(`🚀 Đã tự động nhận bản vẽ "${msg.projectName}" trực tiếp từ Fusion 360!`);
-              }
-            } else if (msg.type === 'clients_count' || msg.type === 'server_info') {
-              updateCloudUIState('connected');
-              // auto-synced
+            const invRows = await window.SupabaseDB.getInventory();
+            const names = invRows.map(r => r.profileName).filter(Boolean);
+            if (names.length) {
+              state.savedProfiles = names;
+              renderMemoryLibraryChips();
             }
           } catch (e) {}
-        };
+        },
+        cut_progress: async (ev) => {
+          const activePid = state.currentProjectId || window.SupabaseDB.DRAFT_PROJECT_ID;
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          const targetPid = (rec && rec.projectId) || (old && old.projectId);
+          if (targetPid && targetPid !== activePid) return;
 
-        sseSource.onerror = () => {
-          try { sseSource.close(); } catch (e) {}
-          // Nếu máy tính cá nhân tắt nguồn, vẫn duy trì kết nối qua Đám mây Quốc tế 24/7!
-          if (cloudSseSource && cloudSseSource.readyState === 1) {
-            state.cloudConnected = true;
-            updateCloudUIState('connected', 'Đang đồng bộ trực tiếp qua Đám mây Quốc tế 24/7 (Hoạt động độc lập kể cả khi tắt máy tính).');
+          if (ev.eventType === 'DELETE') {
+            if (old && old.barKey) {
+              delete state.cutStatuses[old.barKey];
+            } else {
+              state.cutStatuses = await window.SupabaseDB.getCutProgress(activePid);
+            }
+          } else if (rec && rec.barKey) {
+            if (!state.cutStatuses) state.cutStatuses = {};
+            state.cutStatuses[rec.barKey] = {
+              cutCount: rec.cutCount,
+              totalCount: rec.totalCount,
+              status: rec.status,
+              updatedBy: rec.updatedBy,
+              updatedAt: rec.updatedAt
+            };
           }
-        };
-      } catch (err) {}
+          updateLiveCuttingProgressUI();
+          if (state.result) renderPatternsGrouped(state.result);
+        },
+        workshop_users: async () => {
+          try {
+            const users = await window.SupabaseDB.getUsers();
+            if (users.length) {
+              state.users = users;
+              if (typeof renderUsersManagementList === 'function') renderUsersManagementList();
+            }
+          } catch (e) {}
+        }
+      }, (status) => {
+        if (status === 'SUBSCRIBED') {
+          state.cloudConnected = true;
+          updateCloudUIState('connected');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          state.cloudConnected = false;
+          updateCloudUIState('error');
+        }
+      });
     }
 
     function updateCloudUIState(status, detailText = '') {
@@ -4322,14 +3947,13 @@
       dot.className = 'cloud-status-dot';
       if (status === 'connected') {
         dot.classList.add('dot-green');
-        const devLabel = state.clientsCount > 1 ? ` (${state.clientsCount} máy)` : '';
-        text.textContent = `Tự động đồng bộ 24/7${devLabel}`;
-      } else if (status === 'syncing') {
+        text.textContent = detailText || 'Supabase Realtime';
+      } else if (status === 'connecting' || status === 'syncing') {
         dot.classList.add('dot-orange');
-        text.textContent = `Đang đồng bộ...`;
+        text.textContent = detailText || 'Đang kết nối Supabase...';
       } else {
-        dot.classList.add('dot-green');
-        text.textContent = `Tự động đồng bộ 24/7`;
+        dot.classList.add('dot-red');
+        text.textContent = detailText || 'Mất kết nối Supabase';
       }
     }
 
@@ -4632,7 +4256,7 @@
               </span>
               ${part.style === 'ke' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (2 đầu)</span>' : (part.style === 'ke1' ? '<span style="font-size:10px; font-weight:700; color:#0369A1; background:#E0F2FE; border-radius:3px; padding:1px 5px;">⧉ Ghép mòi 45° (1 đầu)</span>' : '<span style="font-size:10px; color:#64748B; background:#F1F5F9; border-radius:3px; padding:1px 5px;">⊥ Ghép 90°</span>')}
               ${part.igs_url ? `
-                <a href="${escapeHtml(part.igs_url.startsWith('http') ? part.igs_url : `${getLiveServerApiBase()}${part.igs_url}`)}" 
+                <a href="${escapeHtml(part.igs_url)}" 
                    target="_blank" download="${escapeHtml(part.name)}.igs" 
                    style="display:inline-flex; align-items:center; gap:3px; padding:1px 6px; background:#ECFDF5; color:#047857; border:1px solid #A7F3D0; border-radius:4px; font-size:10.5px; font-weight:700; text-decoration:none;" 
                    title="Tải file 3D .IGS của riêng chi tiết này về máy CNC">
@@ -5325,48 +4949,45 @@
             }
           }
 
-          const rawBarName = fusionBar && fusionBar.name ? fusionBar.name : defaultFileName;
+          const curProjRec = state.currentProjectId
+            ? (state.savedProjects || []).find(p => p.id === state.currentProjectId)
+            : null;
+          const igsMetaFile = (curProjRec && Array.isArray(curProjRec.igsFiles))
+            ? curProjRec.igsFiles.find(f => f.letter === letter && (!f.profile || normP(f.profile) === normP(prof)))
+            : null;
+
+          const rawBarName = (fusionBar && fusionBar.name) || (igsMetaFile && igsMetaFile.name) || defaultFileName;
           const dlName = (toAscii(rawBarName).replace(/[^\w\.\-]/g, '_') + '.igs').replace(/\.igs\.igs$/i, '.igs');
 
-          // 1. Tải trực tiếp nội dung 3D Solid Fusion 360 nếu có sẵn trong bộ nhớ
-          if (isMatch && fusionBar && fusionBar.igs_content && fusionBar.igs_content.length > 100) {
-            const blob = new Blob([fusionBar.igs_content], { type: 'application/octet-stream' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = dlName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast(`✓ Đã tải file 3D cây ghép Solid Fusion 360: ${dlName}`);
-            return;
+          // 1. Ưu tiên tải file 3D Solid .IGS từ Supabase Storage hoặc URL trực tiếp
+          const candidateUrls = [];
+          if (igsMetaFile && igsMetaFile.public_url) {
+            candidateUrls.push(igsMetaFile.public_url);
+          }
+          if (isMatch && fusionBar && fusionBar.igs_url && /^https?:\/\//i.test(fusionBar.igs_url)) {
+            candidateUrls.push(fusionBar.igs_url);
+          }
+          if (window.SupabaseDB && window.SupabaseDB.isConfigured() && state.currentProjectId) {
+            candidateUrls.push(window.SupabaseDB.getIgsPublicUrl(`${window.SupabaseDB.toAsciiSafe(state.currentProjectId)}/${dlName}`));
+          }
+          if (isMatch && fusionBar && fusionBar.igs_url && !/^https?:\/\//i.test(fusionBar.igs_url)) {
+            candidateUrls.push(fusionBar.igs_url);
           }
 
-          // 2. Thử tải từ Máy chủ Web (/api/igs/...) hoặc database/igs_files/
-          if (isMatch && fusionBar && (fusionBar.igs_url || fusionBar.name)) {
-            const candidateUrls = [];
-            if (fusionBar.igs_url) {
-              candidateUrls.push(fusionBar.igs_url.startsWith('http') ? fusionBar.igs_url : `${getLiveServerApiBase()}${fusionBar.igs_url}`);
-            }
-            const rawWithExt = rawBarName.replace(/\.igs$/i, '') + '.igs';
-            candidateUrls.push(`/api/igs/${encodeURIComponent(rawWithExt)}`);
-            candidateUrls.push(`/database/igs_files/${encodeURIComponent(rawWithExt)}`);
-            candidateUrls.push(`/api/igs/${encodeURIComponent(dlName)}`);
-            candidateUrls.push(`/database/igs_files/${encodeURIComponent(dlName)}`);
-
+          const uniqueUrls = Array.from(new Set(candidateUrls.filter(Boolean)));
+          if (uniqueUrls.length && (isMatch || igsMetaFile)) {
             const tryFetch = (idx) => {
-              if (idx >= candidateUrls.length) {
-                // Fallback nếu không có file solid trên server: tự sinh file IGES chuẩn xác 80 ký tự ASCII
+              if (idx >= uniqueUrls.length) {
                 exportNestedBarIGES(dlName, prof, len, pieces);
                 return;
               }
-              fetch(candidateUrls[idx])
+              fetch(uniqueUrls[idx])
                 .then(res => {
                   if (!res.ok) throw new Error('Fetch failed');
                   return res.blob();
                 })
                 .then(blob => {
+                  if (!blob || blob.size < 100) throw new Error('Empty blob');
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
@@ -5375,7 +4996,7 @@
                   a.click();
                   document.body.removeChild(a);
                   URL.revokeObjectURL(url);
-                  showToast(`✓ Đã tải file 3D cây ghép Solid: ${dlName}`);
+                  showToast(`✓ Đã tải file 3D Solid từ Supabase Storage: ${dlName}`);
                 })
                 .catch(() => tryFetch(idx + 1));
             };
@@ -5383,7 +5004,7 @@
             return;
           }
 
-          // 3. Tự sinh file 3D IGES B-Spline Surfaces (Entity 128) chuẩn ASCII
+          // 2. Fallback: Tự sinh file 3D IGES B-Spline Surfaces (Entity 128) chuẩn ASCII
           exportNestedBarIGES(defaultFileName, prof, len, pieces);
         };
       });
@@ -6068,51 +5689,33 @@
       }
     ];
 
-    function ensureDefaultUsers() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        if (Array.isArray(dbInit.users) && dbInit.users.length) {
-          state.users = dbInit.users.slice();
-        }
-      }
-      if (!Array.isArray(state.users) || !state.users.length) {
-        try {
-          const raw = localStorage.getItem('toiuu_users_list_v1');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed) && parsed.length) state.users = parsed;
-          }
-        } catch (e) {}
-      }
-      if (!Array.isArray(state.users) || !state.users.length) {
+    async function loadUsersFromSupabase() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
         state.users = JSON.parse(JSON.stringify(DEFAULT_USERS_LIST));
-      } else {
-        // Đảm bảo luôn có ít nhất 1 tài khoản kỹ sư
-        const hasEng = state.users.some(u => u.role === 'engineer');
-        if (!hasEng) {
-          state.users.unshift(JSON.parse(JSON.stringify(DEFAULT_USERS_LIST[0])));
+        if (window.SupabaseDB) {
+          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!');
         }
+        return false;
       }
-      try { localStorage.setItem('toiuu_users_list_v1', JSON.stringify(state.users)); } catch (e) {}
-    }
-
-    function saveUsersAndSync() {
-      try { localStorage.setItem('toiuu_users_list_v1', JSON.stringify(state.users)); } catch (e) {}
-      if (typeof scheduleSyncToServer === 'function') {
-        scheduleSyncToServer('update_users');
-      }
-    }
-
-    function initUserRole() {
-      ensureDefaultUsers();
-
-      // Phục hồi tiến độ cắt từ bộ nhớ cục bộ
       try {
-        const savedCuts = localStorage.getItem('toiuu_cut_statuses');
-        if (savedCuts) state.cutStatuses = JSON.parse(savedCuts);
-      } catch (e) {}
+        const rows = await window.SupabaseDB.getUsers();
+        state.users = rows.length ? rows : JSON.parse(JSON.stringify(DEFAULT_USERS_LIST));
+        window.SupabaseDB.clearConnectionError();
+        return true;
+      } catch (err) {
+        console.error('Lỗi tải danh sách nhân sự từ Supabase:', err);
+        if (!Array.isArray(state.users) || !state.users.length) {
+          state.users = JSON.parse(JSON.stringify(DEFAULT_USERS_LIST));
+        }
+        window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải tài khoản: ' + err.message);
+        return false;
+      }
+    }
 
-      // Kiểm tra phiên đăng nhập đã lưu
+    async function initUserRole() {
+      await loadUsersFromSupabase();
+
+      // Kiểm tra phiên đăng nhập riêng của thiết bị
       let savedSession = null;
       try {
         const rawSess = sessionStorage.getItem('toiuu_logged_user_v1') || localStorage.getItem('toiuu_logged_user_v1');
@@ -6247,8 +5850,8 @@
       if ($('regErrorAlert')) $('regErrorAlert').style.display = 'none';
     }
 
-    function handleGateLogin() {
-      ensureDefaultUsers();
+    async function handleGateLogin() {
+      if (!state.users.length) await loadUsersFromSupabase();
       const uName = ($('inpLoginUsername') ? $('inpLoginUsername').value : '').trim();
       const uPass = ($('inpLoginPassword') ? $('inpLoginPassword').value : '').trim();
       const remember = $('chkRememberLogin') ? $('chkRememberLogin').checked : true;
@@ -6299,8 +5902,8 @@
       showToast(`✓ Xin chào ${found.fullName || found.username} · Quyền: ${roleLabel}`);
     }
 
-    function handleGateRegister() {
-      ensureDefaultUsers();
+    async function handleGateRegister() {
+      await loadUsersFromSupabase();
       const rawUser = ($('inpRegUsername') ? $('inpRegUsername').value : '').trim();
       const fullName = ($('inpRegFullName') ? $('inpRegFullName').value : '').trim();
       const pass = ($('inpRegPassword') ? $('inpRegPassword').value : '').trim();
@@ -6331,7 +5934,6 @@
         return;
       }
 
-      // Nếu đăng ký tài khoản quyền Kỹ sư từ màn hình ngoài, cần xác thực mật khẩu Admin xưởng
       if (role === 'engineer') {
         const validAdmin = state.users.some(u => u.role === 'engineer' && String(u.password) === String(adminSecret));
         if (!validAdmin && adminSecret !== '123456') {
@@ -6351,21 +5953,31 @@
         createdAt: new Date().toISOString()
       };
 
-      state.users.push(newUser);
-      saveUsersAndSync();
-
-      state.currentUser = newUser;
-      state.userRole = newUser.role;
-      const sessData = JSON.stringify({ username: newUser.username, loginAt: new Date().toISOString() });
+      window.SupabaseDB.setLoading(true, 'Đang đăng ký tài khoản lên Supabase...');
       try {
-        sessionStorage.setItem('toiuu_logged_user_v1', sessData);
-        localStorage.setItem('toiuu_logged_user_v1', sessData);
-      } catch (e) {}
+        const saved = await window.SupabaseDB.upsertUser(newUser);
+        state.users.push(saved);
 
-      if (errBox) errBox.style.display = 'none';
-      if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
-      applyUserRoleUI();
-      showToast(`🎉 Đã tạo tài khoản "${newUser.username}" và đăng nhập thành công!`);
+        state.currentUser = saved;
+        state.userRole = saved.role;
+        const sessData = JSON.stringify({ username: saved.username, loginAt: new Date().toISOString() });
+        try {
+          sessionStorage.setItem('toiuu_logged_user_v1', sessData);
+          localStorage.setItem('toiuu_logged_user_v1', sessData);
+        } catch (e) {}
+
+        if (errBox) errBox.style.display = 'none';
+        if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
+        applyUserRoleUI();
+        showToast(`🎉 Đã tạo tài khoản "${saved.username}" và đăng nhập thành công!`);
+      } catch (err) {
+        if (errBox) {
+          errBox.textContent = '❌ Lỗi lưu tài khoản lên Supabase: ' + err.message;
+          errBox.style.display = 'block';
+        }
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
     function logoutCurrentAccount() {
@@ -6382,7 +5994,7 @@
       showToast('👋 Đã đăng xuất tài khoản! Vui lòng đăng nhập để tiếp tục.');
     }
 
-    function saveSelfNewPassword() {
+    async function saveSelfNewPassword() {
       if (!state.currentUser) return;
       const newPass = ($('inpNewSelfPassword') ? $('inpNewSelfPassword').value : '').trim();
       if (!newPass || newPass.length < 4) {
@@ -6391,17 +6003,23 @@
       }
       const target = state.users.find(u => u.username.toLowerCase() === state.currentUser.username.toLowerCase());
       if (target) {
-        target.password = newPass;
-        target.updatedAt = new Date().toISOString();
-        state.currentUser = target;
-        saveUsersAndSync();
-        renderUsersManagementList();
-        if ($('inpNewSelfPassword')) $('inpNewSelfPassword').value = '';
-        showToast('🔑 Đã cập nhật mật khẩu mới thành công!');
+        window.SupabaseDB.setLoading(true, 'Đang cập nhật mật khẩu...');
+        try {
+          const updated = await window.SupabaseDB.updateUser(target.username, { password: newPass });
+          Object.assign(target, updated);
+          state.currentUser = target;
+          renderUsersManagementList();
+          if ($('inpNewSelfPassword')) $('inpNewSelfPassword').value = '';
+          showToast('🔑 Đã cập nhật mật khẩu mới thành công!');
+        } catch (err) {
+          showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       }
     }
 
-    function adminCreateNewAccount() {
+    async function adminCreateNewAccount() {
       if (!state.currentUser || state.currentUser.username.toLowerCase() !== 'admin') {
         alert('🔒 Chỉ duy nhất tài khoản Quản trị viên (admin) mới có quyền tạo tài khoản mới!');
         return;
@@ -6432,14 +6050,21 @@
         role: role,
         createdAt: new Date().toISOString()
       };
-      state.users.push(newUser);
-      saveUsersAndSync();
-      renderUsersManagementList();
+      window.SupabaseDB.setLoading(true, 'Đang cấp tài khoản...');
+      try {
+        const saved = await window.SupabaseDB.upsertUser(newUser);
+        state.users.push(saved);
+        renderUsersManagementList();
 
-      if ($('inpAdminAddUser')) $('inpAdminAddUser').value = '';
-      if ($('inpAdminAddPass')) $('inpAdminAddPass').value = '';
-      if ($('inpAdminAddName')) $('inpAdminAddName').value = '';
-      showToast(`✓ Đã tạo tài khoản "${newUser.username}" (${role === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
+        if ($('inpAdminAddUser')) $('inpAdminAddUser').value = '';
+        if ($('inpAdminAddPass')) $('inpAdminAddPass').value = '';
+        if ($('inpAdminAddName')) $('inpAdminAddName').value = '';
+        showToast(`✓ Đã tạo tài khoản "${saved.username}" (${role === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'}) thành công!`);
+      } catch (err) {
+        showToast('❌ Lỗi tạo tài khoản: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
     }
 
     function renderUsersManagementList() {
@@ -6449,7 +6074,6 @@
         container.innerHTML = '';
         return;
       }
-      ensureDefaultUsers();
 
       let html = `<table style="width:100%; border-collapse:collapse; font-size:12.5px;">
         <thead>
@@ -6502,7 +6126,6 @@
       html += `</tbody></table>`;
       container.innerHTML = html;
 
-      // Event: Xem / Ẩn mật khẩu
       container.querySelectorAll('.btn-toggle-row-pass').forEach(btn => {
         btn.onclick = () => {
           const idx = btn.getAttribute('data-idx');
@@ -6517,9 +6140,8 @@
         };
       });
 
-      // Event: Đổi mật khẩu cho người khác
       container.querySelectorAll('.btn-user-change-pass').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = async () => {
           const uname = btn.getAttribute('data-user');
           const target = state.users.find(x => x.username.toLowerCase() === uname.toLowerCase());
           if (!target) return;
@@ -6530,17 +6152,22 @@
             alert('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!');
             return;
           }
-          target.password = cleanPass;
-          target.updatedAt = new Date().toISOString();
-          saveUsersAndSync();
-          renderUsersManagementList();
-          showToast(`✓ Đã cập nhật mật khẩu mới cho tài khoản @${target.username}!`);
+          window.SupabaseDB.setLoading(true, 'Đang cập nhật mật khẩu...');
+          try {
+            const updated = await window.SupabaseDB.updateUser(target.username, { password: cleanPass });
+            Object.assign(target, updated);
+            renderUsersManagementList();
+            showToast(`✓ Đã cập nhật mật khẩu mới cho tài khoản @${target.username}!`);
+          } catch (err) {
+            showToast('❌ Lỗi cập nhật mật khẩu: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
         };
       });
 
-      // Event: Đổi quyền
       container.querySelectorAll('.btn-user-role-toggle').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = async () => {
           const uname = btn.getAttribute('data-user');
           const target = state.users.find(x => x.username.toLowerCase() === uname.toLowerCase());
           if (!target) return;
@@ -6551,27 +6178,40 @@
               return;
             }
           }
-          target.role = target.role === 'engineer' ? 'operator' : 'engineer';
-          target.updatedAt = new Date().toISOString();
-          if (state.currentUser && state.currentUser.username.toLowerCase() === target.username.toLowerCase()) {
-            state.currentUser = target;
-            state.userRole = target.role;
+          const nextRole = target.role === 'engineer' ? 'operator' : 'engineer';
+          window.SupabaseDB.setLoading(true, 'Đang đổi phân quyền...');
+          try {
+            const updated = await window.SupabaseDB.updateUser(target.username, { role: nextRole });
+            Object.assign(target, updated);
+            if (state.currentUser && state.currentUser.username.toLowerCase() === target.username.toLowerCase()) {
+              state.currentUser = target;
+              state.userRole = target.role;
+            }
+            applyUserRoleUI();
+            showToast(`✓ Đã chuyển tài khoản @${target.username} sang quyền ${target.role === 'engineer' ? 'Kỹ sư Thiết kế' : 'Thợ CNC'}!`);
+          } catch (err) {
+            showToast('❌ Lỗi đổi quyền: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
           }
-          saveUsersAndSync();
-          applyUserRoleUI();
-          showToast(`✓ Đã chuyển tài khoản @${target.username} sang quyền ${target.role === 'engineer' ? 'Kỹ sư Thiết kế' : 'Thợ CNC'}!`);
         };
       });
 
-      // Event: Xóa tài khoản
       container.querySelectorAll('.btn-user-del').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = async () => {
           const uname = btn.getAttribute('data-user');
           if (!confirm(`Bạn có chắc muốn xóa tài khoản "@${uname}" khỏi hệ thống?`)) return;
-          state.users = state.users.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
-          saveUsersAndSync();
-          renderUsersManagementList();
-          showToast(`🗑️ Đã xóa tài khoản @${uname}`);
+          window.SupabaseDB.setLoading(true, 'Đang xóa tài khoản...');
+          try {
+            await window.SupabaseDB.deleteUser(uname);
+            state.users = state.users.filter(x => x.username.toLowerCase() !== uname.toLowerCase());
+            renderUsersManagementList();
+            showToast(`🗑️ Đã xóa tài khoản @${uname}`);
+          } catch (err) {
+            showToast('❌ Lỗi xóa tài khoản: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
         };
       });
     }
@@ -6582,8 +6222,6 @@
         return;
       }
       const isSuperAdmin = state.currentUser.username && state.currentUser.username.toLowerCase() === 'admin';
-      
-      // NẾU KHÔNG PHẢI TÀI KHOẢN ADMIN -> TUYỆT ĐỐI KHÔNG MỞ BẢNG QUẢN LÝ TÀI KHOẢN!
       if (!isSuperAdmin) {
         if (confirm(`👤 Bạn đang đăng nhập với tài khoản: @${state.currentUser.username} (${state.currentUser.fullName || ''})\n\nBạn có muốn Đăng Xuất khỏi hệ thống không?`)) {
           logoutCurrentAccount();
@@ -6603,7 +6241,7 @@
     }
 
     // ==========================================
-    // 📊 NÂNG CẤP 2: LIVE PRODUCTION TRACKING (TIẾN ĐỘ CẮT THỜI GIAN THỰC)
+    // 📊 NÂNG CẤP 2: LIVE PRODUCTION TRACKING (TIẾN ĐỘ CẮT ROW-LEVEL SUPABASE)
     // ==========================================
     function playSuccessChime() {
       try {
@@ -6614,10 +6252,10 @@
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, now);       // C5
-        osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-        osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
-        osc.frequency.setValueAtTime(1046.50, now + 0.3); // C6
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.1);
+        osc.frequency.setValueAtTime(783.99, now + 0.2);
+        osc.frequency.setValueAtTime(1046.50, now + 0.3);
         gain.gain.setValueAtTime(0.3, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
         osc.start(now);
@@ -6625,20 +6263,21 @@
       } catch (e) {}
     }
 
-    function toggleBarCuttingStatus(key, total) {
+    async function toggleBarCuttingStatus(key, total) {
       if (!state.cutStatuses) state.cutStatuses = {};
-      const cur = state.cutStatuses[key] ? (state.cutStatuses[key].cutCount || 0) : 0;
+      const prev = state.cutStatuses[key] ? Object.assign({}, state.cutStatuses[key]) : null;
+      const cur = prev ? (prev.cutCount || 0) : 0;
       let next = cur + 1;
-      if (next > total) {
-        next = 0; // Đặt lại
-      }
+      if (next > total) next = 0;
+
+      const nextStatus = next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending');
       state.cutStatuses[key] = {
         cutCount: next,
         totalCount: total,
-        status: next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending'),
+        status: nextStatus,
+        updatedBy: state.currentUser ? state.currentUser.username : null,
         updatedAt: new Date().toISOString()
       };
-      try { localStorage.setItem('toiuu_cut_statuses', JSON.stringify(state.cutStatuses)); } catch (e) {}
 
       const cleanKey = key.replace('__', ' - ');
       if (next >= total) {
@@ -6651,10 +6290,28 @@
       }
 
       updateLiveCuttingProgressUI();
-      if (state.result) {
-        renderPatternsGrouped(state.result);
+      if (state.result) renderPatternsGrouped(state.result);
+
+      if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+        const activePid = state.currentProjectId || window.SupabaseDB.DRAFT_PROJECT_ID;
+        try {
+          if (activePid === window.SupabaseDB.DRAFT_PROJECT_ID) {
+            await window.SupabaseDB.saveDraftProject(buildActiveDataSnapshot());
+          }
+          await window.SupabaseDB.updateCutStatus(activePid, key, {
+            cutCount: next,
+            totalCount: total,
+            status: nextStatus,
+            updatedBy: state.currentUser ? state.currentUser.username : null
+          });
+        } catch (err) {
+          if (prev) state.cutStatuses[key] = prev;
+          else delete state.cutStatuses[key];
+          updateLiveCuttingProgressUI();
+          if (state.result) renderPatternsGrouped(state.result);
+          showToast('❌ Không lưu được tiến độ lên Supabase: ' + err.message);
+        }
       }
-      pushCutStatusToSync(key, next, total);
     }
 
     function updateLiveCuttingProgressUI() {
@@ -6695,7 +6352,6 @@
       if ($('statCutInProgress')) $('statCutInProgress').textContent = inProgressBars;
       if ($('statCutRemaining')) $('statCutRemaining').textContent = remainingBars;
 
-      // Màu sắc theo tiến độ
       if ($('liveProgressBarFill')) {
         if (percent === 100) {
           $('liveProgressBarFill').style.background = 'linear-gradient(90deg, #10B981, #059669)';
@@ -6707,60 +6363,19 @@
       }
     }
 
-    function pushCutStatusToSync(key, cutCount, total) {
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync({ cutStatuses: state.cutStatuses }, 'cut_progress');
-        return;
-      }
-      fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'cut_progress',
-          cutStatuses: state.cutStatuses
-        })
-      }).catch(() => {});
-    }
-
     // ==========================================
-    // ⚡ NÂNG CẤP 1: REALTIME 2-WAY EVENT LISTENERS
-    // ==========================================
-    function initRealtimeListeners() {
-      // Đã hợp nhất vào WorkshopDB.fetchLatest() (SSE Server + Cloud v3) để tránh trùng lặp & ghi đè mảng rỗng
-    }
-
-    function handleRealtimeEvent(data) {
-      if (!data) return;
-      if (data.type === 'cut_progress' && data.cutStatuses) {
-        state.cutStatuses = Object.assign(state.cutStatuses || {}, data.cutStatuses);
-        try { localStorage.setItem('toiuu_cut_statuses', JSON.stringify(state.cutStatuses)); } catch (e) {}
-        updateLiveCuttingProgressUI();
-        if (state.result) renderPatternsGrouped(state.result);
-      } else if (data.type === 'fusion_import' && data.project) {
-        showToast('⚡ Bản vẽ mới vừa được đẩy lên từ Autodesk Fusion 360!');
-        loadFusionDataPayload(data.project);
-      } else if (data.type === 'cloud_sync' && data.activeProject) {
-        if (!state.isApplyingRemoteChange) {
-          applyRemoteDbState({ activeProject: data.activeProject }, true);
-        }
-      }
-    }
-
-    // ==========================================
-    // 📶 NÂNG CẤP 3: PWA & OFFLINE-FIRST
+    // 📶 NÂNG CẤP 3: PWA & TRẠNG THÁI MẠNG
     // ==========================================
     function initNetworkAndPWA() {
-      // Đăng ký Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=9').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=10').then(reg => {
           reg.update();
-          console.log('PWA Service Worker registered & updated v9:', reg.scope);
+          console.log('PWA Service Worker registered & updated v10:', reg.scope);
         }).catch(err => {
           console.log('SW registration note:', err);
         });
       }
 
-      // Theo dõi trạng thái mạng Trực tuyến / Ngoại tuyến
       const updateNetBadge = () => {
         const isOnline = navigator.onLine;
         const badge = $('networkStatusBadge');
@@ -6779,28 +6394,46 @@
           badge.style.borderColor = '#FDE68A';
           badge.style.color = '#B45309';
           if (dot) dot.style.background = '#F59E0B';
-          if (text) text.textContent = 'Ngoại tuyến (Offline PWA)';
-          showToast('📡 Mạng xưởng ngắt kết nối: Ứng dụng chuyển sang chế độ Ngoại Tuyến (Offline PWA) hoàn toàn tự chủ!');
+          if (text) text.textContent = 'Ngoại tuyến';
+          showToast('📡 Mất kết nối Internet: Vui lòng kiểm tra Wi-Fi/4G để đồng bộ với Supabase!');
         }
       };
 
-      window.addEventListener('online', () => {
+      window.addEventListener('online', async () => {
         updateNetBadge();
-        showToast('🟢 Đã khôi phục mạng! Tự động đồng bộ với máy chủ.');
-        if (window.WorkshopDB) window.WorkshopDB.fetchLatest();
+        showToast('🟢 Đã khôi phục mạng! Tự động làm mới dữ liệu từ Supabase.');
+        if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          window.SupabaseDB.clearConnectionError();
+          await initProjectsManager();
+          await loadCutProgressForActiveProject();
+        }
       });
       window.addEventListener('offline', updateNetBadge);
       updateNetBadge();
     }
 
-    // Attach Event Listeners
-    window.addEventListener('DOMContentLoaded', () => {
-      initUserRole();
+    // Attach Event Listeners & Khởi động đồng bộ dữ liệu từ Supabase
+    window.addEventListener('DOMContentLoaded', async () => {
       initNetworkAndPWA();
-      initRealtimeListeners();
-      initSavedProfiles();
-      renderMemoryLibraryChips();
-      initProjectsManager();
+
+      // Nạp song song tài khoản, thư viện quy cách, danh sách dự án & bản nháp từ Supabase
+      let draftProject = null;
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang tải dữ liệu xưởng từ Supabase...');
+      try {
+        const results = await Promise.all([
+          initUserRole(),
+          initSavedProfiles(),
+          initProjectsManager()
+        ]);
+        draftProject = results[2];
+        renderMemoryLibraryChips();
+      } catch (err) {
+        console.error('Lỗi khởi động dữ liệu Supabase:', err);
+        if (window.SupabaseDB) window.SupabaseDB.showConnectionError('❌ Không thể tải dữ liệu ban đầu từ Supabase: ' + err.message);
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+      }
+
       initCloudSyncSystem();
 
       // Gắn sự kiện Hệ thống Tài khoản & Mật khẩu Phân quyền
@@ -6855,15 +6488,20 @@
         $('btnAdminCreateAccount').onclick = () => adminCreateNewAccount();
       }
       if ($('btnResetCutProgress')) {
-        $('btnResetCutProgress').onclick = () => {
-          if (confirm('Đặt lại toàn bộ tiến độ cắt của dự án này về 0% (Chưa cắt)?')) {
-            state.cutStatuses = {};
-            localStorage.removeItem('toiuu_cut_statuses');
-            updateLiveCuttingProgressUI();
-            if (state.result) renderPatternsGrouped(state.result);
-            pushCutStatusToSync('ALL', 0, 0);
-            showToast('Đã đặt lại tiến độ cắt về 0%');
+        $('btnResetCutProgress').onclick = async () => {
+          if (!confirm('Đặt lại toàn bộ tiến độ cắt của dự án này về 0% (Chưa cắt)?')) return;
+          const activePid = state.currentProjectId || (window.SupabaseDB && window.SupabaseDB.DRAFT_PROJECT_ID);
+          state.cutStatuses = {};
+          updateLiveCuttingProgressUI();
+          if (state.result) renderPatternsGrouped(state.result);
+          if (activePid && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+            try {
+              await window.SupabaseDB.resetCutProgress(activePid);
+            } catch (err) {
+              showToast('❌ Lỗi đặt lại tiến độ trên Supabase: ' + err.message);
+            }
           }
+          showToast('Đã đặt lại tiến độ cắt về 0%');
         };
       }
 
@@ -6885,6 +6523,10 @@
         document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
       });
 
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramProjId = urlParams.get('project');
+      const paramOpen = urlParams.get('open');
+
       // 1. Kiểm tra dữ liệu Fusion nhúng sẵn trong file HTML (Ưu tiên hàng đầu khi mở từ Fusion)
       const embScript = $('embeddedFusionData');
       let loadedFromEmbedded = false;
@@ -6893,7 +6535,7 @@
           const safeJson = embScript.textContent.trim().replace(/\\(?![/u"\\bfnrt])/g, '/');
           const embData = JSON.parse(safeJson);
           if (embData && (embData.parts || Array.isArray(embData))) {
-            loadFusionDataPayload(embData);
+            await loadFusionDataPayload(embData);
             loadedFromEmbedded = true;
           }
         } catch (e) {
@@ -6901,9 +6543,10 @@
         }
       }
 
-      // 2. Nếu không có dữ liệu Fusion nhúng sẵn, nạp ngay tức thì (0ms) từ localStorage hoặc WorkshopDB của máy chủ
+      // 2. Nếu không có dữ liệu Fusion nhúng sẵn -> Nạp từ Supabase (?project -> dự án đã mở -> dự án mới nhất -> bản nháp)
       if (!loadedFromEmbedded) {
-        if (!loadActiveProject()) {
+        const loaded = await loadActiveProject(paramProjId, draftProject);
+        if (!loaded) {
           loadMultiProfilePreset();
         }
       }
@@ -7341,10 +6984,10 @@
         const file = e.dataTransfer.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = ev => {
+        reader.onload = async ev => {
           try {
             const data = JSON.parse(ev.target.result);
-            loadFusionDataPayload(data);
+            await loadFusionDataPayload(data);
             $('modalFusion').style.display = 'none';
           } catch (err) {
             showToast('File JSON không hợp lệ!');
@@ -7356,10 +6999,10 @@
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = ev => {
+        reader.onload = async ev => {
           try {
             const data = JSON.parse(ev.target.result);
-            loadFusionDataPayload(data);
+            await loadFusionDataPayload(data);
             $('modalFusion').style.display = 'none';
           } catch (err) {
             showToast('File JSON không hợp lệ!');
@@ -7368,7 +7011,7 @@
         reader.readAsText(file);
       };
 
-      function loadFusionDataPayload(data) {
+      async function loadFusionDataPayload(data) {
         state.fusionProject = data;
         const partsList = Array.isArray(data) ? data : (data.parts || []);
         if (!partsList.length) {
@@ -7400,11 +7043,12 @@
         state.parts = newParts;
         state.activeProfiles = [];
         state.stock = [];
+        const newProfsToSave = [];
         newParts.forEach(p => {
           if (!state.activeProfiles.includes(p.profile)) state.activeProfiles.push(p.profile);
           if (!state.savedProfiles.includes(p.profile)) {
             state.savedProfiles.push(p.profile);
-            saveProfilesLibrary();
+            newProfsToSave.push(p.profile);
           }
           ensureStockForProfile(p.profile);
         });
@@ -7414,7 +7058,6 @@
         state.selectedTabProfile = 'ALL';
         state.resultFilterProfile = 'ALL';
 
-        // Tự động liên kết và lưu thành dự án trong bộ nhớ
         const fProjName = data.project_name || ('Bản vẽ Fusion 360 ' + new Date().toLocaleDateString('vi-VN'));
         let existingProj = state.savedProjects.find(p => p.name.toLowerCase() === fProjName.toLowerCase());
         const projId = existingProj ? existingProj.id : ('proj_f360_' + Date.now());
@@ -7422,67 +7065,73 @@
         state.currentProjectName = fProjName;
         state.currentProjectCustomer = 'Autodesk Fusion 360';
         state.currentProjectNotes = `Xuất lúc: ${data.timestamp || new Date().toLocaleString('vi-VN')}`;
-        localStorage.setItem(LS_CURRENT_PROJ_ID, projId);
+        try { localStorage.setItem(LS_CURRENT_PROJ_ID, projId); } catch (e) {}
 
         renderProfileTabs();
         renderActiveProfileBanner();
         renderPartsList();
         renderStockList();
         calculateOptimization(true);
+        updateProjectActiveBanner();
+
+        const cleanDataPayload = window.SupabaseDB ? window.SupabaseDB.stripHeavyIgs({
+          activeProfiles: [...state.activeProfiles],
+          selectedTabProfile: 'ALL',
+          parts: JSON.parse(JSON.stringify(state.parts)),
+          stock: JSON.parse(JSON.stringify(state.stock)),
+          method: state.method,
+          kerf: state.kerf,
+          clamp: state.clamp,
+          interlock: state.interlock,
+          gap: state.gap,
+          fusionProject: data
+        }) : {};
 
         const projEntry = {
           id: projId,
           name: fProjName,
           customer: state.currentProjectCustomer,
           notes: state.currentProjectNotes,
+          isLocked: existingProj ? !!existingProj.isLocked : false,
+          isTrashed: false,
+          isDraft: false,
+          source: 'fusion360',
           createdAt: existingProj ? existingProj.createdAt : new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          data: {
-            activeProfiles: [...state.activeProfiles],
-            selectedTabProfile: 'ALL',
-            parts: JSON.parse(JSON.stringify(state.parts)),
-            stock: JSON.parse(JSON.stringify(state.stock)),
-            method: state.method,
-            kerf: state.kerf,
-            clamp: state.clamp,
-            interlock: state.interlock,
-            gap: state.gap,
-            fusionProject: data
-          }
+          data: cleanDataPayload,
+          igsFiles: existingProj ? (existingProj.igsFiles || []) : []
         };
 
-        if (existingProj) {
-          const idx = state.savedProjects.indexOf(existingProj);
-          state.savedProjects[idx] = projEntry;
+        if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          state.lastLocalProjectWriteAt = Date.now();
+          window.SupabaseDB.setLoading(true, 'Đang lưu bản vẽ Fusion 360 lên Supabase...');
+          try {
+            if (newProfsToSave.length) {
+              await window.SupabaseDB.addProfilesBulk(newProfsToSave);
+            }
+            const saved = await window.SupabaseDB.saveProject(projEntry);
+            state.savedProjects = [saved, ...state.savedProjects.filter(x => x.id !== saved.id)];
+            await loadCutProgressForActiveProject();
+          } catch (err) {
+            showToast('❌ Lỗi lưu dự án lên Supabase: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
         } else {
-          state.savedProjects.unshift(projEntry);
+          state.savedProjects = [projEntry, ...state.savedProjects.filter(x => x.id !== projEntry.id)];
         }
 
-        saveProjectsListToStorage();
-        updateProjectActiveBanner();
-        saveActiveProject();
-        pushProjectToCloud(projEntry);
-
+        updateProjectsBadge();
         const projName = data.project_name ? `từ bản vẽ "${data.project_name}"` : '';
         showToast(`✓ Đã nạp thành công ${newParts.length} mục (${state.activeProfiles.length} loại hộp) ${projName}!`);
       }
 
-      // Kiểm tra URL query (?project=..., ?open=..., ?src=fusion)
-      const urlParams = new URLSearchParams(window.location.search);
-      const paramProjId = urlParams.get('project');
-      const paramOpen = urlParams.get('open');
-
-      if (paramProjId && !loadedFromEmbedded) {
-        loadProjectById(paramProjId);
-      } else if (!loadedFromEmbedded && urlParams.get('src') === 'fusion') {
+      // Kiểm tra URL query (?open=..., ?src=fusion)
+      if (!loadedFromEmbedded && urlParams.get('src') === 'fusion' && !paramProjId) {
         fetch('fusion_exported_project.json')
           .then(res => res.json())
-          .then(data => {
-            loadFusionDataPayload(data);
-          })
-          .catch(() => {
-            openFusionModal();
-          });
+          .then(data => loadFusionDataPayload(data))
+          .catch(() => openFusionModal());
       }
 
       if (paramOpen === 'igs') {

@@ -12,7 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="/toi-uu-engine.js"></script>
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
-  <script src="/database/workshop_db.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
   <style>
     :root {
       --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
@@ -238,27 +239,21 @@
     const COLORS = ['#0F766E', '#C2410C', '#3A5BA0', '#A21CAF', '#4D7C0F', '#B4232C', '#0369A1', '#7C3AED', '#A16207', '#BE185D', '#15803D', '#475569'];
     const getColor = i => COLORS[Math.abs(i) % COLORS.length];
 
-    const LS_USERS = 'toiuu_users_list_v1';
     const LS_SESSION = 'toiuu_logged_user_v1';
-    const LS_ACTIVE_PROJ = 'toiuu_active_project_v2';
-    const LS_SAVED_PROJECTS = 'toiuu_saved_projects_list_v1';
     const LS_CUR_PROJ_ID = 'toiuu_current_proj_id_v1';
-    const LS_CUT_STATUSES = 'toiuu_cut_statuses';
-
-    const DEFAULT_USERS = [
-      { username: 'admin', password: '123456', fullName: 'Kỹ Sư Thiết Kế (Admin)', role: 'engineer' },
-      { username: 'kt1', password: '12345', fullName: 'Sơn KT (Kỹ Sư)', role: 'engineer' },
-      { username: 'thocnc', password: '1234', fullName: 'Thợ Vận Hành Máy CNC', role: 'operator' }
-    ];
 
     let usersList = [];
-    let activeProject = null;
+    let currentUser = null;
     let savedProjects = [];
+    let activeProjectId = null;
+    let currentProjectRecord = null;
+    let activeProject = null;
     let cutStatuses = {};
     let currentResult = null;
     let filterProf = 'ALL';
     let filterStatus = 'ALL';
     let HINH_CACHE = [];
+    let cncRealtimeUnsub = null;
 
     const $ = id => document.getElementById(id);
     function showToast(msg) {
@@ -281,136 +276,151 @@
       return mR ? parseInt(mR[1]) : 30;
     }
 
-    function loadUsers() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        if (Array.isArray(dbInit.users) && dbInit.users.length) {
-          usersList = dbInit.users.slice();
-          return;
+    async function loadUsers() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        usersList = (window.SupabaseDB ? window.SupabaseDB.DEFAULT_USERS : []).slice();
+        if (window.SupabaseDB) {
+          window.SupabaseDB.showConnectionError('⚠️ Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY trong file /js/supabaseClient.js!', () => checkAuth());
         }
+        return false;
       }
       try {
-        const raw = localStorage.getItem(LS_USERS);
-        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length) usersList = p; }
-      } catch (e) {}
-      if (!usersList.length) usersList = JSON.parse(JSON.stringify(DEFAULT_USERS));
-    }
-
-    function checkAuth() {
-      loadUsers();
-      let sess = null;
-      try { sess = JSON.parse(sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION) || 'null'); } catch (e) {}
-      if (sess && sess.username) {
-        const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
-        if (found) {
-          const isOp = found.role === 'operator';
-          const isSuperAdmin = found.username.toLowerCase() === 'admin';
-          document.body.classList.toggle('role-operator', isOp);
-          $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
-          $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
-          $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
-          $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
-          $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
-          if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
-          $('loginGateWrap').style.display = 'none';
-          $('mainContent').style.display = 'block';
-          loadWorkshopData();
-          initRealtime();
-          return;
-        }
-      }
-      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
-      $('loginGateWrap').style.display = 'block';
-      $('mainContent').style.display = 'none';
-    }
-
-    function handleLogin() {
-      loadUsers();
-      const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
-      const p = ($('inpLoginPass').value || '').trim();
-      const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
-      if (!found) { $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!'; $('loginErr').style.display = 'block'; return; }
-      $('loginErr').style.display = 'none';
-      const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
-      sessionStorage.setItem(LS_SESSION, sessData);
-      localStorage.setItem(LS_SESSION, sessData);
-      $('inpLoginPass').value = '';
-      checkAuth();
-    }
-
-    function loadWorkshopData() {
-      if (window.WorkshopDB) {
-        const dbInit = window.WorkshopDB.getInitialState();
-        cutStatuses = Object.assign({}, dbInit.cutStatuses || {});
-        savedProjects = Array.isArray(dbInit.savedProjects) ? dbInit.savedProjects.slice() : [];
-        activeProject = dbInit.activeProject ? JSON.parse(JSON.stringify(dbInit.activeProject)) : null;
-      } else {
-        try { cutStatuses = JSON.parse(localStorage.getItem(LS_CUT_STATUSES) || '{}') || {}; } catch (e) { cutStatuses = {}; }
-        try { savedProjects = JSON.parse(localStorage.getItem(LS_SAVED_PROJECTS) || '[]') || []; } catch (e) { savedProjects = []; }
-        try { activeProject = JSON.parse(localStorage.getItem(LS_ACTIVE_PROJ) || 'null'); } catch (e) { activeProject = null; }
-      }
-
-      const sel = $('selCncProject');
-      const curName = activeProject && activeProject.currentProjectName ? activeProject.currentProjectName : 'Dự án hiện hành trên bàn';
-      let opts = `<option value="ACTIVE">📌 ${escapeHtml(curName)}</option>`;
-      savedProjects.forEach(p => {
-        if (!activeProject || p.id !== activeProject.currentProjectId) {
-          opts += `<option value="${escapeHtml(p.id)}">📁 ${escapeHtml(p.name)}</option>`;
-        }
-      });
-      sel.innerHTML = opts;
-
-      solveAndRender();
-      initRealtime();
-      fetchCloudWorkshopData();
-    }
-
-    async function fetchCloudWorkshopData() {
-      if (window.WorkshopDB) {
-        return window.WorkshopDB.fetchLatest();
+        usersList = await window.SupabaseDB.getUsers();
+        if (!usersList.length) usersList = window.SupabaseDB.DEFAULT_USERS.slice();
+        window.SupabaseDB.clearConnectionError();
+        return true;
+      } catch (err) {
+        console.error('Lỗi tải users:', err);
+        window.SupabaseDB.showConnectionError('❌ Không thể kết nối Supabase: ' + err.message, () => checkAuth());
+        return false;
       }
     }
 
-    function applyCloudData(db) {
-      if (!db) return;
-      let changed = false;
-      if (Array.isArray(db.savedProjects) && db.savedProjects.length) {
-        savedProjects = db.savedProjects;
-        localStorage.setItem(LS_SAVED_PROJECTS, JSON.stringify(savedProjects));
-        changed = true;
-      }
-      if (db.cutStatuses && typeof db.cutStatuses === 'object') {
-        cutStatuses = Object.assign(cutStatuses, db.cutStatuses);
-        localStorage.setItem(LS_CUT_STATUSES, JSON.stringify(cutStatuses));
-        changed = true;
-      }
-      if ((!activeProject || !activeProject.parts || !activeProject.parts.length) && db.activeProject && db.activeProject.parts && db.activeProject.parts.length) {
-        activeProject = db.activeProject;
-        localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activeProject));
-        changed = true;
-      } else if ((!activeProject || !activeProject.parts || !activeProject.parts.length) && savedProjects.length) {
-        const latest = savedProjects[0];
-        if (latest && latest.data) {
-          activeProject = {
-            currentProjectId: latest.id,
-            currentProjectName: latest.name,
-            ...latest.data
-          };
-          localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activeProject));
-          changed = true;
-        }
-      }
-      if (changed) {
-        const sel = $('selCncProject');
-        const curName = activeProject && activeProject.currentProjectName ? activeProject.currentProjectName : 'Dự án hiện hành trên bàn';
-        let opts = `<option value="ACTIVE">📌 ${escapeHtml(curName)}</option>`;
-        savedProjects.forEach(p => {
-          if (!activeProject || p.id !== activeProject.currentProjectId) {
-            opts += `<option value="${escapeHtml(p.id)}">📁 ${escapeHtml(p.name)}</option>`;
+    async function checkAuth() {
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang kết nối Supabase...');
+      try {
+        await loadUsers();
+        let sess = null;
+        try { sess = JSON.parse(sessionStorage.getItem(LS_SESSION) || localStorage.getItem(LS_SESSION) || 'null'); } catch (e) {}
+        if (sess && sess.username) {
+          const found = usersList.find(u => u.username.toLowerCase() === String(sess.username).toLowerCase());
+          if (found) {
+            currentUser = found;
+            const isOp = found.role === 'operator';
+            const isSuperAdmin = found.username.toLowerCase() === 'admin';
+            document.body.classList.toggle('role-operator', isOp);
+            $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+            $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : 'Kỹ sư'}]`;
+            $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
+            $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
+            $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
+            if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+            $('loginGateWrap').style.display = 'none';
+            $('mainContent').style.display = 'block';
+            await loadWorkshopData();
+            initRealtime();
+            return;
           }
-        });
-        sel.innerHTML = opts;
+        }
+        currentUser = null;
+        if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+        $('loginGateWrap').style.display = 'block';
+        $('mainContent').style.display = 'none';
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function handleLogin() {
+      if (window.SupabaseDB) window.SupabaseDB.setLoading(true, 'Đang xác thực...');
+      try {
+        await loadUsers();
+        const u = ($('inpLoginUser').value || '').trim().toLowerCase().replace(/\s+/g, '');
+        const p = ($('inpLoginPass').value || '').trim();
+        const found = usersList.find(x => String(x.username || '').toLowerCase().replace(/\s+/g, '') === u && String(x.password).trim() === p);
+        if (!found) { $('loginErr').textContent = '❌ Sai tài khoản hoặc mật khẩu!'; $('loginErr').style.display = 'block'; return; }
+        $('loginErr').style.display = 'none';
+        const sessData = JSON.stringify({ username: found.username, loginAt: new Date().toISOString() });
+        sessionStorage.setItem(LS_SESSION, sessData);
+        localStorage.setItem(LS_SESSION, sessData);
+        $('inpLoginPass').value = '';
+        await checkAuth();
+      } finally {
+        if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    function applySelectedProject(projRec) {
+      currentProjectRecord = projRec;
+      if (!projRec) {
+        activeProjectId = null;
+        activeProject = null;
+        return;
+      }
+      activeProjectId = projRec.id;
+      const d = projRec.data || {};
+      activeProject = Object.assign({}, d, {
+        currentProjectId: projRec.id,
+        currentProjectName: projRec.name,
+        currentProjectCustomer: projRec.customer || '',
+        currentProjectNotes: projRec.notes || '',
+        igsFiles: projRec.igsFiles || []
+      });
+    }
+
+    function renderProjectSelector() {
+      const sel = $('selCncProject');
+      if (!sel) return;
+      if (!savedProjects.length) {
+        sel.innerHTML = '<option value="">-- Chưa có dự án --</option>';
+        return;
+      }
+      sel.innerHTML = savedProjects.map(p => {
+        const icon = p.isDraft || p.id === '__draft__' ? '📌' : '📁';
+        const selected = p.id === activeProjectId ? ' selected' : '';
+        return `<option value="${escapeHtml(p.id)}"${selected}>${icon} ${escapeHtml(p.name)}</option>`;
+      }).join('');
+    }
+
+    async function loadWorkshopData() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        savedProjects = [];
+        cutStatuses = {};
+        applySelectedProject(null);
+        renderProjectSelector();
         solveAndRender();
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang tải sơ đồ cắt & tiến độ CNC...');
+      try {
+        const allProjs = await window.SupabaseDB.getProjects({ includeTrash: false, includeDraft: true });
+        savedProjects = allProjs.filter(p => !p.isDraft || (p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0));
+
+        const urlProjId = new URLSearchParams(window.location.search).get('project');
+        const storedProjId = localStorage.getItem(LS_CUR_PROJ_ID);
+        const preferredId = urlProjId || storedProjId;
+
+        let chosen = preferredId ? savedProjects.find(p => p.id === preferredId) : null;
+        if (!chosen) {
+          chosen = savedProjects.find(p => p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0) || savedProjects[0] || null;
+        }
+
+        applySelectedProject(chosen);
+        if (activeProjectId) {
+          cutStatuses = await window.SupabaseDB.getCutProgress(activeProjectId);
+        } else {
+          cutStatuses = {};
+        }
+
+        window.SupabaseDB.clearConnectionError();
+        renderProjectSelector();
+        solveAndRender();
+      } catch (err) {
+        console.error('Lỗi tải dữ liệu CNC:', err);
+        window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải dữ liệu CNC: ' + err.message, () => loadWorkshopData());
+        showToast('❌ Không thể tải dữ liệu từ Supabase!');
+      } finally {
+        window.SupabaseDB.setLoading(false);
       }
     }
 
@@ -423,6 +433,7 @@
         $('patternsContainer').innerHTML = `<div class="card" style="text-align:center; padding:40px 20px; color:#64748B;">
           Chưa có chi tiết nào trong dự án hiện tại. Hãy quay lại <a href="/index.html" style="font-weight:700; text-decoration:underline;">Bàn Xếp Phôi</a> để nhập chi tiết hoặc chọn dự án khác ở ô phía trên!
         </div>`;
+        $('profFilterTabs').innerHTML = '';
         updateProgressUI();
         return;
       }
@@ -602,9 +613,15 @@
         const cleanProf = toAscii(prof).replace(/[^\w\.\-]/g, '_');
         const defaultFileName = `Cay_${letter}_${cleanProf}_L${Math.round(len)}_SL_${count}.igs`;
 
-        const fusionBar = activeProject && Array.isArray(activeProject.nested_bars)
-          ? (activeProject.nested_bars.find(nb => nb.letter === letter && normP(nb.profile) === normP(prof)) ||
-             activeProject.nested_bars.find(nb => nb.letter === letter && (normP(nb.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(nb.profile)))))
+        const nestedBarsList = (activeProject && activeProject.fusionProject && Array.isArray(activeProject.fusionProject.nested_bars))
+          ? activeProject.fusionProject.nested_bars
+          : ((activeProject && Array.isArray(activeProject.nested_bars)) ? activeProject.nested_bars : []);
+
+        const fusionBar = nestedBarsList.find(nb => nb.letter === letter && normP(nb.profile) === normP(prof))
+          || nestedBarsList.find(nb => nb.letter === letter && (normP(nb.profile).startsWith(normP(prof)) || normP(prof).startsWith(normP(nb.profile))));
+
+        const igsMetaFile = (currentProjectRecord && Array.isArray(currentProjectRecord.igsFiles))
+          ? currentProjectRecord.igsFiles.find(f => f.letter === letter && (!f.profile || normP(f.profile) === normP(prof)))
           : null;
 
         let isMatch = false;
@@ -622,45 +639,36 @@
           }
         }
 
-        const rawBarName = fusionBar && fusionBar.name ? fusionBar.name : defaultFileName;
+        const rawBarName = (fusionBar && fusionBar.name) || (igsMetaFile && igsMetaFile.name) || defaultFileName;
         const dlName = (toAscii(rawBarName).replace(/[^\w\.\-]/g, '_') + '.igs').replace(/\.igs\.igs$/i, '.igs');
 
-        // 1. Tải trực tiếp nội dung Solid từ bộ nhớ nếu có
-        if (isMatch && fusionBar && fusionBar.igs_content && fusionBar.igs_content.length > 100) {
-          const blob = new Blob([fusionBar.igs_content], { type: 'application/octet-stream' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = dlName;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          showToast(`✓ Đã tải file 3D cây ghép Solid Fusion 360: ${dlName}`);
-          return;
+        // 1. Ưu tiên tải file Solid .IGS từ Supabase Storage URL hoặc API cục bộ
+        const candidateUrls = [];
+        if (igsMetaFile && igsMetaFile.public_url) candidateUrls.push(igsMetaFile.public_url);
+        if (isMatch && fusionBar && fusionBar.igs_url && /^https?:\/\//i.test(fusionBar.igs_url)) {
+          candidateUrls.push(fusionBar.igs_url);
+        }
+        if (window.SupabaseDB && window.SupabaseDB.isConfigured() && activeProjectId) {
+          candidateUrls.push(window.SupabaseDB.getIgsPublicUrl(`${window.SupabaseDB.toAsciiSafe(activeProjectId)}/${dlName}`));
+        }
+        if (fusionBar && fusionBar.igs_url && !/^https?:\/\//i.test(fusionBar.igs_url)) {
+          candidateUrls.push(fusionBar.igs_url);
         }
 
-        // 2. Thử fetch từ Server
-        if (isMatch && fusionBar && (fusionBar.igs_url || fusionBar.name)) {
-          const rawWithExt = rawBarName.replace(/\.igs$/i, '') + '.igs';
-          const candidateUrls = [];
-          if (fusionBar.igs_url) candidateUrls.push(fusionBar.igs_url);
-          candidateUrls.push(`/api/igs/${encodeURIComponent(rawWithExt)}`);
-          candidateUrls.push(`/database/igs_files/${encodeURIComponent(rawWithExt)}`);
-          candidateUrls.push(`/api/igs/${encodeURIComponent(dlName)}`);
-          candidateUrls.push(`/database/igs_files/${encodeURIComponent(dlName)}`);
-
+        const uniqueUrls = Array.from(new Set(candidateUrls.filter(Boolean)));
+        if (uniqueUrls.length && (isMatch || igsMetaFile)) {
           const tryFetch = (idx) => {
-            if (idx >= candidateUrls.length) {
+            if (idx >= uniqueUrls.length) {
               exportNestedBarIGES(dlName, prof, len, pieces);
               return;
             }
-            fetch(candidateUrls[idx])
+            fetch(uniqueUrls[idx])
               .then(res => {
                 if (!res.ok) throw new Error('Fetch failed');
                 return res.blob();
               })
               .then(blob => {
+                if (!blob || blob.size < 100) throw new Error('Empty blob');
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -669,7 +677,7 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                showToast(`✓ Đã tải file 3D cây ghép Solid: ${dlName}`);
+                showToast(`✓ Đã tải file 3D Solid từ Supabase Storage: ${dlName}`);
               })
               .catch(() => tryFetch(idx + 1));
           };
@@ -677,6 +685,7 @@
           return;
         }
 
+        // 2. Fallback: Tự sinh file 3D IGES chuẩn ASCII 80 ký tự ngay trên trình duyệt
         exportNestedBarIGES(defaultFileName, prof, len, pieces);
       });
       container.querySelectorAll('.btn-export-all-bars').forEach(b => b.onclick = () => {
@@ -709,15 +718,42 @@
       });
     }
 
-    function toggleCut(key, total) {
-      const cur = cutStatuses[key] ? (cutStatuses[key].cutCount || 0) : 0;
+    async function toggleCut(key, total) {
+      if (!activeProjectId) {
+        showToast('⚠️ Chưa có dự án đang mở để lưu tiến độ!');
+        return;
+      }
+      const prev = cutStatuses[key] ? Object.assign({}, cutStatuses[key]) : null;
+      const cur = prev ? (prev.cutCount || 0) : 0;
       const next = cur + 1 > total ? 0 : cur + 1;
-      cutStatuses[key] = { cutCount: next, totalCount: total, status: next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending'), updatedAt: new Date().toISOString() };
-      localStorage.setItem(LS_CUT_STATUSES, JSON.stringify(cutStatuses));
-      showToast(next >= total ? `✅ Đã hoàn thành ${key.replace('__', ' - ')} (${next}/${total})` : `✂️ Cập nhật: ${next}/${total} cây`);
+      const nextStatus = next >= total ? 'done' : (next > 0 ? 'cutting' : 'pending');
+
+      cutStatuses[key] = {
+        cutCount: next,
+        totalCount: total,
+        status: nextStatus,
+        updatedBy: currentUser ? currentUser.username : null,
+        updatedAt: new Date().toISOString()
+      };
       updateProgressUI();
       renderPatterns();
-      pushCutSync(key, next, total);
+
+      try {
+        await window.SupabaseDB.updateCutStatus(activeProjectId, key, {
+          cutCount: next,
+          totalCount: total,
+          status: nextStatus,
+          updatedBy: currentUser ? currentUser.username : null
+        });
+        showToast(next >= total ? `✅ Đã hoàn thành ${key.replace('__', ' - ')} (${next}/${total})` : `✂️ Cập nhật: ${next}/${total} cây`);
+      } catch (err) {
+        if (prev) cutStatuses[key] = prev;
+        else delete cutStatuses[key];
+        updateProgressUI();
+        renderPatterns();
+        showToast('❌ Không lưu được tiến độ lên Supabase: ' + err.message);
+        window.SupabaseDB.showConnectionError('❌ Lỗi lưu tiến độ cắt: ' + err.message);
+      }
     }
 
     function updateProgressUI() {
@@ -748,26 +784,58 @@
       $('statCutRemaining').textContent = Math.max(0, total - done);
     }
 
-    function pushCutSync(key, cutCount, total) {
-      if (window.WorkshopDB) {
-        window.WorkshopDB.sync({ cutStatuses }, 'cut_progress');
-        return;
-      }
-      fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cut_progress', cutStatuses }) }).catch(() => {});
-    }
-
-    let cncRealtimeWired = false;
     function initRealtime() {
-      if (cncRealtimeWired) return;
-      cncRealtimeWired = true;
-      if (window.WorkshopDB) {
-        window.WorkshopDB.onChange((dbState) => {
-          applyCloudData(dbState);
+      if (cncRealtimeUnsub || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      cncRealtimeUnsub = window.SupabaseDB.subscribeTables({
+        cut_progress: async (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          const targetProjId = (rec && rec.projectId) || (old && old.projectId);
+          if (targetProjId && targetProjId !== activeProjectId) return;
+
+          if (ev.eventType === 'DELETE') {
+            if (old && old.barKey) {
+              delete cutStatuses[old.barKey];
+            } else if (activeProjectId) {
+              cutStatuses = await window.SupabaseDB.getCutProgress(activeProjectId);
+            }
+          } else if (rec && rec.barKey) {
+            cutStatuses[rec.barKey] = {
+              cutCount: rec.cutCount,
+              totalCount: rec.totalCount,
+              status: rec.status,
+              updatedBy: rec.updatedBy,
+              updatedAt: rec.updatedAt
+            };
+          }
           updateProgressUI();
           renderPatterns();
-        });
-        return;
-      }
+        },
+        projects: (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          if (ev.eventType === 'DELETE' && old && old.id) {
+            savedProjects = savedProjects.filter(p => p.id !== old.id);
+            renderProjectSelector();
+            return;
+          }
+          if (!rec) return;
+          savedProjects = savedProjects.filter(p => p.id !== rec.id);
+          if (!rec.isTrashed && (!rec.isDraft || (rec.data && Array.isArray(rec.data.parts) && rec.data.parts.length > 0))) {
+            savedProjects.unshift(rec);
+          }
+          renderProjectSelector();
+          if (rec.id === activeProjectId) {
+            applySelectedProject(rec);
+            solveAndRender();
+          }
+        },
+        workshop_users: async () => {
+          try {
+            usersList = await window.SupabaseDB.getUsers();
+          } catch (e) {}
+        }
+      });
     }
 
     function toAscii(str) {
@@ -877,19 +945,30 @@
     document.addEventListener('DOMContentLoaded', () => {
       $('btnSubmitLogin').onclick = handleLogin;
       $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-      $('btnLogout').onclick = () => { sessionStorage.removeItem(LS_SESSION); localStorage.removeItem(LS_SESSION); checkAuth(); };
+      $('btnLogout').onclick = () => {
+        sessionStorage.removeItem(LS_SESSION);
+        localStorage.removeItem(LS_SESSION);
+        if (cncRealtimeUnsub) { cncRealtimeUnsub(); cncRealtimeUnsub = null; }
+        checkAuth();
+      };
 
-      $('selCncProject').onchange = e => {
+      $('selCncProject').onchange = async e => {
         const val = e.target.value;
-        if (val === 'ACTIVE') return;
+        if (!val) return;
         const p = savedProjects.find(x => x.id === val);
-        if (p && p.data) {
-          activeProject = Object.assign({}, p.data, { currentProjectId: p.id, currentProjectName: p.name, currentProjectCustomer: p.customer || '', currentProjectNotes: p.notes || '' });
-          localStorage.setItem(LS_CUR_PROJ_ID, p.id);
-          localStorage.setItem(LS_ACTIVE_PROJ, JSON.stringify(activeProject));
-          filterProf = 'ALL';
+        if (!p) return;
+        applySelectedProject(p);
+        localStorage.setItem(LS_CUR_PROJ_ID, p.id);
+        filterProf = 'ALL';
+        window.SupabaseDB.setLoading(true, 'Đang tải tiến độ cắt dự án...');
+        try {
+          cutStatuses = await window.SupabaseDB.getCutProgress(p.id);
           solveAndRender();
           showToast(`✓ Đã chuyển sang dự án "${p.name}"`);
+        } catch (err) {
+          showToast('❌ Lỗi tải tiến độ dự án: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
         }
       };
 
@@ -899,14 +978,21 @@
         renderPatterns();
       });
 
-      $('btnResetProgress').onclick = () => {
-        if (!confirm('Đặt lại toàn bộ tiến độ cắt về 0%?')) return;
-        cutStatuses = {};
-        localStorage.removeItem(LS_CUT_STATUSES);
-        updateProgressUI();
-        renderPatterns();
-        pushCutSync('ALL', 0, 0);
-        showToast('🔄 Đã đặt lại tiến độ cắt về 0%');
+      $('btnResetProgress').onclick = async () => {
+        if (!activeProjectId) return;
+        if (!confirm('Đặt lại toàn bộ tiến độ cắt của dự án này về 0%?')) return;
+        window.SupabaseDB.setLoading(true, 'Đang đặt lại tiến độ cắt...');
+        try {
+          await window.SupabaseDB.resetCutProgress(activeProjectId);
+          cutStatuses = {};
+          updateProgressUI();
+          renderPatterns();
+          showToast('🔄 Đã đặt lại tiến độ cắt về 0%');
+        } catch (err) {
+          showToast('❌ Lỗi đặt lại tiến độ: ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
       };
 
       checkAuth();
