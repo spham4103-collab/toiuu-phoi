@@ -178,15 +178,19 @@ copy_js_files(dist_dir)
 copy_css_files(dist_dir)
 print('Copied web assets to dist dir')
 
-# 5. Update export folders on Desktop if they exist
-with open(src_html, 'r', encoding='utf-8') as f:
-    base_html = f.read()
-
-candidate_dirs = [
-    r'C:\Users\Administrator\Desktop\TEST\Bàn thao tác',
-    r'C:\Users\Administrator\Desktop\TEST\Bàn thao tác 1500x600x770',
-    r'C:\Users\Administrator\Desktop\TEST 2\Bàn thao tác'
+# 5. Dọn dẹp các thư mục xuất trên Desktop: đảm bảo chỉ lưu lại đúng các file .igs
+desktop_roots = [
+    r'C:\Users\Administrator\Desktop\TEST',
+    r'C:\Users\Administrator\Desktop\TEST 2'
 ]
+
+candidate_dirs = []
+for d_root in desktop_roots:
+    if os.path.isdir(d_root):
+        for sub in os.listdir(d_root):
+            p = os.path.join(d_root, sub)
+            if os.path.isdir(p):
+                candidate_dirs.append(p)
 
 for target_stale_dir in (fusion_script_dir, fusion_workspace_dir):
     stale_helper = os.path.join(target_stale_dir, 'run_engine_helper.js')
@@ -194,39 +198,17 @@ for target_stale_dir in (fusion_script_dir, fusion_workspace_dir):
         os.remove(stale_helper)
 
 for desktop_dir in candidate_dirs:
-    if os.path.exists(desktop_dir):
-        shutil.copy2(src_engine, os.path.join(desktop_dir, 'toi-uu-engine.js'))
-        shutil.copy2(src_helper, os.path.join(desktop_dir, 'run_engine_helper.cjs'))
-        stale_desktop_helper = os.path.join(desktop_dir, 'run_engine_helper.js')
-        if os.path.exists(stale_desktop_helper):
-            os.remove(stale_desktop_helper)
-        copy_js_files(desktop_dir)
-        copy_css_files(desktop_dir)
-        
-        json_path = os.path.join(desktop_dir, 'fusion_exported_project.json')
-        html_content = base_html
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                json_str = json.dumps(data, ensure_ascii=False)
-                embed_tag = '<script id="embeddedFusionData" type="application/json">' + json_str + '</script>'
-                if '<script id="embeddedFusionData"' in html_content:
-                    html_content = re.sub(
-                        r'<script id="embeddedFusionData"[^>]*>.*?</script>',
-                        lambda m: embed_tag,
-                        html_content,
-                        flags=re.DOTALL
-                    )
-                else:
-                    html_content = html_content.replace('</head>', embed_tag + '\n</head>')
-            except Exception as e:
-                print('Error embedding json for', desktop_dir, e)
-
-        dest_html = os.path.join(desktop_dir, 'index.html')
-        with open(dest_html, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        print('Updated', dest_html)
+    if os.path.isdir(desktop_dir):
+        for item in os.listdir(desktop_dir):
+            fp = os.path.join(desktop_dir, item)
+            if os.path.isdir(fp):
+                shutil.rmtree(fp, ignore_errors=True)
+            elif not item.lower().endswith('.igs'):
+                try:
+                    os.remove(fp)
+                except Exception:
+                    pass
+        print('Cleaned non-IGS files from', desktop_dir)
 
 # 6. Update zip package
 zip_path = r'C:\Users\Administrator\Fusion360\toiuu-phoi-an-binh.zip'

@@ -705,6 +705,34 @@ def main():
     assert state["terminated"] is True
     print("[OK] Fusion Command Dialog lifecycle (pre-selection, validation, autoTerminate/terminate) verified")
 
+    # 7. Strictly IGS export directory verification (No web/json/config files in export dir)
+    import tempfile
+    import shutil
+    test_export_dir = os.path.join(tempfile.gettempdir(), "test_fusion_strictly_igs")
+    os.makedirs(test_export_dir, exist_ok=True)
+    try:
+        # Create dummy mixed files in export directory
+        with open(os.path.join(test_export_dir, "Cay_A_Hop_30x30.igs"), "w") as f: f.write("IGS DATA")
+        with open(os.path.join(test_export_dir, "Thanh_ngang.igs"), "w") as f: f.write("IGS DATA")
+        with open(os.path.join(test_export_dir, "index.html"), "w") as f: f.write("HTML DATA")
+        with open(os.path.join(test_export_dir, "fusion_exported_project.json"), "w") as f: f.write("{}")
+        with open(os.path.join(test_export_dir, "skipped_items_log.txt"), "w") as f: f.write("LOG")
+        with open(os.path.join(test_export_dir, "logo_an_binh.jpg"), "w") as f: f.write("JPG")
+        with open(os.path.join(test_export_dir, "toi-uu-engine.js"), "w") as f: f.write("JS")
+        os.makedirs(os.path.join(test_export_dir, "css"), exist_ok=True)
+        os.makedirs(os.path.join(test_export_dir, "js"), exist_ok=True)
+
+        # Run clean_export_directory_strictly_igs without removing existing IGS
+        assert hasattr(mod, "clean_export_directory_strictly_igs"), "Script must define clean_export_directory_strictly_igs"
+        mod.clean_export_directory_strictly_igs(test_export_dir, remove_existing_igs=False)
+
+        remaining = os.listdir(test_export_dir)
+        assert len(remaining) == 2, f"Export dir must contain only 2 IGS files, found: {remaining}"
+        assert all(f.lower().endswith(".igs") for f in remaining), f"All files must be .igs, found: {remaining}"
+        print("[OK] Strictly .IGS output directory verification passed (all web/json/config files removed)")
+    finally:
+        shutil.rmtree(test_export_dir, ignore_errors=True)
+
 
 if __name__ == "__main__":
     main()

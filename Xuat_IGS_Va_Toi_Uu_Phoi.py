@@ -340,6 +340,33 @@ def sync_project_to_edge_function(payload_data, export_dir, session):
         return None, f"Lỗi kết nối Edge Function (complete): {e}"
 
 
+def clean_export_directory_strictly_igs(export_dir, remove_existing_igs=False):
+    """
+    Dọn dẹp thư mục xuất: đảm bảo chỉ lưu lại đúng các file .igs.
+    Xóa sạch mọi file web, file json, file text, file cấu hình và các thư mục con thừa.
+    Nếu remove_existing_igs=True, xóa cả các file .igs cũ để chuẩn bị đợt xuất mới.
+    """
+    if not export_dir or not os.path.isdir(export_dir):
+        return
+    try:
+        for item in os.listdir(export_dir):
+            full_path = os.path.join(export_dir, item)
+            if os.path.isdir(full_path):
+                try:
+                    shutil.rmtree(full_path, ignore_errors=True)
+                except Exception:
+                    pass
+            else:
+                is_igs = item.lower().endswith('.igs')
+                if (not is_igs) or remove_existing_igs:
+                    try:
+                        os.remove(full_path)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+
 def get_end_normals(body, l_cm):
     """
     Lấy vector pháp tuyến mặt phẳng cắt tại đúng đầu Z=0 (n_start) và đầu Z=L (n_end).
@@ -1551,19 +1578,14 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
             export_dir = os.path.join(chosen_folder, safe_proj_name)
         os.makedirs(export_dir, exist_ok=True)
 
-        # Xóa các file .igs cũ trong thư mục đích
-        for old_f in os.listdir(export_dir):
-            if old_f.lower().endswith('.igs'):
-                try:
-                    os.remove(os.path.join(export_dir, old_f))
-                except Exception:
-                    pass
+        # Dọn sạch thư mục đích trước khi xuất: xóa file .igs cũ và mọi file/thư mục web thừa
+        clean_export_directory_strictly_igs(export_dir, remove_existing_igs=True)
 
-        # Lưu log các chi tiết đã bỏ qua để kỹ sư kiểm tra nếu cần
+        # Lưu log các chi tiết đã bỏ qua vào thư mục tạm hệ thống (%TEMP%) thay vì thư mục xuất của dự án
         if skipped_items:
             try:
-                log_path = os.path.join(export_dir, 'skipped_items_log.txt')
-                with open(log_path, 'w', encoding='utf-8') as f_log:
+                tmp_log_path = os.path.join(tempfile.gettempdir(), f"skipped_items_{safe_proj_name}.txt")
+                with open(tmp_log_path, 'w', encoding='utf-8') as f_log:
                     f_log.write(f"DANH SÁCH CHI TIẾT ĐÃ BỎ QUA — DỰ ÁN: {chosen_project_name}\n")
                     f_log.write("=" * 68 + "\n")
                     for sk in skipped_items:
@@ -1820,56 +1842,9 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
             'parts': parts_list,
             'nested_bars': bar_exports
         }
-        json_path = os.path.join(export_dir, 'fusion_exported_project.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(payload_data, f, indent=2, ensure_ascii=False)
 
-        # 8. Lưu bản sao HTML dự phòng & gọi Cầu nối Node server.js -> Supabase
-        candidate_web_dirs = [
-            'C:/Users/Administrator/toiuu-phoi',
-            'C:/Users/Administrator/Fusion360/toiuu-phoi',
-            script_dir
-        ]
-
-        found_web_dir = None
-        for cdir in candidate_web_dirs:
-            if os.path.exists(os.path.join(cdir, 'index.html')):
-                found_web_dir = os.path.abspath(cdir)
-                break
-
-        if found_web_dir:
-            try:
-                for fname in ['index.html', 'logo_an_binh.jpg', 'toi-uu-engine.js', 'run_engine_helper.cjs', 'workshop_config.json']:
-                    src_f = os.path.join(found_web_dir, fname)
-                    dst_f = os.path.join(export_dir, fname)
-                    if os.path.exists(src_f) and (not os.path.exists(dst_f) or os.path.abspath(src_f) != os.path.abspath(dst_f)):
-                        shutil.copy2(src_f, dst_f)
-
-                for dname in ['css', 'js']:
-                    src_d = os.path.join(found_web_dir, dname)
-                    dst_d = os.path.join(export_dir, dname)
-                    if os.path.isdir(src_d) and os.path.abspath(src_d) != os.path.abspath(dst_d):
-                        shutil.copytree(src_d, dst_d, dirs_exist_ok=True)
-
-                idx_export_path = os.path.join(export_dir, 'index.html')
-                if os.path.exists(idx_export_path):
-                    with open(idx_export_path, 'r', encoding='utf-8') as f:
-                        html_content = f.read()
-                    json_str = json.dumps(payload_data, ensure_ascii=False)
-                    embed_tag = f'<script id="embeddedFusionData" type="application/json">{json_str}</script>'
-                    if '<script id="embeddedFusionData"' in html_content:
-                        html_content = re.sub(
-                            r'<script id="embeddedFusionData"[^>]*>.*?</script>',
-                            lambda m: embed_tag,
-                            html_content,
-                            flags=re.DOTALL
-                        )
-                    else:
-                        html_content = html_content.replace('</head>', f'{embed_tag}\n</head>')
-                    with open(idx_export_path, 'w', encoding='utf-8') as f:
-                        f.write(html_content)
-            except Exception:
-                pass
+        # 7. Đảm bảo thư mục xuất kết quả CHỈ lưu lại duy nhất các file .igs (loại bỏ sạch mọi file tạm/web)
+        clean_export_directory_strictly_igs(export_dir, remove_existing_igs=False)
 
         cloud_synced = False
         pushed_to_server = False
@@ -1920,8 +1895,10 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
                             node_exe = c_node
                             break
                 server_js = 'C:/Users/Administrator/toiuu-phoi/server.js'
-                if not os.path.exists(server_js) and found_web_dir:
-                    server_js = os.path.join(found_web_dir, 'server.js')
+                if not os.path.exists(server_js) and script_dir:
+                    candidate_srv = os.path.join(script_dir, 'server.js')
+                    if os.path.exists(candidate_srv):
+                        server_js = candidate_srv
 
                 if node_exe and os.path.exists(server_js):
                     try:

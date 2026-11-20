@@ -12,4 +12,6 @@ __pycache__/
 *.log
 _tmp*
 test_*
+supabase/.temp/
+.supabase/
 .DS_Store
