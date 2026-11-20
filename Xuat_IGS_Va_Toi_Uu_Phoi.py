@@ -367,6 +367,182 @@ def clean_export_directory_strictly_igs(export_dir, remove_existing_igs=False):
         pass
 
 
+def _vec_len(v):
+    return math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+
+def _vec_norm(v):
+    l = _vec_len(v)
+    if l < 1e-9:
+        return adsk.core.Vector3D.create(0.0, 0.0, 1.0)
+    return adsk.core.Vector3D.create(v.x / l, v.y / l, v.z / l)
+
+def _vec_dot(v1, v2):
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+
+def _vec_cross(v1, v2):
+    return adsk.core.Vector3D.create(
+        v1.y * v2.z - v1.z * v2.y,
+        v1.z * v2.x - v1.x * v2.z,
+        v1.x * v2.y - v1.y * v2.x
+    )
+
+def _canonical_vector_dir(v):
+    """Quy chuẩn vector về nửa không gian dương để gom nhóm các mặt phẳng song song."""
+    v_u = _vec_norm(v)
+    if (v_u.x < -1e-4) or (abs(v_u.x) <= 1e-4 and v_u.y < -1e-4) or (abs(v_u.x) <= 1e-4 and abs(v_u.y) <= 1e-4 and v_u.z < -1e-4):
+        return adsk.core.Vector3D.create(-v_u.x, -v_u.y, -v_u.z)
+    return v_u
+
+def find_tube_principal_axes(body):
+    """
+    Xác định 3 vector đơn vị trực chuẩn (u_x, u_y, u_z) của thanh ống/hộp theo hướng thực tế 3D:
+    - u_z: Trục dọc (chiều dài) của thanh ống.
+    - u_x: Trục tiết diện ngang (cạnh rộng).
+    - u_y: Trục tiết diện ngang (cạnh hẹp), trực giao với u_z và u_x.
+    Hoạt động chính xác 100% cho mọi góc xoay 3D (thanh giằng chéo, vát mòi 45°, ống tròn).
+    """
+    cyl_type = getattr(getattr(adsk.core, 'SurfaceTypes', None), 'CylinderSurfaceType', 1)
+    plane_type = getattr(getattr(adsk.core, 'SurfaceTypes', None), 'PlaneSurfaceType', 0)
+
+    # 1. Kiểm tra ống tròn (mặt trụ Cylinder)
+    try:
+        faces = getattr(body, 'faces', None) or []
+        cyl_faces = []
+        for f in faces:
+            try:
+                geom = getattr(f, 'geometry', None)
+                if geom is not None and getattr(geom, 'surfaceType', None) == cyl_type:
+                    cyl_faces.append(f)
+            except Exception:
+                pass
+        if cyl_faces:
+            best_cyl = max(cyl_faces, key=lambda f: getattr(f, 'area', 0.0))
+            geom = best_cyl.geometry
+            axis_v = getattr(geom, 'axis', None)
+            if axis_v is not None and _vec_len(axis_v) > 1e-6:
+                u_z = _vec_norm(axis_v)
+                ref = adsk.core.Vector3D.create(0.0, 1.0, 0.0) if abs(u_z.y) < 0.9 else adsk.core.Vector3D.create(1.0, 0.0, 0.0)
+                u_x = _vec_norm(_vec_cross(u_z, ref))
+                u_y = _vec_norm(_vec_cross(u_z, u_x))
+                return u_x, u_y, u_z
+    except Exception:
+        pass
+
+    # 2. Phân tích các mặt phẳng bên của ống/hộp (Hộp chữ nhật / vuông)
+    try:
+        faces = getattr(body, 'faces', None) or []
+        groups = []
+        for f in faces:
+            try:
+                geom = getattr(f, 'geometry', None)
+                if geom is not None and getattr(geom, 'surfaceType', None) == plane_type:
+                    ev = getattr(f, 'evaluator', None)
+                    pt = getattr(f, 'pointOnFace', None)
+                    area = getattr(f, 'area', 1.0)
+                    if ev and pt:
+                        _, n = ev.getNormalAtPoint(pt)
+                        if _vec_len(n) > 1e-6:
+                            c_dir = _canonical_vector_dir(n)
+                            matched = False
+                            for g in groups:
+                                if abs(_vec_dot(c_dir, g['dir'])) >= 0.96:
+                                    g['area'] += area
+                                    g['faces'].append((f, n, pt, area))
+                                    matched = True
+                                    break
+                            if not matched:
+                                groups.append({'dir': c_dir, 'area': area, 'faces': [(f, n, pt, area)]})
+            except Exception:
+                pass
+
+        if len(groups) >= 2:
+            groups.sort(key=lambda g: g['area'], reverse=True)
+            gA = groups[0]
+            gB = None
+            for g in groups[1:]:
+                if abs(_vec_dot(gA['dir'], g['dir'])) <= 0.28:
+                    gB = g
+                    break
+            if gB is not None:
+                cross_z = _vec_cross(gA['dir'], gB['dir'])
+                if _vec_len(cross_z) > 1e-4:
+                    u_z = _vec_norm(cross_z)
+                    u_x = _vec_norm(gA['dir'])
+                    u_y = _vec_norm(_vec_cross(u_z, u_x))
+                    return u_x, u_y, u_z
+    except Exception:
+        pass
+
+    # 3. Fallback: Dùng các cạnh thẳng (linear edges) dài nhất của body
+    try:
+        edges = getattr(body, 'edges', None) or []
+        edge_dirs = []
+        for e in edges:
+            try:
+                s_vert = getattr(e, 'startVertex', None)
+                e_vert = getattr(e, 'endVertex', None)
+                if s_vert and e_vert:
+                    s_pt = s_vert.geometry
+                    e_pt = e_vert.geometry
+                    v = adsk.core.Vector3D.create(e_pt.x - s_pt.x, e_pt.y - s_pt.y, e_pt.z - s_pt.z)
+                    l = _vec_len(v)
+                    if l > 0.5:
+                        edge_dirs.append((l, _vec_norm(v)))
+            except Exception:
+                pass
+        if edge_dirs:
+            edge_dirs.sort(key=lambda item: item[0], reverse=True)
+            u_z = edge_dirs[0][1]
+            ref = adsk.core.Vector3D.create(0.0, 1.0, 0.0) if abs(u_z.y) < 0.9 else adsk.core.Vector3D.create(1.0, 0.0, 0.0)
+            u_x = _vec_norm(_vec_cross(u_z, ref))
+            u_y = _vec_norm(_vec_cross(u_z, u_x))
+            return u_x, u_y, u_z
+    except Exception:
+        pass
+
+    # 4. Fallback: Bounding box nguyên bản (nếu trục đã nằm sẵn theo X, Y, hoặc Z)
+    try:
+        bb = body.boundingBox
+        dx = bb.maxPoint.x - bb.minPoint.x
+        dy = bb.maxPoint.y - bb.minPoint.y
+        dz = bb.maxPoint.z - bb.minPoint.z
+        if dx >= dy and dx >= dz:
+            return adsk.core.Vector3D.create(0.0, 1.0, 0.0), adsk.core.Vector3D.create(0.0, 0.0, 1.0), adsk.core.Vector3D.create(1.0, 0.0, 0.0)
+        elif dy >= dx and dy >= dz:
+            return adsk.core.Vector3D.create(1.0, 0.0, 0.0), adsk.core.Vector3D.create(0.0, 0.0, 1.0), adsk.core.Vector3D.create(0.0, 1.0, 0.0)
+    except Exception:
+        pass
+
+    return adsk.core.Vector3D.create(1.0, 0.0, 0.0), adsk.core.Vector3D.create(0.0, 1.0, 0.0), adsk.core.Vector3D.create(0.0, 0.0, 1.0)
+
+def create_basis_transform(u_x, u_y, u_z):
+    """
+    Tạo phép biến đổi Matrix3D xoay hệ trục cục bộ (u_x, u_y, u_z) về hệ trục chuẩn World:
+    - u_x -> Trục World X (1, 0, 0)
+    - u_y -> Trục World Y (0, 1, 0)
+    - u_z -> Trục World Z (0, 0, 1)
+    """
+    mat = adsk.core.Matrix3D.create()
+    if hasattr(mat, 'setWithCoordinateSystem') and hasattr(mat, 'invert'):
+        try:
+            mat.setWithCoordinateSystem(adsk.core.Point3D.create(0.0, 0.0, 0.0), u_x, u_y, u_z)
+            mat.invert()
+            return mat
+        except Exception:
+            pass
+
+    if hasattr(mat, 'setCell'):
+        try:
+            mat.setCell(0, 0, u_x.x); mat.setCell(0, 1, u_x.y); mat.setCell(0, 2, u_x.z); mat.setCell(0, 3, 0.0)
+            mat.setCell(1, 0, u_y.x); mat.setCell(1, 1, u_y.y); mat.setCell(1, 2, u_y.z); mat.setCell(1, 3, 0.0)
+            mat.setCell(2, 0, u_z.x); mat.setCell(2, 1, u_z.y); mat.setCell(2, 2, u_z.z); mat.setCell(2, 3, 0.0)
+            mat.setCell(3, 0, 0.0);   mat.setCell(3, 1, 0.0);   mat.setCell(3, 2, 0.0);   mat.setCell(3, 3, 1.0)
+            return mat
+        except Exception:
+            pass
+
+    return mat
+
 def get_end_normals(body, l_cm):
     """
     Lấy vector pháp tuyến mặt phẳng cắt tại đúng đầu Z=0 (n_start) và đầu Z=L (n_end).
@@ -447,27 +623,35 @@ def detect_wall_thickness(norm_b, w_mm, h_mm, name_hint=""):
 def normalize_body(tbm, orig_body):
     """
     Chuẩn hóa khối 3D ống hộp về hệ tọa độ chuẩn:
-    - Chiều dài ống nằm dọc theo trục Z từ Z = 0 đến Z = L.
-    - Tâm mặt cắt ngang nằm tại (X = 0, Y = 0) với cạnh rộng theo trục X, cạnh hẹp theo trục Y.
-    - Với hộp vuông có cắt mòi, xoay mặt vát về mặt phẳng X-Z để đồng nhất hướng ghép mòi.
+    - Tìm hệ trục 3D cục bộ ôm sát thân ống (Oriented Bounding Frame) bất kể bị xoay góc trong 3D.
+    - Xoay toàn bộ khối về hệ tọa độ chuẩn: Chiều dài dọc trục Z (Z = 0 đến Z = L).
+    - Cạnh rộng theo trục X, cạnh hẹp theo trục Y (dx >= dy), tâm mặt cắt tại (X = 0, Y = 0).
+    - Với hộp vuông có cắt mòi, chuẩn hóa mặt vát về mặt phẳng X-Z.
     """
     b = tbm.copy(orig_body)
+
+    # 1. Xác định hệ trục 3D cục bộ của thanh ống
+    u_x, u_y, u_z = find_tube_principal_axes(b)
+
+    # 2. Xoay khối 3D về hệ trục chuẩn World (u_x -> X, u_y -> Y, u_z -> Z)
+    rot_basis = create_basis_transform(u_x, u_y, u_z)
+    tbm.transform(b, rot_basis)
+
+    # 3. Đảm bảo trục dài nhất thực sự nằm dọc Z (phòng trường hợp axes bị hoán đổi)
     bb = b.boundingBox
     dx = bb.maxPoint.x - bb.minPoint.x
     dy = bb.maxPoint.y - bb.minPoint.y
     dz = bb.maxPoint.z - bb.minPoint.z
-
-    # 1. Đưa trục dài nhất của ống về trục Z
-    if dx >= dy and dx >= dz:
+    if dx > dz and dx >= dy:
         rot = adsk.core.Matrix3D.create()
         rot.setToRotation(math.pi / 2.0, adsk.core.Vector3D.create(0, 1, 0), adsk.core.Point3D.create(0, 0, 0))
         tbm.transform(b, rot)
-    elif dy >= dx and dy >= dz:
+    elif dy > dz and dy >= dx:
         rot = adsk.core.Matrix3D.create()
         rot.setToRotation(-math.pi / 2.0, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Point3D.create(0, 0, 0))
         tbm.transform(b, rot)
 
-    # 2. Đưa cạnh lớn của mặt cắt về trục X (dx >= dy)
+    # 4. Đưa cạnh lớn của mặt cắt về trục X (dx >= dy)
     bb = b.boundingBox
     dx = bb.maxPoint.x - bb.minPoint.x
     dy = bb.maxPoint.y - bb.minPoint.y
@@ -476,7 +660,7 @@ def normalize_body(tbm, orig_body):
         rot.setToRotation(math.pi / 2.0, adsk.core.Vector3D.create(0, 0, 1), adsk.core.Point3D.create(0, 0, 0))
         tbm.transform(b, rot)
 
-    # 3. Dịch tâm mặt cắt về (0, 0) và điểm đầu ống về Z = 0
+    # 5. Dịch tâm mặt cắt về (0, 0) và điểm đầu ống về Z = 0
     bb = b.boundingBox
     tx = -(bb.minPoint.x + bb.maxPoint.x) / 2.0
     ty = -(bb.minPoint.y + bb.maxPoint.y) / 2.0
@@ -485,7 +669,7 @@ def normalize_body(tbm, orig_body):
     trans.translation = adsk.core.Vector3D.create(tx, ty, tz)
     tbm.transform(b, trans)
 
-    # 4. Nếu là hộp vuông và mặt vát đang nghiêng theo trục Y, xoay 90 độ quanh Z để chuẩn hóa về X-Z
+    # 6. Nếu là hộp vuông và mặt vát đang nghiêng theo trục Y, xoay 90 độ quanh Z để chuẩn hóa về X-Z
     bb = b.boundingBox
     dx = bb.maxPoint.x - bb.minPoint.x
     dy = bb.maxPoint.y - bb.minPoint.y
@@ -501,6 +685,13 @@ def normalize_body(tbm, orig_body):
             rot = adsk.core.Matrix3D.create()
             rot.setToRotation(math.pi / 2.0, adsk.core.Vector3D.create(0, 0, 1), adsk.core.Point3D.create(0, 0, 0))
             tbm.transform(b, rot)
+            bb2 = b.boundingBox
+            tx2 = -(bb2.minPoint.x + bb2.maxPoint.x) / 2.0
+            ty2 = -(bb2.minPoint.y + bb2.maxPoint.y) / 2.0
+            tz2 = -bb2.minPoint.z
+            trans2 = adsk.core.Matrix3D.create()
+            trans2.translation = adsk.core.Vector3D.create(tx2, ty2, tz2)
+            tbm.transform(b, trans2)
 
     return b
 
@@ -1170,6 +1361,39 @@ def collect_scoped_candidates(root, selected_occs, use_root_mode=False, skip_hid
     return candidate_entries, skipped_items, stats
 
 
+def extract_profile_spec_from_name(name):
+    """
+    Phân tích tên Component/Body để trích xuất quy cách chuẩn (nếu có):
+    - Hộp vuông / chữ nhật: 'Hộp 25x25x1', 'Hop 40x20x1.4', '25x25', '40*20*1.5'...
+    - Ống tròn: 'Ống Ø27x1.4', 'Ong D34x1.5', 'Phi 21x1.2'...
+    Trả về dict {'type': 'rect'|'round', 'w': float, 'h': float, 't': float|None, 'is_round': bool} hoặc None.
+    """
+    if not name:
+        return None
+    clean = clean_instance_name(name).strip()
+
+    # 1. Ống tròn
+    m_round = re.search(r'(?:ống|ong|phi|ø|d)\s*(\d+(?:[.,]\d+)?)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?', clean, re.I)
+    if m_round:
+        d = float(m_round.group(1).replace(',', '.'))
+        t = float(m_round.group(2).replace(',', '.')) if m_round.group(2) else None
+        if 5.0 <= d <= 500.0:
+            return {'type': 'round', 'w': d, 'h': d, 't': t, 'is_round': True}
+
+    # 2. Hộp chữ nhật / vuông
+    m_box = re.search(r'(?:hộp|hop|h|v|vuong|hopvuong|hopchunhat)?\s*(\d+(?:[.,]\d+)?)\s*[xX\*×]\s*(\d+(?:[.,]\d+)?)(?:\s*[xX\*×]\s*(\d+(?:[.,]\d+)?))?', clean, re.I)
+    if m_box:
+        w_val = float(m_box.group(1).replace(',', '.'))
+        h_val = float(m_box.group(2).replace(',', '.'))
+        t_val = float(m_box.group(3).replace(',', '.')) if m_box.group(3) else None
+        w_max = max(w_val, h_val)
+        h_min = min(w_val, h_val)
+        if 8.0 <= h_min and w_max <= 500.0:
+            return {'type': 'rect', 'w': w_max, 'h': h_min, 't': t_val, 'is_round': False}
+
+    return None
+
+
 def classify_candidate_filter(local_body, proxy_body, raw_name_hint):
     """Kiểm tra sơ bộ trước khi chuẩn hóa 3D để loại tấm kim loại, ốc vít, bản mã và phụ kiện."""
     clean_hint = clean_instance_name(raw_name_hint)
@@ -1181,6 +1405,11 @@ def classify_candidate_filter(local_body, proxy_body, raw_name_hint):
     if any(kw in clean_lower for kw in EXCLUDE_KEYWORDS):
         return False, 'Phụ kiện / không phải ống hộp (theo tên)'
 
+    # Nếu tên đã chứa quy cách ống/hộp rõ ràng, ưu tiên cho qua kiểm tra sơ bộ
+    spec = extract_profile_spec_from_name(raw_name_hint)
+    if spec is not None:
+        return True, ''
+
     try:
         bb_raw = local_body.boundingBox
         dx_raw = round((bb_raw.maxPoint.x - bb_raw.minPoint.x) * 10, 1)
@@ -1189,7 +1418,13 @@ def classify_candidate_filter(local_body, proxy_body, raw_name_hint):
         dims = sorted([dx_raw, dy_raw, dz_raw])
         if dims[0] <= 3.5 and dims[1] > 70:
             return False, 'Tấm phẳng mỏng (không phải ống/hộp)'
-        if dims[0] < 5 or dims[2] < 25 or (dims[2] / max(dims[1], 1)) < 1.1:
+
+        diag_len = math.sqrt(dx_raw * dx_raw + dy_raw * dy_raw + dz_raw * dz_raw)
+        # Nếu thanh bị xoay nghiêng 3D, tỉ lệ dims[2]/dims[1] có thể xấp xỉ 1.0 (ví dụ 45 độ),
+        # nhưng đường chéo hộp bao 3D (diag_len) so với cạnh nhỏ nhất (tiết diện) sẽ rất lớn (> 1.8)
+        is_slender_3d = (diag_len / max(dims[0], 1.0)) >= 1.8
+
+        if dims[0] < 5 or (dims[2] < 25 and not is_slender_3d) or (not is_slender_3d and (dims[2] / max(dims[1], 1)) < 1.1):
             return False, 'Kích thước không phải thanh ống/hộp dài'
     except Exception:
         pass
@@ -1200,6 +1435,19 @@ def classify_candidate_filter(local_body, proxy_body, raw_name_hint):
 def detect_profile_name(norm_b, w_mm, h_mm, t, clean_hint):
     t_str = f"{int(t)}" if float(t).is_integer() else f"{t}"
     hint_lower = (clean_hint or '').lower()
+
+    # Ưu tiên đối chiếu quy cách từ tên chi tiết (chống nhầm lẫn do xoay góc 3D)
+    spec = extract_profile_spec_from_name(clean_hint)
+    if spec is not None:
+        if spec.get('is_round'):
+            d_int = int(round(spec['w']))
+            return f'Ống Ø{d_int}x{t_str}'
+        sw = int(round(spec['w']))
+        sh = int(round(spec['h']))
+        if sw == sh:
+            return f'Hộp {sw}x{sw}x{t_str}'
+        return f'Hộp {sw}x{sh}x{t_str}'
+
     if abs(w_mm - h_mm) < 1.5:
         if re.search(r'(?:ống|ong|phi|ø)', hint_lower):
             d_int = int(round((w_mm + h_mm) / 2.0))
@@ -1402,6 +1650,7 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
         parts_by_prof = {}
         norm_bodies_by_key = {}
         total_tubes_count = 0
+        anomaly_warnings = []
 
         # 2. Lọc hình học & chuẩn hóa tọa độ 3D từng chi tiết
         for ent in candidate_entries:
@@ -1422,6 +1671,29 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
             h_mm = round((bb.maxPoint.y - bb.minPoint.y) * 10, 1)
             l_max = round((bb.maxPoint.z - bb.minPoint.z) * 10, 1)
             l_cm = bb.maxPoint.z - bb.minPoint.z
+
+            # 2.1. Đối chiếu ngược với quy cách chuẩn trong tên Component / Body (chống lỗi dị thường do xoay 3D)
+            spec_info = extract_profile_spec_from_name(raw_name_hint) or extract_profile_spec_from_name(clean_hint)
+            if spec_info is not None:
+                spec_w = spec_info['w']
+                spec_h = spec_info['h']
+
+                # Kiểm tra nếu kích thước đo hình học bị lệch dị thường so với tên (ví dụ: vọt lên 154mm trong khi tên là 25x25)
+                is_w_anomalous = w_mm > 1.35 * max(spec_w, spec_h) or w_mm < 0.6 * min(spec_w, spec_h)
+                is_h_anomalous = h_mm > 1.35 * max(spec_w, spec_h) or h_mm < 0.6 * min(spec_w, spec_h)
+
+                if is_w_anomalous or is_h_anomalous:
+                    orig_w, orig_h = w_mm, h_mm
+                    w_mm = float(max(spec_w, spec_h))
+                    h_mm = float(min(spec_w, spec_h))
+                    warn_msg = f"[CẢNH BÁO] Thanh '{clean_hint}' bị nghiêng 3D, đã hiệu chỉnh kích thước tiết diện từ {orig_w}x{orig_h} về {w_mm}x{h_mm}"
+                    print(warn_msg)
+                    anomaly_warnings.append(warn_msg)
+                else:
+                    if abs(w_mm - spec_w) <= 0.8:
+                        w_mm = float(spec_w)
+                    if abs(h_mm - spec_h) <= 0.8:
+                        h_mm = float(spec_h)
 
             if (min(w_mm, h_mm) <= 5.0 and max(w_mm, h_mm) >= 40.0) or l_max < 25.0 or (l_max / max(w_mm, h_mm, 1.0)) < 1.1:
                 skipped_items.append({'name': clean_hint, 'reason': 'Hình học sau chuẩn hóa không phải thanh ống/hộp', 'kind': 'non_tube'})
@@ -1549,6 +1821,14 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
             if len(non_tube_skipped) > 5:
                 sample_skipped += f', ... (+{len(non_tube_skipped) - 5})'
             confirm_lines.append(f'   (Mẫu bỏ qua: {sample_skipped})')
+
+        if anomaly_warnings:
+            confirm_lines.append('')
+            confirm_lines.append(f'• Hiệu chỉnh góc nghiêng 3D ({len(anomaly_warnings)} thanh):')
+            for w in anomaly_warnings[:4]:
+                confirm_lines.append(f'   ! {w}')
+            if len(anomaly_warnings) > 4:
+                confirm_lines.append(f'   ... và {len(anomaly_warnings) - 4} cảnh báo khác')
 
         confirm_lines.extend([
             '',

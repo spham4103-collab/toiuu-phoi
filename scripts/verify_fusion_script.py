@@ -13,6 +13,7 @@ Mocks adsk.core and adsk.fusion in memory to test:
 """
 import os
 import sys
+import math
 import types
 import py_compile
 import importlib.util
@@ -92,13 +93,67 @@ def build_mock_adsk():
     class Matrix3D:
         def __init__(self):
             self.translation = Vector3D(0, 0, 0)
+            self._m = [[1.0 if r == c else 0.0 for c in range(4)] for r in range(4)]
 
         @staticmethod
         def create():
             return Matrix3D()
 
-        def setToRotation(self, *_args):
-            pass
+        def setCell(self, r, c, val):
+            self._m[r][c] = float(val)
+
+        def getCell(self, r, c):
+            return self._m[r][c]
+
+        def setWithCoordinateSystem(self, origin, xDir, yDir, zDir):
+            self._m[0][0] = xDir.x; self._m[0][1] = yDir.x; self._m[0][2] = zDir.x; self._m[0][3] = origin.x
+            self._m[1][0] = xDir.y; self._m[1][1] = yDir.y; self._m[1][2] = zDir.y; self._m[1][3] = origin.y
+            self._m[2][0] = xDir.z; self._m[2][1] = yDir.z; self._m[2][2] = zDir.z; self._m[2][3] = origin.z
+            self._m[3][0] = 0.0;    self._m[3][1] = 0.0;    self._m[3][2] = 0.0;    self._m[3][3] = 1.0
+
+        def invert(self):
+            R = [[self._m[r][c] for c in range(3)] for r in range(3)]
+            T = [self._m[r][3] for r in range(3)]
+            R_inv = [[R[c][r] for c in range(3)] for r in range(3)]
+            T_inv = [-(R_inv[r][0] * T[0] + R_inv[r][1] * T[1] + R_inv[r][2] * T[2]) for r in range(3)]
+            for r in range(3):
+                for c in range(3):
+                    self._m[r][c] = R_inv[r][c]
+                self._m[r][3] = T_inv[r]
+
+        def setToRotation(self, angle, axis, origin=None):
+            l = math.sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z) or 1.0
+            ux, uy, uz = axis.x / l, axis.y / l, axis.z / l
+            cos_a = math.cos(angle)
+            sin_a = math.sin(angle)
+            one_c = 1.0 - cos_a
+            self._m[0][0] = cos_a + ux * ux * one_c
+            self._m[0][1] = ux * uy * one_c - uz * sin_a
+            self._m[0][2] = ux * uz * one_c + uy * sin_a
+            self._m[1][0] = uy * ux * one_c + uz * sin_a
+            self._m[1][1] = cos_a + uy * uy * one_c
+            self._m[1][2] = uy * uz * one_c - ux * sin_a
+            self._m[2][0] = uz * ux * one_c - uy * sin_a
+            self._m[2][1] = uz * uy * one_c + ux * sin_a
+            self._m[2][2] = cos_a + uz * uz * one_c
+            self._m[0][3] = self._m[1][3] = self._m[2][3] = 0.0
+            self._m[3][0] = self._m[3][1] = self._m[3][2] = 0.0
+            self._m[3][3] = 1.0
+
+        def transformPoint(self, pt):
+            tx = getattr(self.translation, 'x', 0.0)
+            ty = getattr(self.translation, 'y', 0.0)
+            tz = getattr(self.translation, 'z', 0.0)
+            x = self._m[0][0] * pt.x + self._m[0][1] * pt.y + self._m[0][2] * pt.z + self._m[0][3] + tx
+            y = self._m[1][0] * pt.x + self._m[1][1] * pt.y + self._m[1][2] * pt.z + self._m[1][3] + ty
+            z = self._m[2][0] * pt.x + self._m[2][1] * pt.y + self._m[2][2] * pt.z + self._m[2][3] + tz
+            return Point3D(x, y, z)
+
+        def transformVector(self, v):
+            x = self._m[0][0] * v.x + self._m[0][1] * v.y + self._m[0][2] * v.z
+            y = self._m[1][0] * v.x + self._m[1][1] * v.y + self._m[1][2] * v.z
+            z = self._m[2][0] * v.x + self._m[2][1] * v.y + self._m[2][2] * v.z
+            return Vector3D(x, y, z)
 
     class BoundingBox3D:
         def __init__(self, min_pt, max_pt):
@@ -305,41 +360,112 @@ def build_mock_adsk():
             self.messages.append((title, msg))
             return DialogResults.DialogNo
 
+    class MockFace:
+        def __init__(self, body, normal=None, area=1.0, point_on_face=None, surface_type=0):
+            self.body = body
+            self.normal = normal or Vector3D(0, 0, 1)
+            self.area = float(area)
+            self.pointOnFace = point_on_face or Point3D(0, 0, 0)
+            self.geometry = types.SimpleNamespace(
+                surfaceType=surface_type,
+                axis=self.normal if surface_type == SurfaceTypes.CylinderSurfaceType else None
+            )
+            self.evaluator = types.SimpleNamespace(
+                getNormalAtPoint=lambda pt: (True, self.normal)
+            )
+            self.boundingBox = BoundingBox3D(Point3D(-1, -1, -1), Point3D(1, 1, 1))
+
+        @staticmethod
+        def cast(obj):
+            return obj if isinstance(obj, MockFace) else None
+
     class MockBody:
-        def __init__(self, name, dx_cm, dy_cm, dz_cm, *, is_light=True, is_visible=True, is_sheet=False, asm_ctx=None, native=None):
+        def __init__(self, name, dx_cm, dy_cm, dz_cm, *, is_light=True, is_visible=True, is_sheet=False, asm_ctx=None, native=None, vertices=None, faces=None):
             self.name = name
-            self.boundingBox = BoundingBox3D(Point3D(0, 0, 0), Point3D(dx_cm, dy_cm, dz_cm))
             self.isLightBulbOn = is_light
             self.isVisible = is_visible
             self.isSheetMetal = is_sheet
             self.assemblyContext = asm_ctx
             self.nativeObject = native or self
-            self.faces = []
+            self.dx_cm = dx_cm
+            self.dy_cm = dy_cm
+            self.dz_cm = dz_cm
+
+            if vertices is not None:
+                self.vertices = [Point3D(v.x, v.y, v.z) for v in vertices]
+            else:
+                self.vertices = [
+                    Point3D(x, y, z)
+                    for x in [0.0, dx_cm]
+                    for y in [0.0, dy_cm]
+                    for z in [0.0, dz_cm]
+                ]
+
+            self._recompute_bounding_box()
+
+            if faces is not None:
+                self.faces = faces
+            else:
+                self.faces = []
+                self._build_default_faces(dx_cm, dy_cm, dz_cm)
+
+        def _recompute_bounding_box(self):
+            if self.vertices:
+                xs = [v.x for v in self.vertices]
+                ys = [v.y for v in self.vertices]
+                zs = [v.z for v in self.vertices]
+                self.boundingBox = BoundingBox3D(
+                    Point3D(min(xs), min(ys), min(zs)),
+                    Point3D(max(xs), max(ys), max(zs))
+                )
+            else:
+                self.boundingBox = BoundingBox3D(Point3D(0, 0, 0), Point3D(self.dx_cm, self.dy_cm, self.dz_cm))
+
+        def _build_default_faces(self, w, h, l):
+            f_x_neg = MockFace(self, Vector3D(-1, 0, 0), h * l, Point3D(0, h / 2.0, l / 2.0))
+            f_x_pos = MockFace(self, Vector3D(1, 0, 0), h * l, Point3D(w, h / 2.0, l / 2.0))
+            f_y_neg = MockFace(self, Vector3D(0, -1, 0), w * l, Point3D(w / 2.0, 0, l / 2.0))
+            f_y_pos = MockFace(self, Vector3D(0, 1, 0), w * l, Point3D(w / 2.0, h, l / 2.0))
+            f_z_neg = MockFace(self, Vector3D(0, 0, -1), w * h, Point3D(w / 2.0, h / 2.0, 0))
+            f_z_pos = MockFace(self, Vector3D(0, 0, 1), w * h, Point3D(w / 2.0, h / 2.0, l))
+            self.faces = [f_x_neg, f_x_pos, f_y_neg, f_y_pos, f_z_neg, f_z_pos]
+
+        def clone(self):
+            new_faces = []
+            new_b = MockBody(
+                self.name,
+                self.dx_cm, self.dy_cm, self.dz_cm,
+                is_light=self.isLightBulbOn,
+                is_visible=self.isVisible,
+                is_sheet=self.isSheetMetal,
+                asm_ctx=self.assemblyContext,
+                native=self.nativeObject,
+                vertices=self.vertices,
+                faces=[]
+            )
+            for f in self.faces:
+                new_f = MockFace(new_b, Vector3D(f.normal.x, f.normal.y, f.normal.z), f.area, Point3D(f.pointOnFace.x, f.pointOnFace.y, f.pointOnFace.z), f.geometry.surfaceType)
+                new_faces.append(new_f)
+            new_b.faces = new_faces
+            return new_b
+
+        def applyTransform(self, mat):
+            self.vertices = [mat.transformPoint(v) for v in self.vertices]
+            self._recompute_bounding_box()
+            for f in self.faces:
+                f.normal = mat.transformVector(f.normal)
+                f.pointOnFace = mat.transformPoint(f.pointOnFace)
+                f.geometry.axis = f.normal if f.geometry.surfaceType == SurfaceTypes.CylinderSurfaceType else None
 
         def createForAssemblyContext(self, occ):
-            return MockBody(
-                self.name,
-                self.boundingBox.maxPoint.x,
-                self.boundingBox.maxPoint.y,
-                self.boundingBox.maxPoint.z,
-                is_light=self.isLightBulbOn,
-                is_visible=self.isVisible and self.isLightBulbOn,
-                is_sheet=self.isSheetMetal,
-                asm_ctx=occ,
-                native=self
-            )
+            b = self.clone()
+            b.assemblyContext = occ
+            b.nativeObject = self
+            return b
 
         @staticmethod
         def cast(obj):
             return obj if isinstance(obj, MockBody) else None
-
-    class MockFace:
-        def __init__(self, body):
-            self.body = body
-
-        @staticmethod
-        def cast(obj):
-            return obj if isinstance(obj, MockFace) else None
 
     class MockEdge:
         def __init__(self, body):
@@ -404,7 +530,15 @@ def build_mock_adsk():
     class MockTempBRepManager:
         @staticmethod
         def get():
-            return types.SimpleNamespace(copy=lambda b: b, transform=lambda b, m: None)
+            class TBM:
+                @staticmethod
+                def copy(b):
+                    return b.clone() if hasattr(b, 'clone') else b
+                @staticmethod
+                def transform(b, m):
+                    if hasattr(b, 'applyTransform'):
+                        b.applyTransform(m)
+            return TBM()
 
     class MockApp:
         _inst = None
@@ -732,6 +866,81 @@ def main():
         print("[OK] Strictly .IGS output directory verification passed (all web/json/config files removed)")
     finally:
         shutil.rmtree(test_export_dir, ignore_errors=True)
+
+    # 8. Local/Oriented Bounding Box (OBB) & 3D Rotated Diagonal Tube Recovery
+    # Mô phỏng thanh Hộp 25x25x1 L242 bị xoay xiên 3D:
+    # Ban đầu trong không gian cụm lắp ráp, góc nghiêng tạo ra World AABB dx=154mm, dy=25mm, dz=186mm
+    # gây lỗi nhận diện nhầm ra Hộp 154x25x1 trong phiên bản cũ.
+    import math
+
+    tbm = fusion_mod.TemporaryBRepManager.get()
+
+    # 8A. Thanh Hộp 25x25 L242 bị xoay quanh trục Y góc theta = 33.38 độ (tạo ra World AABB dx đúng 154.0mm)
+    body_25_diag = fusion_mod.BRepBody("Thanh_Giang_Cheo_25x25_L242", 2.5, 2.5, 24.2)
+    rot_y = core_mod.Matrix3D.create()
+    theta_y = math.radians(33.38)
+    rot_y.setToRotation(theta_y, core_mod.Vector3D.create(0, 1, 0))
+    body_25_diag.applyTransform(rot_y)
+
+    # Kiểm chứng World AABB trước chuẩn hóa đã bị giãn cạnh dx lên 15.4cm (154mm)
+    raw_dx = round((body_25_diag.boundingBox.maxPoint.x - body_25_diag.boundingBox.minPoint.x) * 10, 1)
+    raw_dz = round((body_25_diag.boundingBox.maxPoint.z - body_25_diag.boundingBox.minPoint.z) * 10, 1)
+    assert abs(raw_dx - 154.0) < 2.0, f"Simulated rotated body should have raw World AABB dx ~ 154mm, got {raw_dx}"
+    assert raw_dz < 220.0, f"Simulated rotated body raw dz should be projected, got {raw_dz}"
+
+    # Gọi normalize_body theo hệ trục cục bộ OBB
+    norm_25 = mod.normalize_body(tbm, body_25_diag)
+    bb_norm = norm_25.boundingBox
+    w_norm = round((bb_norm.maxPoint.x - bb_norm.minPoint.x) * 10, 1)
+    h_norm = round((bb_norm.maxPoint.y - bb_norm.minPoint.y) * 10, 1)
+    l_norm = round((bb_norm.maxPoint.z - bb_norm.minPoint.z) * 10, 1)
+
+    assert abs(w_norm - 25.0) < 0.2, f"Expected normalized width 25.0mm, got {w_norm}mm"
+    assert abs(h_norm - 25.0) < 0.2, f"Expected normalized height 25.0mm, got {h_norm}mm"
+    assert abs(l_norm - 242.0) < 0.5, f"Expected normalized length 242.0mm, got {l_norm}mm"
+
+    # Nhận diện quy cách sau chuẩn hóa
+    prof_diag = mod.detect_profile_name(norm_25, w_norm, h_norm, 1.0, "Thanh_Giang_Cheo_L242")
+    assert prof_diag == "Hộp 25x25x1", f"Expected 'Hộp 25x25x1', but got '{prof_diag}'"
+    print("[OK] Test 8A: 3D rotated diagonal tube (L242 rotated to 154mm World AABB) restored to exact Hộp 25x25x1 L242 via OBB")
+
+    # 8B. Thanh Hộp 25x25x1 bị xoay góc kép 3D (35 độ quanh X và 25 độ quanh Y)
+    body_compound = fusion_mod.BRepBody("Hop 25x25x1 L242", 2.5, 2.5, 24.2)
+    rot_x = core_mod.Matrix3D.create()
+    rot_x.setToRotation(math.radians(35), core_mod.Vector3D.create(1, 0, 0))
+    body_compound.applyTransform(rot_x)
+    body_compound.applyTransform(rot_y)
+
+    norm_comp = mod.normalize_body(tbm, body_compound)
+    bb_comp = norm_comp.boundingBox
+    w_comp = round((bb_comp.maxPoint.x - bb_comp.minPoint.x) * 10, 1)
+    h_comp = round((bb_comp.maxPoint.y - bb_comp.minPoint.y) * 10, 1)
+    l_comp = round((bb_comp.maxPoint.z - bb_comp.minPoint.z) * 10, 1)
+
+    assert abs(w_comp - 25.0) < 0.2 and abs(h_comp - 25.0) < 0.2, f"Compound 3D rotation recovery failed: {w_comp}x{h_comp}"
+    assert abs(l_comp - 242.0) < 0.5, f"Compound length recovery failed: {l_comp}"
+    print("[OK] Test 8B: Compound 3D rotation (Pitch 35° + Yaw 39°) restored to exact 25x25x242mm")
+
+    # 8C. Bổ sung cơ chế đối chiếu ngược với tên Component (Chống lỗi dị biệt)
+    spec_parsed = mod.extract_profile_spec_from_name("Hop 25x25x1 L242")
+    assert spec_parsed is not None and spec_parsed["w"] == 25.0 and spec_parsed["h"] == 25.0 and spec_parsed["t"] == 1.0
+
+    spec_round = mod.extract_profile_spec_from_name("Ống Ø27x1.4 L1500")
+    assert spec_round is not None and spec_round["w"] == 27.0 and spec_round["is_round"] is True
+
+    # Giả lập trường hợp kích thước đo hình học bị dị thường (154x25), đối chiếu ngược với tên để bảo toàn quy cách
+    prof_protected = mod.detect_profile_name(None, 154.0, 25.0, 1.0, "Hop 25x25x1 L242")
+    assert prof_protected == "Hộp 25x25x1", f"Expected name anti-anomaly protection to return 'Hộp 25x25x1', got '{prof_protected}'"
+    print("[OK] Test 8C: Component name cross-check & anti-anomaly guard successfully protected Hộp 25x25x1")
+
+    # 8D. Thanh xiên 45 độ không bị classify_candidate_filter loại nhầm
+    body_45 = fusion_mod.BRepBody("Hop 25x25x1 L200", 2.5, 2.5, 20.0)
+    rot_45 = core_mod.Matrix3D.create()
+    rot_45.setToRotation(math.radians(45), core_mod.Vector3D.create(0, 1, 0))
+    body_45.applyTransform(rot_45)
+    ok_45, reason_45 = mod.classify_candidate_filter(body_45, body_45, "Hop 25x25x1 L200")
+    assert ok_45 is True, f"45-degree diagonal tube was falsely rejected: {reason_45}"
+    print("[OK] Test 8D: 45-degree diagonal tube immunity in classify_candidate_filter verified")
 
 
 if __name__ == "__main__":
