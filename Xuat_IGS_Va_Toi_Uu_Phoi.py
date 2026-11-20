@@ -342,11 +342,16 @@ def solve_bars_with_engine(parts_by_prof, engine_dirs, stock_len=6000.0, clamp_t
     helper_path = None
     engine_path = None
     for edir in engine_dirs:
-        hp = os.path.join(edir, 'run_engine_helper.js')
         ep = os.path.join(edir, 'toi-uu-engine.js')
-        if os.path.exists(hp) and os.path.exists(ep):
-            helper_path = hp
-            engine_path = ep
+        if not os.path.exists(ep):
+            continue
+        for h_name in ('run_engine_helper.cjs', 'run_engine_helper.js'):
+            hp = os.path.join(edir, h_name)
+            if os.path.exists(hp):
+                helper_path = hp
+                engine_path = ep
+                break
+        if helper_path:
             break
 
     if not helper_path or not engine_path:
@@ -1305,7 +1310,7 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
         ]
 
         for src_dir in ['C:/Users/Administrator/toiuu-phoi', 'C:/Users/Administrator/Fusion360/toiuu-phoi']:
-            for fn in ['run_engine_helper.js', 'toi-uu-engine.js']:
+            for fn in ['run_engine_helper.cjs', 'toi-uu-engine.js']:
                 sf = os.path.join(src_dir, fn)
                 df = os.path.join(script_dir, fn)
                 if os.path.exists(sf) and not os.path.exists(df):
@@ -1502,11 +1507,17 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
 
         if found_web_dir:
             try:
-                for fname in ['index.html', 'logo_an_binh.jpg', 'toi-uu-engine.js', 'run_engine_helper.js', 'workshop_config.json']:
+                for fname in ['index.html', 'logo_an_binh.jpg', 'toi-uu-engine.js', 'run_engine_helper.cjs', 'workshop_config.json']:
                     src_f = os.path.join(found_web_dir, fname)
                     dst_f = os.path.join(export_dir, fname)
                     if os.path.exists(src_f) and (not os.path.exists(dst_f) or os.path.abspath(src_f) != os.path.abspath(dst_f)):
                         shutil.copy2(src_f, dst_f)
+
+                for dname in ['css', 'js']:
+                    src_d = os.path.join(found_web_dir, dname)
+                    dst_d = os.path.join(export_dir, dname)
+                    if os.path.isdir(src_d) and os.path.abspath(src_d) != os.path.abspath(dst_d):
+                        shutil.copytree(src_d, dst_d, dirs_exist_ok=True)
 
                 idx_export_path = os.path.join(export_dir, 'index.html')
                 if os.path.exists(idx_export_path):
@@ -1539,6 +1550,7 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
         supabase_synced = False
         igs_uploaded_count = 0
         was_versioned = False
+        version_reason = ""
         synced_project_id = ""
         synced_project_name = chosen_project_name
         sync_error_msg = ""
@@ -1594,6 +1606,7 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
                     supabase_synced = bool(resp_data.get('supabaseSynced'))
                     igs_uploaded_count = int(resp_data.get('igsUploadedCount') or 0)
                     was_versioned = bool(resp_data.get('wasVersioned'))
+                    version_reason = str(resp_data.get('versionReason') or '')
                     synced_project_id = str(resp_data.get('projectId') or '')
                     synced_project_name = str(resp_data.get('projectName') or chosen_project_name)
                     lan_list = resp_data.get('lanUrls') or []
@@ -1641,7 +1654,8 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
         msg += f"• Trạng thái Supabase DB : {db_status_text}\n"
         msg += f"• Upload .IGS Storage    : {igs_uploaded_count} file (bucket 'igs-files')\n"
         if was_versioned:
-            msg += f"• Bảo vệ khóa dự án      : 🔒 Bản \"{chosen_project_name}\" đang khóa → Tự tạo bản mới \"{synced_project_name}\"\n"
+            v_lbl = "đã xuất kho" if version_reason == "dispatched" else "đang khóa"
+            msg += f"• Bảo vệ khóa/xuất kho   : 🔒 Bản \"{chosen_project_name}\" {v_lbl} → Tự tạo bản mới \"{synced_project_name}\"\n"
         if sync_error_msg and not supabase_synced:
             msg += f"• Chi tiết lỗi           : {sync_error_msg}\n"
         msg += f"• Các loại hộp phát hiện ({len(parts_by_prof)} loại): {prof_names_str}\n"

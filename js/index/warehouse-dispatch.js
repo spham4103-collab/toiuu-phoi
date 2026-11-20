@@ -45,46 +45,6 @@
       return out;
     }
 
-    function computeUsedOffcutsForAnyProject(projRec) {
-      if (!projRec) return [];
-      if (projRec.id === state.currentProjectId && state.result) {
-        return getUsedOffcutsFromResult(state.result, state.stock);
-      }
-      const d = projRec.data || {};
-      const parts = Array.isArray(d.parts) ? d.parts.filter(p => Number(p.length) > 0 && Number(p.qty) > 0) : [];
-      const stList = Array.isArray(d.stock) ? d.stock : [];
-      if (!parts.length || !stList.some(s => s._fromOffcut && s.offcutId) || typeof RC === 'undefined') return [];
-
-      const clampTail = d.clamp != null ? Number(d.clamp) : 80;
-      const stockForEngine = stList.filter(s => Number(s.length) > 0).map((s, idx) => ({
-        label: s.name || (s.qty === null ? `Cây mới ${numVN(s.length)}` : `Cây tồn ${numVN(s.length)}`),
-        length: Number(s.length),
-        clampTail,
-        qty: s.qty,
-        priority: s._fromOffcut ? (-1000 + idx) : idx,
-        profile: s.profile || 'Chung'
-      }));
-      try {
-        const simRes = RC.solve({
-          kerf: Number(d.kerf) || 0,
-          interlock: d.interlock != null ? Boolean(d.interlock) : true,
-          gap: Number(d.gap) || 0,
-          stock: stockForEngine,
-          parts: parts.map(p => ({
-            label: p.id,
-            length: Number(p.length),
-            qty: Number(p.qty),
-            end_style: p.style || 'thang',
-            mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? Number(p.mat) : extractMatFromProfile(p.profile)),
-            profile: p.profile || 'Chung'
-          }))
-        });
-        return getUsedOffcutsFromResult(simRes, stList);
-      } catch (e) {
-        return [];
-      }
-    }
-
     function syncOffcutsIntoProjectStock(enable) {
       const keepManual = (state.stock || []).filter(s => !s._fromOffcut);
       if (!enable) {
@@ -459,7 +419,6 @@
 if (typeof window !== "undefined") {
   window.initStockOffcuts = initStockOffcuts;
   window.getUsedOffcutsFromResult = getUsedOffcutsFromResult;
-  window.computeUsedOffcutsForAnyProject = computeUsedOffcutsForAnyProject;
   window.syncOffcutsIntoProjectStock = syncOffcutsIntoProjectStock;
   window.renderOffcutSuggestionBox = renderOffcutSuggestionBox;
   window.deductUsedOffcutsFromWarehouse = deductUsedOffcutsFromWarehouse;

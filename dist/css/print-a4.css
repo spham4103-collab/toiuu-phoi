@@ -1,16 +1,14 @@
-/* Print styles */
-    @media print {
-      body { background: #fff; color: #000; font-size: 11pt; }
-      .top, .hero, .grid-input, .results-actions, #toast, .modal-backdrop, .no-print { display: none !important; }
-      .results-area { margin-top: 0; }
-      .card, .profile-group-section { border: 1px solid #ccc !important; box-shadow: none !important; page-break-inside: avoid; margin-bottom: 16px !important; }
-      .kpi-cards { grid-template-columns: repeat(6, 1fr) !important; gap: 8px !important; }
-      .kpi-card { border: 1px solid #ccc !important; padding: 10px !important; }
-      .kpi-val { font-size: 20px !important; }
-      .kpi-label { font-size: 11px !important; }
-      .kpi-card.highlight { background: #eee !important; color: #000 !important; }
-      .kpi-card.highlight .kpi-val, .kpi-card.highlight .kpi-label { color: #000 !important; }
-      .print-header { display: block !important; margin-bottom: 20px; text-align: center; }
-      .pattern-card { page-break-inside: avoid; }
-      .bar-visual-wrap svg { height: 38px !important; }
-    }
+/* Print styles (loaded via <link media="print">) */
+body { background: #fff; color: #000; font-size: 11pt; }
+.top, .hero, .grid-input, .results-actions, #toast, .modal-backdrop, .no-print { display: none !important; }
+.results-area { margin-top: 0; }
+.card, .profile-group-section { border: 1px solid #ccc !important; box-shadow: none !important; page-break-inside: avoid; margin-bottom: 16px !important; }
+.kpi-cards { grid-template-columns: repeat(6, 1fr) !important; gap: 8px !important; }
+.kpi-card { border: 1px solid #ccc !important; padding: 10px !important; }
+.kpi-val { font-size: 20px !important; }
+.kpi-label { font-size: 11px !important; }
+.kpi-card.highlight { background: #eee !important; color: #000 !important; }
+.kpi-card.highlight .kpi-val, .kpi-card.highlight .kpi-label { color: #000 !important; }
+.print-header { display: block !important; margin-bottom: 20px; text-align: center; }
+.pattern-card { page-break-inside: avoid; }
+.bar-visual-wrap svg { height: 38px !important; }

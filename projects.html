@@ -777,9 +777,74 @@
         }
       });
       wrap.querySelectorAll('.btn-lock').forEach(b => b.onclick = async () => {
-        const p = projectsList.find(x => x.id === b.dataset.id);
+        let p = projectsList.find(x => x.id === b.dataset.id);
         if (!p) return;
         const nextLocked = !p.isLocked;
+
+        if (nextLocked && typeof RC !== 'undefined' && window.SupabaseDB && window.SupabaseDB.isConfigured()) {
+          try {
+            if (p.isSummary) {
+              const fullP = await window.SupabaseDB.getProjectById(p.id);
+              if (fullP) {
+                Object.assign(p, fullP);
+              }
+            }
+            const alreadyDispatched = Boolean(p.inventoryDeductedAt || p.inventory_deducted_at || (p.data && p.data.inventoryDeductedAt));
+            if (!alreadyDispatched) {
+              const invItems = await window.SupabaseDB.getInventory().catch(() => []);
+              const plan = computeDispatchNeedsForProject(p, invItems);
+              const invByProf = {};
+              (invItems || []).forEach(r => { invByProf[r.profileName] = r; });
+              const totalDeductibleFull = plan.fullBarsByProfile.reduce((sum, req) => {
+                const avail = invByProf[req.profile] ? Math.max(0, Number(invByProf[req.profile].stockQty) || 0) : 0;
+                return sum + Math.min(req.qty, avail);
+              }, 0);
+
+              if (totalDeductibleFull > 0 || plan.offcutCount > 0) {
+                const wantDispatch = confirm(
+                  `📦 CHỐT KHÓA SẢN XUẤT "${p.name}":\n\n` +
+                  (plan.fullSummaryLines.length ? plan.fullSummaryLines.join('\n') + '\n' : '') +
+                  (plan.offcutCount > 0 ? `• Phôi lẻ/đề-xê kho: dùng ${plan.offcutCount} đoạn\n` : '') +
+                  `\n• Bấm [OK] để XUẤT KHO & KHÓA BẢO VỆ DỰ ÁN (chống trừ trùng).\n` +
+                  `• Bấm [Cancel] để giữ nguyên kho (chỉ Khóa bảo vệ dự án).`
+                );
+                if (wantDispatch) {
+                  window.SupabaseDB.setLoading(true, 'Đang xuất kho trước khi khóa dự án...');
+                  try {
+                    const actor = currentUser ? currentUser.username : '';
+                    const dispRes = await window.SupabaseDB.dispatchProjectInventory({
+                      projectId: p.id,
+                      projectName: p.name || p.id,
+                      projectDeductedAt: null,
+                      fullBarsByProfile: plan.fullBarsByProfile,
+                      offcutsUsed: plan.offcutsUsed,
+                      createdBy: actor
+                    });
+                    const snapObj = { fullBars: dispRes.fullBars, offcuts: dispRes.offcuts };
+                    const nextData = Object.assign({}, p.data || {}, {
+                      inventoryDeductedAt: dispRes.deductedAt,
+                      inventoryDeductedBy: actor,
+                      inventoryDeductedSnapshot: snapObj,
+                      offcutsDeducted: dispRes.totalOffcutsDeducted > 0 ? true : Boolean(p.data && p.data.offcutsDeducted),
+                      offcutsDeductedAt: dispRes.totalOffcutsDeducted > 0 ? dispRes.deductedAt : (p.data && p.data.offcutsDeductedAt) || null
+                    });
+                    const updatedData = await window.SupabaseDB.updateProjectFields(p.id, {
+                      data: nextData,
+                      inventoryDeductedAt: dispRes.deductedAt
+                    });
+                    Object.assign(p, updatedData);
+                    showToast(`📤 Đã xuất kho: -${dispRes.totalFullDeducted} cây nguyên${dispRes.totalOffcutsDeducted > 0 ? `, -${dispRes.totalOffcutsDeducted} đoạn lẻ` : ''}!`);
+                  } catch (dispErr) {
+                    showToast('⚠️ Chưa xuất được kho: ' + dispErr.message);
+                  } finally {
+                    window.SupabaseDB.setLoading(false);
+                  }
+                }
+              }
+            }
+          } catch (prepErr) {}
+        }
+
         window.SupabaseDB.setLoading(true, 'Đang cập nhật khóa...');
         try {
           const updated = await window.SupabaseDB.updateProjectFields(p.id, { isLocked: nextLocked });
@@ -802,6 +867,16 @@
             const fullSrc = await window.SupabaseDB.getProjectById(src.id);
             if (fullSrc) src = fullSrc;
           }
+          const clonedData = JSON.parse(JSON.stringify(src.data || {}));
+          delete clonedData.inventoryDeductedAt;
+          delete clonedData.inventory_deducted_at;
+          delete clonedData.inventoryDeductedBy;
+          delete clonedData.inventory_deducted_by;
+          delete clonedData.inventoryDeductedSnapshot;
+          delete clonedData.inventory_deducted_snapshot;
+          clonedData.offcutsDeducted = false;
+          clonedData.offcutsDeductedAt = null;
+
           const clone = {
             id: makeId('proj'),
             name: src.name + ' (Bản sao)',
@@ -811,9 +886,10 @@
             isTrashed: false,
             isDraft: false,
             source: src.source || 'web',
+            inventoryDeductedAt: null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            data: JSON.parse(JSON.stringify(src.data || {})),
+            data: clonedData,
             igsFiles: JSON.parse(JSON.stringify(src.igsFiles || []))
           };
           const saved = await window.SupabaseDB.saveProject(clone);
@@ -969,6 +1045,99 @@
       return mR ? parseInt(mR[1], 10) : 30;
     }
 
+    function computeDispatchNeedsForProject(projRec, invItems) {
+      const emptyPlan = { fullBarsByProfile: [], offcutsUsed: [], fullSummaryLines: [], offcutCount: 0 };
+      if (!projRec || typeof RC === 'undefined') return emptyPlan;
+      const d = projRec.data || {};
+      const parts = Array.isArray(d.parts) ? d.parts.filter(p => Number(p.length) > 0 && Number(p.qty) > 0) : [];
+      if (!parts.length) return emptyPlan;
+      const stList = Array.isArray(d.stock) ? d.stock : [];
+      const clampTail = d.clamp != null ? Number(d.clamp) : 80;
+      const partProfiles = new Set(parts.map(p => p.profile || 'Chung'));
+      const stockForEngine = stList.filter(s => Number(s.length) > 0).map((s, idx) => ({
+        label: s.name || (s.qty === null ? `Cây mới ${s.length}` : `Cây tồn ${s.length}`),
+        length: Number(s.length),
+        clampTail,
+        qty: (s.qty === '' || s.qty == null) ? null : Number(s.qty),
+        priority: s._fromOffcut ? (-1000 + idx) : idx,
+        profile: s.profile || 'Chung'
+      }));
+      partProfiles.forEach(prof => {
+        if (!stockForEngine.some(s => s.profile === prof)) {
+          stockForEngine.push({ label: `Cây mới 6m (${prof})`, length: 6000, clampTail, qty: null, priority: 99, profile: prof });
+        }
+      });
+      try {
+        const res = RC.solve({
+          kerf: Number(d.kerf) || 0,
+          interlock: d.interlock != null ? Boolean(d.interlock) : true,
+          gap: Number(d.gap) || 0,
+          stock: stockForEngine,
+          parts: parts.map(p => ({
+            label: p.id,
+            length: Number(p.length),
+            qty: Number(p.qty),
+            end_style: p.style || 'thang',
+            mat: p.style === 'thang' ? 0 : ((p.mat && p.mat >= 5) ? Number(p.mat) : extractMatFromProfile(p.profile)),
+            profile: p.profile || 'Chung'
+          }))
+        });
+        const invByProf = {};
+        (invItems || []).forEach(r => { invByProf[r.profileName] = r; });
+        const offUsedMap = {};
+        const offDed = Boolean(d.offcutsDeducted);
+        if (!offDed && Array.isArray(res.byStockType)) {
+          const seenProfs = new Set(res.byStockType.map(b => b.profile || 'Chung'));
+          seenProfs.forEach(prof => {
+            const bts = res.byStockType.filter(b => (b.profile || 'Chung') === prof);
+            const ps = stList.filter(s => Number(s.length) > 0 && (s.profile || 'Chung') === prof);
+            for (let i = 0; i < bts.length && i < ps.length; i++) {
+              if ((Number(bts[i].usedQty) || 0) > 0 && ps[i]._fromOffcut && ps[i].offcutId) {
+                offUsedMap[ps[i].offcutId] = {
+                  id: ps[i].offcutId,
+                  profile: prof,
+                  lengthMm: Number(ps[i].length) || 0,
+                  usedQty: Number(bts[i].usedQty) || 0
+                };
+              }
+            }
+          });
+        }
+        const offcutsUsed = Object.values(offUsedMap);
+        const offcutUsedIds = new Set(offcutsUsed.map(o => 'off_' + o.id));
+        const fullByProfMap = {};
+        (res.summaryByProfile || []).forEach(sp => {
+          const prof = sp.profile || 'Chung';
+          const bts = (res.byStockType || []).filter(s => (s.profile || 'Chung') === prof);
+          const ps = stList.filter(s => Number(s.length) > 0 && (s.profile || 'Chung') === prof);
+          let fullQty = 0;
+          let stdLen = (invByProf[prof] && invByProf[prof].standardLengthMm) || 6000;
+          for (let i = 0; i < bts.length; i++) {
+            const st = bts[i];
+            const used = Number(st && st.usedQty) || 0;
+            if (used <= 0) continue;
+            const matchingPs = i < ps.length ? ps[i] : null;
+            const isOffcut = Boolean(matchingPs && (matchingPs._fromOffcut || offcutUsedIds.has(matchingPs.id)));
+            if (!isOffcut) {
+              fullQty += used;
+              if (st.length) stdLen = Number(st.length);
+            }
+          }
+          if (fullQty > 0) fullByProfMap[prof] = { profile: prof, qty: fullQty, lengthMm: stdLen };
+        });
+        const fullBarsByProfile = Object.values(fullByProfMap);
+        const fullSummaryLines = fullBarsByProfile.map(f => {
+          const whQty = invByProf[f.profile] ? Math.max(0, Number(invByProf[f.profile].stockQty) || 0) : 0;
+          const deductQty = Math.min(f.qty, whQty);
+          return `• ${f.profile}: cần ${f.qty} cây (trong kho còn ${whQty} → sẽ trừ ${deductQty} cây)`;
+        });
+        const offcutCount = offcutsUsed.reduce((a, b) => a + (Number(b.usedQty) || 0), 0);
+        return { fullBarsByProfile, offcutsUsed, fullSummaryLines, offcutCount };
+      } catch (e) {
+        return emptyPlan;
+      }
+    }
+
     async function prepareProjectExportPayload(projId) {
       let p = projectsList.find(x => x.id === projId);
       if (!p) return null;
@@ -1042,8 +1211,9 @@
           cutStatuses,
           inventoryItems: invItems,
           stockOffcuts: stockOffcuts,
-          inventoryDeductedAt: p.inventory_deducted_at || (d && d.inventoryDeductedAt) || null,
-          inventoryDeductedBy: p.inventory_deducted_by || (d && d.inventoryDeductedBy) || '',
+          inventoryDeductedAt: p.inventoryDeductedAt || p.inventory_deducted_at || (d && d.inventoryDeductedAt) || null,
+          inventoryDeductedBy: p.inventoryDeductedBy || p.inventory_deducted_by || (d && d.inventoryDeductedBy) || '',
+          inventoryDeductedSnapshot: p.inventoryDeductedSnapshot || (d && d.inventoryDeductedSnapshot) || null,
           exportedBy: currentUser ? currentUser.username : ''
         };
       } catch (err) {

@@ -820,6 +820,7 @@
       const container = $('patternsContainer');
       container.innerHTML = '';
       HINH_CACHE = [];
+      window.HINH_CACHE = HINH_CACHE;
       let globalPatternIdx = 0;
 
       const profiles = res.summaryByProfile ? res.summaryByProfile.map(s => s.profile) : ['Chung'];
@@ -1281,15 +1282,6 @@
           </tbody>
         </table>
       `;
-
-      if (cmpBox) {
-        if (cmpLines.length) {
-          cmpBox.style.display = 'block';
-          cmpBox.innerHTML = cmpLines.join('<br>');
-        } else {
-          cmpBox.style.display = 'none';
-        }
-      }
 
       const u = res.usageStats;
       const summaryNote = `

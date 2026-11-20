@@ -10,7 +10,7 @@ src_html = os.path.join(toiuu_phoi_dir, 'index.html')
 sub_branches = ['admin', 'projects', 'inventory', 'cnc']
 branch_htmls = [os.path.join(toiuu_phoi_dir, b + '.html') for b in sub_branches]
 src_engine = os.path.join(toiuu_phoi_dir, 'toi-uu-engine.js')
-src_helper = os.path.join(toiuu_phoi_dir, 'run_engine_helper.js')
+src_helper = os.path.join(toiuu_phoi_dir, 'run_engine_helper.cjs')
 src_logo = os.path.join(toiuu_phoi_dir, 'logo_an_binh.jpg')
 src_server = os.path.join(toiuu_phoi_dir, 'server.js')
 src_cfg = os.path.join(toiuu_phoi_dir, 'workshop_config.json')
@@ -115,10 +115,18 @@ candidate_dirs = [
     r'C:\Users\Administrator\Desktop\TEST 2\Bàn thao tác'
 ]
 
+for target_stale_dir in (fusion_script_dir, fusion_workspace_dir):
+    stale_helper = os.path.join(target_stale_dir, 'run_engine_helper.js')
+    if os.path.exists(stale_helper):
+        os.remove(stale_helper)
+
 for desktop_dir in candidate_dirs:
     if os.path.exists(desktop_dir):
         shutil.copy2(src_engine, os.path.join(desktop_dir, 'toi-uu-engine.js'))
-        shutil.copy2(src_helper, os.path.join(desktop_dir, 'run_engine_helper.js'))
+        shutil.copy2(src_helper, os.path.join(desktop_dir, 'run_engine_helper.cjs'))
+        stale_desktop_helper = os.path.join(desktop_dir, 'run_engine_helper.js')
+        if os.path.exists(stale_desktop_helper):
+            os.remove(stale_desktop_helper)
         copy_js_files(desktop_dir)
         copy_css_files(desktop_dir)
         

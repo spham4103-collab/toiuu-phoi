@@ -223,19 +223,13 @@
       }
     }
 
-    async function fetchCloudProjects() {
-      return initProjectsManager();
-    }
-
     function updateProjectsBadge() {
       const countActive = Array.isArray(state.savedProjects) ? state.savedProjects.length : 0;
       const countTrash = Array.isArray(state.trashProjects) ? state.trashProjects.length : 0;
       const b1 = $('badgeProjectCount');
-      const b2 = $('projCountBadge');
       const cntA = $('countActiveProjects');
       const cntT = $('countTrashProjects');
       if (b1) b1.textContent = countActive;
-      if (b2) b2.textContent = countActive;
       if (cntA) cntA.textContent = countActive;
       if (cntT) cntT.textContent = countTrash;
     }
@@ -699,7 +693,6 @@ if (typeof window !== "undefined") {
   window.loadActiveProject = loadActiveProject;
   window.loadCutProgressForActiveProject = loadCutProgressForActiveProject;
   window.initProjectsManager = initProjectsManager;
-  window.fetchCloudProjects = fetchCloudProjects;
   window.updateProjectsBadge = updateProjectsBadge;
   window.updateProjectActiveBanner = updateProjectActiveBanner;
   window.toggleProjectLock = toggleProjectLock;

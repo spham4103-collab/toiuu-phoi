@@ -139,37 +139,54 @@ function assertIntegrity(RC, SupabaseDB, payload, res, scenarioName) {
   });
 }
 
+function assertHelperOutput(outJsonPath) {
+  const out = JSON.parse(fs.readFileSync(outJsonPath, 'utf8'));
+  assert.strictEqual(out.success, true, 'run_engine_helper.cjs must succeed');
+  assert(Array.isArray(out.bars) && out.bars.length > 0, 'run_engine_helper.cjs must return bars');
+
+  const keysCounts = {};
+  out.bars.forEach(bar => {
+    const barMult = bar.count || 1;
+    bar.pieces.forEach(pc => {
+      assert(pc.want_eL === 'S' || pc.want_eL === 'M', 'Invalid want_eL');
+      assert(pc.want_eR === 'S' || pc.want_eR === 'M', 'Invalid want_eR');
+      assert(pc.end_z > pc.start_z, 'Invalid Z bounds');
+      keysCounts[pc.key] = (keysCounts[pc.key] || 0) + barMult;
+    });
+  });
+  assert.strictEqual(keysCounts['Hộp 30x30x1.8_L835_Ke1'], 2, 'Regular 835(ke1) count must be 2');
+  assert.strictEqual(keysCounts['Hộp 30x30x1.8_L835_Ke1_Mirror'], 2, 'Mirror 835(ke1) count must be 2 (never merged with non-Mirror)');
+}
+
 function testFusionHelperIntegration(payload) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'toiuu_test_'));
   try {
     const inJson = path.join(tmpDir, 'in.json');
-    const outJson = path.join(tmpDir, 'out.json');
-    const helperDst = path.join(tmpDir, 'run_engine_helper.js');
-    const engineDst = path.join(tmpDir, 'toi-uu-engine.js');
-    fs.copyFileSync(path.join(ROOT_DIR, 'run_engine_helper.js'), helperDst);
-    fs.copyFileSync(path.join(ROOT_DIR, 'toi-uu-engine.js'), engineDst);
+    const outRepoJson = path.join(tmpDir, 'out_repo.json');
+    const outTmpJson = path.join(tmpDir, 'out_tmp.json');
     fs.writeFileSync(inJson, JSON.stringify(payload), 'utf8');
 
-    execFileSync(process.execPath, [helperDst, engineDst, inJson, outJson], {
+    // 1. Chạy trực tiếp ngay trong ROOT_DIR (nơi có package.json "type": "module")
+    const rootHelper = path.join(ROOT_DIR, 'run_engine_helper.cjs');
+    const rootEngine = path.join(ROOT_DIR, 'toi-uu-engine.js');
+    execFileSync(process.execPath, [rootHelper], { cwd: ROOT_DIR, encoding: 'utf8' });
+    execFileSync(process.execPath, [rootHelper, rootEngine, inJson, outRepoJson], {
+      cwd: ROOT_DIR,
+      encoding: 'utf8'
+    });
+    assertHelperOutput(outRepoJson);
+
+    // 2. Chạy bản sao trong tmpDir (mô phỏng thư mục Fusion AppData không có package.json)
+    const helperDst = path.join(tmpDir, 'run_engine_helper.cjs');
+    const engineDst = path.join(tmpDir, 'toi-uu-engine.js');
+    fs.copyFileSync(rootHelper, helperDst);
+    fs.copyFileSync(rootEngine, engineDst);
+
+    execFileSync(process.execPath, [helperDst, engineDst, inJson, outTmpJson], {
       cwd: tmpDir,
       encoding: 'utf8'
     });
-    const out = JSON.parse(fs.readFileSync(outJson, 'utf8'));
-    assert.strictEqual(out.success, true, 'run_engine_helper.js must succeed');
-    assert(Array.isArray(out.bars) && out.bars.length > 0, 'run_engine_helper.js must return bars');
-
-    const keysCounts = {};
-    out.bars.forEach(bar => {
-      const barMult = bar.count || 1;
-      bar.pieces.forEach(pc => {
-        assert(pc.want_eL === 'S' || pc.want_eL === 'M', 'Invalid want_eL');
-        assert(pc.want_eR === 'S' || pc.want_eR === 'M', 'Invalid want_eR');
-        assert(pc.end_z > pc.start_z, 'Invalid Z bounds');
-        keysCounts[pc.key] = (keysCounts[pc.key] || 0) + barMult;
-      });
-    });
-    assert.strictEqual(keysCounts['Hộp 30x30x1.8_L835_Ke1'], 2, 'Regular 835(ke1) count must be 2');
-    assert.strictEqual(keysCounts['Hộp 30x30x1.8_L835_Ke1_Mirror'], 2, 'Mirror 835(ke1) count must be 2 (never merged with non-Mirror)');
+    assertHelperOutput(outTmpJson);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -320,7 +337,7 @@ async function runAllTests() {
     console.log(`         Chi tiết dư từng cây: [${newS.wastes.join(', ')}]`);
   }
 
-  // Test luồng Fusion 360 run_engine_helper.js trên Kịch bản 1A
+  // Test luồng Fusion 360 run_engine_helper.cjs trên Kịch bản 1A (cả ROOT_DIR ESM & tmpDir)
   testFusionHelperIntegration(scenarios[0].payload);
   console.log('\n✅ FUSION_360_RUN_ENGINE_HELPER_OK (Bảo toàn đầy đủ Mirror + tọa độ Z/mặt vát)');
   console.log('✅ ALL_NESTING_BENCHMARK_TESTS_PASSED');

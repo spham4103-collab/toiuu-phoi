@@ -306,6 +306,7 @@
     let currentProjectRecord = null;
     let activeProject = null;
     let cutStatuses = {};
+    let inventoryItems = [];
     let stockOffcuts = [];
     let currentResult = null;
     let filterProf = 'ALL';
@@ -654,6 +655,7 @@
       if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
         savedProjects = [];
         cutStatuses = {};
+        inventoryItems = [];
         stockOffcuts = [];
         applySelectedProject(null);
         renderProjectSelector();
@@ -662,11 +664,13 @@
       }
       window.SupabaseDB.setLoading(true, 'Đang tải sơ đồ cắt & tiến độ CNC...');
       try {
-        const [allProjs, loadedOffcuts] = await Promise.all([
+        const [allProjs, loadedOffcuts, loadedInv] = await Promise.all([
           window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true }),
-          window.SupabaseDB.getStockOffcuts().catch(() => [])
+          window.SupabaseDB.getStockOffcuts().catch(() => []),
+          window.SupabaseDB.getInventory().catch(() => [])
         ]);
         stockOffcuts = Array.isArray(loadedOffcuts) ? loadedOffcuts : [];
+        inventoryItems = Array.isArray(loadedInv) ? loadedInv : [];
         savedProjects = allProjs.filter(p => !p.isDraft || (p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0));
 
         const urlProjId = new URLSearchParams(window.location.search).get('project');
@@ -1324,6 +1328,12 @@
             }
           }
         },
+        inventory: async () => {
+          try {
+            const loadedInv = await window.SupabaseDB.getInventory();
+            if (Array.isArray(loadedInv)) inventoryItems = loadedInv;
+          } catch (e) {}
+        },
         stock_offcuts: (ev) => {
           const rec = ev.newRecord;
           const old = ev.oldRecord;
@@ -1348,14 +1358,16 @@
           await flushOfflineQueue();
           if (!window.SupabaseDB || !window.SupabaseDB.isConfigured() || !currentUser) return;
           try {
-            const [allProjs, loadedOffcuts, latestActive, latestCuts] = await Promise.all([
+            const [allProjs, loadedOffcuts, loadedInv, latestActive, latestCuts] = await Promise.all([
               window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true }),
               window.SupabaseDB.getStockOffcuts().catch(() => stockOffcuts),
+              window.SupabaseDB.getInventory().catch(() => inventoryItems),
               activeProjectId ? window.SupabaseDB.getProjectById(activeProjectId) : Promise.resolve(null),
               activeProjectId ? window.SupabaseDB.getCutProgress(activeProjectId) : Promise.resolve({})
             ]);
             savedProjects = allProjs.filter(p => !p.isDraft || (p.data && Array.isArray(p.data.parts) && p.data.parts.length > 0));
             stockOffcuts = Array.isArray(loadedOffcuts) ? loadedOffcuts : stockOffcuts;
+            inventoryItems = Array.isArray(loadedInv) ? loadedInv : inventoryItems;
             if (activeProjectId) {
               cutStatuses = latestCuts || {};
               applyOfflineQueueToStatuses(activeProjectId);
@@ -1538,8 +1550,11 @@
               result: currentResult,
               parts: (activeProject && activeProject.parts) || [],
               cutStatuses,
-              inventoryDeductedAt: (pRec && (pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
-              inventoryDeductedBy: (pRec && (pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
+              inventoryItems: inventoryItems || [],
+              stockOffcuts: stockOffcuts || [],
+              inventoryDeductedAt: (pRec && (pRec.inventoryDeductedAt || pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
+              inventoryDeductedBy: (pRec && (pRec.inventoryDeductedBy || pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
+              inventoryDeductedSnapshot: (pRec && (pRec.inventoryDeductedSnapshot || pRec.inventory_deducted_snapshot || (pRec.data && pRec.data.inventoryDeductedSnapshot))) || null,
               exportedBy: currentUser ? currentUser.username : ''
             });
           } else {
@@ -1561,8 +1576,11 @@
               result: currentResult,
               parts: (activeProject && activeProject.parts) || [],
               cutStatuses,
-              inventoryDeductedAt: (pRec && (pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
-              inventoryDeductedBy: (pRec && (pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
+              inventoryItems: inventoryItems || [],
+              stockOffcuts: stockOffcuts || [],
+              inventoryDeductedAt: (pRec && (pRec.inventoryDeductedAt || pRec.inventory_deducted_at || (pRec.data && pRec.data.inventoryDeductedAt))) || null,
+              inventoryDeductedBy: (pRec && (pRec.inventoryDeductedBy || pRec.inventory_deducted_by || (pRec.data && pRec.data.inventoryDeductedBy))) || '',
+              inventoryDeductedSnapshot: (pRec && (pRec.inventoryDeductedSnapshot || pRec.inventory_deducted_snapshot || (pRec.data && pRec.data.inventoryDeductedSnapshot))) || null,
               exportedBy: currentUser ? currentUser.username : ''
             });
             showToast(`📊 Đã xuất ${expRes.format === 'xlsx' ? 'Excel (.xlsx)' : 'CSV'}: ${expRes.fileName}`);

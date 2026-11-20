@@ -62,40 +62,45 @@ let stagedIgsParts = [];
           };
           reader.readAsText(file);
         });
+      }
 
-        function finishProcessing(items) {
-          if (!items.length) {
-            showToast('Không đọc được hình học từ file .IGS đã chọn!');
-            return;
-          }
-          items.forEach(it => {
-            // Chỉ gộp khi trùng cả tên (hậu tố lỗ/ghi chú), quy cách, chiều dài và góc vát
-            const exist = stagedIgsParts.find(p => 
-              p.name.toLowerCase() === it.name.toLowerCase() &&
-              p.profile === it.profile && 
-              Math.abs(p.length - it.length) < 0.5 && 
-              p.style === it.style
-            );
-            if (exist) {
-              exist.qty += it.qty;
-            } else {
-              stagedIgsParts.push(it);
-            }
-          });
-          renderIgsPreview();
-          const totalCount = stagedIgsParts.reduce((a, b) => a + b.qty, 0);
-          showToast(`✓ Đã nhận diện thành công ${stagedIgsParts.length} mục (Tổng ${totalCount} thanh phôi)!`);
+      function finishProcessing(items) {
+        if (!items.length) {
+          showToast('Không đọc được hình học từ file .IGS đã chọn!');
+          return;
         }
+        items.forEach(it => {
+          // Chỉ gộp khi trùng cả tên (hậu tố lỗ/ghi chú), quy cách, chiều dài và góc vát
+          const exist = stagedIgsParts.find(p => 
+            p.name.toLowerCase() === it.name.toLowerCase() &&
+            p.profile === it.profile && 
+            Math.abs(p.length - it.length) < 0.5 && 
+            p.style === it.style
+          );
+          if (exist) {
+            exist.qty += it.qty;
+          } else {
+            stagedIgsParts.push(it);
+          }
+        });
+        window.stagedIgsParts = stagedIgsParts;
+        renderIgsPreview();
+        const totalCount = stagedIgsParts.reduce((a, b) => a + b.qty, 0);
+        showToast(`✓ Đã nhận diện thành công ${stagedIgsParts.length} mục (Tổng ${totalCount} thanh phôi)!`);
       }
 
 
 const openIgsModal = () => {
+  stagedIgsParts = [];
+  window.stagedIgsParts = stagedIgsParts;
+  renderIgsPreview();
   $('modalIgs').style.display = 'flex';
 };
 
 const closeIgsModal = () => {
   $('modalIgs').style.display = 'none';
   stagedIgsParts = [];
+  window.stagedIgsParts = stagedIgsParts;
   renderIgsPreview();
 };
 
@@ -233,6 +238,7 @@ const closeFusionModal = () => {
 function initIgsFusionEvents() {
   // Gắn sự kiện Hộp thoại IGS
   if ($('btnOpenIgs')) $('btnOpenIgs').onclick = openIgsModal;
+  if ($('btnQuickIgs')) $('btnQuickIgs').onclick = openIgsModal;
   if ($('btnCloseIgs')) $('btnCloseIgs').onclick = closeIgsModal;
   if ($('btnCancelIgs')) $('btnCancelIgs').onclick = closeIgsModal;
 
@@ -240,12 +246,12 @@ function initIgsFusionEvents() {
   const inpIgs = $('inpIgsFiles');
   if (igsDropZone && inpIgs) {
     igsDropZone.onclick = () => inpIgs.click();
-    igsDropZone.ondragover = e => { e.preventDefault(); igsDropZone.style.borderColor = 'var(--p)'; };
-    igsDropZone.ondragleave = () => { igsDropZone.style.borderColor = ''; };
+    igsDropZone.ondragover = e => { e.preventDefault(); igsDropZone.classList.add('dragover'); };
+    igsDropZone.ondragleave = () => igsDropZone.classList.remove('dragover');
     igsDropZone.ondrop = e => {
       e.preventDefault();
-      igsDropZone.style.borderColor = '';
-      processIgsFileList(e.dataTransfer.files);
+      igsDropZone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length) processIgsFileList(e.dataTransfer.files);
     };
     inpIgs.onchange = e => processIgsFileList(e.target.files);
   }
@@ -260,35 +266,31 @@ function initIgsFusionEvents() {
         length: p.length,
         qty: p.qty,
         style: p.style,
-        mat: p.mat,
+        mat: p.mat || extractMatFromProfile(p.profile),
         _autoDetected: true
       }));
-      state.parts = newParts;
-      state.activeProfiles = [];
-      state.stock = [];
-      const newProfsToSave = [];
+      state.parts = state.parts.concat(newParts);
+      let hasNewProfile = false;
       newParts.forEach(p => {
         if (!state.activeProfiles.includes(p.profile)) state.activeProfiles.push(p.profile);
         if (!state.savedProfiles.includes(p.profile)) {
           state.savedProfiles.push(p.profile);
-          newProfsToSave.push(p.profile);
+          hasNewProfile = true;
         }
         ensureStockForProfile(p.profile);
       });
-      if (newProfsToSave.length) {
+      if (hasNewProfile) {
         saveProfilesLibrary();
       }
       renderMemoryLibraryChips();
       ensureProfilesConsistency();
-      state.selectedTabProfile = 'ALL';
-      state.resultFilterProfile = 'ALL';
       renderProfileTabs();
       renderActiveProfileBanner();
       renderPartsList();
       renderStockList();
       calculateOptimization(false);
       saveActiveProject();
-      $('modalIgs').style.display = 'none';
+      closeIgsModal();
       showToast(`✓ Đã nạp thành công ${newParts.length} mục (${newParts.reduce((a, b) => a + b.qty, 0)} chi tiết) từ file .IGS!`);
     };
   }

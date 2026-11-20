@@ -43,6 +43,12 @@ function loadEnvFile(filePath) {
   return out;
 }
 
+function getCliArg(flagName) {
+  const prefix = `--${flagName}=`;
+  const hit = process.argv.slice(2).find(a => a.startsWith(prefix));
+  return hit ? hit.slice(prefix.length).trim() : '';
+}
+
 const envVars = loadEnvFile(ENV_FILE);
 const getEnv = (name, fallback = '') => (process.env[name] || envVars[name] || fallback).trim();
 
@@ -66,25 +72,52 @@ if (!SUPABASE_URL || !SUPABASE_SECRET_KEY || SUPABASE_SECRET_KEY.includes('YOUR_
   process.exit(1);
 }
 
+const adminPass = getCliArg('admin-pass') || getEnv('ADMIN_INIT_PASSWORD');
+const kt1Pass = getCliArg('kt1-pass') || getEnv('KT1_INIT_PASSWORD');
+const thocncPass = getCliArg('thocnc-pass') || getEnv('THOCNC_INIT_PASSWORD');
+
+const missingPasses = [];
+if (!adminPass || adminPass.length < 6) missingPasses.push('ADMIN_INIT_PASSWORD (--admin-pass=...)');
+if (!kt1Pass || kt1Pass.length < 6) missingPasses.push('KT1_INIT_PASSWORD (--kt1-pass=...)');
+if (!thocncPass || thocncPass.length < 6) missingPasses.push('THOCNC_INIT_PASSWORD (--thocnc-pass=...)');
+
+if (missingPasses.length) {
+  console.error('====================================================================');
+  console.error(' ❌ THIẾU HOẶC MẬT KHẨU KHỞI TẠO KHÔNG HỢP LỆ (< 6 KÝ TỰ)');
+  console.error('====================================================================');
+  console.error(' Vì lý do bảo mật, script không còn dùng mật khẩu mặc định trong Git.');
+  console.error(' Thiếu các mục: ' + missingPasses.join(', '));
+  console.error('');
+  console.error(' Cách cung cấp:');
+  console.error(`  Cách 1: Thêm vào "${ENV_FILE}":`);
+  console.error('    ADMIN_INIT_PASSWORD=...');
+  console.error('    KT1_INIT_PASSWORD=...');
+  console.error('    THOCNC_INIT_PASSWORD=...');
+  console.error('  Cách 2: Truyền qua tham số dòng lệnh:');
+  console.error('    node scripts/setup_auth_users.js --admin-pass=... --kt1-pass=... --thocnc-pass=...');
+  console.error('====================================================================');
+  process.exit(1);
+}
+
 const INITIAL_USERS = [
   {
     username: 'admin',
     email: `admin@${INTERNAL_EMAIL_DOMAIN}`,
-    password: getEnv('ADMIN_INIT_PASSWORD', 'AnBinh@Admin2026'),
+    password: adminPass,
     display_name: 'Quản Trị Viên (Admin)',
     role: 'admin'
   },
   {
     username: 'kt1',
     email: `kt1@${INTERNAL_EMAIL_DOMAIN}`,
-    password: getEnv('KT1_INIT_PASSWORD', 'AnBinh@Kt2026'),
+    password: kt1Pass,
     display_name: 'Sơn KT (Kỹ Sư)',
     role: 'engineer'
   },
   {
     username: 'thocnc',
     email: `thocnc@${INTERNAL_EMAIL_DOMAIN}`,
-    password: getEnv('THOCNC_INIT_PASSWORD', 'AnBinh@Cnc2026'),
+    password: thocncPass,
     display_name: 'Thợ Vận Hành Máy CNC',
     role: 'operator'
   }

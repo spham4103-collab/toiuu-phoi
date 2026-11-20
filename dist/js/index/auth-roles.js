@@ -110,9 +110,6 @@
       if (state.result) {
         renderMaterialsGrouped(state.result);
       }
-      if ($('btnHeaderAdminPanel')) {
-        $('btnHeaderAdminPanel').style.display = isSuperAdmin ? 'inline-flex' : 'none';
-      }
       if ($('btnGoAdminSubpageWrap')) {
         $('btnGoAdminSubpageWrap').style.display = isSuperAdmin ? 'block' : 'none';
       }

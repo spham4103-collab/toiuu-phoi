@@ -25,6 +25,7 @@ const fs = require('fs');
 const os = require('os');
 
 const ROOT_DIR = __dirname;
+const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const DB_DIR = path.join(ROOT_DIR, 'database');
 const IGS_DIR = path.join(DB_DIR, 'igs_files');
 const DB_BACKUP_FILE = path.join(DB_DIR, 'workshop_db.json');
@@ -74,6 +75,20 @@ function readClientJsDefaults() {
 
 const envVars = loadEnvFile(ENV_FILE);
 const PORT = Number(process.env.PORT || envVars.PORT || 3000);
+const HOST = (process.env.HOST || envVars.HOST || '127.0.0.1').trim();
+const FUSION_BRIDGE_TOKEN = (process.env.FUSION_BRIDGE_TOKEN || envVars.FUSION_BRIDGE_TOKEN || '').trim();
+const ALLOWED_ORIGINS = new Set([
+  'https://xepphoi.cloud',
+  'https://www.xepphoi.cloud',
+  `http://localhost:${PORT}`,
+  `http://127.0.0.1:${PORT}`
+]);
+const STATIC_EXT_ALLOWLIST = new Set(['.html', '.js', '.css', '.json', '.jpg', '.jpeg', '.png', '.svg', '.ico', '.webp']);
+const PUBLIC_ROOT_FILES = new Set([
+  'index.html', 'projects.html', 'inventory.html', 'cnc.html', 'admin.html',
+  'toi-uu-engine.js', 'sw.js', 'manifest.json', 'logo_an_binh.jpg', 'workshop_config.json'
+]);
+const PUBLIC_ROOT_DIRS = new Set(['css', 'js', 'admin', 'projects', 'inventory', 'cnc']);
 const clientDefaults = readClientJsDefaults();
 const SUPABASE_URL = (process.env.SUPABASE_URL || envVars.SUPABASE_URL || clientDefaults.url || '').trim();
 const SUPABASE_SECRET_KEY_RAW = (
@@ -238,7 +253,7 @@ async function processFusionPayload(fusionData) {
     try {
       const { data: foundRows } = await supabase
         .from('projects')
-        .select('id, name, is_locked, created_at, igs_files')
+        .select('id, name, is_locked, inventory_deducted_at, data, created_at, igs_files')
         .eq('is_trashed', false)
         .eq('is_draft', false)
         .ilike('name', projName)
@@ -253,11 +268,19 @@ async function processFusionPayload(fusionData) {
 
   let finalProjName = projName;
   let wasVersioned = false;
+  let versionReason = '';
   let isUpdatingExisting = Boolean(existingProj);
   const randSuffix = Math.random().toString(36).slice(2, 7);
 
-  // Bảo vệ khóa dự án: nếu dự án cùng tên đang bị khóa -> tự tạo bản phiên bản mới thay vì ghi đè!
-  if (existingProj && existingProj.is_locked) {
+  // Bảo vệ khóa dự án / đã xuất kho: nếu dự án cùng tên đang bị khóa hoặc đã xuất kho -> tự tạo bản phiên bản mới thay vì ghi đè!
+  const existingDispatched = Boolean(
+    existingProj && (
+      existingProj.inventory_deducted_at ||
+      (existingProj.data && (existingProj.data.inventoryDeductedAt || existingProj.data.inventory_deducted_at))
+    )
+  );
+  if (existingProj && (existingProj.is_locked || existingDispatched)) {
+    versionReason = existingProj.is_locked ? 'locked' : 'dispatched';
     let nextVer = 2;
     if (supabase) {
       try {
@@ -285,7 +308,7 @@ async function processFusionPayload(fusionData) {
     existingProj = null;
     isUpdatingExisting = false;
     wasVersioned = true;
-    console.log(`[FUSION 360] Dự án "${projName}" đang KHÓA -> Tự tạo bản mới "${finalProjName}"`);
+    console.log(`[FUSION 360] Dự án "${projName}" ${versionReason === 'locked' ? 'đang KHÓA' : 'ĐÃ XUẤT KHO'} -> Tự tạo bản mới "${finalProjName}"`);
   }
 
   const projectId = existingProj ? existingProj.id : `proj_f360_${Date.now()}_${randSuffix}`;
@@ -423,8 +446,9 @@ async function processFusionPayload(fusionData) {
     }
   };
 
+  const reasonText = versionReason === 'dispatched' ? 'đã xuất kho' : 'đang khóa';
   const projNotes = wasVersioned
-    ? `Tự động tạo phiên bản mới từ Fusion 360 vì bản gốc "${projName}" đang khóa (${newParts.length} mục, ${activeProfiles.length} loại hộp)`
+    ? `Tự động tạo phiên bản mới từ Fusion 360 vì bản gốc "${projName}" ${reasonText} (${newParts.length} mục, ${activeProfiles.length} loại hộp)`
     : `Tự động đồng bộ từ Fusion 360 (${newParts.length} mục, ${activeProfiles.length} loại hộp)`;
   const projectRecord = {
     id: projectId,
@@ -447,10 +471,12 @@ async function processFusionPayload(fusionData) {
   if (supabase) {
     // Upsert quy cách hộp mới vào bảng inventory
     if (activeProfiles.length) {
+      const stdLen = Number(fusionData.stock_length) || 6000;
       const invRows = activeProfiles.map(prof => ({
         profile_name: prof,
         category: classifyProfile(prof),
-        standard_length: fusionData.stock_length || 6000
+        standard_length: stdLen,
+        standard_length_mm: stdLen
       }));
       const { error: invErr } = await supabase
         .from('inventory')
@@ -526,6 +552,7 @@ async function processFusionPayload(fusionData) {
     supabaseSynced,
     igsUploadedCount,
     wasVersioned,
+    versionReason,
     orphansRemovedCount
   };
 }
@@ -606,10 +633,32 @@ const MIME_TYPES = {
   '.iges': 'application/octet-stream'
 };
 
-const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+function isLoopbackRequest(req) {
+  const addr = String((req && req.socket && req.socket.remoteAddress) || '');
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+}
+
+function applySafeCors(req, res) {
+  const origin = String((req && req.headers && req.headers.origin) || '').trim();
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id, Authorization, X-Fusion-Token');
+}
+
+function resolveUnderBase(baseDir, relPath) {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedFull = path.resolve(resolvedBase, relPath);
+  if (resolvedFull !== resolvedBase && !resolvedFull.startsWith(resolvedBase + path.sep)) {
+    return null;
+  }
+  return resolvedFull;
+}
+
+const server = http.createServer(async (req, res) => {
+  applySafeCors(req, res);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -617,8 +666,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  const pathname = decodeURIComponent(parsedUrl.pathname);
+  let parsedUrl;
+  let pathname;
+  try {
+    parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    pathname = decodeURIComponent(parsedUrl.pathname);
+  } catch (e) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('400 Bad Request');
+    return;
+  }
 
   // 1. Thông tin trạng thái cầu nối máy chủ cục bộ (/api/info)
   if (pathname === '/api/info' && req.method === 'GET') {
@@ -807,6 +864,14 @@ const server = http.createServer(async (req, res) => {
 
   // 2. Cầu nối nhận bản vẽ & file .IGS trực tiếp từ Autodesk Fusion 360 (/api/fusion-import)
   if (pathname === '/api/fusion-import' && req.method === 'POST') {
+    const tokenHdr = String((req.headers && req.headers['x-fusion-token']) || '').trim();
+    if (!isLoopbackRequest(req) && (!FUSION_BRIDGE_TOKEN || tokenHdr !== FUSION_BRIDGE_TOKEN)) {
+      sendJson(res, 403, {
+        success: false,
+        error: 'Forbidden: cầu nối /api/fusion-import chỉ nhận kết nối nội bộ (localhost) hoặc cần header X-Fusion-Token hợp lệ.'
+      });
+      return;
+    }
     try {
       const fusionData = await readJsonBody(req);
       const result = await processFusionPayload(fusionData);
@@ -828,9 +893,10 @@ const server = http.createServer(async (req, res) => {
         supabaseSynced: result.supabaseSynced,
         igsUploadedCount: result.igsUploadedCount,
         wasVersioned: Boolean(result.wasVersioned),
+        versionReason: result.versionReason || '',
         orphansRemovedCount: Number(result.orphansRemovedCount || 0),
         webUrl: 'https://xepphoi.cloud',
-        lanUrls: getLanAddresses()
+        lanUrls: HOST === '127.0.0.1' ? [] : getLanAddresses()
       }));
     } catch (err) {
       console.error('[FUSION 360] Lỗi import:', err);
@@ -861,7 +927,6 @@ const server = http.createServer(async (req, res) => {
       const asciiFileName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, '_');
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Access-Control-Allow-Origin': '*',
         'Content-Disposition': `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
       });
       fs.createReadStream(filePath).pipe(res);
@@ -873,7 +938,17 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 4. Phục vụ các file tĩnh & nhánh web con (/ , /projects, /inventory, /cnc, /admin, /js/...)
+  // 4. Phục vụ các file tĩnh an toàn theo allowlist (chặn tuyệt đối dotfile & thư mục nhạy cảm)
+  const rawSegments = pathname.split('/').filter(Boolean);
+  if (
+    pathname.includes('\0') ||
+    rawSegments.some(seg => seg.startsWith('.') || seg.includes('..'))
+  ) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('403 Forbidden');
+    return;
+  }
+
   let safePath = pathname === '/' ? '/index.html' : pathname;
   const cleanRouteMap = {
     '/admin': '/admin.html',
@@ -888,21 +963,60 @@ const server = http.createServer(async (req, res) => {
   if (cleanRouteMap[safePath]) {
     safePath = cleanRouteMap[safePath];
   }
-  let fullPath = path.join(ROOT_DIR, safePath);
 
-  if (!fullPath.startsWith(ROOT_DIR)) {
-    res.writeHead(403);
-    res.end('Forbidden');
+  const relPath = safePath.replace(/^\/+/, '');
+  const normLower = relPath.toLowerCase();
+  const topSeg = (normLower.split('/')[0] || '');
+
+  // Chặn mọi thư mục/file hệ thống nhạy cảm
+  if (
+    topSeg === 'database' ||
+    topSeg === 'scripts' ||
+    topSeg === 'node_modules' ||
+    topSeg === '__pycache__' ||
+    relPath === 'server.js' ||
+    relPath === 'package.json' ||
+    relPath === 'package-lock.json'
+  ) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('403 Forbidden');
     return;
   }
 
-  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
-    const indexPath = path.join(fullPath, 'index.html');
-    if (fs.existsSync(indexPath)) fullPath = indexPath;
+  const isAllowlistedPublic = PUBLIC_ROOT_FILES.has(relPath) || PUBLIC_ROOT_DIRS.has(topSeg);
+  if (!isAllowlistedPublic) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('404 - Không tìm thấy trang');
+    return;
   }
 
-  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+  let fullPath = null;
+  for (const baseDir of [DIST_DIR, ROOT_DIR]) {
+    let candidate = resolveUnderBase(baseDir, relPath);
+    if (!candidate) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('403 Forbidden');
+      return;
+    }
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      const indexCandidate = resolveUnderBase(baseDir, path.posix.join(relPath, 'index.html'));
+      if (indexCandidate && fs.existsSync(indexCandidate) && fs.statSync(indexCandidate).isFile()) {
+        candidate = indexCandidate;
+      }
+    }
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      fullPath = candidate;
+      break;
+    }
+  }
+
+  if (fullPath) {
     const ext = path.extname(fullPath).toLowerCase();
+    if (!STATIC_EXT_ALLOWLIST.has(ext)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('403 Forbidden');
+      return;
+    }
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
     res.writeHead(200, {
       'Content-Type': contentType,
@@ -915,15 +1029,19 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  const lanList = getLanAddresses();
+server.listen(PORT, HOST, () => {
+  const lanList = HOST === '127.0.0.1' || HOST === '::1' ? [] : getLanAddresses();
   console.log('====================================================================');
   console.log(' 🚀 FUSION 360 BRIDGE & LOCAL SERVER - CƠ KHÍ AN BÌNH');
   console.log('====================================================================');
-  console.log(` 💻 Truy cập cục bộ  : http://localhost:${PORT}`);
-  lanList.forEach(item => {
-    console.log(` 📱 Mạng LAN xưởng   : ${item.url} (${item.interface})`);
-  });
+  console.log(` 💻 Truy cập cục bộ  : http://127.0.0.1:${PORT} (Bind: ${HOST})`);
+  if (HOST === '127.0.0.1' || HOST === '::1') {
+    console.log(' 🛡️  Chế độ bảo mật   : Chỉ nhận kết nối nội bộ máy chủ xưởng (127.0.0.1)');
+  } else {
+    lanList.forEach(item => {
+      console.log(` 📱 Mạng LAN xưởng   : ${item.url} (${item.interface})`);
+    });
+  }
   console.log(` 🗄️  Supabase Cloud   : ${isSupabaseConfigured ? `Đã kết nối (${SUPABASE_URL})` : 'CHƯA CẤU HÌNH (cần điền SUPABASE_URL & KEY vào .env)'}`);
   console.log(` 🔐 Secret Key RLS   : ${hasSecretKey ? 'ĐÃ KÍCH HOẠT (Fusion 360 & Local Admin Bridge sẵn sàng)' : '⚠️ CHƯA CẤU HÌNH — hãy điền SUPABASE_SECRET_KEY=... vào file .env!'}`);
   console.log('====================================================================');

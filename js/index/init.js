@@ -137,6 +137,11 @@
         if (window.SupabaseDB) window.SupabaseDB.setLoading(false);
       }
 
+      // Gắn sự kiện nạp phôi IGS và Fusion 360 trước khi bootstrap (?open=igs)
+      if (typeof initIgsFusionEvents === "function") {
+        initIgsFusionEvents();
+      }
+
       if (isAuthed) {
         await bootstrapWorkspaceAfterAuth();
       }
@@ -473,7 +478,6 @@
       // Đồng bộ dữ liệu hoạt động tự động 100% trong nền (Realtime)
 
       // Header Top Action Buttons
-      if ($('btnProjectsManager')) $('btnProjectsManager').onclick = openProjectsManagerModal;
       if ($('btnOpenSaveModal')) $('btnOpenSaveModal').onclick = () => openSaveProjectModal();
 
       // Active Project Banner Buttons
@@ -532,11 +536,6 @@
             confirmSaveProjectForm(false);
           }
         };
-      }
-
-      // Gắn sự kiện nạp phôi IGS và Fusion 360
-      if (typeof initIgsFusionEvents === "function") {
-        initIgsFusionEvents();
       }
     });
 

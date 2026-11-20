@@ -384,6 +384,16 @@
         } catch (e) {}
       }
 
+      const clonedData = JSON.parse(JSON.stringify(src.data || {}));
+      delete clonedData.inventoryDeductedAt;
+      delete clonedData.inventory_deducted_at;
+      delete clonedData.inventoryDeductedBy;
+      delete clonedData.inventory_deducted_by;
+      delete clonedData.inventoryDeductedSnapshot;
+      delete clonedData.inventory_deducted_snapshot;
+      clonedData.offcutsDeducted = false;
+      clonedData.offcutsDeductedAt = null;
+
       const clone = {
         id: makeId('proj'),
         name: src.name + ' (Bản sao)',
@@ -393,9 +403,10 @@
         isTrashed: false,
         isDraft: false,
         source: src.source || 'web',
+        inventoryDeductedAt: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        data: JSON.parse(JSON.stringify(src.data || {})),
+        data: clonedData,
         igsFiles: JSON.parse(JSON.stringify(src.igsFiles || []))
       };
 
