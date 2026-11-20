@@ -55,12 +55,14 @@ def copy_db_files(target_dir, include_json=False):
 def copy_js_files(target_dir):
     src_js_dir = os.path.join(toiuu_phoi_dir, 'js')
     dst_js_dir = os.path.join(target_dir, 'js')
-    os.makedirs(dst_js_dir, exist_ok=True)
     if os.path.exists(src_js_dir):
-        for fn in os.listdir(src_js_dir):
-            s = os.path.join(src_js_dir, fn)
-            if os.path.isfile(s):
-                shutil.copy2(s, os.path.join(dst_js_dir, fn))
+        shutil.copytree(src_js_dir, dst_js_dir, dirs_exist_ok=True)
+
+def copy_css_files(target_dir):
+    src_css_dir = os.path.join(toiuu_phoi_dir, 'css')
+    dst_css_dir = os.path.join(target_dir, 'css')
+    if os.path.exists(src_css_dir):
+        shutil.copytree(src_css_dir, dst_css_dir, dirs_exist_ok=True)
 
 # 1. Đồng bộ script Python sang Fusion Script dir
 py_in_fusion = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
@@ -75,6 +77,7 @@ for f in all_web_assets:
 copy_branches_to(fusion_script_dir)
 copy_db_files(fusion_script_dir, include_json=True)
 copy_js_files(fusion_script_dir)
+copy_css_files(fusion_script_dir)
 print('Copied web assets to Fusion Script dir')
 
 # 3. Copy web assets to Fusion360/toiuu-phoi
@@ -85,6 +88,7 @@ for f in all_web_assets + [src_py]:
 copy_branches_to(fusion_workspace_dir)
 copy_db_files(fusion_workspace_dir, include_json=True)
 copy_js_files(fusion_workspace_dir)
+copy_css_files(fusion_workspace_dir)
 print('Copied web assets to Fusion360/toiuu-phoi')
 
 # 4. Copy web assets to dist directory for GitHub Pages deploy (tuyệt đối không copy workshop_db.json / .netlify)
@@ -98,6 +102,7 @@ for f in [src_html] + branch_htmls + [src_engine, src_logo, src_cfg, src_manifes
 copy_branches_to(dist_dir)
 copy_db_files(dist_dir, include_json=False)
 copy_js_files(dist_dir)
+copy_css_files(dist_dir)
 print('Copied web assets to dist dir')
 
 # 5. Update export folders on Desktop if they exist
@@ -114,6 +119,8 @@ for desktop_dir in candidate_dirs:
     if os.path.exists(desktop_dir):
         shutil.copy2(src_engine, os.path.join(desktop_dir, 'toi-uu-engine.js'))
         shutil.copy2(src_helper, os.path.join(desktop_dir, 'run_engine_helper.js'))
+        copy_js_files(desktop_dir)
+        copy_css_files(desktop_dir)
         
         json_path = os.path.join(desktop_dir, 'fusion_exported_project.json')
         html_content = base_html

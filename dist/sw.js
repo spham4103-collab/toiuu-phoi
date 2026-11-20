@@ -1,9 +1,9 @@
 /**
  * Service Worker - PWA for Xếp Phôi CNC An Bình
- * Cache Version 15 - Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
- * Network-First cho HTML, /toi-uu-engine.js và toàn bộ /js/ với fallback đúng từng nhánh URL
+ * Cache Version 16 - Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
+ * Network-First cho HTML, /toi-uu-engine.js, /css/ và toàn bộ /js/ với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v15';
+const CACHE_NAME = 'toiuu-phoi-pwa-v16';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -14,6 +14,19 @@ const STATIC_ASSETS = [
   '/toi-uu-engine.js',
   '/js/supabaseClient.js',
   '/js/workshopExport.js',
+  '/css/index.css',
+  '/css/print-a4.css',
+  '/js/index/state.js',
+  '/js/index/profile-memory.js',
+  '/js/index/warehouse-dispatch.js',
+  '/js/index/project-manager.js',
+  '/js/index/project-modals.js',
+  '/js/index/cloud-sync.js',
+  '/js/index/nesting-ui.js',
+  '/js/index/export-import.js',
+  '/js/index/auth-roles.js',
+  '/js/index/igs-fusion-loader.js',
+  '/js/index/init.js',
   '/logo_an_binh.jpg',
   '/workshop_config.json',
   '/manifest.json'
@@ -61,11 +74,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Network-First cho trang HTML chính, /toi-uu-engine.js và toàn bộ /js/ để luôn nhận code mới nhất
+  // Network-First cho trang HTML chính, /toi-uu-engine.js, /css/ và toàn bộ /js/ để luôn nhận code mới nhất
   if (
     req.mode === 'navigate' ||
     req.destination === 'document' ||
     url.pathname === '/toi-uu-engine.js' ||
+    url.pathname.startsWith('/css/') ||
     url.pathname.startsWith('/js/')
   ) {
     event.respondWith(

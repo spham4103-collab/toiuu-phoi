@@ -286,10 +286,32 @@ function checkInlineScripts() {
         throw new Error(`Syntax error in inline <script> #${count} of ${rel}: ${err.message}`);
       }
     }
-    assert(count >= 1, `${rel} should have at least 1 inline script`);
+    // index.html has its scripts modularized into js/index/
+    if (rel !== 'index.html') {
+      assert(count >= 1, `${rel} should have at least 1 inline script`);
+    }
+
+    // Verify all local script src references exist
+    const srcRegex = /<script[^>]+src=["']([^"']+)["']/gi;
+    let srcMatch;
+    while ((srcMatch = srcRegex.exec(html)) !== null) {
+      const src = srcMatch[1];
+      if (src.startsWith('http://') || src.startsWith('https://')) continue;
+      const cleanSrc = src.startsWith('/') ? src.slice(1) : src;
+      const targetP = path.join(ROOT, cleanSrc);
+      assert(fs.existsSync(targetP), `Script src "${src}" in ${rel} not found at ${targetP}`);
+    }
   }
 
-  for (const jsRel of ['js/supabaseClient.js', 'js/workshopExport.js', 'toi-uu-engine.js', 'sw.js']) {
+  const jsFiles = ['js/supabaseClient.js', 'js/workshopExport.js', 'toi-uu-engine.js', 'sw.js'];
+  const indexJsDir = path.join(ROOT, 'js/index');
+  if (fs.existsSync(indexJsDir)) {
+    for (const f of fs.readdirSync(indexJsDir)) {
+      if (f.endsWith('.js')) jsFiles.push('js/index/' + f);
+    }
+  }
+
+  for (const jsRel of jsFiles) {
     execSync(`node --check "${path.join(ROOT, jsRel)}"`, { stdio: 'pipe' });
   }
 }
