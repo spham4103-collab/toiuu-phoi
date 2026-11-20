@@ -81,6 +81,11 @@ def sync_fusion_appdata():
         shutil.copy2(src_py, py_in_fusion)
         print('Copied Xuat_IGS_Va_Toi_Uu_Phoi.py to Fusion Script dir')
 
+    for extra_fn in ('Xuat_IGS_Va_Toi_Uu_Phoi.manifest', 'HUONG_DAN_CAI_DAT.txt'):
+        src_extra = os.path.join(toiuu_phoi_dir, extra_fn)
+        if os.path.exists(src_extra):
+            shutil.copy2(src_extra, os.path.join(fusion_script_dir, extra_fn))
+
     for f in all_web_assets:
         if os.path.exists(f):
             shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
@@ -95,10 +100,49 @@ def sync_fusion_appdata():
         print('Removed stale run_engine_helper.js from Fusion Script dir')
 
     print('Copied web assets to Fusion Script dir:', fusion_script_dir)
-    for fn in ('Xuat_IGS_Va_Toi_Uu_Phoi.py', 'run_engine_helper.cjs', 'toi-uu-engine.js'):
+    for fn in ('Xuat_IGS_Va_Toi_Uu_Phoi.py', 'Xuat_IGS_Va_Toi_Uu_Phoi.manifest', 'run_engine_helper.cjs', 'toi-uu-engine.js'):
         h_repo = sha256_short(os.path.join(toiuu_phoi_dir, fn))
         h_app = sha256_short(os.path.join(fusion_script_dir, fn))
         print(f'  [SHA256] {fn}: repo={h_repo} appData={h_app} match={h_repo == h_app}')
+
+def pack_fusion_portable():
+    zip_target = os.path.join(toiuu_phoi_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi_Portable.zip')
+    required_files = [
+        'Xuat_IGS_Va_Toi_Uu_Phoi.py',
+        'Xuat_IGS_Va_Toi_Uu_Phoi.manifest',
+        'run_engine_helper.cjs',
+        'toi-uu-engine.js',
+        'HUONG_DAN_CAI_DAT.txt'
+    ]
+
+    missing = [fn for fn in required_files if not os.path.exists(os.path.join(toiuu_phoi_dir, fn))]
+    if missing:
+        print(f"❌ Lỗi: Thiếu file khi đóng gói Fusion Portable: {missing}")
+        sys.exit(1)
+
+    with zipfile.ZipFile(zip_target, 'w', zipfile.ZIP_DEFLATED) as z:
+        for fn in required_files:
+            fp = os.path.join(toiuu_phoi_dir, fn)
+            # Thêm vào trong folder Xuat_IGS_Va_Toi_Uu_Phoi/ để giải nén trực tiếp vào thư mục Scripts của Fusion
+            z.write(fp, f"Xuat_IGS_Va_Toi_Uu_Phoi/{fn}")
+
+    # Quét bảo mật kiểm tra nội dung file nén
+    with zipfile.ZipFile(zip_target, 'r') as z:
+        namelist = z.namelist()
+        for bad in ('.env', 'auth_session.json', 'workshop_db.json', 'sb_secret'):
+            if any(bad in n for n in namelist):
+                os.remove(zip_target)
+                print(f"❌ Lỗi bảo mật: phát hiện file cấm '{bad}' trong file nén!")
+                sys.exit(1)
+
+    fsize_kb = os.path.getsize(zip_target) / 1024
+    print(f"✅ ĐÃ ĐÓNG GÓI THÀNH CÔNG: {zip_target} ({fsize_kb:.1f} KB)")
+    print(f"   Bao gồm {len(required_files)} file sạch: {', '.join(required_files)}")
+    print(f"   Cấu trúc giải nén chuẩn Fusion: Xuat_IGS_Va_Toi_Uu_Phoi/*")
+
+if '--pack-fusion' in sys.argv[1:]:
+    pack_fusion_portable()
+    sys.exit(0)
 
 if '--fusion-only' in sys.argv[1:]:
     sync_fusion_appdata()

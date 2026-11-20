@@ -9,6 +9,336 @@ _CoreCommandEventBase = getattr(getattr(adsk, 'core', None), 'CommandEventHandle
 _CoreCommandCreatedBase = getattr(getattr(adsk, 'core', None), 'CommandCreatedEventHandler', object)
 import traceback
 import os, json, re, math, webbrowser, shutil, subprocess, tempfile
+import urllib.request, urllib.error, urllib.parse, time
+
+# ============================================================================
+# CẤU HÌNH KẾT NỐI SUPABASE CLOUD (XEPPHOI.CLOUD)
+# Chỉ chứa Public Anon Key an toàn - Tuyệt đối không lưu SUPABASE_SECRET_KEY!
+# ============================================================================
+SUPABASE_URL = "https://tfvwijzrgnbznwwvfwww.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo"
+EDGE_FUNCTION_URL = f"{SUPABASE_URL}/functions/v1/fusion-import"
+STORAGE_API_URL = f"{SUPABASE_URL}/storage/v1/object/igs-files"
+AUTH_API_URL = f"{SUPABASE_URL}/auth/v1"
+INTERNAL_EMAIL_DOMAIN = "anbinh.local"
+STORAGE_BUCKET = "igs-files"
+
+def get_auth_session_file():
+    appdata = os.environ.get('APPDATA') or os.path.expanduser('~')
+    folder = os.path.join(appdata, 'XepPhoiCloud')
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, 'auth_session.json')
+
+def load_auth_session():
+    sf = get_auth_session_file()
+    if not os.path.exists(sf):
+        return None
+    try:
+        with open(sf, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict) and data.get('access_token'):
+            return data
+    except Exception:
+        pass
+    return None
+
+def save_auth_session(data):
+    sf = get_auth_session_file()
+    try:
+        with open(sf, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def refresh_auth_session(refresh_token):
+    if not refresh_token:
+        return None
+    url = f"{AUTH_API_URL}/token?grant_type=refresh_token"
+    body = json.dumps({'refresh_token': refresh_token}).encode('utf-8')
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json; charset=utf-8'
+        },
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data.get('access_token'):
+                session = {
+                    'access_token': data['access_token'],
+                    'refresh_token': data.get('refresh_token') or refresh_token,
+                    'user': data.get('user', {}),
+                    'expires_at': int(time.time()) + int(data.get('expires_in', 3600)),
+                    'saved_at': int(time.time())
+                }
+                save_auth_session(session)
+                return session
+    except Exception:
+        pass
+    return None
+
+def login_engineer(username, password):
+    clean_user = (username or '').strip().lower()
+    if '@' not in clean_user:
+        email = f"{clean_user}@{INTERNAL_EMAIL_DOMAIN}"
+    else:
+        email = clean_user
+
+    url = f"{AUTH_API_URL}/token?grant_type=password"
+    body = json.dumps({'email': email, 'password': password}).encode('utf-8')
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json; charset=utf-8'
+        },
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data.get('access_token'):
+                session = {
+                    'access_token': data['access_token'],
+                    'refresh_token': data.get('refresh_token'),
+                    'user': data.get('user', {}),
+                    'expires_at': int(time.time()) + int(data.get('expires_in', 3600)),
+                    'saved_at': int(time.time())
+                }
+                save_auth_session(session)
+                return session, None
+            return None, 'Phản hồi Auth không chứa access_token.'
+    except urllib.error.HTTPError as http_err:
+        try:
+            err_json = json.loads(http_err.read().decode('utf-8', errors='replace'))
+            msg = err_json.get('msg') or err_json.get('error_description') or err_json.get('error') or str(http_err)
+            return None, msg
+        except Exception:
+            return None, f"HTTP {http_err.code}: {http_err.reason}"
+    except Exception as e:
+        return None, str(e)
+
+def ensure_engineer_session(ui):
+    session = load_auth_session()
+    if session and session.get('access_token'):
+        exp = session.get('expires_at') or 0
+        if exp < (time.time() + 120):
+            refreshed = refresh_auth_session(session.get('refresh_token'))
+            if refreshed:
+                return refreshed, None
+        else:
+            return session, None
+
+    # Chưa có phiên hoặc hết hạn: hiện hộp thoại đăng nhập 1 lần
+    if ui:
+        res_user = ui.inputBox(
+            "Nhập tên đăng nhập kỹ sư (ví dụ: kt1, admin):",
+            "Đăng Nhập Kỹ Sư - An Bình xepphoi.cloud",
+            "kt1"
+        )
+        if not res_user or not res_user[0] or res_user[1]:
+            return None, "Người dùng đã hủy đăng nhập."
+
+        username_input = res_user[0].strip()
+        if not username_input:
+            return None, "Chưa nhập tài khoản kỹ sư."
+
+        res_pass = ui.inputBox(
+            f"Nhập mật khẩu cho tài khoản '@{username_input}':",
+            "Đăng Nhập Kỹ Sư - An Bình xepphoi.cloud",
+            ""
+        )
+        if not res_pass or not res_pass[0] or res_pass[1]:
+            return None, "Người dùng đã hủy nhập mật khẩu."
+
+        password_input = res_pass[0].strip()
+        if not password_input:
+            return None, "Chưa nhập mật khẩu."
+
+        new_session, err = login_engineer(username_input, password_input)
+        if new_session:
+            return new_session, None
+        return None, f"Đăng nhập thất bại: {err}"
+    return None, "Giao diện UI không khả dụng để đăng nhập."
+
+def upload_file_to_supabase_storage(local_path, storage_path, access_token):
+    if not os.path.exists(local_path):
+        return False, 0, f"File không tồn tại: {local_path}"
+
+    file_size = os.path.getsize(local_path)
+    with open(local_path, 'rb') as f:
+        file_bytes = f.read()
+
+    url = f"{STORAGE_API_URL}/{storage_path}"
+    req = urllib.request.Request(
+        url,
+        data=file_bytes,
+        headers={
+            'Authorization': f"Bearer {access_token}",
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/octet-stream',
+            'x-upsert': 'true'
+        },
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            if resp.status in (200, 201):
+                return True, file_size, None
+            return False, file_size, f"Storage HTTP {resp.status}"
+    except urllib.error.HTTPError as http_err:
+        try:
+            err_body = http_err.read().decode('utf-8', errors='replace')
+            return False, file_size, f"Storage HTTP {http_err.code}: {err_body}"
+        except Exception:
+            return False, file_size, f"Storage HTTP {http_err.code}: {http_err.reason}"
+    except Exception as e:
+        return False, file_size, str(e)
+
+def sync_project_to_edge_function(payload_data, export_dir, session):
+    access_token = session['access_token']
+
+    # BƯỚC 1: Gọi Edge Function action: 'init'
+    parts_meta = [
+        {
+            'name': p['name'],
+            'profile': p['profile'],
+            'length': p['length'],
+            'qty': p['qty'],
+            'style': p['style'],
+            'mat': p['mat'],
+            'filename': os.path.basename(p.get('igs_file') or f"{p['name']}.igs")
+        }
+        for p in payload_data.get('parts', [])
+    ]
+    bars_meta = [
+        {
+            'name': b['name'],
+            'profile': b['profile'],
+            'letter': b['letter'],
+            'count': b.get('bar_count', b.get('count', 1)),
+            'cuts_count': b.get('cuts_count', len(b.get('pieces', []))),
+            'pieces': b.get('pieces', []),
+            'filename': os.path.basename(b.get('igs_file') or f"{b['name']}.igs")
+        }
+        for b in payload_data.get('nested_bars', [])
+    ]
+
+    init_payload = {
+        'action': 'init',
+        'project_name': payload_data.get('project_name'),
+        'source_document': payload_data.get('source_document'),
+        'scope_mode': payload_data.get('scope_mode'),
+        'export_dir': export_dir.replace('\\', '/'),
+        'stock_length': payload_data.get('stock_length', 6000),
+        'clamp_tail': payload_data.get('clamp_tail', 80),
+        'kerf': payload_data.get('kerf', 0),
+        'parts': parts_meta,
+        'nested_bars': bars_meta
+    }
+
+    init_req = urllib.request.Request(
+        EDGE_FUNCTION_URL,
+        data=json.dumps(init_payload, ensure_ascii=False).encode('utf-8'),
+        headers={
+            'Authorization': f"Bearer {access_token}",
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json; charset=utf-8'
+        },
+        method='POST'
+    )
+
+    try:
+        with urllib.request.urlopen(init_req, timeout=30) as resp:
+            init_res = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as http_err:
+        try:
+            err_body = http_err.read().decode('utf-8', errors='replace')
+            err_json = json.loads(err_body)
+            return None, err_json.get('error') or err_body
+        except Exception:
+            return None, f"Edge Function HTTP {http_err.code}: {http_err.reason}"
+    except Exception as e:
+        return None, f"Lỗi kết nối Edge Function (init): {e}"
+
+    if not init_res.get('success'):
+        return None, init_res.get('error') or "Edge Function init thất bại."
+
+    project_id = init_res['projectId']
+    project_name = init_res['projectName']
+    upload_targets = init_res.get('uploadTargets', [])
+
+    # BƯỚC 1.5: Upload trực tiếp file .IGS lên Supabase Storage qua REST API
+    uploaded_files = []
+    for target in upload_targets:
+        local_fn = target.get('localFileName')
+        local_path = os.path.join(export_dir, local_fn)
+        if not os.path.exists(local_path):
+            continue
+
+        storage_path = target.get('storagePath')
+        ok, fsize, _err = upload_file_to_supabase_storage(local_path, storage_path, access_token)
+        if ok:
+            uploaded_files.append({
+                'kind': target.get('kind'),
+                'index': target.get('index'),
+                'letter': target.get('letter'),
+                'name': target.get('name'),
+                'profile': target.get('profile', ''),
+                'localFileName': local_fn,
+                'storagePath': storage_path,
+                'sizeBytes': fsize
+            })
+
+    # BƯỚC 2: Gọi Edge Function action: 'complete'
+    complete_payload = {
+        'action': 'complete',
+        'projectId': project_id,
+        'projectName': project_name,
+        'wasVersioned': init_res.get('wasVersioned', False),
+        'versionReason': init_res.get('versionReason', ''),
+        'isUpdatingExisting': init_res.get('isUpdatingExisting', False),
+        'export_dir': export_dir.replace('\\', '/'),
+        'stock_length': payload_data.get('stock_length', 6000),
+        'clamp_tail': payload_data.get('clamp_tail', 80),
+        'kerf': payload_data.get('kerf', 0),
+        'parts': parts_meta,
+        'nested_bars': bars_meta,
+        'uploadedFiles': uploaded_files
+    }
+
+    complete_req = urllib.request.Request(
+        EDGE_FUNCTION_URL,
+        data=json.dumps(complete_payload, ensure_ascii=False).encode('utf-8'),
+        headers={
+            'Authorization': f"Bearer {access_token}",
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json; charset=utf-8'
+        },
+        method='POST'
+    )
+
+    try:
+        with urllib.request.urlopen(complete_req, timeout=30) as resp:
+            complete_res = json.loads(resp.read().decode('utf-8'))
+            if complete_res.get('success'):
+                return complete_res, None
+            return None, complete_res.get('error') or "Edge Function complete thất bại."
+    except urllib.error.HTTPError as http_err:
+        try:
+            err_body = http_err.read().decode('utf-8', errors='replace')
+            err_json = json.loads(err_body)
+            return None, err_json.get('error') or err_body
+        except Exception:
+            return None, f"Edge Function HTTP {http_err.code}: {http_err.reason}"
+    except Exception as e:
+        return None, f"Lỗi kết nối Edge Function (complete): {e}"
+
 
 def get_end_normals(body, l_cm):
     """
@@ -393,12 +723,14 @@ def solve_bars_with_engine(parts_by_prof, engine_dirs, stock_len=6000.0, clamp_t
         with open(in_path, 'w', encoding='utf-8') as f_in:
             json.dump(payload, f_in, ensure_ascii=False)
 
-        node_cmd = 'node'
-        if not shutil.which('node'):
+        node_cmd = shutil.which('node')
+        if not node_cmd:
             for c_node in [r'C:\Program Files\nodejs\node.exe', r'C:\Program Files (x86)\nodejs\node.exe']:
                 if os.path.exists(c_node):
                     node_cmd = c_node
                     break
+        if not node_cmd:
+            return None
 
         startupinfo = None
         if os.name == 'nt':
@@ -1539,91 +1871,104 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
             except Exception:
                 pass
 
-        import urllib.request
-        import urllib.error
-        import urllib.parse
-        import time
-
-        server_url = "http://localhost:3000"
-        lan_url_display = server_url
+        cloud_synced = False
         pushed_to_server = False
-        supabase_synced = False
         igs_uploaded_count = 0
         was_versioned = False
         version_reason = ""
         synced_project_id = ""
         synced_project_name = chosen_project_name
         sync_error_msg = ""
+        engineer_info = ""
 
-        def is_server_alive():
-            try:
-                req = urllib.request.Request(f"{server_url}/api/info", method='GET')
-                with urllib.request.urlopen(req, timeout=1.5) as resp:
-                    return resp.status == 200
-            except Exception:
-                return False
+        # ƯU TIÊN 1: Đẩy thẳng lên Supabase Edge Function & Storage Cloud (24/7 không cần server.js)
+        session, auth_err = ensure_engineer_session(ui)
+        if session and session.get('access_token'):
+            edge_res, edge_err = sync_project_to_edge_function(payload_data, export_dir, session)
+            if edge_res and edge_res.get('success'):
+                cloud_synced = True
+                synced_project_id = str(edge_res.get('projectId') or '')
+                synced_project_name = str(edge_res.get('projectName') or chosen_project_name)
+                igs_uploaded_count = int(edge_res.get('uploadedIgsCount') or 0)
+                was_versioned = bool(edge_res.get('wasVersioned'))
+                version_reason = str(edge_res.get('versionReason') or '')
+                u_meta = session.get('user', {}).get('user_metadata', {})
+                u_name = u_meta.get('username') or session.get('user', {}).get('email', '').split('@')[0]
+                engineer_info = f"@{u_name}" if u_name else "@engineer"
+            else:
+                sync_error_msg = edge_err or "Lỗi không xác định khi gọi Edge Function."
+        else:
+            sync_error_msg = auth_err or "Chưa đăng nhập tài khoản kỹ sư."
 
-        if not is_server_alive():
-            node_exe = shutil.which('node')
-            if not node_exe:
-                for c_node in [r'C:\Program Files\nodejs\node.exe', r'C:\Program Files (x86)\nodejs\node.exe']:
-                    if os.path.exists(c_node):
-                        node_exe = c_node
-                        break
-            server_js = 'C:/Users/Administrator/toiuu-phoi/server.js'
-            if not os.path.exists(server_js) and found_web_dir:
-                server_js = os.path.join(found_web_dir, 'server.js')
-
-            if node_exe and os.path.exists(server_js):
+        # ƯU TIÊN 2: Fallback về server.js nội bộ (localhost:3000) nếu Cloud chưa đồng bộ thành công
+        server_url = "http://localhost:3000"
+        lan_url_display = server_url
+        if not cloud_synced:
+            def is_server_alive():
                 try:
-                    creationflags = 0x08000000 if os.name == 'nt' else 0
-                    subprocess.Popen(
-                        [node_exe, server_js],
-                        cwd=os.path.dirname(server_js),
-                        creationflags=creationflags,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
-                    for _ in range(16):
-                        time.sleep(0.3)
-                        if is_server_alive():
-                            break
-                except Exception as start_err:
-                    sync_error_msg = f"Không tự khởi động được server.js: {start_err}"
+                    req = urllib.request.Request(f"{server_url}/api/info", method='GET')
+                    with urllib.request.urlopen(req, timeout=1.5) as resp:
+                        return resp.status == 200
+                except Exception:
+                    return False
 
-        post_bytes = json.dumps(payload_data, ensure_ascii=False).encode('utf-8')
-        try:
-            req = urllib.request.Request(
-                f"{server_url}/api/fusion-import",
-                data=post_bytes,
-                headers={'Content-Type': 'application/json; charset=utf-8'},
-                method='POST'
-            )
-            with urllib.request.urlopen(req, timeout=25) as resp:
-                resp_data = json.loads(resp.read().decode('utf-8'))
-                if resp_data.get('success'):
-                    pushed_to_server = True
-                    supabase_synced = bool(resp_data.get('supabaseSynced'))
-                    igs_uploaded_count = int(resp_data.get('igsUploadedCount') or 0)
-                    was_versioned = bool(resp_data.get('wasVersioned'))
-                    version_reason = str(resp_data.get('versionReason') or '')
-                    synced_project_id = str(resp_data.get('projectId') or '')
-                    synced_project_name = str(resp_data.get('projectName') or chosen_project_name)
-                    lan_list = resp_data.get('lanUrls') or []
-                    if len(lan_list) > 0 and lan_list[0].get('url'):
-                        lan_url_display = lan_list[0]['url']
-                else:
-                    sync_error_msg = str(resp_data.get('error') or 'Server trả về lỗi không xác định')
-        except urllib.error.HTTPError as http_err:
-            try:
-                err_body = http_err.read().decode('utf-8', errors='replace')
-                err_json = json.loads(err_body)
-                sync_error_msg = str(err_json.get('error') or err_body)
-            except Exception:
-                sync_error_msg = f"HTTP {http_err.code}: {http_err.reason}"
-        except Exception as req_err:
-            if not sync_error_msg:
-                sync_error_msg = str(req_err)
+            if not is_server_alive():
+                node_exe = shutil.which('node')
+                if not node_exe:
+                    for c_node in [r'C:\Program Files\nodejs\node.exe', r'C:\Program Files (x86)\nodejs\node.exe']:
+                        if os.path.exists(c_node):
+                            node_exe = c_node
+                            break
+                server_js = 'C:/Users/Administrator/toiuu-phoi/server.js'
+                if not os.path.exists(server_js) and found_web_dir:
+                    server_js = os.path.join(found_web_dir, 'server.js')
+
+                if node_exe and os.path.exists(server_js):
+                    try:
+                        creationflags = 0x08000000 if os.name == 'nt' else 0
+                        subprocess.Popen(
+                            [node_exe, server_js],
+                            cwd=os.path.dirname(server_js),
+                            creationflags=creationflags,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                        for _ in range(16):
+                            time.sleep(0.3)
+                            if is_server_alive():
+                                break
+                    except Exception as start_err:
+                        pass
+
+            if is_server_alive():
+                post_bytes = json.dumps(payload_data, ensure_ascii=False).encode('utf-8')
+                try:
+                    req = urllib.request.Request(
+                        f"{server_url}/api/fusion-import",
+                        data=post_bytes,
+                        headers={'Content-Type': 'application/json; charset=utf-8'},
+                        method='POST'
+                    )
+                    with urllib.request.urlopen(req, timeout=25) as resp:
+                        resp_data = json.loads(resp.read().decode('utf-8'))
+                        if resp_data.get('success'):
+                            pushed_to_server = True
+                            cloud_synced = bool(resp_data.get('supabaseSynced'))
+                            igs_uploaded_count = int(resp_data.get('igsUploadedCount') or 0)
+                            was_versioned = bool(resp_data.get('wasVersioned'))
+                            version_reason = str(resp_data.get('versionReason') or '')
+                            synced_project_id = str(resp_data.get('projectId') or '')
+                            synced_project_name = str(resp_data.get('projectName') or chosen_project_name)
+                            lan_list = resp_data.get('lanUrls') or []
+                            if len(lan_list) > 0 and lan_list[0].get('url'):
+                                lan_url_display = lan_list[0]['url']
+                            sync_error_msg = ""
+                        else:
+                            if not sync_error_msg:
+                                sync_error_msg = str(resp_data.get('error') or 'Server cục bộ báo lỗi')
+                except Exception as loc_err:
+                    if not sync_error_msg:
+                        sync_error_msg = f"Lỗi cầu nối cục bộ: {loc_err}"
 
         permanent_custom_url = "https://xepphoi.cloud"
         if synced_project_id:
@@ -1636,7 +1981,7 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
             project_cnc_url = f"{permanent_custom_url}/cnc/"
             local_proj_url = server_url
 
-        if supabase_synced:
+        if cloud_synced:
             target_web_url = project_web_url
         elif pushed_to_server:
             target_web_url = local_proj_url
@@ -1646,18 +1991,24 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
         webbrowser.open(target_web_url)
 
         prof_names_str = ", ".join(parts_by_prof.keys())
-        db_status_text = "✅ ĐÃ ĐỒNG BỘ SUPABASE" if supabase_synced else (
-            "⚠️ CHỈ LƯU CỤC BỘ (Chưa đẩy lên Supabase)" if pushed_to_server else "❌ CHƯA KẾT NỐI ĐƯỢC SERVER CẦU NỐI (localhost:3000)"
-        )
-        header_icon = "✓" if supabase_synced else "⚠️"
+        if cloud_synced:
+            db_status_text = f"✅ ĐÃ ĐỒNG BỘ CLOUD 24/7 (Edge Function) {(' · Kỹ sư: ' + engineer_info) if engineer_info else ''}"
+            header_icon = "✓"
+        elif pushed_to_server:
+            db_status_text = "⚠️ CHỈ LƯU CỤC BỘ (server.js localhost:3000)"
+            header_icon = "⚠️"
+        else:
+            db_status_text = "❌ CHƯA ĐỒNG BỘ ĐƯỢC LÊN CLOUD HOẶC SERVER"
+            header_icon = "❌"
+
         msg = f"{header_icon} KẾT QUẢ XUẤT BẢN VẼ FUSION 360: {synced_project_name}\n\n"
-        msg += f"• Trạng thái Supabase DB : {db_status_text}\n"
-        msg += f"• Upload .IGS Storage    : {igs_uploaded_count} file (bucket 'igs-files')\n"
+        msg += f"• Trạng thái Supabase    : {db_status_text}\n"
+        msg += f"• Upload .IGS Storage    : {igs_uploaded_count} file 3D (bucket '{STORAGE_BUCKET}')\n"
         if was_versioned:
             v_lbl = "đã xuất kho" if version_reason == "dispatched" else "đang khóa"
             msg += f"• Bảo vệ khóa/xuất kho   : 🔒 Bản \"{chosen_project_name}\" {v_lbl} → Tự tạo bản mới \"{synced_project_name}\"\n"
-        if sync_error_msg and not supabase_synced:
-            msg += f"• Chi tiết lỗi           : {sync_error_msg}\n"
+        if sync_error_msg and not cloud_synced:
+            msg += f"• Chi tiết lỗi kết nối   : {sync_error_msg}\n"
         msg += f"• Các loại hộp phát hiện ({len(parts_by_prof)} loại): {prof_names_str}\n"
         msg += f"• Tổng số chi tiết xuất  : {total_tubes_count} thanh\n"
         msg += f"• Đã lọc bỏ tự động      : {len(hidden_skipped)} ẩn/Suppress · {len(non_tube_skipped)} phụ kiện/tấm\n\n"
@@ -1671,7 +2022,7 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
             msg += f"   • Mạng LAN     : {lan_url_display}\n"
         msg += f"\n📂 Thư mục lưu file .IGS cục bộ: {export_dir}"
 
-        ui.messageBox(msg, 'An Bình - Đồng Bộ Supabase & Xuất IGS')
+        ui.messageBox(msg, 'An Bình - Đồng Bộ Supabase Cloud & Xuất IGS')
     finally:
         # Khôi phục lại 100% bóng đèn ẩn/hiện nguyên bản kể cả khi gặp lỗi hoặc hủy giữa chừng
         restore_visibility_state(vis_snapshot)

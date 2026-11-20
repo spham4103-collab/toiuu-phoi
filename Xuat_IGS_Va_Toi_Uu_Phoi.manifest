@@ -1,0 +1,10 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "script",
+  "author": "An Bình",
+  "description": {
+    "": "Tự động bóc tách thép hộp, xuất file .IGS cho máy cắt ống laser và chuyển sang Web Tối Ưu Xếp Phôi An Bình"
+  },
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}

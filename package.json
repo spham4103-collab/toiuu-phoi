@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "sync:fusion": "python sync_all.py --fusion-only",
+    "pack:fusion": "python sync_all.py --pack-fusion",
     "migrate:supabase": "node scripts/migrate_to_supabase.js",
     "setup:auth": "node scripts/setup_auth_users.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",

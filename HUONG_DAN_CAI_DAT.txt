@@ -1,0 +1,45 @@
+================================================================================
+ HƯỚNG DẪN CÀI ĐẶT SCRIPT FUSION 360 - XUẤT 3D IGS & TỐI ƯU PHÔI (xepphoi.cloud)
+ CƠ KHÍ AN BÌNH - HỆ THỐNG QUẢN LÝ XẾP PHÔI 1D CLOUD 24/7
+================================================================================
+
+Bộ công cụ này cho phép kỹ sư xuất tự động bản vẽ khung giàn, bóc tách ống hộp,
+tạo sơ đồ ghép 6m tự động và đẩy thẳng lên Cloud (xepphoi.cloud) mà không cần
+bật máy chủ xưởng hay cài đặt môi trường phức tạp.
+
+--------------------------------------------------------------------------------
+★ 3 BƯỚC CÀI ĐẶT DỄ DÀNG (CHỈ MẤT 1 PHÚT):
+--------------------------------------------------------------------------------
+
+BƯỚC 1: Mở thư mục Scripts của Autodesk Fusion 360
+  • Mở Autodesk Fusion 360 trên máy tính kỹ sư.
+  • Nhấn tổ hợp phím tắt: Shift + S (hoặc vào menu UTILITIES -> Scripts and Add-Ins).
+  • Trong tab "Scripts", tại mục "My Scripts", click chuột phải -> chọn "Open File Location".
+    (Đường dẫn thường là: %APPDATA%\Autodesk\Autodesk Fusion 360\API\Scripts)
+
+BƯỚC 2: Giải nén bộ công cụ
+  • Tạo một thư mục con tên là: Xuat_IGS_Va_Toi_Uu_Phoi
+  • Giải nén toàn bộ các file trong gói này vào thư mục vừa tạo.
+  • Thư mục sau khi giải nén sẽ gồm:
+      - Xuat_IGS_Va_Toi_Uu_Phoi.py       (Script chính)
+      - Xuat_IGS_Va_Toi_Uu_Phoi.manifest (Định nghĩa Add-In Fusion)
+      - run_engine_helper.cjs           (Cầu nối giải thuật cục bộ)
+      - toi-uu-engine.js                (Lõi tối ưu cắt phôi An Bình)
+      - HUONG_DAN_CAI_DAT.txt           (Hướng dẫn này)
+
+BƯỚC 3: Chạy và Đăng nhập lần đầu
+  • Quay lại Fusion 360, bạn sẽ thấy script "Xuat_IGS_Va_Toi_Uu_Phoi" xuất hiện trong danh sách "My Scripts".
+  • Chọn script và nhấn nút "Run".
+  • Hộp thoại đăng nhập kỹ sư sẽ hiện lên trong lần chạy đầu tiên:
+      - Tài khoản : Nhập tên kỹ sư (ví dụ: kt1, kt2, admin). Hệ thống tự nhận diện @anbinh.local.
+      - Mật khẩu  : Nhập mật khẩu tài khoản xưởng được cấp.
+  • Đăng nhập thành công 1 lần duy nhất! Hệ thống tự lưu token an toàn trên máy (%APPDATA%\XepPhoiCloud)
+    và tự gia hạn ngầm ở mọi lần xuất sau.
+
+--------------------------------------------------------------------------------
+★ LƯU Ý KHI SỬ DỤNG:
+--------------------------------------------------------------------------------
+1. Chọn Component mẹ (cụm lắp ráp) hoặc các thanh hộp cụ thể trước khi bấm Run để chỉ xuất đúng phạm vi mong muốn.
+2. Bản vẽ và file 3D .IGS được đẩy trực tiếp lên Cloud xepphoi.cloud 24/7. Thợ xưởng quét mã QR hoặc mở màn hình CNC là có thể cắt ngay lập tức!
+3. Nếu máy kỹ sư chưa cài Node.js, script vẫn tự động chạy bằng lõi giải thuật Python dự phòng tích hợp sẵn mà không bị gián đoạn.
+================================================================================
