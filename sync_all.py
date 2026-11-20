@@ -1,6 +1,7 @@
-import shutil, os, json, re, zipfile
+import shutil, os, json, re, zipfile, sys, hashlib
 
-fusion_script_dir = r'C:\Users\Administrator\AppData\Roaming\Autodesk\Autodesk Fusion 360\API\Scripts\Xuat_IGS_Va_Toi_Uu_Phoi'
+appdata_dir = os.environ.get('APPDATA') or r'C:\Users\Administrator\AppData\Roaming'
+fusion_script_dir = os.path.join(appdata_dir, r'Autodesk\Autodesk Fusion 360\API\Scripts\Xuat_IGS_Va_Toi_Uu_Phoi')
 toiuu_phoi_dir = r'C:\Users\Administrator\toiuu-phoi'
 fusion_workspace_dir = r'C:\Users\Administrator\Fusion360\toiuu-phoi'
 dist_dir = os.path.join(toiuu_phoi_dir, 'dist')
@@ -19,14 +20,23 @@ src_sw = os.path.join(toiuu_phoi_dir, 'sw.js')
 
 all_web_assets = [src_html] + branch_htmls + [src_engine, src_helper, src_logo, src_cfg, src_server, src_manifest, src_sw]
 
-# 0. Đồng bộ <branch>.html -> <branch>/index.html để hỗ trợ cả URL sạch (/projects/, /cnc/...)
-for b in sub_branches:
-    b_src = os.path.join(toiuu_phoi_dir, b + '.html')
-    if os.path.exists(b_src):
-        b_dir = os.path.join(toiuu_phoi_dir, b)
-        os.makedirs(b_dir, exist_ok=True)
-        shutil.copy2(b_src, os.path.join(b_dir, 'index.html'))
-print('Synced clean-URL sub-directories:', ', '.join(sub_branches))
+def sha256_short(fp):
+    if not os.path.isfile(fp):
+        return None
+    h = hashlib.sha256()
+    with open(fp, 'rb') as f:
+        for chunk in iter(lambda: f.read(65536), b''):
+            h.update(chunk)
+    return h.hexdigest()[:12]
+
+def sync_clean_subdirs():
+    for b in sub_branches:
+        b_src = os.path.join(toiuu_phoi_dir, b + '.html')
+        if os.path.exists(b_src):
+            b_dir = os.path.join(toiuu_phoi_dir, b)
+            os.makedirs(b_dir, exist_ok=True)
+            shutil.copy2(b_src, os.path.join(b_dir, 'index.html'))
+    print('Synced clean-URL sub-directories:', ', '.join(sub_branches))
 
 def copy_branches_to(target_dir):
     for b in sub_branches:
@@ -64,21 +74,40 @@ def copy_css_files(target_dir):
     if os.path.exists(src_css_dir):
         shutil.copytree(src_css_dir, dst_css_dir, dirs_exist_ok=True)
 
-# 1. Đồng bộ script Python sang Fusion Script dir
-py_in_fusion = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
-if os.path.exists(src_py):
-    shutil.copy2(src_py, py_in_fusion)
-    print('Copied Xuat_IGS_Va_Toi_Uu_Phoi.py to Fusion Script dir')
+def sync_fusion_appdata():
+    os.makedirs(fusion_script_dir, exist_ok=True)
+    py_in_fusion = os.path.join(fusion_script_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
+    if os.path.exists(src_py):
+        shutil.copy2(src_py, py_in_fusion)
+        print('Copied Xuat_IGS_Va_Toi_Uu_Phoi.py to Fusion Script dir')
 
-# 2. Copy web assets to Fusion Script dir
-for f in all_web_assets:
-    if os.path.exists(f):
-        shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
-copy_branches_to(fusion_script_dir)
-copy_db_files(fusion_script_dir, include_json=True)
-copy_js_files(fusion_script_dir)
-copy_css_files(fusion_script_dir)
-print('Copied web assets to Fusion Script dir')
+    for f in all_web_assets:
+        if os.path.exists(f):
+            shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
+    copy_branches_to(fusion_script_dir)
+    copy_db_files(fusion_script_dir, include_json=True)
+    copy_js_files(fusion_script_dir)
+    copy_css_files(fusion_script_dir)
+
+    stale_helper = os.path.join(fusion_script_dir, 'run_engine_helper.js')
+    if os.path.exists(stale_helper):
+        os.remove(stale_helper)
+        print('Removed stale run_engine_helper.js from Fusion Script dir')
+
+    print('Copied web assets to Fusion Script dir:', fusion_script_dir)
+    for fn in ('Xuat_IGS_Va_Toi_Uu_Phoi.py', 'run_engine_helper.cjs', 'toi-uu-engine.js'):
+        h_repo = sha256_short(os.path.join(toiuu_phoi_dir, fn))
+        h_app = sha256_short(os.path.join(fusion_script_dir, fn))
+        print(f'  [SHA256] {fn}: repo={h_repo} appData={h_app} match={h_repo == h_app}')
+
+if '--fusion-only' in sys.argv[1:]:
+    sync_fusion_appdata()
+    print('Fusion 360 AppData synchronization completed!')
+    sys.exit(0)
+
+# 0 & 1-2. Đồng bộ clean-URL & Fusion Script AppData
+sync_clean_subdirs()
+sync_fusion_appdata()
 
 # 3. Copy web assets to Fusion360/toiuu-phoi
 os.makedirs(fusion_workspace_dir, exist_ok=True)
