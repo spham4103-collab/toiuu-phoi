@@ -154,6 +154,15 @@
 .vouch-approved { background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0; }
 .vouch-cancelled { background: #FEE2E2; color: #B91C1C; border: 1px solid #FECACA; }
 
+/* Ẩn đơn giá & báo cáo tài chính theo phân quyền */
+body.hide-prices .price-only {
+  display: none !important;
+}
+
+body.hide-reports-nav .reports-nav-link {
+  display: none !important;
+}
+
 /* Vùng in chứng từ A4/A5 */
 #voucherPrintArea {
   display: none;

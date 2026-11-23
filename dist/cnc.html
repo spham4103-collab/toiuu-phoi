@@ -198,6 +198,7 @@
         <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
         <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
         <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo Cáo</a>
         <a href="/cnc" class="subnav-link active">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
@@ -489,6 +490,10 @@
         window.SupabaseDB.clearConnectionError();
         if (user) {
           applyLoggedInUserUI(user);
+          if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+            await window.SharedUI.loadWmsSettings();
+            window.SharedUI.applyPriceVisibilityUI(user);
+          }
           await loadWorkshopData();
           initRealtime();
           if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
@@ -1237,7 +1242,24 @@
         if (created && !stockOffcuts.some(o => o.id === created.id)) {
           stockOffcuts.unshift(created);
         }
-        if (created && window.SharedUI && typeof window.SharedUI.canCreateVouchers === 'function' && window.SharedUI.canCreateVouchers(currentUser)) {
+        let voucherCreated = false;
+        if (window.SupabaseDB && typeof window.SupabaseDB.submitCncOffcutReturn === 'function') {
+          try {
+            await window.SupabaseDB.submitCncOffcutReturn({
+              projectId: activeProjectId,
+              profile: prof,
+              lengthMm: cleanLen,
+              qty: qty,
+              rackLocation: '',
+              note: `Đề-xê CNC từ ${barKey.replace('__', ' - ')}`
+            });
+            voucherCreated = true;
+            if (window.SharedUI) window.SharedUI.refreshPendingVouchersBadge();
+          } catch (rpcErr) {
+            console.warn('submitCncOffcutReturn fallback:', rpcErr);
+          }
+        }
+        if (!voucherCreated && created && window.SharedUI && typeof window.SharedUI.canCreateVouchers === 'function' && window.SharedUI.canCreateVouchers(currentUser)) {
           try {
             await window.SupabaseDB.createWarehouseVoucher({
               voucherType: 'RETURN',

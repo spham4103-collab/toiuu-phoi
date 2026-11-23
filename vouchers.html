@@ -149,6 +149,7 @@
         <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
         <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
         <a href="/vouchers" class="subnav-link active">🧾 Phiếu Nhập / Xuất</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo Cáo</a>
         <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
@@ -226,7 +227,7 @@
           <div class="kpi-sub">Đã ghi sổ cái nguyên tử</div>
         </div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card price-only">
         <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">💰</div>
         <div>
           <div class="kpi-val" id="kpiVouchMoneyIn">0 đ</div>
@@ -386,8 +387,8 @@
                 <th style="width:125px;">Nhóm &amp; ĐVT</th>
                 <th class="r" style="width:95px;">Dài/Khổ (mm)</th>
                 <th class="r" style="width:95px;">Số lượng *</th>
-                <th class="r" style="width:120px;">Đơn giá (đ)</th>
-                <th class="r" style="width:125px;">Thành tiền</th>
+                <th class="r price-only" style="width:120px;">Đơn giá (đ)</th>
+                <th class="r price-only" style="width:125px;">Thành tiền</th>
                 <th>Ghi chú dòng</th>
                 <th class="r" style="width:50px;">Xóa</th>
               </tr>
@@ -395,7 +396,7 @@
             <tbody id="voucherItemsTableBody"></tbody>
           </table>
         </div>
-        <div style="text-align:right; margin-top:10px; font-size:15px; font-weight:800; color:var(--dark);">
+        <div class="price-only" style="text-align:right; margin-top:10px; font-size:15px; font-weight:800; color:var(--dark);">
           Tổng cộng giá trị phiếu: <span id="lblVoucherTotalAmount" style="color:var(--p);">0 đ</span>
         </div>
       </div>
@@ -580,6 +581,10 @@
         const user = await window.SupabaseDB.getCurrentAuthUser();
         if (user) {
           applyLoggedInUserUI(user);
+          if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+            await window.SharedUI.loadWmsSettings();
+            window.SharedUI.applyPriceVisibilityUI(user);
+          }
           await loadAllData();
           return;
         }
@@ -605,6 +610,10 @@
         $('loginErr').style.display = 'none';
         $('inpLoginPass').value = '';
         applyLoggedInUserUI(user);
+        if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+          await window.SharedUI.loadWmsSettings();
+          window.SharedUI.applyPriceVisibilityUI(user);
+        }
         await loadAllData();
         showToast('🎉 Đăng nhập thành công!');
       } catch (err) {
@@ -759,7 +768,7 @@
               ${v.attachmentUrl ? '<div style="margin-top:3px;"><span class="pill" style="background:#EFF6FF;color:#1D4ED8;">📷 Có ảnh chứng từ</span></div>' : ''}
             </td>
             <td class="r">
-              <div><b>${itemCount} dòng</b> · <strong style="color:var(--p);">${totalAmt > 0 ? numVN(totalAmt, 0) + ' đ' : '0 đ'}</strong></div>
+              <div><b>${itemCount} dòng</b><span class="price-only"> · <strong style="color:var(--p);">${totalAmt > 0 ? numVN(totalAmt, 0) + ' đ' : '0 đ'}</strong></span></div>
               <div style="font-size:11.5px; color:#64748B; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-left:auto;">${escapeHtml(firstItems)}</div>
             </td>
             <td><span class="vouch-status ${sm.cls}">${sm.label}</span></td>
@@ -850,8 +859,8 @@
             </td>
             <td class="r"><input type="number" class="vi-len" data-idx="${idx}" value="${it.lengthMm || ''}" min="1" step="10" style="text-align:right;"></td>
             <td class="r"><input type="number" class="vi-qty" data-idx="${idx}" value="${it.qty}" min="0.01" step="0.01" style="text-align:right; font-weight:800;"></td>
-            <td class="r"><input type="number" class="vi-price" data-idx="${idx}" value="${it.unitPrice || 0}" min="0" step="1000" ${vType === 'OUT' ? 'title="Tự chốt theo giá vốn BQ khi Thủ kho duyệt"' : ''} style="text-align:right;"></td>
-            <td class="r" style="font-weight:700; color:var(--dark);"><span class="vi-total" data-idx="${idx}">${numVN(lineTotal, 0)} đ</span></td>
+            <td class="r price-only"><input type="number" class="vi-price" data-idx="${idx}" value="${it.unitPrice || 0}" min="0" step="1000" ${vType === 'OUT' ? 'title="Tự chốt theo giá vốn BQ khi Thủ kho duyệt"' : ''} style="text-align:right;"></td>
+            <td class="r price-only" style="font-weight:700; color:var(--dark);"><span class="vi-total" data-idx="${idx}">${numVN(lineTotal, 0)} đ</span></td>
             <td><input type="text" class="vi-note" data-idx="${idx}" value="${escapeHtml(it.note || '')}" placeholder="Ghi chú..."></td>
             <td class="r"><button type="button" class="btn btn-sm btn-danger btn-del-vi" data-idx="${idx}">✕</button></td>
           </tr>
@@ -1055,8 +1064,8 @@
                 <th>Vật tư / Quy cách</th>
                 <th>Nhóm</th>
                 <th class="r">Số lượng</th>
-                <th class="r">Đơn giá (đ)</th>
-                <th class="r">Thành tiền</th>
+                <th class="r price-only">Đơn giá (đ)</th>
+                <th class="r price-only">Thành tiền</th>
                 <th>Ghi chú</th>
               </tr>
             </thead>
@@ -1069,8 +1078,8 @@
                     <td><strong>${escapeHtml(it.profile)}</strong>${it.lengthMm ? ` <span style="font-size:11.5px;color:#64748B;">(${numVN(it.lengthMm)}mm)</span>` : ''}</td>
                     <td><span class="grp-badge ${gm.badgeClass}">${gm.icon} ${escapeHtml(gm.shortLabel)}</span></td>
                     <td class="r"><b>${numVN(it.qty)} ${escapeHtml(it.unit)}</b></td>
-                    <td class="r">${numVN(it.unitPrice, 0)} đ</td>
-                    <td class="r"><b>${numVN(it.totalAmount || (it.qty * it.unitPrice), 0)} đ</b></td>
+                    <td class="r price-only">${numVN(it.unitPrice, 0)} đ</td>
+                    <td class="r price-only"><b>${numVN(it.totalAmount || (it.qty * it.unitPrice), 0)} đ</b></td>
                     <td>${escapeHtml(it.note || '')}</td>
                   </tr>
                 `;
@@ -1078,7 +1087,7 @@
             </tbody>
           </table>
         </div>
-        <div style="text-align:right; margin-top:10px; font-size:15px; font-weight:800; color:var(--dark);">
+        <div class="price-only" style="text-align:right; margin-top:10px; font-size:15px; font-weight:800; color:var(--dark);">
           Tổng cộng: <span style="color:var(--p);">${numVN(totalAmt, 0)} đ</span>
         </div>
         ${attHtml}
@@ -1115,12 +1124,15 @@
       if (!v) return;
       const tm = getVoucherTypeMeta(v.voucherType);
       const totalAmt = getVoucherTotal(v);
+      const canSeePrices = window.SharedUI && typeof window.SharedUI.canViewPrices === 'function'
+        ? window.SharedUI.canViewPrices(currentUser)
+        : false;
       const createdDate = v.createdAt ? new Date(v.createdAt).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN');
 
       $('voucherPrintArea').innerHTML = `
         <div class="vp-header">
           <div>
-            <div class="vp-company">CÔNG TY TNHH CƠ KHÍ AN BÌNH</div>
+            <div class="vp-company">CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH</div>
             <div style="font-size:11px; color:#475569;">Hệ thống Quản lý Kho Vật Tư &amp; Xếp Phôi CNC · xepphoi.cloud</div>
           </div>
           <div style="text-align:right; font-size:11px;">
@@ -1144,8 +1156,7 @@
               <th class="c" style="width:55px;">ĐVT</th>
               <th class="r" style="width:70px;">Dài (mm)</th>
               <th class="r" style="width:70px;">Số lượng</th>
-              <th class="r" style="width:95px;">Đơn giá (đ)</th>
-              <th class="r" style="width:105px;">Thành tiền (đ)</th>
+              ${canSeePrices ? '<th class="r" style="width:95px;">Đơn giá (đ)</th><th class="r" style="width:105px;">Thành tiền (đ)</th>' : ''}
               <th>Ghi chú</th>
             </tr>
           </thead>
@@ -1157,16 +1168,17 @@
                 <td class="c">${escapeHtml(it.unit)}</td>
                 <td class="r">${it.lengthMm ? numVN(it.lengthMm) : '—'}</td>
                 <td class="r"><b>${numVN(it.qty)}</b></td>
-                <td class="r">${numVN(it.unitPrice, 0)}</td>
-                <td class="r"><b>${numVN(it.totalAmount || (it.qty * it.unitPrice), 0)}</b></td>
+                ${canSeePrices ? `<td class="r">${numVN(it.unitPrice, 0)}</td><td class="r"><b>${numVN(it.totalAmount || (it.qty * it.unitPrice), 0)}</b></td>` : ''}
                 <td>${escapeHtml(it.note || '')}</td>
               </tr>
             `).join('')}
-            <tr>
-              <td colspan="6" class="r"><b>TỔNG CỘNG GIÁ TRỊ PHIẾU</b></td>
-              <td class="r"><b>${numVN(totalAmt, 0)} đ</b></td>
-              <td></td>
-            </tr>
+            ${canSeePrices ? `
+              <tr>
+                <td colspan="6" class="r"><b>TỔNG CỘNG GIÁ TRỊ PHIẾU</b></td>
+                <td class="r"><b>${numVN(totalAmt, 0)} đ</b></td>
+                <td></td>
+              </tr>
+            ` : ''}
           </tbody>
         </table>
         <div class="vp-signs">
@@ -1201,19 +1213,32 @@
     function renderSuppliersTable() {
       const tbody = $('suppliersTableBody');
       if (!tbody) return;
+      const canManageSup = window.SharedUI && typeof window.SharedUI.canManageSuppliers === 'function'
+        ? window.SharedUI.canManageSuppliers(currentUser)
+        : Boolean(currentUser && (currentUser.role === 'admin' || currentUser.role === 'accountant'));
+      if ($('btnAddSupplier') && $('btnAddSupplier').parentElement) {
+        $('btnAddSupplier').parentElement.style.display = canManageSup ? 'grid' : 'none';
+      }
       if (!suppliersList.length) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748B;">Chưa có nhà cung cấp nào.</td></tr>';
         return;
       }
-      tbody.innerHTML = suppliersList.map(s => `
+      tbody.innerHTML = suppliersList.map(s => {
+        const supPnks = vouchersList.filter(v => v.voucherType === 'IN' && v.status === 'approved' && v.supplierId === s.id);
+        const supTotal = supPnks.reduce((sum, v) => sum + getVoucherTotal(v), 0);
+        return `
         <tr>
           <td style="font-family:monospace; font-weight:700;">${escapeHtml(s.code || '—')}</td>
-          <td><strong>${escapeHtml(s.name)}</strong></td>
+          <td>
+            <strong>${escapeHtml(s.name)}</strong>
+            <div style="font-size:11.5px; color:#0F766E;">${supPnks.length} phiếu PNK${supTotal > 0 ? `<span class="price-only"> · ${numVN(supTotal, 0)} đ</span>` : ''}</div>
+          </td>
           <td>${escapeHtml(s.phone || '—')}</td>
           <td style="font-size:12px;">${escapeHtml(s.taxCode ? 'MST: ' + s.taxCode + ' · ' : '')}${escapeHtml(s.address || '')}</td>
-          <td class="r"><button type="button" class="btn btn-sm btn-danger btn-del-sup" data-id="${escapeHtml(s.id)}">✕</button></td>
+          <td class="r">${canManageSup ? `<button type="button" class="btn btn-sm btn-danger btn-del-sup" data-id="${escapeHtml(s.id)}">✕</button>` : '—'}</td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
 
       tbody.querySelectorAll('.btn-del-sup').forEach(b => {
         b.onclick = async () => {
@@ -1264,6 +1289,7 @@
         const qId = params.get('id');
         const qNew = params.get('new');
         const qInv = params.get('inv');
+        const qFrom = params.get('from');
         if (qId) {
           const found = vouchersList.find(x => x.id === qId);
           if (found && typeof openViewVoucherModal === 'function') {
@@ -1273,6 +1299,22 @@
         }
         if (qNew && ['IN', 'OUT', 'RETURN', 'ADJUST'].includes(qNew.toUpperCase())) {
           openNewVoucherModal(qNew.toUpperCase());
+          if (qFrom === 'reorder') {
+            try {
+              const raw = sessionStorage.getItem('xp_reorder_draft_pnk');
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                sessionStorage.removeItem('xp_reorder_draft_pnk');
+                if (Array.isArray(parsed) && parsed.length) {
+                  draftItems = parsed;
+                  $('selVoucherInitStatus').value = 'draft';
+                  $('inpVoucherNote').value = 'Đề nghị nhập mua bổ sung vật tư dưới định mức';
+                  renderVoucherItemsRows();
+                }
+              }
+            } catch (e) {}
+            return;
+          }
           if (qInv) {
             const inv = inventoryItems.find(x => String(x.id) === String(qInv));
             if (inv) {

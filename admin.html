@@ -793,6 +793,8 @@
 
         <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
 
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports">📊 Báo Cáo</a>
+
         <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
 
         <a href="/admin" class="subnav-link subnav-admin active">⚙️ Quản Trị &amp; Nhân Sự</a>
@@ -1147,6 +1149,30 @@
 
       <div>
 
+        <!-- Cấu hình quyền xem Đơn giá & Báo cáo WMS -->
+
+        <section class="card" style="margin-bottom:20px; border:1.5px solid #99F6E4; background:linear-gradient(135deg,#F0FDFA,#FFFFFF);">
+
+          <div class="card-title-row">
+
+            <h2>💰 Cấu Hình Quyền Xem Đơn Giá &amp; Báo Cáo Giá Vốn</h2>
+
+          </div>
+
+          <p class="card-sub">Mặc định chỉ Admin &amp; Kế toán xem được đơn giá, giá vốn và báo cáo tài chính. Thủ kho &amp; Thợ CNC luôn bị ẩn giá.</p>
+
+          <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-size:13.5px; font-weight:700; color:#0F172A; margin-bottom:12px;">
+
+            <input type="checkbox" id="chkAllowEngineerViewPrice" style="width:18px; height:18px; margin-top:2px;">
+
+            <span>Cho phép <strong>Kỹ sư (engineer)</strong> xem đơn giá, giá vốn bình quân &amp; mở trang Báo cáo (<code>/reports</code>)</span>
+
+          </label>
+
+          <button type="button" class="btn btn-p btn-sm" id="btnSaveWmsPriceSetting">💾 Lưu cấu hình quyền xem giá</button>
+
+        </section>
+
         <!-- Đổi Mật Khẩu Admin -->
 
         <section class="card" style="margin-bottom:20px;">
@@ -1350,6 +1376,12 @@
         }
 
         await loadUsersFromSupabase();
+        if (window.SupabaseDB && typeof window.SupabaseDB.getWmsSettings === 'function') {
+          const wmsSet = await window.SupabaseDB.getWmsSettings();
+          if ($('chkAllowEngineerViewPrice')) {
+            $('chkAllowEngineerViewPrice').checked = Boolean(wmsSet && wmsSet.allow_engineer_view_price === true);
+          }
+        }
         initRealtime();
         refreshAdminBridgeStatus();
 
@@ -1774,6 +1806,22 @@
       $('btnExportFullBackup').onclick = handleBackupDataJson;
       $('inpRestoreBackupFile').onchange = handleRestoreBackupFile;
       $('btnResetDefaultAccounts').onclick = handleResetDefaultAccounts;
+      if ($('btnSaveWmsPriceSetting')) {
+        $('btnSaveWmsPriceSetting').onclick = async () => {
+          const allow = Boolean($('chkAllowEngineerViewPrice') && $('chkAllowEngineerViewPrice').checked);
+          window.SupabaseDB.setLoading(true, 'Đang lưu cấu hình quyền xem giá...');
+          try {
+            await window.SupabaseDB.setWmsSetting('allow_engineer_view_price', allow, currentUser ? currentUser.username : 'admin');
+            showToast(allow
+              ? '✅ Đã BẬT quyền xem đơn giá & /reports cho Kỹ sư!'
+              : '🔒 Đã TẮT quyền xem đơn giá đối với Kỹ sư!');
+          } catch (err) {
+            showToast('❌ Lỗi lưu cấu hình (hãy kiểm tra đã chạy SQL Đợt 6 chưa): ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
+        };
+      }
 
       $('btnScrollToAddUser').onclick = () => {
         $('cardAddUser').scrollIntoView({ behavior: 'smooth' });

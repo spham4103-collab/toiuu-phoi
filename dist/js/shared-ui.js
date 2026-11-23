@@ -94,6 +94,7 @@
     { key: 'projects', href: '/projects', label: '📁 Quản Lý Dự Án', badgeId: 'subnavProjBadge' },
     { key: 'inventory', href: '/inventory', label: '📦 Kho Phôi & Quy Cách', badgeId: '' },
     { key: 'vouchers', href: '/vouchers', label: '🧾 Phiếu Nhập / Xuất', badgeId: 'subnavVouchersBadge' },
+    { key: 'reports', href: '/reports', label: '📊 Báo Cáo', cls: 'reports-nav-link', id: 'navLinkReports', priceOnly: true },
     { key: 'cnc', href: '/cnc', label: '⚡ Sơ Đồ & Tiến Độ CNC', badgeId: '' },
     { key: 'admin', href: '/admin', label: '⚙️ Quản Trị & Nhân Sự', adminOnly: true, cls: 'subnav-admin', id: 'navLinkAdmin' }
   ];
@@ -121,6 +122,54 @@
   function canApproveVouchers(user) {
     var r = user && user.role;
     return r === 'admin' || r === 'warehouse';
+  }
+
+  function canManageSuppliers(user) {
+    var r = user && user.role;
+    return r === 'admin' || r === 'accountant';
+  }
+
+  var _wmsSettingsCache = { allow_engineer_view_price: false };
+
+  async function loadWmsSettings() {
+    if (!global.SupabaseDB || typeof global.SupabaseDB.getWmsSettings !== 'function') {
+      return _wmsSettingsCache;
+    }
+    try {
+      var res = await global.SupabaseDB.getWmsSettings();
+      if (res && typeof res === 'object') {
+        _wmsSettingsCache = Object.assign({ allow_engineer_view_price: false }, res);
+      }
+    } catch (e) {}
+    return _wmsSettingsCache;
+  }
+
+  function getCachedWmsSettings() {
+    return _wmsSettingsCache;
+  }
+
+  function canViewPrices(user, settingsOverride) {
+    var r = user && user.role;
+    if (r === 'admin' || r === 'accountant') return true;
+    if (r === 'engineer') {
+      var s = settingsOverride || _wmsSettingsCache || {};
+      return Boolean(s.allow_engineer_view_price === true || s.allow_engineer_view_price === 'true');
+    }
+    return false;
+  }
+
+  function applyPriceVisibilityUI(user, settingsOverride) {
+    var allowed = canViewPrices(user, settingsOverride);
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.classList.toggle('hide-prices', !allowed);
+      document.body.classList.toggle('hide-reports-nav', !allowed);
+      var navRep = document.getElementById('navLinkReports');
+      if (navRep) navRep.style.display = allowed ? 'inline-flex' : 'none';
+      document.querySelectorAll('.reports-nav-link').forEach(function (el) {
+        el.style.display = allowed ? 'inline-flex' : 'none';
+      });
+    }
+    return allowed;
   }
 
   function renderSubnav(container, activeKey, opts) {
@@ -248,6 +297,11 @@
     canManageInventory: canManageInventory,
     canCreateVouchers: canCreateVouchers,
     canApproveVouchers: canApproveVouchers,
+    canManageSuppliers: canManageSuppliers,
+    loadWmsSettings: loadWmsSettings,
+    getCachedWmsSettings: getCachedWmsSettings,
+    canViewPrices: canViewPrices,
+    applyPriceVisibilityUI: applyPriceVisibilityUI,
     renderSubnav: renderSubnav,
     compressImageFile: compressImageFile,
     formatMoneyVN: formatMoneyVN,

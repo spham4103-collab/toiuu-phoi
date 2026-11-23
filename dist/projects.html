@@ -339,6 +339,7 @@
         </a>
         <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
         <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo Cáo</a>
         <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
@@ -546,6 +547,10 @@
         window.SupabaseDB.clearConnectionError();
         if (user) {
           applyLoggedInUserUI(user);
+          if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+            await window.SharedUI.loadWmsSettings();
+            window.SharedUI.applyPriceVisibilityUI(user);
+          }
           await loadData();
           return;
         }

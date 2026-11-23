@@ -85,7 +85,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 const STATIC_EXT_ALLOWLIST = new Set(['.html', '.js', '.css', '.json', '.jpg', '.jpeg', '.png', '.svg', '.ico', '.webp']);
 const PUBLIC_ROOT_FILES = new Set([
-  'index.html', 'projects.html', 'inventory.html', 'vouchers.html', 'cnc.html', 'admin.html',
+  'index.html', 'projects.html', 'inventory.html', 'vouchers.html', 'reports.html', 'cnc.html', 'admin.html',
   'toi-uu-engine.js', 'sw.js', 'manifest.json', 'logo_an_binh.jpg', 'workshop_config.json'
 ]);
 const PUBLIC_ROOT_DIRS = new Set(['css', 'js']);
@@ -967,6 +967,8 @@ const server = http.createServer(async (req, res) => {
     '/inventory/': '/inventory.html',
     '/vouchers': '/vouchers.html',
     '/vouchers/': '/vouchers.html',
+    '/reports': '/reports.html',
+    '/reports/': '/reports.html',
     '/cnc': '/cnc.html',
     '/cnc/': '/cnc.html'
   };

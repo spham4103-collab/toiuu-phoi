@@ -2659,6 +2659,84 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   // =========================================================================
+  // WMS GIAI ĐOẠN 3: CẤU HÌNH HỆ THỐNG, BÁO CÁO NXT, GIÁ VỐN DỰ ÁN & CNC RETURN
+  // =========================================================================
+  async function getWmsSettings() {
+    var fallback = { allow_engineer_view_price: false };
+    if (!isConfigured()) return fallback;
+    try {
+      var client = getClient();
+      var res = await client.from('wms_settings').select('key, value');
+      if (res && res.error) return fallback;
+      var out = Object.assign({}, fallback);
+      (res.data || []).forEach(function (row) {
+        if (row && row.key) out[row.key] = row.value;
+      });
+      return out;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  async function setWmsSetting(key, value, updatedBy) {
+    if (!key) throw new Error('Thiếu khóa cấu hình wms_settings');
+    var client = getClient();
+    var res = await client
+      .from('wms_settings')
+      .upsert({
+        key: String(key),
+        value: value,
+        updated_at: new Date().toISOString(),
+        updated_by: String(updatedBy || '').trim()
+      }, { onConflict: 'key' })
+      .select()
+      .single();
+    return throwIfError(res, 'Không lưu được cấu hình WMS');
+  }
+
+  async function getNxtReport(fromIso, toIso, materialGroup) {
+    var client = getClient();
+    var res = await client.rpc('get_nxt_report', {
+      p_from: fromIso || null,
+      p_to: toIso || null,
+      p_material_group: materialGroup && materialGroup !== 'ALL' ? String(materialGroup) : null
+    });
+    return throwIfError(res, 'Không tải được báo cáo Nhập - Xuất - Tồn') || [];
+  }
+
+  async function getProjectCostReport(fromIso, toIso) {
+    var client = getClient();
+    var res = await client.rpc('get_project_cost_report', {
+      p_from: fromIso || null,
+      p_to: toIso || null
+    });
+    return throwIfError(res, 'Không tải được báo cáo Giá vốn Dự án') || [];
+  }
+
+  async function getSupplierPurchaseSummary(fromIso, toIso) {
+    var client = getClient();
+    var res = await client.rpc('get_supplier_purchase_summary', {
+      p_from: fromIso || null,
+      p_to: toIso || null
+    });
+    return throwIfError(res, 'Không tải được tổng hợp Nhà cung cấp') || [];
+  }
+
+  async function submitCncOffcutReturn(opts) {
+    var o = opts || {};
+    var client = getClient();
+    var res = await client.rpc('submit_cnc_offcut_return', {
+      p_project_id: String(o.projectId || ''),
+      p_profile: String(o.profile || '').trim(),
+      p_length_mm: Number(o.lengthMm) || 0,
+      p_qty: Number(o.qty) || 1,
+      p_rack_location: String(o.rackLocation || '').trim(),
+      p_note: String(o.note || '').trim()
+    });
+    return throwIfError(res, 'Không tạo được phiếu hoàn đề-xê CNC');
+  }
+
+  // =========================================================================
   // PRIVATE STORAGE BUCKET: igs-files (ĐỌC QUA JWT AUTHENTICATED)
   // =========================================================================
   function extractIgsStoragePath(pathOrUrl) {
@@ -3049,6 +3127,12 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     createProjectOutVoucher: createProjectOutVoucher,
     uploadVoucherAttachment: uploadVoucherAttachment,
     getVoucherAttachmentSignedUrl: getVoucherAttachmentSignedUrl,
+    getWmsSettings: getWmsSettings,
+    setWmsSetting: setWmsSetting,
+    getNxtReport: getNxtReport,
+    getProjectCostReport: getProjectCostReport,
+    getSupplierPurchaseSummary: getSupplierPurchaseSummary,
+    submitCncOffcutReturn: submitCncOffcutReturn,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,

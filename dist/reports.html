@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p === '/index.html' || p.endsWith('/index.html')) {
+        history.replaceState(null, '', (p.slice(0, -10) || '/') + location.search + location.hash);
+      } else if (p.endsWith('.html')) {
+        history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+      }
+    }
+  </script>
+  <title>Báo Cáo Nhập Xuất Tồn &amp; Giá Vốn Dự Án · An Bình</title>
+  <meta name="description" content="Báo cáo Nhập - Xuất - Tồn (NXT), Giá vốn nguyên vật liệu theo Dự án và Tổng hợp Nhà cung cấp Cơ Khí An Bình.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+  <style>
+    :root {
+      --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
+      --edge: #D5E9E5; --p: #0F766E; --p-h: #0D635D; --p3: #CCFBF1;
+      --cta: #C2410C; --cta-h: #9A3412; --dark: #0B3B38; --bad: #B4232C;
+      --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --r: 14px; --gut: 28px;
+      --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F8FAFC; color: #1E293B; font: 400 15px/1.55 var(--font); min-height: 100vh; }
+    a { color: var(--p); text-decoration: none; }
+    h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
+    h1 { font-size: clamp(20px, 2.8vw, 26px); }
+    h2 { font-size: 18px; }
+    .wrap { max-width: 1340px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
+
+    .top { position: sticky; top: 0; z-index: 40; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--edge); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 10px 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--dark); flex-shrink: 0; white-space: nowrap; }
+    .brand-logo-img { height: 40px; max-width: 130px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+    .brand-divider { width: 1.5px; height: 26px; background: var(--edge); margin: 0 2px; flex-shrink: 0; }
+    .brand-text-col { display: flex; flex-direction: column; justify-content: center; white-space: nowrap; }
+    .brand-main-title { font-weight: 800; font-size: 15.5px; color: var(--dark); line-height: 1.15; }
+    .brand-sub-title { font-weight: 600; color: var(--p); font-size: 11.5px; line-height: 1.15; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid transparent; font: 700 13px/1.2 var(--font); cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
+    .btn-p { background: var(--p); color: #fff; }
+    .btn-p:hover { background: var(--p-h); }
+    .btn-cta { background: var(--cta); color: #fff; }
+    .btn-cta:hover { background: var(--cta-h); }
+    .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+    .btn-sm { min-height: 32px; padding: 4px 11px; font-size: 12px; }
+
+    .kpi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 16px 0 18px; }
+    .kpi-card { background: #fff; border: 1.5px solid #E2E8F0; border-radius: var(--r); padding: 14px 16px; display: flex; align-items: center; gap: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+    .kpi-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: #F0FDFA; color: var(--p); flex-shrink: 0; }
+    .kpi-val { font-size: 20px; font-weight: 800; line-height: 1.15; color: #0F172A; }
+    .kpi-label { font-size: 12px; font-weight: 700; color: var(--mut); margin-top: 2px; }
+    .kpi-sub { font-size: 11px; font-weight: 600; color: #64748B; margin-top: 2px; }
+
+    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 20px; box-shadow: var(--sh); margin-bottom: 20px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    .tabs-bar { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 16px; background: #fff; padding: 8px 10px; border-radius: 14px; border: 1px solid #E2E8F0; }
+
+    input[type=text], input[type=number], input[type=password], input[type=date], input[type=email], select, textarea {
+      width: 100%; min-height: 36px; padding: 6px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font: 500 13.5px var(--font); color: #0F172A; background: #fff;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p); box-shadow: 0 0 0 3px var(--p3); }
+
+    .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #E2E8F0; border-radius: 10px; }
+    .r-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 820px; }
+    .r-table th { background: #F8FAFC; color: #334155; font-weight: 800; text-align: left; padding: 9px 10px; border-bottom: 1.5px solid #CBD5E1; white-space: nowrap; }
+    .r-table td { padding: 8px 10px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+    .r-table th.r, .r-table td.r { text-align: right; }
+    .r-table th.c, .r-table td.c { text-align: center; }
+    .r-table tfoot td { background: #F0FDFA; font-weight: 800; color: var(--dark); border-top: 2px solid #99F6E4; padding: 10px; }
+    .r-table tbody tr:hover { background: #F8FAFC; }
+
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+    .pill-slate { background: #F1F5F9; color: #475569; }
+    .pill-green { background: #DCFCE7; color: #15803D; }
+    .pill-orange { background: #FFEDD5; color: #C2410C; }
+
+    .inv-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.56); backdrop-filter: blur(3px); z-index: 200; display: none; align-items: center; justify-content: center; padding: 14px; }
+    .inv-modal-backdrop.open { display: flex; }
+    .inv-modal { background: #fff; border-radius: 16px; border: 1px solid #CBD5E1; width: min(980px, 100%); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.28); overflow: hidden; }
+    .inv-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #E2E8F0; background: #F8FAFC; }
+    .inv-modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+    .inv-modal-foot { padding: 12px 20px; border-top: 1px solid #E2E8F0; background: #F8FAFC; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff;
+      padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1000; opacity: 0; transform: translateY(12px);
+      transition: all 0.25s ease; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 768px) {
+      :root { --gut: 10px; }
+      .brand-sub-title { display: none; }
+      .kpi-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/" title="Quay về Bàn Xếp Phôi Chính">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
+          <div class="brand-sub-title">Báo Cáo NXT &amp; Giá Vốn Dự Án (WMS)</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span>Trực tuyến 24/7</span>
+        </div>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4; white-space:nowrap;">
+          <span id="userIcon">📊</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </div>
+
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
+        <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
+        <a href="/reports" class="subnav-link active reports-nav-link" id="navLinkReports">📊 Báo Cáo</a>
+        <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Inline Login Gate -->
+  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">📊</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">ĐĂNG NHẬP BÁO CÁO KHO &amp; GIÁ VỐN</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Dành cho Admin, Kế toán (hoặc Kỹ sư được cấp quyền xem giá)</p>
+      </div>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Tên đăng nhập *</label>
+        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản...">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Mật khẩu *</label>
+        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
+      </div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">
+        🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
+      </button>
+    </div>
+  </div>
+
+  <!-- Cổng chặn truy cập cho vai trò không được xem giá -->
+  <div id="accessDeniedGate" style="display:none; padding:48px 14px;">
+    <div style="max-width:520px; margin:0 auto; background:#fff; border-radius:18px; border:2px solid #FCA5A5; padding:28px; text-align:center; box-shadow:0 20px 40px -10px rgba(0,0,0,0.1);">
+      <div style="font-size:44px;">🔒</div>
+      <h2 style="margin:8px 0 6px; color:#991B1B;">Khu Vực Tài Chính Được Bảo Vệ</h2>
+      <p style="color:#475569; font-size:14px; margin:0 0 18px;" id="deniedReasonText">
+        Tài khoản hiện tại không có quyền xem đơn giá, giá vốn và báo cáo tài chính (<code>/reports</code>).
+      </p>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <a href="/" class="btn btn-p">📐 Quay về Bàn Xếp Phôi</a>
+        <a href="/inventory" class="btn btn-soft">📦 Về Kho Vật Tư</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="wrap" id="mainContent" style="display:none; padding-top:16px; padding-bottom:60px;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
+      <div>
+        <h1>Báo Cáo Nhập – Xuất – Tồn &amp; Giá Vốn Dự Án</h1>
+        <p style="color:var(--mut); font-size:13.5px; margin:4px 0 0;">
+          Số liệu hạch toán trực tiếp từ PostgreSQL RPC (<code>opening + in - out = closing</code>) &amp; chứng từ đã duyệt.
+        </p>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+        <button type="button" class="btn btn-soft btn-sm btn-period" data-period="week">Tuần này</button>
+        <button type="button" class="btn btn-p btn-sm btn-period" data-period="month">Tháng này</button>
+        <button type="button" class="btn btn-soft btn-sm btn-period" data-period="prev_month">Tháng trước</button>
+        <button type="button" class="btn btn-soft btn-sm btn-period" data-period="quarter">Quý này</button>
+        <input type="date" id="inpRepFrom" style="max-width:142px;">
+        <span style="font-weight:700; color:#64748B;">→</span>
+        <input type="date" id="inpRepTo" style="max-width:142px;">
+        <button type="button" class="btn btn-p btn-sm" id="btnReloadReports">🔄 Tải báo cáo</button>
+      </div>
+    </div>
+
+    <div id="dot6Warn" style="display:none; margin:10px 0; padding:12px 16px; border-radius:10px; background:#FEF3C7; border:1.5px solid #F59E0B; color:#92400E; font-size:13px; font-weight:700;">
+      ⚠️ Các RPC báo cáo Đợt 6 chưa được cài đặt trên Supabase. Admin vui lòng chạy file <code>supabase_migration_dot6_reports_pricing_rls.sql</code> trong Supabase SQL Editor!
+    </div>
+
+    <!-- 4 KPI Cards -->
+    <div class="kpi-cards">
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">🏦</div>
+        <div>
+          <div class="kpi-val" id="kpiClosingValue">0 đ</div>
+          <div class="kpi-label">Tổng giá trị tồn kho cuối kỳ</div>
+          <div class="kpi-sub" id="kpiClosingItems">0 mã vật tư</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">🚚</div>
+        <div>
+          <div class="kpi-val" id="kpiInValue">0 đ</div>
+          <div class="kpi-label">Tổng giá trị nhập trong kỳ</div>
+          <div class="kpi-sub" id="kpiInQtySub">0 đơn vị nhập</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#FFEDD5; color:#C2410C;">📤</div>
+        <div>
+          <div class="kpi-val" id="kpiOutValue">0 đ</div>
+          <div class="kpi-label">Tổng giá trị xuất trong kỳ</div>
+          <div class="kpi-sub" id="kpiOutQtySub">0 đơn vị xuất</div>
+        </div>
+      </div>
+      <div class="kpi-card" style="align-items:flex-start;">
+        <div class="kpi-icon" style="background:#F3E8FF; color:#7E22CE;">🔥</div>
+        <div style="min-width:0; flex:1;">
+          <div class="kpi-label" style="margin-top:0;">Top 5 vật tư tiêu thụ nhiều nhất</div>
+          <div id="kpiTop5Consumed" style="font-size:11.5px; color:#334155; font-weight:600; margin-top:4px; line-height:1.4;">Chưa có dữ liệu xuất</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thanh Tab 3 Báo Cáo -->
+    <div class="tabs-bar">
+      <button type="button" class="btn btn-sm btn-p rep-tab-btn" data-tab="nxt">📦 Báo cáo Nhập – Xuất – Tồn (NXT)</button>
+      <button type="button" class="btn btn-sm btn-soft rep-tab-btn" data-tab="projects">🏗️ Giá vốn NVL theo Dự án</button>
+      <button type="button" class="btn btn-sm btn-soft rep-tab-btn" data-tab="suppliers">🏢 Quản lý &amp; Tổng hợp Nhà cung cấp</button>
+    </div>
+
+    <!-- TAB 1: BÁO CÁO NXT -->
+    <section class="card" id="secTabNxt">
+      <div class="card-head">
+        <div>
+          <h2>1. Bảng Cân Đối Nhập – Xuất – Tồn (NXT)</h2>
+          <div style="font-size:12.5px; color:var(--mut);" id="lblNxtPeriodInfo">Kỳ báo cáo: —</div>
+        </div>
+        <button type="button" class="btn btn-p btn-sm" id="btnExportNxtXlsx">📊 Xuất Excel NXT (.xlsx)</button>
+      </div>
+
+      <div class="filter-bar">
+        <select id="selNxtGroup" style="max-width:210px;">
+          <option value="ALL">📚 Tất cả 4 nhóm vật tư</option>
+          <option value="tube_1d">🪵 Thép hộp / Ống 1D</option>
+          <option value="sheet_2d">📐 Thép tấm 2D</option>
+          <option value="solid_cnc">🔩 Phôi đặc CNC</option>
+          <option value="consumable">🧰 Vật tư phụ</option>
+        </select>
+        <input type="text" id="inpNxtSearch" placeholder="🔍 Tìm tên vật tư hoặc SKU..." style="max-width:260px;">
+      </div>
+
+      <div class="table-responsive">
+        <table class="r-table">
+          <thead>
+            <tr>
+              <th>Vật tư / Quy cách &amp; SKU</th>
+              <th>Nhóm &amp; ĐVT</th>
+              <th class="r">Tồn đầu (SL / Tiền)</th>
+              <th class="r">Nhập kỳ (SL / Tiền)</th>
+              <th class="r">Xuất kỳ (SL / Tiền)</th>
+              <th class="r">Tồn cuối (SL / Tiền)</th>
+            </tr>
+          </thead>
+          <tbody id="nxtTableBody"></tbody>
+          <tfoot id="nxtTableFoot"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- TAB 2: GIÁ VỐN THEO DỰ ÁN -->
+    <section class="card" id="secTabProjects" style="display:none;">
+      <div class="card-head">
+        <div>
+          <h2>2. Tổng Hợp Giá Vốn Nguyên Vật Liệu Theo Dự Án</h2>
+          <div style="font-size:12.5px; color:var(--mut);">Chi phí ròng thực tế = Tổng xuất (PXK đã duyệt) − Tổng hoàn kho / Đề-xê (PHK đã duyệt).</div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="r-table">
+          <thead>
+            <tr>
+              <th>Dự án / Đơn hàng</th>
+              <th>Khách hàng</th>
+              <th class="c">Số phiếu (PXK / PHK)</th>
+              <th class="r">Vật tư đã xuất</th>
+              <th class="r">Hoàn kho / Đề-xê</th>
+              <th class="r">Chi phí ròng thực tế</th>
+              <th class="r">Chi tiết</th>
+            </tr>
+          </thead>
+          <tbody id="projCostTableBody"></tbody>
+          <tfoot id="projCostTableFoot"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- TAB 3: QUẢN LÝ & TỔNG HỢP NHÀ CUNG CẤP -->
+    <section class="card" id="secTabSuppliers" style="display:none;">
+      <div class="card-head">
+        <div>
+          <h2>3. Quản Lý &amp; Tổng Hợp Mua Hàng Theo Nhà Cung Cấp</h2>
+          <div style="font-size:12.5px; color:var(--mut);">Quản lý hồ sơ NCC, xem tổng tiền nhập mua (PNK đã duyệt) &amp; lịch sử giao hàng.</div>
+        </div>
+      </div>
+
+      <div id="supCrudFormWrap" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:8px; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:14px; align-items:end;">
+        <input type="hidden" id="hidEditSupId">
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Mã NCC</label>
+          <input type="text" id="inpSupCode" placeholder="Vd: NCC-HOAPHAT">
+        </div>
+        <div style="grid-column: span 2;">
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Tên Nhà cung cấp *</label>
+          <input type="text" id="inpSupName" placeholder="Công ty TNHH Thép...">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Điện thoại</label>
+          <input type="text" id="inpSupPhone" placeholder="09xx...">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Email</label>
+          <input type="email" id="inpSupEmail" placeholder="sales@...">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Mã số thuế</label>
+          <input type="text" id="inpSupTax" placeholder="MST...">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Địa chỉ</label>
+          <input type="text" id="inpSupAddr" placeholder="KCN...">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Ghi chú</label>
+          <input type="text" id="inpSupNote" placeholder="Công nợ, chiết khấu...">
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn btn-p btn-sm" id="btnSaveSup" style="min-height:36px; flex:1;">+ Lưu NCC</button>
+          <button type="button" class="btn btn-soft btn-sm" id="btnResetSupForm" style="min-height:36px; display:none;">Hủy</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="r-table">
+          <thead>
+            <tr>
+              <th>Mã &amp; Tên Nhà cung cấp</th>
+              <th>Liên hệ (ĐT / Email)</th>
+              <th>MST &amp; Địa chỉ</th>
+              <th class="c">Số PNK đã duyệt</th>
+              <th class="r">Tổng giá trị nhập</th>
+              <th class="r">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="supSummaryTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL CHI TIẾT GIÁ VỐN DỰ ÁN -->
+  <div class="inv-modal-backdrop" id="modalProjCostDetail" aria-hidden="true">
+    <div class="inv-modal">
+      <div class="inv-modal-head">
+        <div>
+          <h3 id="projDetailTitle" style="font-size:17px;">Chi Tiết Quyết Toán Vật Tư Dự Án</h3>
+          <div id="projDetailSub" style="font-size:12px; color:#475569; margin-top:2px;"></div>
+        </div>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseProjDetail">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body" id="projDetailBody"></div>
+      <div class="inv-modal-foot">
+        <div id="projDetailTotals" style="font-size:13.5px; font-weight:800; color:var(--dark);"></div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-p btn-sm" id="btnExportProjCostXlsx">📊 Xuất Excel Quyết Toán (.xlsx)</button>
+          <button type="button" class="btn btn-soft btn-sm" id="btnDoneProjDetail">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL LỊCH SỬ PNK NHÀ CUNG CẤP -->
+  <div class="inv-modal-backdrop" id="modalSupHistory" aria-hidden="true">
+    <div class="inv-modal" style="width:min(760px, 100%);">
+      <div class="inv-modal-head">
+        <h3 id="supHistTitle" style="font-size:16.5px;">Lịch Sử Nhập Mua Từ Nhà Cung Cấp</h3>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseSupHist">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body" id="supHistBody"></div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    let currentUser = null;
+    let nxtRows = [];
+    let projCostRows = [];
+    let supSummaryRows = [];
+    let activeProjDetail = null;
+    let activeTab = 'nxt';
+
+    const $ = id => document.getElementById(id);
+    const escapeHtml = str => String(str == null ? '' : str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    const numVN = (n, dec) => {
+      if (n == null || isNaN(n)) return '0';
+      const num = Number(n);
+      if (dec !== undefined && dec !== null) return num.toLocaleString('vi-VN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+      return Number.isInteger(num) ? num.toLocaleString('vi-VN') : num.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+    };
+
+    function showToast(msg, ms = 3200) {
+      const t = $('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), ms);
+    }
+
+    function setQuickPeriod(mode) {
+      const now = new Date();
+      let fromD = new Date(now.getFullYear(), now.getMonth(), 1);
+      let toD = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (mode === 'week') {
+        const day = now.getDay() || 7;
+        fromD = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
+      } else if (mode === 'prev_month') {
+        fromD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        toD = new Date(now.getFullYear(), now.getMonth(), 0);
+      } else if (mode === 'quarter') {
+        const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+        fromD = new Date(now.getFullYear(), qStartMonth, 1);
+      }
+      const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      $('inpRepFrom').value = fmt(fromD);
+      $('inpRepTo').value = fmt(toD);
+      document.querySelectorAll('.btn-period').forEach(b => {
+        b.className = b.dataset.period === mode ? 'btn btn-p btn-sm btn-period' : 'btn btn-soft btn-sm btn-period';
+      });
+    }
+
+    function applyLoggedInUserUI(user) {
+      currentUser = user;
+      const rMeta = window.SharedUI ? window.SharedUI.getRoleMeta(user && user.role) : { icon: '📊', shortLabel: 'Nhân sự' };
+      $('userIcon').textContent = rMeta.icon;
+      $('userNameDisp').textContent = `${user.fullName || user.username} [${rMeta.shortLabel}]`;
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = (user && user.role === 'admin') ? 'inline-flex' : 'none';
+      $('loginGateWrap').style.display = 'none';
+
+      const allowed = window.SharedUI ? window.SharedUI.canViewPrices(user) : Boolean(user && (user.role === 'admin' || user.role === 'accountant'));
+      if (!allowed) {
+        $('mainContent').style.display = 'none';
+        $('accessDeniedGate').style.display = 'block';
+        $('deniedReasonText').innerHTML = `Vai trò <b>${escapeHtml(rMeta.label)}</b> (@${escapeHtml(user.username)}) không được phép truy cập báo cáo tài chính &amp; đơn giá.${user && user.role === 'engineer' ? '<br>Admin có thể bật công tắc cho Kỹ sư trong trang <b>/admin</b> nếu cần.' : ''}`;
+        return false;
+      }
+      $('accessDeniedGate').style.display = 'none';
+      $('mainContent').style.display = 'block';
+      const canManageSup = window.SharedUI ? window.SharedUI.canManageSuppliers(user) : false;
+      if ($('supCrudFormWrap')) $('supCrudFormWrap').style.display = canManageSup ? 'grid' : 'none';
+      return true;
+    }
+
+    function showLoginGate(msg = '') {
+      currentUser = null;
+      $('userIcon').textContent = '🔒';
+      $('userNameDisp').textContent = 'Chưa đăng nhập';
+      $('loginGateWrap').style.display = 'block';
+      $('accessDeniedGate').style.display = 'none';
+      $('mainContent').style.display = 'none';
+      if (msg && $('loginErr')) {
+        $('loginErr').textContent = msg;
+        $('loginErr').style.display = 'block';
+      }
+    }
+
+    async function checkAuth() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        showLoginGate('⚠️ Chưa cấu hình Supabase Client.');
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang kiểm tra quyền truy cập...');
+      try {
+        const user = await window.SupabaseDB.getCurrentAuthUser();
+        if (user) {
+          if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+            await window.SharedUI.loadWmsSettings();
+            window.SharedUI.applyPriceVisibilityUI(user);
+          }
+          const ok = applyLoggedInUserUI(user);
+          if (window.SharedUI) window.SharedUI.initPendingVouchersBadge();
+          if (ok) await loadAllReports();
+          return;
+        }
+        showLoginGate();
+      } catch (err) {
+        showLoginGate('❌ Lỗi kết nối Supabase: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function handleLogin() {
+      const u = ($('inpLoginUser').value || '').trim();
+      const p = ($('inpLoginPass').value || '').trim();
+      if (!u || !p) {
+        $('loginErr').textContent = '⚠️ Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!';
+        $('loginErr').style.display = 'block';
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang đăng nhập...');
+      try {
+        const user = await window.SupabaseDB.signInWithUsername(u, p);
+        $('loginErr').style.display = 'none';
+        $('inpLoginPass').value = '';
+        if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+          await window.SharedUI.loadWmsSettings();
+          window.SharedUI.applyPriceVisibilityUI(user);
+        }
+        const ok = applyLoggedInUserUI(user);
+        if (window.SharedUI) window.SharedUI.initPendingVouchersBadge();
+        if (ok) await loadAllReports();
+      } catch (err) {
+        $('loginErr').textContent = '❌ ' + (err.message || 'Đăng nhập thất bại');
+        $('loginErr').style.display = 'block';
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function loadAllReports() {
+      const fromD = $('inpRepFrom').value;
+      const toD = $('inpRepTo').value;
+      const fromIso = fromD ? `${fromD}T00:00:00+07:00` : null;
+      const toIso = toD ? `${toD}T23:59:59+07:00` : null;
+      $('lblNxtPeriodInfo').textContent = `Kỳ báo cáo: ${fromD || '—'} → ${toD || '—'}`;
+
+      window.SupabaseDB.setLoading(true, 'Đang tổng hợp báo cáo từ Supabase RPC...');
+      try {
+        const [nxt, proj, sup] = await Promise.all([
+          window.SupabaseDB.getNxtReport(fromIso, toIso, 'ALL'),
+          window.SupabaseDB.getProjectCostReport(fromIso, toIso),
+          window.SupabaseDB.getSupplierPurchaseSummary(fromIso, toIso)
+        ]);
+        nxtRows = Array.isArray(nxt) ? nxt : [];
+        projCostRows = Array.isArray(proj) ? proj : [];
+        supSummaryRows = Array.isArray(sup) ? sup : [];
+        $('dot6Warn').style.display = 'none';
+        renderKpis();
+        renderNxtTable();
+        renderProjectCostTable();
+        renderSupplierSummaryTable();
+      } catch (err) {
+        console.error(err);
+        if (/get_nxt_report|does not exist|schema cache/i.test(String(err.message || ''))) {
+          $('dot6Warn').style.display = 'block';
+        }
+        showToast('❌ Không tải được báo cáo: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    function renderKpis() {
+      const sumClosing = nxtRows.reduce((s, r) => s + (Number(r.closing_value) || 0), 0);
+      const sumIn = nxtRows.reduce((s, r) => s + (Number(r.in_value) || 0), 0);
+      const sumInQty = nxtRows.reduce((s, r) => s + (Number(r.in_qty) || 0), 0);
+      const sumOut = nxtRows.reduce((s, r) => s + (Number(r.out_value) || 0), 0);
+      const sumOutQty = nxtRows.reduce((s, r) => s + (Number(r.out_qty) || 0), 0);
+
+      $('kpiClosingValue').textContent = `${numVN(sumClosing, 0)} đ`;
+      $('kpiClosingItems').textContent = `${nxtRows.length} mã vật tư`;
+      $('kpiInValue').textContent = `${numVN(sumIn, 0)} đ`;
+      $('kpiInQtySub').textContent = `${numVN(sumInQty)} đơn vị nhập`;
+      $('kpiOutValue').textContent = `${numVN(sumOut, 0)} đ`;
+      $('kpiOutQtySub').textContent = `${numVN(sumOutQty)} đơn vị xuất`;
+
+      const top5 = nxtRows
+        .filter(r => Number(r.out_qty) > 0)
+        .slice()
+        .sort((a, b) => (Number(b.out_value) || 0) - (Number(a.out_value) || 0))
+        .slice(0, 5);
+      $('kpiTop5Consumed').innerHTML = top5.length
+        ? top5.map((r, i) => `<div>${i + 1}. <b>${escapeHtml(r.profile_name)}</b> (${numVN(r.out_qty)} ${escapeHtml(r.unit)}) — ${numVN(r.out_value, 0)} đ</div>`).join('')
+        : '<span style="color:#64748B;">Chưa phát sinh xuất kho trong kỳ.</span>';
+    }
+
+    function getFilteredNxtRows() {
+      const grp = $('selNxtGroup').value || 'ALL';
+      const q = ($('inpNxtSearch').value || '').trim().toLowerCase();
+      return nxtRows.filter(r => {
+        if (grp !== 'ALL' && r.material_group !== grp) return false;
+        if (q && !(r.profile_name || '').toLowerCase().includes(q) && !(r.sku || '').toLowerCase().includes(q)) return false;
+        return true;
+      });
+    }
+
+    function renderNxtTable() {
+      const list = getFilteredNxtRows();
+      const tbody = $('nxtTableBody');
+      const tfoot = $('nxtTableFoot');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:26px; color:#64748B;">Không có dữ liệu Nhập – Xuất – Tồn khớp bộ lọc.</td></tr>';
+        tfoot.innerHTML = '';
+        return;
+      }
+
+      let tOpenV = 0, tInV = 0, tOutV = 0, tCloseV = 0;
+      tbody.innerHTML = list.map(r => {
+        const gMeta = window.SharedUI ? window.SharedUI.getMaterialGroupMeta(r.material_group) : { icon: '', shortLabel: r.material_group, badgeClass: 'grp-tube_1d' };
+        tOpenV += Number(r.opening_value) || 0;
+        tInV += Number(r.in_value) || 0;
+        tOutV += Number(r.out_value) || 0;
+        tCloseV += Number(r.closing_value) || 0;
+        return `
+          <tr>
+            <td>
+              <strong>${escapeHtml(r.profile_name)}</strong>
+              ${r.sku ? `<div style="font-size:11px;font-family:monospace;color:#475569;">SKU: ${escapeHtml(r.sku)}</div>` : ''}
+            </td>
+            <td><span class="grp-badge ${gMeta.badgeClass}">${gMeta.icon} ${escapeHtml(gMeta.shortLabel)}</span> <span class="pill pill-slate">${escapeHtml(r.unit)}</span></td>
+            <td class="r"><div><b>${numVN(r.opening_qty)}</b></div><div style="font-size:11.5px;color:#64748B;">${numVN(r.opening_value, 0)} đ</div></td>
+            <td class="r" style="color:#15803D;"><div><b>+${numVN(r.in_qty)}</b></div><div style="font-size:11.5px;">${numVN(r.in_value, 0)} đ</div></td>
+            <td class="r" style="color:#C2410C;"><div><b>-${numVN(r.out_qty)}</b></div><div style="font-size:11.5px;">${numVN(r.out_value, 0)} đ</div></td>
+            <td class="r" style="color:var(--dark);"><div><b>${numVN(r.closing_qty)}</b></div><div style="font-size:11.5px;color:#0F766E;font-weight:700;">${numVN(r.closing_value, 0)} đ</div></td>
+          </tr>
+        `;
+      }).join('');
+
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="2">TỔNG CỘNG GIÁ TRỊ (${list.length} mã vật tư)</td>
+          <td class="r">${numVN(tOpenV, 0)} đ</td>
+          <td class="r" style="color:#15803D;">${numVN(tInV, 0)} đ</td>
+          <td class="r" style="color:#C2410C;">${numVN(tOutV, 0)} đ</td>
+          <td class="r">${numVN(tCloseV, 0)} đ</td>
+        </tr>
+      `;
+    }
+
+    function exportNxtExcel() {
+      const list = getFilteredNxtRows();
+      if (!list.length) { showToast('⚠️ Không có dữ liệu NXT để xuất!'); return; }
+      const fromD = $('inpRepFrom').value;
+      const toD = $('inpRepTo').value;
+      let tOpen = 0, tIn = 0, tOut = 0, tClose = 0;
+      const rows = [
+        ['CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH'],
+        ['BÁO CÁO NHẬP – XUẤT – TỒN KHO NGUYÊN VẬT LIỆU'],
+        [`Kỳ báo cáo: Từ ${fromD} đến ${toD}`, '', 'Người lập:', currentUser ? '@' + currentUser.username : ''],
+        [],
+        ['STT', 'Vật tư / Quy cách', 'Mã SKU', 'Nhóm', 'ĐVT', 'Đơn giá BQ (đ)', 'Tồn đầu (SL)', 'Tồn đầu (Tiền)', 'Nhập kỳ (SL)', 'Nhập kỳ (Tiền)', 'Xuất kỳ (SL)', 'Xuất kỳ (Tiền)', 'Tồn cuối (SL)', 'Tồn cuối (Tiền)']
+      ];
+      list.forEach((r, idx) => {
+        tOpen += Number(r.opening_value) || 0;
+        tIn += Number(r.in_value) || 0;
+        tOut += Number(r.out_value) || 0;
+        tClose += Number(r.closing_value) || 0;
+        rows.push([
+          idx + 1, r.profile_name, r.sku || '', r.material_group, r.unit,
+          Number(r.avg_cost) || 0,
+          Number(r.opening_qty) || 0, Number(r.opening_value) || 0,
+          Number(r.in_qty) || 0, Number(r.in_value) || 0,
+          Number(r.out_qty) || 0, Number(r.out_value) || 0,
+          Number(r.closing_qty) || 0, Number(r.closing_value) || 0
+        ]);
+      });
+      rows.push(['TỔNG CỘNG', '', '', '', '', '', '', tOpen, '', tIn, '', tOut, '', tClose]);
+
+      if (typeof XLSX !== 'undefined' && XLSX.utils) {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }];
+        XLSX.utils.book_append_sheet(wb, ws, 'BaoCao_NXT');
+        XLSX.writeFile(wb, `BaoCao_NXT_AnBinh_${fromD}_${toD}.xlsx`);
+        showToast('📊 Đã xuất file Excel Báo cáo NXT!');
+      }
+    }
+
+    function renderProjectCostTable() {
+      const tbody = $('projCostTableBody');
+      const tfoot = $('projCostTableFoot');
+      if (!projCostRows.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:26px; color:#64748B;">Chưa có dự án nào phát sinh PXK/PHK đã duyệt trong kỳ.</td></tr>';
+        tfoot.innerHTML = '';
+        return;
+      }
+      let sOut = 0, sRet = 0, sNet = 0;
+      tbody.innerHTML = projCostRows.map(p => {
+        sOut += Number(p.out_value) || 0;
+        sRet += Number(p.return_value) || 0;
+        sNet += Number(p.net_cost) || 0;
+        return `
+          <tr>
+            <td><strong>${escapeHtml(p.project_name || p.project_id)}</strong><div style="font-size:11px;font-family:monospace;color:#64748B;">${escapeHtml(p.project_id)}</div></td>
+            <td>${escapeHtml(p.customer || '—')}</td>
+            <td class="c"><span class="pill pill-orange">PXK: ${p.out_voucher_count}</span> <span class="pill pill-slate">PHK: ${p.return_voucher_count}</span></td>
+            <td class="r" style="color:#C2410C; font-weight:700;">${numVN(p.out_value, 0)} đ</td>
+            <td class="r" style="color:#0369A1; font-weight:700;">-${numVN(p.return_value, 0)} đ</td>
+            <td class="r" style="color:#0F766E; font-weight:800; font-size:14.5px;">${numVN(p.net_cost, 0)} đ</td>
+            <td class="r"><button type="button" class="btn btn-sm btn-soft btn-view-proj-cost" data-pid="${escapeHtml(p.project_id)}">👁️ Chi tiết</button></td>
+          </tr>
+        `;
+      }).join('');
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="3">TỔNG CHI PHÍ VẬT TƯ (${projCostRows.length} dự án)</td>
+          <td class="r">${numVN(sOut, 0)} đ</td>
+          <td class="r">-${numVN(sRet, 0)} đ</td>
+          <td class="r">${numVN(sNet, 0)} đ</td>
+          <td></td>
+        </tr>
+      `;
+      tbody.querySelectorAll('.btn-view-proj-cost').forEach(b => b.onclick = () => openProjectCostDetailModal(b.dataset.pid));
+    }
+
+    function openProjectCostDetailModal(projectId) {
+      const p = projCostRows.find(x => x.project_id === projectId);
+      if (!p) return;
+      activeProjDetail = p;
+      $('projDetailTitle').textContent = `Quyết Toán Vật Tư: ${p.project_name}`;
+      $('projDetailSub').textContent = `Mã dự án: ${p.project_id} · Khách hàng: ${p.customer || '—'}`;
+      const items = Array.isArray(p.items_json) ? p.items_json : [];
+      $('projDetailBody').innerHTML = `
+        <div class="table-responsive">
+          <table class="r-table" style="min-width:680px;">
+            <thead>
+              <tr>
+                <th>Số phiếu</th>
+                <th>Loại</th>
+                <th>Vật tư / Quy cách</th>
+                <th class="r">SL</th>
+                <th class="r">Đơn giá (đ)</th>
+                <th class="r">Thành tiền (đ)</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(it => `
+                <tr>
+                  <td style="font-family:monospace;font-weight:700;">${escapeHtml(it.voucher_code)}</td>
+                  <td>${it.voucher_type === 'RETURN' ? '<span class="pill pill-green">Hoàn kho</span>' : '<span class="pill pill-orange">Xuất kho</span>'}</td>
+                  <td><b>${escapeHtml(it.profile)}</b>${it.length_mm ? ` (${numVN(it.length_mm)}mm)` : ''}</td>
+                  <td class="r"><b>${numVN(it.qty)} ${escapeHtml(it.unit)}</b></td>
+                  <td class="r">${numVN(it.unit_price, 0)}</td>
+                  <td class="r" style="font-weight:800;color:${it.voucher_type === 'RETURN' ? '#15803D' : '#C2410C'};">${it.voucher_type === 'RETURN' ? '-' : ''}${numVN(it.total_amount, 0)} đ</td>
+                  <td style="font-size:12px;">${escapeHtml(it.note || '')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      $('projDetailTotals').textContent = `Xuất: ${numVN(p.out_value, 0)} đ · Hoàn: ${numVN(p.return_value, 0)} đ · Chi phí ròng: ${numVN(p.net_cost, 0)} đ`;
+      $('modalProjCostDetail').classList.add('open');
+    }
+
+    function exportActiveProjectCostExcel() {
+      const p = activeProjDetail;
+      if (!p) return;
+      const items = Array.isArray(p.items_json) ? p.items_json : [];
+      const rows = [
+        ['CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH'],
+        ['BẢNG QUYẾT TOÁN CHI PHÍ VẬT TƯ DỰ ÁN'],
+        ['Dự án:', p.project_name, 'Mã:', p.project_id],
+        ['Khách hàng:', p.customer || '—', 'Ngày xuất:', new Date().toLocaleDateString('vi-VN')],
+        [],
+        ['STT', 'Số phiếu', 'Loại phiếu', 'Vật tư / Quy cách', 'Dài (mm)', 'ĐVT', 'Số lượng', 'Đơn giá (đ)', 'Thành tiền (đ)', 'Ghi chú']
+      ];
+      items.forEach((it, idx) => {
+        rows.push([
+          idx + 1, it.voucher_code, it.voucher_type === 'RETURN' ? 'Hoàn kho (PHK)' : 'Xuất kho (PXK)',
+          it.profile, it.length_mm || '', it.unit, Number(it.qty) || 0, Number(it.unit_price) || 0,
+          (it.voucher_type === 'RETURN' ? -1 : 1) * (Number(it.total_amount) || 0), it.note || ''
+        ]);
+      });
+      rows.push([]);
+      rows.push(['', '', '', 'TỔNG XUẤT KHO:', '', '', '', '', Number(p.out_value) || 0]);
+      rows.push(['', '', '', 'TỔNG HOÀN KHO / ĐỀ-XÊ:', '', '', '', '', -(Number(p.return_value) || 0)]);
+      rows.push(['', '', '', 'CHI PHÍ VẬT TƯ RÒNG THỰC TẾ:', '', '', '', '', Number(p.net_cost) || 0]);
+
+      if (typeof XLSX !== 'undefined' && XLSX.utils) {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 16 }, { wch: 26 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 24 }];
+        XLSX.utils.book_append_sheet(wb, ws, 'QuyetToan_DuAn');
+        XLSX.writeFile(wb, `QuyetToanVatTu_${String(p.project_id).slice(0, 24)}.xlsx`);
+        showToast('📊 Đã xuất bảng quyết toán vật tư dự án!');
+      }
+    }
+
+    function renderSupplierSummaryTable() {
+      const tbody = $('supSummaryTableBody');
+      const canManage = window.SharedUI ? window.SharedUI.canManageSuppliers(currentUser) : false;
+      if (!supSummaryRows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:26px; color:#64748B;">Chưa có nhà cung cấp nào.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = supSummaryRows.map(s => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(s.name)}</strong>
+            ${s.code ? `<span class="pill pill-slate" style="margin-left:5px;font-family:monospace;">${escapeHtml(s.code)}</span>` : ''}
+            ${s.note ? `<div style="font-size:11.5px;color:#64748B;">${escapeHtml(s.note)}</div>` : ''}
+          </td>
+          <td style="font-size:12.5px;">
+            <div>${escapeHtml(s.phone || '—')}</div>
+            <div style="color:#64748B;">${escapeHtml(s.email || '')}</div>
+          </td>
+          <td style="font-size:12.5px;">
+            ${s.tax_code ? `<div>MST: <b>${escapeHtml(s.tax_code)}</b></div>` : ''}
+            <div>${escapeHtml(s.address || '—')}</div>
+          </td>
+          <td class="c"><span class="pill pill-green">${s.pnk_count || 0} phiếu</span></td>
+          <td class="r" style="font-weight:800; color:#0F766E;">${numVN(s.total_amount, 0)} đ</td>
+          <td class="r" style="white-space:nowrap;">
+            <button type="button" class="btn btn-sm btn-soft btn-sup-hist" data-id="${escapeHtml(s.supplier_id)}">📜 Lịch sử</button>
+            ${canManage ? `<button type="button" class="btn btn-sm btn-soft btn-sup-edit" data-id="${escapeHtml(s.supplier_id)}" style="margin-left:3px;">✏️</button>
+            <button type="button" class="btn btn-sm btn-danger btn-sup-del" data-id="${escapeHtml(s.supplier_id)}" style="margin-left:3px;">✕</button>` : ''}
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.btn-sup-hist').forEach(b => b.onclick = () => {
+        const s = supSummaryRows.find(x => x.supplier_id === b.dataset.id);
+        if (!s) return;
+        const vs = Array.isArray(s.vouchers_json) ? s.vouchers_json : [];
+        $('supHistTitle').textContent = `Lịch Sử Nhập Mua: ${s.name}`;
+        $('supHistBody').innerHTML = vs.length
+          ? `<table class="r-table" style="min-width:500px;"><thead><tr><th>Số phiếu PNK</th><th>Số hóa đơn</th><th>Ngày duyệt</th><th class="r">Giá trị (đ)</th><th class="r">Mở phiếu</th></tr></thead><tbody>${vs.map(v => `<tr><td style="font-family:monospace;font-weight:700;">${escapeHtml(v.voucher_code)}</td><td>${escapeHtml(v.invoice_no || '—')}</td><td>${v.tx_at ? new Date(v.tx_at).toLocaleString('vi-VN') : '—'}</td><td class="r"><b>${numVN(v.amount, 0)} đ</b></td><td class="r"><a href="/vouchers?id=${encodeURIComponent(v.voucher_id)}" class="btn btn-sm btn-soft">Mở ↗</a></td></tr>`).join('')}</tbody></table>`
+          : '<p style="color:#64748B; text-align:center;">Nhà cung cấp này chưa có phiếu PNK nào được duyệt trong kỳ.</p>';
+        $('modalSupHistory').classList.add('open');
+      });
+
+      tbody.querySelectorAll('.btn-sup-edit').forEach(b => b.onclick = () => {
+        const s = supSummaryRows.find(x => x.supplier_id === b.dataset.id);
+        if (!s) return;
+        $('hidEditSupId').value = s.supplier_id;
+        $('inpSupCode').value = s.code || '';
+        $('inpSupName').value = s.name || '';
+        $('inpSupPhone').value = s.phone || '';
+        $('inpSupEmail').value = s.email || '';
+        $('inpSupTax').value = s.tax_code || '';
+        $('inpSupAddr').value = s.address || '';
+        $('inpSupNote').value = s.note || '';
+        $('btnResetSupForm').style.display = 'inline-flex';
+        $('inpSupName').focus();
+      });
+
+      tbody.querySelectorAll('.btn-sup-del').forEach(b => b.onclick = async () => {
+        if (!confirm('Xóa nhà cung cấp này?')) return;
+        try {
+          await window.SupabaseDB.deleteSupplier(b.dataset.id);
+          showToast('🗑️ Đã xóa nhà cung cấp');
+          await loadAllReports();
+        } catch (err) {
+          showToast('❌ ' + err.message);
+        }
+      });
+    }
+
+    function resetSupForm() {
+      ['hidEditSupId', 'inpSupCode', 'inpSupName', 'inpSupPhone', 'inpSupEmail', 'inpSupTax', 'inpSupAddr', 'inpSupNote'].forEach(id => $(id).value = '');
+      $('btnResetSupForm').style.display = 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setQuickPeriod('month');
+      $('btnSubmitLogin').onclick = handleLogin;
+      $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+      $('btnLogout').onclick = async () => {
+        if (window.SupabaseDB) await window.SupabaseDB.signOut();
+        showLoginGate();
+      };
+
+      document.querySelectorAll('.btn-period').forEach(b => b.onclick = () => {
+        setQuickPeriod(b.dataset.period);
+        loadAllReports();
+      });
+      $('btnReloadReports').onclick = loadAllReports;
+
+      document.querySelectorAll('.rep-tab-btn').forEach(btn => {
+        btn.onclick = () => {
+          activeTab = btn.dataset.tab;
+          $('secTabNxt').style.display = activeTab === 'nxt' ? 'block' : 'none';
+          $('secTabProjects').style.display = activeTab === 'projects' ? 'block' : 'none';
+          $('secTabSuppliers').style.display = activeTab === 'suppliers' ? 'block' : 'none';
+          document.querySelectorAll('.rep-tab-btn').forEach(b => {
+            b.className = b === btn ? 'btn btn-sm btn-p rep-tab-btn' : 'btn btn-sm btn-soft rep-tab-btn';
+          });
+        };
+      });
+
+      $('selNxtGroup').onchange = renderNxtTable;
+      $('inpNxtSearch').oninput = renderNxtTable;
+      $('btnExportNxtXlsx').onclick = exportNxtExcel;
+
+      $('btnCloseProjDetail').onclick = () => $('modalProjCostDetail').classList.remove('open');
+      $('btnDoneProjDetail').onclick = () => $('modalProjCostDetail').classList.remove('open');
+      $('btnExportProjCostXlsx').onclick = exportActiveProjectCostExcel;
+      $('btnCloseSupHist').onclick = () => $('modalSupHistory').classList.remove('open');
+
+      $('btnResetSupForm').onclick = resetSupForm;
+      $('btnSaveSup').onclick = async () => {
+        const name = ($('inpSupName').value || '').trim();
+        if (!name) { showToast('⚠️ Vui lòng nhập tên nhà cung cấp!'); return; }
+        window.SupabaseDB.setLoading(true, 'Đang lưu nhà cung cấp...');
+        try {
+          await window.SupabaseDB.saveSupplier({
+            id: $('hidEditSupId').value || undefined,
+            code: ($('inpSupCode').value || '').trim(),
+            name,
+            phone: ($('inpSupPhone').value || '').trim(),
+            email: ($('inpSupEmail').value || '').trim(),
+            taxCode: ($('inpSupTax').value || '').trim(),
+            address: ($('inpSupAddr').value || '').trim(),
+            note: ($('inpSupNote').value || '').trim()
+          });
+          resetSupForm();
+          showToast('✓ Đã lưu thông tin Nhà cung cấp!');
+          await loadAllReports();
+        } catch (err) {
+          showToast('❌ ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
+      };
+
+      checkAuth();
+    });
+  </script>
+</body>
+</html>

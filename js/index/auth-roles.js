@@ -109,6 +109,9 @@
       if ($('navLinkAdmin')) {
         $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
       }
+      if (window.SharedUI && typeof window.SharedUI.applyPriceVisibilityUI === 'function') {
+        window.SharedUI.applyPriceVisibilityUI(user);
+      }
       if (state.result) {
         renderMaterialsGrouped(state.result);
       }
@@ -139,6 +142,9 @@
 
         if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
         if ($('inpLoginPassword')) $('inpLoginPassword').value = '';
+        if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+          await window.SharedUI.loadWmsSettings();
+        }
         applyUserRoleUI();
 
         const roleLabel = user.role === 'admin'

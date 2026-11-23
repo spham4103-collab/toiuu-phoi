@@ -1141,13 +1141,20 @@
     var invItems = Array.isArray(o.inventoryItems) ? o.inventoryItems : [];
     var offcuts = Array.isArray(o.stockOffcuts) ? o.stockOffcuts : [];
     var txs = Array.isArray(o.transactions) ? o.transactions : [];
+    var canSeePrices = o.canViewPrices !== undefined
+      ? Boolean(o.canViewPrices)
+      : (typeof global.SharedUI !== 'undefined' && typeof global.SharedUI.canViewPrices === 'function' ? global.SharedUI.canViewPrices() : true);
     var nowStr = formatDateTimeVN(new Date());
+
+    var barsHeader = ['STT', 'Quy cách thép', 'Loại', 'Dài chuẩn (mm)', 'Tồn kho (cây)', 'Định mức tối thiểu', 'Trạng thái tồn', 'Kg/m', 'Tổng khối lượng (kg)'];
+    if (canSeePrices) barsHeader.push('Đơn giá (đ)');
+    barsHeader.push('Vị trí kệ');
 
     var sheetBars = [
       ['CƠ KHÍ AN BÌNH — BÁO CÁO TỒN KHO CÂY NGUYÊN'],
       ['Ngày xuất báo cáo:', nowStr, 'Người xuất:', o.exportedBy ? '@' + o.exportedBy : '—'],
       [],
-      ['STT', 'Quy cách thép', 'Loại', 'Dài chuẩn (mm)', 'Tồn kho (cây)', 'Định mức tối thiểu', 'Trạng thái tồn', 'Kg/m', 'Tổng khối lượng (kg)', 'Đơn giá (đ)', 'Vị trí kệ']
+      barsHeader
     ];
     invItems.forEach(function (item, idx) {
       var qty = Math.max(0, Number(item.stockQty) || 0);
@@ -1156,7 +1163,7 @@
       var wPerM = Math.max(0, Number(item.weightPerM) || 0);
       var totalKg = Math.round(qty * (stdLen / 1000) * wPerM * 100) / 100;
       var statusTxt = qty === 0 ? 'Hết hàng' : (minQty > 0 && qty <= minQty ? 'Sắp hết hàng' : 'Đủ tồn');
-      sheetBars.push([
+      var row = [
         idx + 1,
         item.profileName || '',
         item.category || '',
@@ -1165,10 +1172,11 @@
         minQty,
         statusTxt,
         wPerM,
-        totalKg,
-        Number(item.unitPrice) || 0,
-        item.rackLocation || ''
-      ]);
+        totalKg
+      ];
+      if (canSeePrices) row.push(Number(item.avgCost != null ? item.avgCost : item.unitPrice) || 0);
+      row.push(item.rackLocation || '');
+      sheetBars.push(row);
     });
 
     var sheetOffcuts = [

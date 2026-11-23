@@ -184,6 +184,7 @@
         <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
         <a href="/inventory" class="subnav-link active">📦 Kho Phôi &amp; Quy Cách</a>
         <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo Cáo</a>
         <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
@@ -282,6 +283,7 @@
     <div class="inv-tabs-bar" id="invTabsBar">
       <button type="button" class="btn btn-sm btn-p inv-tab-btn" data-tab="bars">🪵 Tồn kho Cây nguyên (<span id="tabBarsBadge">0</span>)</button>
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="offcuts">♻️ Kho Phôi lẻ &amp; Đề-xê (<span id="tabOffcutsBadge">0</span>)</button>
+      <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="reorder" style="border-color:#FDBA74; color:#C2410C;">🛒 Cần đặt hàng (<span id="tabReorderBadge">0</span>)</button>
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="ledger">📒 Sổ cái Xuất – Nhập (<span id="tabLedgerBadge">0</span>)</button>
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="bom">📊 BOM Dự án đang mở</button>
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="library">📏 Thư viện Quy cách (<span id="tabLibraryBadge">0</span>)</button>
@@ -337,7 +339,7 @@
               <th class="r">Thông số / Dài chuẩn</th>
               <th class="r">Tồn thực tế</th>
               <th class="r">Định mức</th>
-              <th class="r">Giá vốn BQ &amp; Trị giá</th>
+              <th class="r price-only">Giá vốn BQ &amp; Trị giá</th>
               <th>Vị trí kệ</th>
               <th>Trạng thái</th>
               <th class="r eng-only">Thao tác kho</th>
@@ -601,7 +603,7 @@
           <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Kg/m (hoặc Kg/đơn vị)</label>
           <input type="number" id="inpNewProfWeight" value="0" min="0" step="0.01">
         </div>
-        <div>
+        <div class="price-only">
           <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Giá vốn BQ (đ)</label>
           <input type="number" id="inpNewProfAvgCost" value="0" min="0" step="1000">
         </div>
@@ -624,13 +626,44 @@
               <th>Nhóm &amp; ĐVT</th>
               <th class="r">Dài / Khổ chuẩn</th>
               <th class="r">Kg/m</th>
-              <th class="r">Giá vốn BQ (đ)</th>
+              <th class="r price-only">Giá vốn BQ (đ)</th>
               <th class="r">Định mức</th>
               <th>Vị trí kệ</th>
               <th class="r">Thao tác</th>
             </tr>
           </thead>
           <tbody id="profilesTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- KHU VỰC 6: DANH SÁCH CẦN ĐẶT HÀNG (REORDER LIST) -->
+    <section class="card" id="sectionReorder" style="display:none; border:1.5px solid #FDBA74;">
+      <div class="card-head">
+        <div>
+          <h2>🛒 Danh Sách Vật Tư Cần Đặt Hàng (Dưới Định Mức Tối Thiểu)</h2>
+          <div class="card-sub" style="margin-bottom:0;">Tự động tổng hợp toàn bộ vật tư cả 4 nhóm có tồn thực tế &le; định mức tối thiểu để kịp thời bổ sung kho.</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-cta btn-sm eng-only" id="btnReorderCreatePnk">🧾 Tạo bản nháp PNK</button>
+          <button type="button" class="btn btn-p btn-sm" id="btnReorderCopyZalo">💬 Copy tin nhắn Zalo đặt hàng</button>
+          <button type="button" class="btn btn-soft btn-sm" id="btnReorderExportXlsx">📊 Xuất Excel (.xlsx)</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th style="width:36px; text-align:center;"><input type="checkbox" id="chkAllReorder" checked style="width:16px; height:16px; cursor:pointer;"></th>
+              <th>Vật tư / Quy cách &amp; SKU</th>
+              <th>Nhóm &amp; ĐVT</th>
+              <th class="r">Tồn hiện tại</th>
+              <th class="r">Định mức tối thiểu</th>
+              <th class="r" style="width:130px;">SL cần đặt *</th>
+              <th>Vị trí kệ</th>
+            </tr>
+          </thead>
+          <tbody id="reorderTableBody"></tbody>
         </table>
       </div>
     </section>
@@ -709,7 +742,7 @@
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">SL đang có</label>
               <input type="number" id="obQuickProfQty" value="0" min="0" step="0.01">
             </div>
-            <div>
+            <div class="price-only">
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Giá vốn BQ</label>
               <input type="number" id="obQuickAvgCost" value="0" min="0" step="1000">
             </div>
@@ -732,7 +765,7 @@
                   <th>ĐVT</th>
                   <th class="r">Dài/Khổ (mm)</th>
                   <th class="r">SL tồn đầu kỳ</th>
-                  <th class="r">Giá vốn BQ (đ)</th>
+                  <th class="r price-only">Giá vốn BQ (đ)</th>
                   <th>Vị trí kệ</th>
                   <th class="r">Định mức</th>
                   <th class="r">Kg/m</th>
@@ -962,7 +995,7 @@
     let realtimeUnsub = null;
     let authUnsub = null;
 
-    const VALID_TABS = ['bars', 'offcuts', 'ledger', 'bom', 'library'];
+    const VALID_TABS = ['bars', 'offcuts', 'reorder', 'ledger', 'bom', 'library'];
     function resolveInitialTab() {
       const h = String(window.location.hash || '').replace('#', '').toLowerCase();
       return VALID_TABS.includes(h) ? h : 'bars';
@@ -1112,6 +1145,10 @@
         window.SupabaseDB.clearConnectionError();
         if (user) {
           applyLoggedInUserUI(user);
+          if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+            await window.SharedUI.loadWmsSettings();
+            window.SharedUI.applyPriceVisibilityUI(user);
+          }
           await loadInventoryData();
           if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
             window.SharedUI.initPendingVouchersBadge();
@@ -1142,6 +1179,10 @@
         $('loginErr').style.display = 'none';
         $('inpLoginPass').value = '';
         applyLoggedInUserUI(found);
+        if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+          await window.SharedUI.loadWmsSettings();
+          window.SharedUI.applyPriceVisibilityUI(found);
+        }
         await loadInventoryData();
         if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
           window.SharedUI.initPendingVouchersBadge();
@@ -1397,6 +1438,7 @@
       const secMap = {
         bars: $('sectionBars'),
         offcuts: $('sectionOffcuts'),
+        reorder: $('sectionReorder'),
         ledger: $('sectionLedger'),
         bom: $('sectionBom'),
         library: $('sectionLibrary')
@@ -1483,6 +1525,12 @@
 
       if ($('tabBarsBadge')) $('tabBarsBadge').textContent = numVN(totalBars);
       if ($('tabOffcutsBadge')) $('tabOffcutsBadge').textContent = numVN(totalOffPieces);
+      const reorderCount = inventoryItems.filter(r => {
+        const q = Math.max(0, Number(r.stockQty) || 0);
+        const minQ = Math.max(0, Number(r.minStockQty) || 0);
+        return (minQ > 0 && q <= minQ) || q === 0;
+      }).length;
+      if ($('tabReorderBadge')) $('tabReorderBadge').textContent = numVN(reorderCount);
       if ($('tabLedgerBadge')) $('tabLedgerBadge').textContent = numVN(ledgerTransactions.length);
       if ($('tabLibraryBadge')) $('tabLibraryBadge').textContent = numVN(inventoryItems.length);
 
@@ -1568,7 +1616,7 @@
             <td class="r">${specText}</td>
             <td class="r" style="font-size:15.5px; font-weight:800; color:${qtyColor};">${numVN(qty)} ${escapeHtml(unit)}</td>
             <td class="r">${minQ > 0 ? numVN(minQ) + ' ' + escapeHtml(unit) : '<span style="color:#94A3B8;">—</span>'}</td>
-            <td class="r">
+            <td class="r price-only">
               <div><b>${avgCost > 0 ? numVN(avgCost, 0) + ' đ' : '—'}</b></div>
               <div style="font-size:11px; color:#64748B;">${totalValue > 0 ? 'Trị giá: ' + numVN(totalValue, 0) + ' đ' : ''}</div>
             </td>
@@ -1960,7 +2008,7 @@
             </td>
             <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="standardLengthMm" value="${stdLen}" min="1" step="100" style="width:92px; text-align:right;"></td>
             <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="weightPerM" value="${Number(r.weightPerM) || 0}" min="0" step="0.01" style="width:76px; text-align:right;"></td>
-            <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="avgCost" value="${avgCost}" min="0" step="1000" style="width:104px; text-align:right;"></td>
+            <td class="r price-only"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="avgCost" value="${avgCost}" min="0" step="1000" style="width:104px; text-align:right;"></td>
             <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="minStockQty" value="${Number(r.minStockQty) || 0}" min="0" style="width:72px; text-align:right;"></td>
             <td><input type="text" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="rackLocation" value="${escapeHtml(r.rackLocation || '')}" placeholder="Kệ..." style="width:96px;"></td>
             <td class="r" style="white-space:nowrap;">
@@ -2085,11 +2133,75 @@
       });
     }
 
+    function getReorderItems() {
+      return inventoryItems.filter(r => {
+        const q = Math.max(0, Number(r.stockQty) || 0);
+        const minQ = Math.max(0, Number(r.minStockQty) || 0);
+        return (minQ > 0 && q <= minQ) || q === 0;
+      });
+    }
+
+    function renderReorderSection() {
+      const tbody = $('reorderTableBody');
+      if (!tbody) return;
+      const list = getReorderItems();
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:26px; color:#15803D; font-weight:700;">✅ Tuyệt vời! Không có vật tư nào dưới định mức tối thiểu.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(r => {
+        const gMeta = getGroupMeta(r.materialGroup || 'tube_1d');
+        const unit = r.unit || gMeta.defaultUnit || 'cây';
+        const q = Math.max(0, Number(r.stockQty) || 0);
+        const minQ = Math.max(0, Number(r.minStockQty) || 0);
+        const suggestQty = Math.max(1, minQ > q ? (minQ * 2 - q) : 5);
+        return `
+          <tr data-id="${escapeHtml(r.id)}">
+            <td style="text-align:center;"><input type="checkbox" class="chk-reorder-row" data-id="${escapeHtml(r.id)}" checked style="width:16px; height:16px; cursor:pointer;"></td>
+            <td>
+              <strong>${escapeHtml(r.profileName)}</strong>
+              ${r.sku ? `<div style="font-size:11px;font-family:monospace;color:#475569;">SKU: ${escapeHtml(r.sku)}</div>` : ''}
+            </td>
+            <td><span class="grp-badge ${gMeta.badgeClass}">${gMeta.icon} ${escapeHtml(gMeta.shortLabel)}</span> <span class="pill pill-slate">${escapeHtml(unit)}</span></td>
+            <td class="r" style="font-weight:800; color:${q === 0 ? '#B91C1C' : '#C2410C'};">${numVN(q)} ${escapeHtml(unit)}</td>
+            <td class="r">${numVN(minQ)} ${escapeHtml(unit)}</td>
+            <td class="r"><input type="number" class="inp-reorder-qty" data-id="${escapeHtml(r.id)}" value="${suggestQty}" min="1" step="1" style="text-align:right; font-weight:800;"></td>
+            <td>${r.rackLocation ? `<span class="pill pill-slate">📍 ${escapeHtml(r.rackLocation)}</span>` : '—'}</td>
+          </tr>
+        `;
+      }).join('');
+
+      if ($('chkAllReorder')) {
+        $('chkAllReorder').checked = true;
+        $('chkAllReorder').onchange = () => {
+          const ck = $('chkAllReorder').checked;
+          tbody.querySelectorAll('.chk-reorder-row').forEach(c => { c.checked = ck; });
+        };
+      }
+    }
+
+    function getSelectedReorderDraftRows() {
+      const tbody = $('reorderTableBody');
+      if (!tbody) return [];
+      const out = [];
+      tbody.querySelectorAll('tr[data-id]').forEach(tr => {
+        const chk = tr.querySelector('.chk-reorder-row');
+        const qtyInp = tr.querySelector('.inp-reorder-qty');
+        if (!chk || !chk.checked) return;
+        const item = inventoryItems.find(x => String(x.id) === String(tr.dataset.id));
+        if (!item) return;
+        const orderQty = Math.max(1, Number(qtyInp && qtyInp.value) || 1);
+        out.push({ item, orderQty });
+      });
+      return out;
+    }
+
     function renderAll() {
       const res = solveBOM();
       updateKpisAndBadges();
       renderBarsSection();
       renderOffcutsSection();
+      renderReorderSection();
       renderLedgerSection();
       renderBOM(res);
       renderStockSelectAndTable();
@@ -2141,7 +2253,7 @@
           </td>
           <td class="r"><input type="number" class="ob-b-len" value="${Number(r.standardLengthMm) || 6000}" min="1" step="100" style="width:88px; text-align:right;"></td>
           <td class="r"><input type="number" class="ob-b-qty" value="${Math.max(0, Number(r.stockQty) || 0)}" min="0" step="0.01" style="width:86px; text-align:right; font-weight:800; color:#0F766E;"></td>
-          <td class="r"><input type="number" class="ob-b-cost" value="${avgCost}" min="0" step="1000" style="width:98px; text-align:right;"></td>
+          <td class="r price-only"><input type="number" class="ob-b-cost" value="${avgCost}" min="0" step="1000" style="width:98px; text-align:right;"></td>
           <td><input type="text" class="ob-b-rack" value="${escapeHtml(r.rackLocation || '')}" placeholder="Kệ..." style="width:96px;"></td>
           <td class="r"><input type="number" class="ob-b-min" value="${Math.max(0, Number(r.minStockQty) || 0)}" min="0" style="width:74px; text-align:right;"></td>
           <td class="r"><input type="number" class="ob-b-kg" value="${Number(r.weightPerM) || estimateWeight(r.profileName)}" min="0" step="0.01" style="width:70px; text-align:right;"></td>
@@ -2483,6 +2595,7 @@
             inventoryItems: inventoryItems,
             stockOffcuts: stockOffcuts,
             transactions: filteredTxs,
+            canViewPrices: window.SharedUI ? window.SharedUI.canViewPrices(currentUser) : false,
             filtersLabel: ($('selFilterLedgerType') && $('selFilterLedgerType').value !== 'ALL') ? $('selFilterLedgerType').value : 'Toàn bộ',
             exportedBy: currentUser ? currentUser.username : ''
           });
@@ -3169,7 +3282,7 @@
           body.innerHTML = `
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:12px;">
               <div><div style="font-size:11.5px;color:#475569;">Tồn kho thực tế</div><div style="font-size:20px;font-weight:800;color:#0F766E;">${numVN(item.stockQty)} ${escapeHtml(unit)}</div></div>
-              <div><div style="font-size:11.5px;color:#475569;">Giá vốn bình quân</div><div style="font-size:17px;font-weight:800;color:#0F172A;">${numVN(item.avgCost || item.unitPrice || 0, 0)} đ</div></div>
+              <div class="price-only"><div style="font-size:11.5px;color:#475569;">Giá vốn bình quân</div><div style="font-size:17px;font-weight:800;color:#0F172A;">${numVN(item.avgCost || item.unitPrice || 0, 0)} đ</div></div>
               <div><div style="font-size:11.5px;color:#475569;">Nhóm &amp; SKU</div><div style="font-weight:700;">${escapeHtml(gMeta.shortLabel)}${item.sku ? ' · ' + escapeHtml(item.sku) : ''}</div></div>
               <div><div style="font-size:11.5px;color:#475569;">Vị trí kệ hiện tại</div><div style="font-weight:700;">${escapeHtml(item.rackLocation || 'Chưa gắn kệ')}</div></div>
             </div>
@@ -3273,6 +3386,77 @@
       }
 
       if ($('btnScanQrLookup')) $('btnScanQrLookup').onclick = startInventoryQrScan;
+      if ($('btnReorderCreatePnk')) {
+        $('btnReorderCreatePnk').onclick = () => {
+          const picked = getSelectedReorderDraftRows();
+          if (!picked.length) {
+            showToast('⚠️ Vui lòng tích chọn ít nhất 1 vật tư cần đặt hàng!');
+            return;
+          }
+          const payload = picked.map(({ item, orderQty }) => ({
+            inventoryId: item.id,
+            profile: item.profileName,
+            materialGroup: item.materialGroup || 'tube_1d',
+            unit: item.unit || 'cây',
+            lengthMm: item.standardLengthMm || item.standardLength || 6000,
+            qty: orderQty,
+            unitPrice: Number(item.avgCost || item.unitPrice || 0),
+            note: `Đề nghị đặt mua bổ sung (Tồn: ${item.stockQty}/${item.minStockQty})`
+          }));
+          sessionStorage.setItem('xp_reorder_draft_pnk', JSON.stringify(payload));
+          window.location.href = '/vouchers?new=IN&from=reorder';
+        };
+      }
+      if ($('btnReorderCopyZalo')) {
+        $('btnReorderCopyZalo').onclick = async () => {
+          const picked = getSelectedReorderDraftRows();
+          if (!picked.length) { showToast('⚠️ Chưa chọn vật tư nào!'); return; }
+          const lines = [
+            `🛒 ĐỀ NGHỊ ĐẶT HÀNG VẬT TƯ - CƠ KHÍ AN BÌNH (${new Date().toLocaleDateString('vi-VN')}):`,
+            ...picked.map(({ item, orderQty }, i) => `${i + 1}. ${item.profileName}${item.sku ? ` [${item.sku}]` : ''}: ${numVN(orderQty)} ${item.unit || 'cây'} (Tồn hiện tại: ${numVN(item.stockQty)})`)
+          ];
+          const text = lines.join('\n');
+          try {
+            await navigator.clipboard.writeText(text);
+            showToast(`💬 Đã copy tin nhắn đặt ${picked.length} vật tư gửi Zalo!`);
+          } catch (e) {
+            prompt('Copy nội dung đặt hàng gửi Zalo:', text);
+          }
+        };
+      }
+      if ($('btnReorderExportXlsx')) {
+        $('btnReorderExportXlsx').onclick = () => {
+          const picked = getSelectedReorderDraftRows();
+          if (!picked.length) { showToast('⚠️ Chưa chọn vật tư nào!'); return; }
+          const rows = [
+            ['CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH — ĐỀ NGHỊ MUA HÀNG VẬT TƯ'],
+            ['Ngày lập:', new Date().toLocaleDateString('vi-VN'), 'Người lập:', currentUser ? '@' + currentUser.username : ''],
+            [],
+            ['STT', 'Vật tư / Quy cách', 'Mã SKU', 'Nhóm', 'ĐVT', 'Tồn hiện tại', 'Định mức', 'SL đề nghị đặt', 'Vị trí kệ']
+          ];
+          picked.forEach(({ item, orderQty }, idx) => {
+            rows.push([
+              idx + 1,
+              item.profileName,
+              item.sku || '',
+              getGroupMeta(item.materialGroup || 'tube_1d').shortLabel,
+              item.unit || 'cây',
+              Number(item.stockQty) || 0,
+              Number(item.minStockQty) || 0,
+              orderQty,
+              item.rackLocation || ''
+            ]);
+          });
+          if (typeof XLSX !== 'undefined' && XLSX.utils) {
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 14 }];
+            XLSX.utils.book_append_sheet(wb, ws, 'DeNghiMuaHang');
+            XLSX.writeFile(wb, `DeNghiMuaHang_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            showToast('📊 Đã xuất file Excel Đề nghị mua hàng!');
+          }
+        };
+      }
       if ($('btnScanAnotherQr')) $('btnScanAnotherQr').onclick = () => {
         $('modalQrScanResult').classList.remove('open');
         startInventoryQrScan();
