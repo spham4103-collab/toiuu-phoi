@@ -28,6 +28,7 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/workshopExport.js"></script>
+  <script src="/js/qr-scanner.js"></script>
   <link rel="stylesheet" href="/css/shared.css">
   <style>
     :root {
@@ -223,6 +224,7 @@
         </p>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button type="button" class="btn btn-p btn-sm" id="btnScanQrLookup" style="background:#0369A1;">📷 Quét QR tra kho</button>
         <button type="button" class="btn btn-cta btn-sm eng-only" id="btnOpenOpeningBalance">📦 Nhập tồn đầu kỳ (Phôi cũ)</button>
         <button type="button" class="btn btn-p btn-sm eng-only" id="btnOpenPurchaseIn">+ Nhập mua mới</button>
         <button type="button" class="btn btn-soft btn-sm eng-only" id="btnOpenStocktake">📋 Kiểm kê</button>
@@ -292,11 +294,14 @@
           <h2>1. Tồn Kho Nguyên Vật Liệu Thực Tế Toàn Xưởng</h2>
           <div class="card-sub" style="margin-bottom:0;">Quản lý tồn kho cho cả 4 nhóm vật tư, mã SKU, đơn vị tính, giá vốn bình quân gia quyền &amp; cảnh báo tồn tối thiểu.</div>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;" class="eng-only">
-          <button type="button" class="btn btn-cta btn-sm" id="btnBarsOpening">+ Tồn đầu kỳ</button>
-          <button type="button" class="btn btn-p btn-sm" id="btnBarsPurchase">+ Nhập mua nhanh</button>
-          <a href="/vouchers" class="btn btn-soft btn-sm" style="border-color:var(--p); color:var(--p);">🧾 Lập phiếu Kho ↗</a>
-          <button type="button" class="btn btn-soft btn-sm" id="btnBarsStocktake">📋 Kiểm kê</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-soft btn-sm" id="btnPrintQrBars" style="border-color:#0F172A; color:#0F172A;">🏷️ In tem QR (Khổ A4) <span id="cntSelQrBars">(0)</span></button>
+          <span class="eng-only" style="display:inline-flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-cta btn-sm" id="btnBarsOpening">+ Tồn đầu kỳ</button>
+            <button type="button" class="btn btn-p btn-sm" id="btnBarsPurchase">+ Nhập mua nhanh</button>
+            <a href="/vouchers" class="btn btn-soft btn-sm" style="border-color:var(--p); color:var(--p);">🧾 Lập phiếu Kho ↗</a>
+            <button type="button" class="btn btn-soft btn-sm" id="btnBarsStocktake">📋 Kiểm kê</button>
+          </span>
         </div>
       </div>
 
@@ -326,6 +331,7 @@
         <table class="inv-table">
           <thead>
             <tr>
+              <th style="width:36px; text-align:center;"><input type="checkbox" id="chkAllBars" title="Chọn tất cả để in tem QR" style="width:16px; height:16px; cursor:pointer;"></th>
               <th>Vật tư / Quy cách &amp; SKU</th>
               <th>Nhóm &amp; ĐVT</th>
               <th class="r">Thông số / Dài chuẩn</th>
@@ -349,8 +355,9 @@
           <h2>2. Kho Phôi Lẻ &amp; Đề-xê Tái Sử Dụng (Dùng chung toàn xưởng)</h2>
           <div class="card-sub" style="margin-bottom:0;">Phân tách rõ <b>Phôi cũ tồn đầu kỳ</b>, <b>Đề-xê từ máy CNC</b> và <b>Nhập tay</b>. Tự động trừ khi Xuất kho dự án.</div>
         </div>
-        <div class="eng-only" style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="btn btn-cta btn-sm" id="btnOpenOpeningOffcuts">📦 Nhập hàng loạt / Excel phôi cũ</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-soft btn-sm" id="btnPrintQrOffcuts" style="border-color:#0F172A; color:#0F172A;">🏷️ In tem QR (Khổ A4) <span id="cntSelQrOffcuts">(0)</span></button>
+          <button type="button" class="btn btn-cta btn-sm eng-only" id="btnOpenOpeningOffcuts">📦 Nhập hàng loạt / Excel phôi cũ</button>
         </div>
       </div>
 
@@ -400,6 +407,7 @@
         <table class="inv-table">
           <thead>
             <tr>
+              <th style="width:36px; text-align:center;"><input type="checkbox" id="chkAllOffcuts" title="Chọn tất cả để in tem QR" style="width:16px; height:16px; cursor:pointer;"></th>
               <th>Quy cách</th>
               <th class="r">Dài (mm)</th>
               <th class="r">Số lượng</th>
@@ -864,6 +872,79 @@
     </div>
   </div>
 
+  <!-- MODAL IN LƯỚI TEM QR KHỔ A4 -->
+  <div class="inv-modal-backdrop" id="modalPrintQrLabels" aria-hidden="true">
+    <div class="inv-modal" style="width:min(840px, 100%);">
+      <div class="inv-modal-head">
+        <div>
+          <h3 style="font-size:17px;">🏷️ In Lưới Tem QR Kho Vật Tư (Khổ A4 Đen Trắng Laser)</h3>
+          <div style="font-size:12px; color:#475569; margin-top:2px;">Chọn bố cục lưới A4, nhập số lượng bản in từng tem &amp; bấm In ngay.</div>
+        </div>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseQrPrintModal">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-bottom:12px; padding:12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px;">
+          <div>
+            <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Bố cục lưới tem (Khổ A4):</label>
+            <select id="selQrGridLayout">
+              <option value="3x7">3×7 (21 tem / trang A4 — Tomy A4 vừa, ống/vật tư)</option>
+              <option value="2x5">2×5 (10 tem to / trang A4 — Kệ kho / Thép tấm)</option>
+              <option value="3x8">3×8 (24 tem nhỏ / trang A4 — Phôi lẻ đề-xê)</option>
+            </select>
+          </div>
+          <div style="display:flex; flex-direction:column; justify-content:center; gap:6px;">
+            <label style="display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; cursor:pointer;">
+              <input type="checkbox" id="chkQrDashedBorder" checked style="width:16px; height:16px;">
+              <span>Hiện khung viền nét đứt để cắt kéo</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; cursor:pointer;">
+              <input type="checkbox" id="chkQrIncludeRackLabels" style="width:16px; height:16px;">
+              <span>Kèm tem Vị trí Kệ riêng (XP:RACK:...)</span>
+            </label>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="inv-table" style="min-width:560px;">
+            <thead>
+              <tr>
+                <th>Mã QR / Payload</th>
+                <th>Tên / Quy cách &amp; Kích thước</th>
+                <th>Kệ &amp; SKU</th>
+                <th class="r" style="width:110px;">Số lượng tem</th>
+              </tr>
+            </thead>
+            <tbody id="qrPrintItemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot">
+        <div style="font-size:12px; color:#475569;" id="lblQrPrintSummary">Tổng cộng: 0 tem</div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-soft" id="btnCancelQrPrintModal">Đóng</button>
+          <button type="button" class="btn btn-p" id="btnConfirmPrintQrA4" style="background:#0F172A;">🖨️ In lưới tem A4</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL KẾT QUẢ QUÉT QR TRA KHO -->
+  <div class="inv-modal-backdrop" id="modalQrScanResult" aria-hidden="true">
+    <div class="inv-modal narrow">
+      <div class="inv-modal-head">
+        <div>
+          <h3 id="qrScanResTitle" style="font-size:16px;">📦 Thông Tin Vật Tư Qua QR</h3>
+          <div id="qrScanResCode" style="font-size:11.5px; font-family:monospace; color:#475569;"></div>
+        </div>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseQrScanRes">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body" id="qrScanResBody"></div>
+      <div class="inv-modal-foot">
+        <button type="button" class="btn btn-soft btn-sm" id="btnScanAnotherQr">📷 Quét mã khác</button>
+        <button type="button" class="btn btn-soft btn-sm" id="btnDoneQrScanRes">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast"></div>
 
   <script>
@@ -891,6 +972,9 @@
     let activeGroupLib = 'ALL';
     let openingSubTab = 'bars';
     let obOffcutDraftRows = [];
+    const selectedQrBarIds = new Set();
+    const selectedQrOffcutIds = new Set();
+    let qrPrintDraftList = [];
 
     function getGroupMeta(grp) {
       if (window.SharedUI && typeof window.SharedUI.getMaterialGroupMeta === 'function') {
@@ -1029,6 +1113,9 @@
         if (user) {
           applyLoggedInUserUI(user);
           await loadInventoryData();
+          if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+            window.SharedUI.initPendingVouchersBadge();
+          }
           return;
         }
         showLoginGate();
@@ -1056,6 +1143,9 @@
         $('inpLoginPass').value = '';
         applyLoggedInUserUI(found);
         await loadInventoryData();
+        if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+          window.SharedUI.initPendingVouchersBadge();
+        }
         showToast(`✓ Xin chào ${found.fullName || found.username}!`);
       } catch (err) {
         $('loginErr').textContent = '❌ ' + (err.message || 'Sai tài khoản hoặc mật khẩu!');
@@ -1432,8 +1522,9 @@
 
       const tbody = $('barsTableBody');
       if (!tbody) return;
+      if ($('cntSelQrBars')) $('cntSelQrBars').textContent = `(${selectedQrBarIds.size})`;
       if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:26px; color:#64748B;">Không có vật tư nào khớp bộ lọc. Hãy dùng nút <b>"📦 Nhập tồn đầu kỳ"</b> để nhập tồn kho ban đầu cho cả 4 nhóm!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:26px; color:#64748B;">Không có vật tư nào khớp bộ lọc. Hãy dùng nút <b>"📦 Nhập tồn đầu kỳ"</b> để nhập tồn kho ban đầu cho cả 4 nhóm!</td></tr>`;
         return;
       }
 
@@ -1461,9 +1552,11 @@
         const specText = grp === 'tube_1d'
           ? `${numVN(stdLen)} mm${totalMeters > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalMeters, 1)} m${wPerM > 0 ? ' · ' + numVN(totalKg, 1) + ' kg' : ''}</div>` : ''}`
           : (stdLen > 0 && grp !== 'consumable' ? `${numVN(stdLen)} mm${totalKg > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalKg, 1)} kg</div>` : ''}` : '<span style="color:#94A3B8;">—</span>');
+        const isChecked = selectedQrBarIds.has(String(r.id));
 
         return `
           <tr>
+            <td style="text-align:center;"><input type="checkbox" class="chk-qr-bar" data-id="${escapeHtml(r.id)}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;"></td>
             <td>
               <strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong>
               ${r.sku ? `<div style="font-size:11px; font-family:monospace; color:#475569;">SKU: ${escapeHtml(r.sku)}</div>` : ''}
@@ -1489,6 +1582,24 @@
         `;
       }).join('');
 
+      tbody.querySelectorAll('.chk-qr-bar').forEach(chk => {
+        chk.onchange = () => {
+          if (chk.checked) selectedQrBarIds.add(String(chk.dataset.id));
+          else selectedQrBarIds.delete(String(chk.dataset.id));
+          if ($('cntSelQrBars')) $('cntSelQrBars').textContent = `(${selectedQrBarIds.size})`;
+        };
+      });
+      if ($('chkAllBars')) {
+        $('chkAllBars').checked = filtered.length > 0 && filtered.every(r => selectedQrBarIds.has(String(r.id)));
+        $('chkAllBars').onchange = () => {
+          const check = $('chkAllBars').checked;
+          filtered.forEach(r => {
+            if (check) selectedQrBarIds.add(String(r.id));
+            else selectedQrBarIds.delete(String(r.id));
+          });
+          renderBarsSection();
+        };
+      }
       tbody.querySelectorAll('.btn-quick-purchase').forEach(b => b.onclick = () => openPurchaseModal(b.dataset.prof));
       tbody.querySelectorAll('.btn-quick-stocktake').forEach(b => b.onclick = () => openStocktakeModal(b.dataset.prof));
     }
@@ -1528,8 +1639,9 @@
 
       const tbody = $('offcutsTableBody');
       if (!tbody) return;
+      if ($('cntSelQrOffcuts')) $('cntSelQrOffcuts').textContent = `(${selectedQrOffcutIds.size})`;
       if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:26px; color:#64748B;">Không có đoạn phôi lẻ / đề-xê nào khớp bộ lọc. Có thể dùng nút <b>"📦 Nhập hàng loạt / Excel phôi cũ"</b> hoặc form phía trên để nhập kho.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:26px; color:#64748B;">Không có đoạn phôi lẻ / đề-xê nào khớp bộ lọc. Có thể dùng nút <b>"📦 Nhập hàng loạt / Excel phôi cũ"</b> hoặc form phía trên để nhập kho.</td></tr>`;
         return;
       }
 
@@ -1558,9 +1670,11 @@
           ${o.createdAt ? `<span style="font-size:11.5px; color:#64748B; margin-left:4px;">${escapeHtml(formatShortDate(o.createdAt))}</span>` : ''}
           ${noteStr ? `<div style="font-size:12px; color:#334155; margin-top:3px;">${escapeHtml(noteStr)}</div>` : ''}
         `;
+        const isChecked = selectedQrOffcutIds.has(String(o.id));
 
         return `
           <tr>
+            <td style="text-align:center;"><input type="checkbox" class="chk-qr-offcut" data-id="${escapeHtml(o.id)}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;"></td>
             <td><span class="pill pill-teal">${escapeHtml(o.profile)}</span></td>
             <td class="r" style="font-weight:800; color:var(--dark); font-size:15px;">${numVN(o.lengthMm)} mm</td>
             <td class="r">
@@ -1579,6 +1693,25 @@
           </tr>
         `;
       }).join('');
+
+      tbody.querySelectorAll('.chk-qr-offcut').forEach(chk => {
+        chk.onchange = () => {
+          if (chk.checked) selectedQrOffcutIds.add(String(chk.dataset.id));
+          else selectedQrOffcutIds.delete(String(chk.dataset.id));
+          if ($('cntSelQrOffcuts')) $('cntSelQrOffcuts').textContent = `(${selectedQrOffcutIds.size})`;
+        };
+      });
+      if ($('chkAllOffcuts')) {
+        $('chkAllOffcuts').checked = filtered.length > 0 && filtered.every(o => selectedQrOffcutIds.has(String(o.id)));
+        $('chkAllOffcuts').onchange = () => {
+          const check = $('chkAllOffcuts').checked;
+          filtered.forEach(o => {
+            if (check) selectedQrOffcutIds.add(String(o.id));
+            else selectedQrOffcutIds.delete(String(o.id));
+          });
+          renderOffcutsSection();
+        };
+      }
 
       tbody.querySelectorAll('.btn-offcut-qty').forEach(b => b.onclick = async () => {
         const off = stockOffcuts.find(x => x.id === b.dataset.id);
@@ -2797,15 +2930,355 @@
       };
 
       // Close modals on backdrop click or Escape
-      ['modalOpeningBalance', 'modalPurchaseIn', 'modalStocktake'].forEach(mid => {
+      ['modalOpeningBalance', 'modalPurchaseIn', 'modalStocktake', 'modalPrintQrLabels', 'modalQrScanResult'].forEach(mid => {
         const el = $(mid);
         if (el) el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
       });
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-          ['modalOpeningBalance', 'modalPurchaseIn', 'modalStocktake'].forEach(mid => $(mid) && $(mid).classList.remove('open'));
+          ['modalOpeningBalance', 'modalPurchaseIn', 'modalStocktake', 'modalPrintQrLabels', 'modalQrScanResult'].forEach(mid => $(mid) && $(mid).classList.remove('open'));
         }
       });
+
+      // === IN LƯỚI TEM QR KHỔ A4 (B2) ===
+      function makeQrSvgStr(payloadText) {
+        try {
+          if (typeof qrcode === 'function') {
+            const q = qrcode(0, 'M');
+            q.addData(String(payloadText || ''));
+            q.make();
+            return q.createSvgTag({ cellSize: 3, margin: 1, scalable: true });
+          }
+        } catch (e) {}
+        return `<div style="font-size:8px;word-break:break-all;">${escapeHtml(payloadText)}</div>`;
+      }
+
+      function renderQrPrintItemsTable() {
+        const tbody = $('qrPrintItemsBody');
+        if (!tbody) return;
+        const includeRacks = Boolean($('chkQrIncludeRackLabels') && $('chkQrIncludeRackLabels').checked);
+        let list = qrPrintDraftList.slice();
+        if (includeRacks) {
+          const racks = Array.from(new Set(qrPrintDraftList.map(x => x.rack).filter(Boolean)));
+          racks.forEach(rk => {
+            list.push({
+              payload: `XP:RACK:${rk}`,
+              title: `VỊ TRÍ KỆ: ${rk}`,
+              sizeText: 'Tem dán đầu kệ chứa vật tư',
+              rack: rk,
+              sku: '',
+              copies: 1
+            });
+          });
+        }
+        tbody.innerHTML = list.map((it, idx) => `
+          <tr>
+            <td style="font-family:monospace; font-size:11.5px; font-weight:700;">${escapeHtml(it.payload)}</td>
+            <td><strong>${escapeHtml(it.title)}</strong><div style="font-size:11.5px; color:#475569;">${escapeHtml(it.sizeText)}</div></td>
+            <td>${it.rack ? `📍 ${escapeHtml(it.rack)}` : '—'}${it.sku ? `<div style="font-size:11px;font-family:monospace;">SKU: ${escapeHtml(it.sku)}</div>` : ''}</td>
+            <td class="r"><input type="number" class="inp-qr-copy-cnt" data-idx="${idx}" data-payload="${escapeHtml(it.payload)}" value="${it.copies}" min="1" max="100" style="text-align:right;"></td>
+          </tr>
+        `).join('');
+
+        const updateSum = () => {
+          const total = Array.from(tbody.querySelectorAll('.inp-qr-copy-cnt')).reduce((s, el) => s + Math.max(1, parseInt(el.value, 10) || 1), 0);
+          if ($('lblQrPrintSummary')) $('lblQrPrintSummary').textContent = `Tổng cộng: ${total} tem sẽ được xếp lưới A4`;
+        };
+        tbody.querySelectorAll('.inp-qr-copy-cnt').forEach(inp => {
+          inp.oninput = () => {
+            const p = inp.dataset.payload;
+            const found = qrPrintDraftList.find(x => x.payload === p);
+            if (found) found.copies = Math.max(1, parseInt(inp.value, 10) || 1);
+            updateSum();
+          };
+        });
+        updateSum();
+      }
+
+      function openQrPrintModal(sourceMode) {
+        const list = [];
+        if (sourceMode === 'bars') {
+          if (!selectedQrBarIds.size) {
+            showToast('⚠️ Vui lòng tích chọn ít nhất 1 vật tư trong bảng để in tem QR!');
+            return;
+          }
+          inventoryItems.filter(r => selectedQrBarIds.has(String(r.id))).forEach(r => {
+            const grp = r.materialGroup || 'tube_1d';
+            const stdLen = Number(r.standardLengthMm || r.standardLength) || 6000;
+            list.push({
+              payload: `XP:INV:${r.id}`,
+              title: r.profileName,
+              sizeText: grp === 'consumable' ? `ĐVT: ${r.unit || 'cái'}` : `Dài/Khổ: ${numVN(stdLen)} mm (${r.unit || 'cây'})`,
+              rack: r.rackLocation || '',
+              sku: r.sku || '',
+              copies: 1
+            });
+          });
+        } else {
+          if (!selectedQrOffcutIds.size) {
+            showToast('⚠️ Vui lòng tích chọn ít nhất 1 đoạn phôi lẻ / đề-xê để in tem QR!');
+            return;
+          }
+          stockOffcuts.filter(o => selectedQrOffcutIds.has(String(o.id))).forEach(o => {
+            list.push({
+              payload: `XP:OFF:${o.id}`,
+              title: o.profile,
+              sizeText: `Đề-xê: ${numVN(o.lengthMm)} mm (SL: ${numVN(o.quantity)})`,
+              rack: o.rackLocation || '',
+              sku: o.sourceBarKey ? o.sourceBarKey.replace('__', '-') : '',
+              copies: Math.max(1, Math.min(20, Number(o.quantity) || 1))
+            });
+          });
+          if ($('selQrGridLayout')) $('selQrGridLayout').value = '3x8';
+        }
+        qrPrintDraftList = list;
+        renderQrPrintItemsTable();
+        $('modalPrintQrLabels').classList.add('open');
+      }
+
+      function printA4QrLabelsSheet() {
+        const layout = ($('selQrGridLayout') && $('selQrGridLayout').value) || '3x7';
+        const dashed = Boolean($('chkQrDashedBorder') && $('chkQrDashedBorder').checked);
+        const gridCfg = layout === '2x5'
+          ? { cols: 2, rows: 5, qrPx: 74, titlePx: 13, subPx: 11, pad: '6px 8px' }
+          : (layout === '3x8'
+            ? { cols: 3, rows: 8, qrPx: 50, titlePx: 10.5, subPx: 9, pad: '4px 5px' }
+            : { cols: 3, rows: 7, qrPx: 58, titlePx: 11.5, subPx: 9.5, pad: '5px 6px' });
+
+        const rowsDom = document.querySelectorAll('#qrPrintItemsBody .inp-qr-copy-cnt');
+        const includeRacks = Boolean($('chkQrIncludeRackLabels') && $('chkQrIncludeRackLabels').checked);
+        const allSourceItems = qrPrintDraftList.slice();
+        if (includeRacks) {
+          Array.from(new Set(qrPrintDraftList.map(x => x.rack).filter(Boolean))).forEach(rk => {
+            allSourceItems.push({ payload: `XP:RACK:${rk}`, title: `VỊ TRÍ KỆ: ${rk}`, sizeText: 'Tem vị trí kệ kho', rack: rk, sku: '', copies: 1 });
+          });
+        }
+
+        const expandedLabels = [];
+        rowsDom.forEach((inp, idx) => {
+          const item = allSourceItems[idx];
+          if (!item) return;
+          const cnt = Math.max(1, Math.min(100, parseInt(inp.value, 10) || 1));
+          const svg = makeQrSvgStr(item.payload);
+          for (let c = 0; c < cnt; c++) {
+            expandedLabels.push({ ...item, svg });
+          }
+        });
+        if (!expandedLabels.length) return;
+
+        const perPage = gridCfg.cols * gridCfg.rows;
+        const pagesHtml = [];
+        for (let i = 0; i < expandedLabels.length; i += perPage) {
+          const slice = expandedLabels.slice(i, i + perPage);
+          const cells = slice.map(lb => `
+            <div class="qr-lbl-cell">
+              <div class="qr-lbl-qr">${lb.svg}</div>
+              <div class="qr-lbl-info">
+                <div class="qr-lbl-title">${escapeHtml(lb.title)}</div>
+                <div class="qr-lbl-size">${escapeHtml(lb.sizeText)}</div>
+                ${lb.rack ? `<div class="qr-lbl-meta">Kệ: <b>${escapeHtml(lb.rack)}</b></div>` : ''}
+                ${lb.sku ? `<div class="qr-lbl-meta">SKU: <b>${escapeHtml(lb.sku)}</b></div>` : ''}
+                <div class="qr-lbl-code">${escapeHtml(lb.payload)}</div>
+              </div>
+            </div>
+          `).join('');
+          pagesHtml.push(`<div class="qr-a4-page">${cells}</div>`);
+        }
+
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (!win) {
+          showToast('⚠️ Trình duyệt chặn popup in! Vui lòng cho phép popup rồi thử lại.');
+          return;
+        }
+        const rowH = Math.floor(276 / gridCfg.rows);
+        win.document.write(`<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><title>In Tem QR Kho A4 - An Bình</title>
+<style>
+  @page { size: A4 portrait; margin: 8mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+  .qr-a4-page {
+    display: grid;
+    grid-template-columns: repeat(${gridCfg.cols}, 1fr);
+    grid-auto-rows: ${rowH}mm;
+    gap: 2mm;
+    width: 194mm;
+    page-break-after: always;
+  }
+  .qr-a4-page:last-child { page-break-after: auto; }
+  .qr-lbl-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: ${gridCfg.pad};
+    background: #fff;
+    color: #000;
+    border: ${dashed ? '1px dashed #000' : '1px solid #d4d4d4'};
+    overflow: hidden;
+  }
+  .qr-lbl-qr { width: ${gridCfg.qrPx}px; height: ${gridCfg.qrPx}px; flex-shrink: 0; }
+  .qr-lbl-qr svg { width: 100%; height: 100%; display: block; }
+  .qr-lbl-info { flex: 1; min-width: 0; line-height: 1.25; }
+  .qr-lbl-title { font-size: ${gridCfg.titlePx}px; font-weight: 800; color: #000; word-break: break-word; }
+  .qr-lbl-size { font-size: ${gridCfg.subPx}px; font-weight: 700; color: #000; margin-top: 2px; }
+  .qr-lbl-meta { font-size: ${gridCfg.subPx}px; color: #000; margin-top: 1px; }
+  .qr-lbl-code { font-size: 8px; font-family: monospace; color: #000; margin-top: 2px; word-break: break-all; }
+</style></head><body>${pagesHtml.join('')}
+<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 250); };<\/script>
+</body></html>`);
+        win.document.close();
+      }
+
+      if ($('btnPrintQrBars')) $('btnPrintQrBars').onclick = () => openQrPrintModal('bars');
+      if ($('btnPrintQrOffcuts')) $('btnPrintQrOffcuts').onclick = () => openQrPrintModal('offcuts');
+      if ($('chkQrIncludeRackLabels')) $('chkQrIncludeRackLabels').onchange = renderQrPrintItemsTable;
+      if ($('btnCloseQrPrintModal')) $('btnCloseQrPrintModal').onclick = () => $('modalPrintQrLabels').classList.remove('open');
+      if ($('btnCancelQrPrintModal')) $('btnCancelQrPrintModal').onclick = () => $('modalPrintQrLabels').classList.remove('open');
+      if ($('btnConfirmPrintQrA4')) $('btnConfirmPrintQrA4').onclick = printA4QrLabelsSheet;
+
+      // === QUÉT QR CAMERA TRA KHO (B3) ===
+      function showQrScanResultForPayload(parsed) {
+        const body = $('qrScanResBody');
+        const title = $('qrScanResTitle');
+        const codeEl = $('qrScanResCode');
+        if (!body || !title || !codeEl) return;
+
+        codeEl.textContent = parsed.raw || '';
+        if (parsed.kind === 'RACK') {
+          $('modalQrScanResult').classList.remove('open');
+          switchInvTab('bars');
+          if ($('selFilterBarsRack')) $('selFilterBarsRack').value = parsed.rack;
+          if ($('inpSearchBars')) $('inpSearchBars').value = parsed.rack;
+          renderBarsSection();
+          showToast(`📍 Đã lọc vật tư tại kệ "${parsed.rack}"!`);
+          return;
+        }
+
+        if (parsed.kind === 'INV') {
+          const item = inventoryItems.find(x => String(x.id) === String(parsed.id));
+          if (!item) {
+            title.textContent = '⚠️ Không tìm thấy vật tư';
+            body.innerHTML = `<p style="color:#B91C1C;font-weight:700;">Không tìm thấy vật tư ID <code>${escapeHtml(parsed.id)}</code> trong kho hiện tại.</p>`;
+            $('modalQrScanResult').classList.add('open');
+            return;
+          }
+          const gMeta = getGroupMeta(item.materialGroup || 'tube_1d');
+          const unit = item.unit || gMeta.defaultUnit || 'cây';
+          const canEdit = window.SharedUI && window.SharedUI.canManageInventory(currentUser);
+          title.textContent = `${gMeta.icon} ${item.profileName}`;
+          body.innerHTML = `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:12px;">
+              <div><div style="font-size:11.5px;color:#475569;">Tồn kho thực tế</div><div style="font-size:20px;font-weight:800;color:#0F766E;">${numVN(item.stockQty)} ${escapeHtml(unit)}</div></div>
+              <div><div style="font-size:11.5px;color:#475569;">Giá vốn bình quân</div><div style="font-size:17px;font-weight:800;color:#0F172A;">${numVN(item.avgCost || item.unitPrice || 0, 0)} đ</div></div>
+              <div><div style="font-size:11.5px;color:#475569;">Nhóm &amp; SKU</div><div style="font-weight:700;">${escapeHtml(gMeta.shortLabel)}${item.sku ? ' · ' + escapeHtml(item.sku) : ''}</div></div>
+              <div><div style="font-size:11.5px;color:#475569;">Vị trí kệ hiện tại</div><div style="font-weight:700;">${escapeHtml(item.rackLocation || 'Chưa gắn kệ')}</div></div>
+            </div>
+            ${canEdit ? `
+              <div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:12px;">
+                <div style="flex:1;">
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">📍 Cập nhật nhanh vị trí kệ</label>
+                  <input type="text" id="inpQrQuickRack" value="${escapeHtml(item.rackLocation || '')}" placeholder="Vd: Kệ A1-Tầng 2">
+                </div>
+                <button type="button" class="btn btn-p btn-sm" id="btnQrSaveQuickRack" style="min-height:36px;">💾 Lưu kệ</button>
+              </div>
+            ` : ''}
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <a href="/vouchers?new=IN&inv=${encodeURIComponent(item.id)}" class="btn btn-p btn-sm">🚚 Tạo Phiếu Nhập (PNK)</a>
+              <a href="/vouchers?new=OUT&inv=${encodeURIComponent(item.id)}" class="btn btn-cta btn-sm">📤 Tạo Phiếu Xuất (PXK)</a>
+            </div>
+          `;
+          if ($('btnQrSaveQuickRack')) {
+            $('btnQrSaveQuickRack').onclick = async () => {
+              const newRack = ($('inpQrQuickRack').value || '').trim();
+              window.SupabaseDB.setLoading(true, 'Đang cập nhật vị trí kệ...');
+              try {
+                const updated = await window.SupabaseDB.updateInventoryProfile(item.id, { rackLocation: newRack });
+                inventoryItems = inventoryItems.map(x => x.id === item.id ? updated : x);
+                renderBarsSection();
+                showToast(`📍 Đã cập nhật kệ "${newRack || 'Trống'}" cho ${item.profileName}!`);
+              } catch (err) {
+                showToast('❌ Lỗi cập nhật kệ: ' + err.message);
+              } finally {
+                window.SupabaseDB.setLoading(false);
+              }
+            };
+          }
+          $('modalQrScanResult').classList.add('open');
+          return;
+        }
+
+        if (parsed.kind === 'OFF') {
+          const off = stockOffcuts.find(x => String(x.id) === String(parsed.id));
+          if (!off) {
+            title.textContent = '⚠️ Không tìm thấy phôi lẻ';
+            body.innerHTML = `<p style="color:#B91C1C;font-weight:700;">Không tìm thấy đoạn phôi lẻ ID <code>${escapeHtml(parsed.id)}</code>.</p>`;
+            $('modalQrScanResult').classList.add('open');
+            return;
+          }
+          const canEdit = window.SharedUI && window.SharedUI.canManageInventory(currentUser);
+          title.textContent = `♻️ Đề-xê: ${off.profile}`;
+          body.innerHTML = `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:12px;">
+              <div><div style="font-size:11.5px;color:#475569;">Chiều dài</div><div style="font-size:19px;font-weight:800;color:#0F766E;">${numVN(off.lengthMm)} mm</div></div>
+              <div><div style="font-size:11.5px;color:#475569;">Số lượng còn</div><div style="font-size:19px;font-weight:800;color:#0F172A;">${numVN(off.quantity)} đoạn</div></div>
+              <div><div style="font-size:11.5px;color:#475569;">Vị trí kệ</div><div style="font-weight:700;">${escapeHtml(off.rackLocation || 'Chưa gắn kệ')}</div></div>
+              <div><div style="font-size:11.5px;color:#475569;">Nguồn gốc</div><div style="font-weight:700;">${escapeHtml(off.sourceProjectName || off.sourceType || 'Kho')}</div></div>
+            </div>
+            ${canEdit ? `
+              <div style="display:flex; gap:8px; align-items:flex-end;">
+                <div style="flex:1;">
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">📍 Cập nhật vị trí kệ đề-xê</label>
+                  <input type="text" id="inpQrQuickOffRack" value="${escapeHtml(off.rackLocation || '')}" placeholder="Vd: Kệ B2">
+                </div>
+                <button type="button" class="btn btn-p btn-sm" id="btnQrSaveOffRack" style="min-height:36px;">💾 Lưu kệ</button>
+              </div>
+            ` : ''}
+          `;
+          if ($('btnQrSaveOffRack')) {
+            $('btnQrSaveOffRack').onclick = async () => {
+              const newRack = ($('inpQrQuickOffRack').value || '').trim();
+              window.SupabaseDB.setLoading(true, 'Đang cập nhật kệ đề-xê...');
+              try {
+                const updated = await window.SupabaseDB.updateStockOffcut(off.id, { rackLocation: newRack });
+                if (updated) stockOffcuts = stockOffcuts.map(x => x.id === off.id ? updated : x);
+                renderOffcutsSection();
+                showToast(`📍 Đã cập nhật kệ "${newRack || 'Trống'}"!`);
+              } catch (err) {
+                showToast('❌ Lỗi cập nhật kệ: ' + err.message);
+              } finally {
+                window.SupabaseDB.setLoading(false);
+              }
+            };
+          }
+          $('modalQrScanResult').classList.add('open');
+          return;
+        }
+
+        title.textContent = '🔍 Nội dung QR khác';
+        body.innerHTML = `<p>Dữ liệu quét được: <code>${escapeHtml(parsed.raw)}</code></p>`;
+        $('modalQrScanResult').classList.add('open');
+      }
+
+      function startInventoryQrScan() {
+        if (!window.WorkshopQrScanner) {
+          showToast('⚠️ Bộ quét QR chưa sẵn sàng!');
+          return;
+        }
+        window.WorkshopQrScanner.open({
+          title: '📷 Quét QR Tra Kho Tức Thì',
+          subtitle: 'Quét tem Vật tư (XP:INV), Đề-xê (XP:OFF) hoặc Kệ (XP:RACK)',
+          continuous: false,
+          onScan: (parsed) => showQrScanResultForPayload(parsed)
+        });
+      }
+
+      if ($('btnScanQrLookup')) $('btnScanQrLookup').onclick = startInventoryQrScan;
+      if ($('btnScanAnotherQr')) $('btnScanAnotherQr').onclick = () => {
+        $('modalQrScanResult').classList.remove('open');
+        startInventoryQrScan();
+      };
+      if ($('btnCloseQrScanRes')) $('btnCloseQrScanRes').onclick = () => $('modalQrScanResult').classList.remove('open');
+      if ($('btnDoneQrScanRes')) $('btnDoneQrScanRes').onclick = () => $('modalQrScanResult').classList.remove('open');
 
       if (window.SupabaseDB && window.SupabaseDB.isConfigured()) {
         authUnsub = window.SupabaseDB.onAuthStateChange((event) => {

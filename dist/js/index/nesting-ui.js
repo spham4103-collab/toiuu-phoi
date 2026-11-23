@@ -1206,23 +1206,54 @@
         : null;
 
       if (dispatchBar) {
-        if (state.inventoryDeductedAt) {
+        const activeVoucher = state.activeProjectOutVoucher || null;
+        const canApprove = window.SharedUI && window.SharedUI.canApproveVouchers(state.currentUser);
+        const canCreate = window.SharedUI ? window.SharedUI.canCreateVouchers(state.currentUser) : (state.userRole !== 'operator');
+
+        if (activeVoucher && activeVoucher.status === 'pending') {
+          dispatchBar.innerHTML = `
+            <span style="display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border-radius:999px; background:#FEF3C7; color:#B45309; border:1px solid #FDE68A; font-size:12px; font-weight:800;">
+              ⏳ Đang chờ thủ kho duyệt ${escapeHtml(activeVoucher.voucherCode || '')}
+            </span>
+            <a href="/vouchers?id=${encodeURIComponent(activeVoucher.id)}" class="btn btn-soft btn-sm" style="min-height:32px;">🧾 Mở phiếu ↗</a>
+            ${canApprove ? `<button type="button" class="btn btn-p btn-sm" id="btnApproveProjectVoucher" style="min-height:32px;">✅ Duyệt xuất ngay</button>` : ''}
+            ${canCreate ? `<button type="button" class="btn btn-soft btn-sm" id="btnReturnProjectInventory" style="min-height:32px; border-color:#FCA5A5; color:#B91C1C;">✕ Hủy phiếu</button>` : ''}
+          `;
+          if ($('btnApproveProjectVoucher')) {
+            $('btnApproveProjectVoucher').onclick = () => approvePendingProjectOutVoucher();
+          }
+          if ($('btnReturnProjectInventory')) {
+            $('btnReturnProjectInventory').onclick = () => returnActiveProjectToWarehouse();
+          }
+        } else if (state.inventoryDeductedAt || (activeVoucher && activeVoucher.status === 'approved')) {
           const byWho = state.inventoryDeductedBy ? ` · @${escapeHtml(state.inventoryDeductedBy)}` : '';
+          const vCode = activeVoucher && activeVoucher.voucherCode ? `${escapeHtml(activeVoucher.voucherCode)} · ` : '';
+          const tsTxt = state.inventoryDeductedAt ? escapeHtml(formatShortCutTime(state.inventoryDeductedAt)) : '';
           dispatchBar.innerHTML = `
             <span style="display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border-radius:999px; background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; font-size:12px; font-weight:800;">
-              ✅ Đã xuất kho (${escapeHtml(formatShortCutTime(state.inventoryDeductedAt))}${byWho})
+              ✅ Đã xuất kho ${vCode}(${tsTxt}${byWho})
             </span>
-            ${state.userRole !== 'operator' ? `<button type="button" class="btn btn-soft btn-sm" id="btnReturnProjectInventory" style="min-height:32px; border-color:#FCA5A5; color:#B91C1C;">↩️ Hoàn kho</button>` : ''}
+            ${activeVoucher ? `<a href="/vouchers?id=${encodeURIComponent(activeVoucher.id)}" class="btn btn-soft btn-sm" style="min-height:32px;">🧾 Xem phiếu ↗</a>` : ''}
+            ${canCreate ? `<button type="button" class="btn btn-soft btn-sm" id="btnReturnProjectInventory" style="min-height:32px; border-color:#FCA5A5; color:#B91C1C;">↩️ Hoàn kho</button>` : ''}
           `;
           if ($('btnReturnProjectInventory')) {
             $('btnReturnProjectInventory').onclick = () => returnActiveProjectToWarehouse();
           }
-        } else if (state.userRole !== 'operator') {
-          dispatchBar.innerHTML = `
-            <button type="button" class="btn btn-p btn-sm" id="btnDispatchProjectInventory" style="min-height:32px;">📤 Xuất kho cho dự án</button>
-          `;
-          if ($('btnDispatchProjectInventory')) {
-            $('btnDispatchProjectInventory').onclick = () => dispatchActiveProjectToWarehouse();
+        } else if (canCreate) {
+          if (canApprove) {
+            dispatchBar.innerHTML = `
+              <button type="button" class="btn btn-p btn-sm" id="btnDispatchProjectNow" style="min-height:32px;">✅ Tạo &amp; Duyệt xuất ngay</button>
+              <button type="button" class="btn btn-soft btn-sm" id="btnDispatchProjectPending" style="min-height:32px;">📝 Tạo phiếu chờ duyệt</button>
+            `;
+            if ($('btnDispatchProjectNow')) $('btnDispatchProjectNow').onclick = () => dispatchActiveProjectToWarehouse(false, true);
+            if ($('btnDispatchProjectPending')) $('btnDispatchProjectPending').onclick = () => dispatchActiveProjectToWarehouse(false, false);
+          } else {
+            dispatchBar.innerHTML = `
+              <button type="button" class="btn btn-p btn-sm" id="btnDispatchProjectInventory" style="min-height:32px;">📤 Yêu cầu xuất vật tư (Tạo PXK)</button>
+            `;
+            if ($('btnDispatchProjectInventory')) {
+              $('btnDispatchProjectInventory').onclick = () => dispatchActiveProjectToWarehouse(false, false);
+            }
           }
         } else {
           dispatchBar.innerHTML = '';

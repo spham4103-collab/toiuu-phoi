@@ -152,6 +152,9 @@
       : (winState && Array.isArray(winState.stockOffcuts) ? winState.stockOffcuts : []);
 
     var isDispatched = Boolean(inventoryDeductedAt);
+    var activeVouch = (winState && winState.activeProjectOutVoucher) || null;
+    var dispatchVoucherCode = o.dispatchVoucherCode || (activeVouch && activeVouch.voucherCode) || '';
+    var dispatchVoucherStatus = o.dispatchVoucherStatus || (activeVouch && activeVouch.status) || (isDispatched ? 'approved' : '');
 
     var isRealProj = Boolean(projectId && projectId !== '__draft__');
     var cncUrl = isRealProj
@@ -180,7 +183,9 @@
       inventoryDeductedSnapshot: inventoryDeductedSnapshot,
       inventoryItems: inventoryItems,
       stockOffcuts: stockOffcuts,
-      isDispatched: isDispatched
+      isDispatched: isDispatched,
+      dispatchVoucherCode: dispatchVoucherCode,
+      dispatchVoucherStatus: dispatchVoucherStatus
     };
   }
 
@@ -561,9 +566,12 @@
     var exportedAtStr = formatDateTimeVN(new Date());
 
     var dispatchBadgeHtml = '';
-    if (ctx.isDispatched) {
+    if (ctx.isDispatched || ctx.dispatchVoucherStatus === 'approved') {
       var shortDeductStr = formatShortTime(ctx.inventoryDeductedAt, ctx.inventoryDeductedBy);
-      dispatchBadgeHtml = ' <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#DCFCE7;color:#15803D;border:1.2px solid #86EFAC;font-size:10px;font-weight:800;vertical-align:middle;">✅ Đã xuất kho (' + escapeHtml(shortDeductStr) + ')</span>';
+      var codeTxt = ctx.dispatchVoucherCode ? (ctx.dispatchVoucherCode + (shortDeductStr ? ' · ' + shortDeductStr : '')) : shortDeductStr;
+      dispatchBadgeHtml = ' <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#DCFCE7;color:#15803D;border:1.2px solid #86EFAC;font-size:10px;font-weight:800;vertical-align:middle;">✅ Đã xuất kho' + (codeTxt ? ' (' + escapeHtml(codeTxt) + ')' : '') + '</span>';
+    } else if (ctx.dispatchVoucherStatus === 'pending') {
+      dispatchBadgeHtml = ' <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#FEF3C7;color:#B45309;border:1.2px solid #FDE68A;font-size:10px;font-weight:800;vertical-align:middle;">⏳ Chờ thủ kho duyệt' + (ctx.dispatchVoucherCode ? ' (' + escapeHtml(ctx.dispatchVoucherCode) + ')' : '') + '</span>';
     }
 
     var headerHtml = [
@@ -806,9 +814,11 @@
     var u = res.usageStats || {};
     var eff = u.totalNominalLength > 0 ? Math.round((u.totalCutLength / u.totalNominalLength) * 1000) / 10 : 0;
 
-    var dispatchStatusExcel = ctx.isDispatched
-      ? ('✅ Đã xuất kho (' + formatShortTime(ctx.inventoryDeductedAt, ctx.inventoryDeductedBy) + ')')
-      : 'Chưa xuất kho';
+    var dispatchStatusExcel = (ctx.isDispatched || ctx.dispatchVoucherStatus === 'approved')
+      ? ('✅ Đã xuất kho' + (ctx.dispatchVoucherCode ? ' (' + ctx.dispatchVoucherCode + ')' : '') + (ctx.inventoryDeductedAt ? (' · ' + formatShortTime(ctx.inventoryDeductedAt, ctx.inventoryDeductedBy)) : ''))
+      : (ctx.dispatchVoucherStatus === 'pending'
+        ? ('⏳ Chờ thủ kho duyệt' + (ctx.dispatchVoucherCode ? ' (' + ctx.dispatchVoucherCode + ')' : ''))
+        : 'Chưa xuất kho');
 
     // Sheet 1: Tổng hợp BOM vật tư & Đối chiếu tồn kho
     var sheet1Rows = [

@@ -1333,6 +1333,9 @@
         }
 
         currentUser = user;
+        if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+          window.SharedUI.initPendingVouchersBadge();
+        }
         if (user.role !== 'admin') {
           if (adminRealtimeUnsub) { adminRealtimeUnsub(); adminRealtimeUnsub = null; }
           $('adminLoginGate').style.display = 'none';

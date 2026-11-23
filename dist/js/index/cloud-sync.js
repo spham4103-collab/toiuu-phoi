@@ -150,6 +150,15 @@
             state.currentUser = Object.assign({}, state.currentUser, rec);
             applyUserRoleUI();
           }
+        },
+        warehouse_vouchers: async (ev) => {
+          const rec = ev.newRecord;
+          const old = ev.oldRecord;
+          const pid = (rec && rec.projectId) || (old && old.projectId);
+          if (pid && state.currentProjectId && pid === state.currentProjectId && typeof refreshActiveProjectOutVoucher === 'function') {
+            await refreshActiveProjectOutVoucher();
+            if (state.result) renderMaterialsGrouped(state.result);
+          }
         }
       }, (status) => {
         if (status === 'SUBSCRIBED') {
@@ -213,6 +222,9 @@
       }
 
       initCloudSyncSystem();
+      if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+        window.SharedUI.initPendingVouchersBadge();
+      }
 
       const urlParams = new URLSearchParams(window.location.search);
       const paramProjId = urlParams.get('project');
@@ -235,6 +247,10 @@
 
       if (!loadedFromEmbedded) {
         const loaded = await loadActiveProject(paramProjId, draftProject);
+        if (typeof refreshActiveProjectOutVoucher === 'function') {
+          await refreshActiveProjectOutVoucher();
+          if (state.result) renderMaterialsGrouped(state.result);
+        }
         if (!loaded) {
           const offlineOrErr = Boolean(state.initialSupabaseLoadFailed || !navigator.onLine);
           loadMultiProfilePreset({ skipSave: offlineOrErr });

@@ -199,6 +199,44 @@
     return Math.round(Number(val) || 0).toLocaleString('vi-VN');
   }
 
+  var _pendingVouchersUnsub = null;
+  var _pendingVouchersTimer = null;
+
+  async function refreshPendingVouchersBadge() {
+    if (!global.SupabaseDB || typeof global.SupabaseDB.getPendingVouchersCount !== 'function') return 0;
+    try {
+      var cnt = await global.SupabaseDB.getPendingVouchersCount();
+      var links = document.querySelectorAll('a[href="/vouchers"]');
+      links.forEach(function (link) {
+        var badge = link.querySelector('#subnavVouchersBadge, .vouchers-pending-badge');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'vouchers-pending-badge';
+          badge.style.cssText = 'background:#EA580C;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;margin-left:4px;display:none;';
+          link.appendChild(badge);
+        }
+        badge.textContent = String(cnt);
+        badge.style.display = cnt > 0 ? 'inline-block' : 'none';
+      });
+      return cnt;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function initPendingVouchersBadge() {
+    refreshPendingVouchersBadge();
+    if (_pendingVouchersUnsub || !global.SupabaseDB || !global.SupabaseDB.isConfigured()) return;
+    try {
+      _pendingVouchersUnsub = global.SupabaseDB.subscribeTables({
+        warehouse_vouchers: function () {
+          clearTimeout(_pendingVouchersTimer);
+          _pendingVouchersTimer = setTimeout(refreshPendingVouchersBadge, 300);
+        }
+      });
+    } catch (e) {}
+  }
+
   global.SharedUI = {
     ROLES: ROLES,
     VALID_ROLES: VALID_ROLES,
@@ -212,6 +250,8 @@
     canApproveVouchers: canApproveVouchers,
     renderSubnav: renderSubnav,
     compressImageFile: compressImageFile,
-    formatMoneyVN: formatMoneyVN
+    formatMoneyVN: formatMoneyVN,
+    refreshPendingVouchersBadge: refreshPendingVouchersBadge,
+    initPendingVouchersBadge: initPendingVouchersBadge
   };
 })(typeof window !== 'undefined' ? window : globalThis);

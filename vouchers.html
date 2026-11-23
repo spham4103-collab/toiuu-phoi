@@ -23,6 +23,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
   <script src="/js/shared-ui.js"></script>
+  <script src="/js/qr-scanner.js"></script>
   <link rel="stylesheet" href="/css/shared.css">
   <style>
     :root {
@@ -369,9 +370,12 @@
           </label>
         </div>
 
-        <div style="display:flex; align-items:center; justify-content:space-between; margin:10px 0 8px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:10px 0 8px;">
           <strong style="color:var(--dark); font-size:14px;">Danh sách vật tư trên phiếu:</strong>
-          <button type="button" class="btn btn-p btn-sm" id="btnAddVoucherItemRow">+ Thêm dòng vật tư</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-soft btn-sm" id="btnScanAddVoucherItem" style="border-color:#0369A1; color:#0369A1;">📷 Quét thêm vật tư</button>
+            <button type="button" class="btn btn-p btn-sm" id="btnAddVoucherItemRow">+ Thêm dòng vật tư</button>
+          </div>
         </div>
 
         <div class="table-responsive">
@@ -632,6 +636,10 @@
         renderKpis();
         renderVouchersTable();
         initRealtime();
+        if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+          window.SharedUI.initPendingVouchersBadge();
+        }
+        handleInitialUrlQuery();
       } catch (err) {
         showToast('❌ Lỗi tải dữ liệu chứng từ: ' + err.message);
       } finally {
@@ -1247,6 +1255,124 @@
         draftItems.push(createEmptyDraftItem());
         renderVoucherItemsRows();
       };
+
+      let _handledInitialQuery = false;
+      function handleInitialUrlQuery() {
+        if (_handledInitialQuery) return;
+        _handledInitialQuery = true;
+        const params = new URLSearchParams(window.location.search);
+        const qId = params.get('id');
+        const qNew = params.get('new');
+        const qInv = params.get('inv');
+        if (qId) {
+          const found = vouchersList.find(x => x.id === qId);
+          if (found && typeof openViewVoucherModal === 'function') {
+            openViewVoucherModal(found.id);
+          }
+          return;
+        }
+        if (qNew && ['IN', 'OUT', 'RETURN', 'ADJUST'].includes(qNew.toUpperCase())) {
+          openNewVoucherModal(qNew.toUpperCase());
+          if (qInv) {
+            const inv = inventoryItems.find(x => String(x.id) === String(qInv));
+            if (inv) {
+              draftItems = [{
+                inventoryId: inv.id,
+                offcutId: null,
+                profile: inv.profileName,
+                materialGroup: inv.materialGroup || 'tube_1d',
+                unit: inv.unit || 'cây',
+                lengthMm: inv.standardLengthMm || inv.standardLength || 6000,
+                qty: 1,
+                unitPrice: Number(inv.avgCost || inv.unitPrice || 0),
+                note: ''
+              }];
+              renderVoucherItemsRows();
+            }
+          }
+        }
+      }
+
+      async function addScannedItemToVoucher(parsed) {
+        if (!parsed) return;
+        if (parsed.kind === 'INV') {
+          const inv = inventoryItems.find(x => String(x.id) === String(parsed.id));
+          if (!inv) {
+            showToast(`⚠️ Không tìm thấy vật tư ID ${parsed.id} trong kho!`);
+            return;
+          }
+          const existing = draftItems.find(it => String(it.inventoryId || '') === String(inv.id) || it.profile === inv.profileName);
+          if (existing) {
+            existing.qty = (Number(existing.qty) || 0) + 1;
+            showToast(`📷 +1 ${inv.profileName} (SL: ${existing.qty})`);
+          } else {
+            if (draftItems.length === 1 && !draftItems[0].profile) draftItems.pop();
+            draftItems.push({
+              inventoryId: inv.id,
+              offcutId: null,
+              profile: inv.profileName,
+              materialGroup: inv.materialGroup || 'tube_1d',
+              unit: inv.unit || 'cây',
+              lengthMm: inv.standardLengthMm || inv.standardLength || 6000,
+              qty: 1,
+              unitPrice: Number(inv.avgCost || inv.unitPrice || 0),
+              note: 'Quét QR'
+            });
+            showToast(`📷 Đã thêm ${inv.profileName} vào phiếu!`);
+          }
+          renderVoucherItemsRows();
+          return;
+        }
+        if (parsed.kind === 'OFF') {
+          try {
+            const offs = await window.SupabaseDB.getStockOffcuts();
+            const off = (offs || []).find(o => String(o.id) === String(parsed.id));
+            if (!off) {
+              showToast(`⚠️ Không tìm thấy đoạn đề-xê ID ${parsed.id}!`);
+              return;
+            }
+            const existing = draftItems.find(it => String(it.offcutId || '') === String(off.id));
+            if (existing) {
+              existing.qty = (Number(existing.qty) || 0) + 1;
+              showToast(`📷 +1 Đề-xê ${off.profile} (${numVN(off.lengthMm)}mm)`);
+            } else {
+              if (draftItems.length === 1 && !draftItems[0].profile) draftItems.pop();
+              draftItems.push({
+                inventoryId: null,
+                offcutId: off.id,
+                profile: off.profile,
+                materialGroup: 'tube_1d',
+                unit: 'đoạn',
+                lengthMm: off.lengthMm,
+                qty: 1,
+                unitPrice: 0,
+                note: `Đề-xê ${numVN(off.lengthMm)}mm`
+              });
+              showToast(`📷 Đã thêm đề-xê ${off.profile} (${numVN(off.lengthMm)}mm)!`);
+            }
+            renderVoucherItemsRows();
+          } catch (err) {
+            showToast('❌ Lỗi tra đề-xê: ' + err.message);
+          }
+          return;
+        }
+        showToast(`ℹ️ Mã QR "${parsed.raw}" không phải tem vật tư (XP:INV / XP:OFF).`);
+      }
+
+      if ($('btnScanAddVoucherItem')) {
+        $('btnScanAddVoucherItem').onclick = () => {
+          if (!window.WorkshopQrScanner) {
+            showToast('⚠️ Bộ quét QR chưa sẵn sàng!');
+            return;
+          }
+          window.WorkshopQrScanner.open({
+            title: '📷 Quét Liên Tục Thêm Vật Tư Vào Phiếu',
+            subtitle: 'Quét nhiều tem liên tiếp — Quét trùng tự tăng số lượng +1',
+            continuous: true,
+            onScan: (parsed) => addScannedItemToVoucher(parsed)
+          });
+        };
+      }
       if ($('btnSaveVoucher')) $('btnSaveVoucher').onclick = handleSaveVoucher;
       if ($('btnCloseVoucherModal')) $('btnCloseVoucherModal').onclick = () => $('modalVoucherForm').classList.remove('open');
       if ($('btnCancelVoucherModal')) $('btnCancelVoucherModal').onclick = () => $('modalVoucherForm').classList.remove('open');

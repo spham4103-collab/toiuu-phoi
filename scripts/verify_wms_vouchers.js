@@ -491,9 +491,41 @@ function verifyServerRoutes() {
   });
 }
 
+function verifyPhase2Features() {
+  for (const rel of [
+    'js/qr-scanner.js',
+    'js/shared-ui.js',
+    'js/supabaseClient.js',
+    'js/workshopExport.js',
+    'js/index/warehouse-dispatch.js',
+    'js/index/nesting-ui.js',
+    'js/index/cloud-sync.js'
+  ]) {
+    execFileSync(process.execPath, ['--check', path.join(ROOT, rel)], { stdio: 'pipe' });
+  }
+  const swText = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  assert(swText.includes('toiuu-phoi-pwa-v20'), 'sw.js must be bumped to v20');
+  assert(swText.includes('/js/qr-scanner.js'), 'sw.js must cache /js/qr-scanner.js');
+
+  const invHtml = fs.readFileSync(path.join(ROOT, 'inventory.html'), 'utf8');
+  assert(invHtml.includes('modalPrintQrLabels') && invHtml.includes('XP:INV:') && invHtml.includes('XP:OFF:') && invHtml.includes('XP:RACK:'), 'inventory.html must support A4 QR label printing');
+  assert(invHtml.includes('btnScanQrLookup') && invHtml.includes('/js/qr-scanner.js'), 'inventory.html must include mobile QR lookup');
+
+  const vHtml = fs.readFileSync(path.join(ROOT, 'vouchers.html'), 'utf8');
+  assert(vHtml.includes('btnScanAddVoucherItem') && vHtml.includes('/js/qr-scanner.js'), 'vouchers.html must include continuous QR scan');
+
+  const sbText = fs.readFileSync(path.join(ROOT, 'js/supabaseClient.js'), 'utf8');
+  assert(sbText.includes('createProjectOutVoucher') && sbText.includes('getPendingVouchersCount'), 'supabaseClient.js must expose Phase 2 voucher helpers');
+
+  const shText = fs.readFileSync(path.join(ROOT, 'js/shared-ui.js'), 'utf8');
+  assert(shText.includes('initPendingVouchersBadge'), 'shared-ui.js must expose initPendingVouchersBadge');
+  console.log('[OK] WMS Phase 2 checks (QR A4 print, QR scanner, workshop voucher linkage, sw.js v20) passed');
+}
+
 (async function main() {
   verifySqlMigration();
   verifyHtmlAndJsSyntax();
+  verifyPhase2Features();
   await runAtomicVoucherAndCompatTests();
   await verifyServerRoutes();
 })().catch(err => {

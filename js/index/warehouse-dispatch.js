@@ -276,14 +276,42 @@
       }
     }
 
-    async function dispatchActiveProjectToWarehouse(skipConfirm = false) {
+    async function refreshActiveProjectOutVoucher() {
+      if (!state.currentProjectId || !window.SupabaseDB || typeof window.SupabaseDB.getProjectOutVouchers !== 'function') {
+        state.activeProjectOutVoucher = null;
+        return null;
+      }
+      try {
+        const list = await window.SupabaseDB.getProjectOutVouchers(state.currentProjectId);
+        const active = (Array.isArray(list) && list.length) ? list[0] : null;
+        state.activeProjectOutVoucher = active;
+        if (active && active.status === 'approved' && !state.inventoryDeductedAt) {
+          state.inventoryDeductedAt = active.approvedAt || active.createdAt || new Date().toISOString();
+          state.inventoryDeductedBy = active.approvedBy || active.createdBy || '';
+        }
+        return active;
+      } catch (e) {
+        return state.activeProjectOutVoucher || null;
+      }
+    }
+
+    async function dispatchActiveProjectToWarehouse(skipConfirm = false, autoApproveChoice = null) {
       if (state.userRole === 'operator') {
         alert('🔒 Thợ CNC không có quyền Xuất kho dự án.');
         return false;
       }
       if (!state.currentProjectId) {
-        alert('⚠️ Vui lòng bấm [Lưu dự án] thành đơn hàng chính thức trước khi Xuất kho, để Sổ cái lưu đúng mã dự án và khóa chống trừ trùng!');
+        alert('⚠️ Vui lòng bấm [Lưu dự án] thành đơn hàng chính thức trước khi Xuất kho, để Phiếu Xuất Kho lưu đúng mã dự án và khóa chống trừ trùng!');
         openSaveProjectModal();
+        return false;
+      }
+      await refreshActiveProjectOutVoucher();
+      if (state.activeProjectOutVoucher) {
+        const v = state.activeProjectOutVoucher;
+        showToast(v.status === 'approved'
+          ? `🔒 Dự án đã xuất kho theo phiếu ${v.voucherCode}!`
+          : `⏳ Dự án đang có phiếu chờ duyệt ${v.voucherCode}!`);
+        if (state.result) renderMaterialsGrouped(state.result);
         return false;
       }
       if (state.inventoryDeductedAt) {
@@ -301,56 +329,93 @@
         return false;
       }
 
+      const canApprove = window.SharedUI && window.SharedUI.canApproveVouchers(state.currentUser);
+      const shouldAutoApprove = autoApproveChoice !== null ? Boolean(autoApproveChoice) : canApprove;
+
       const msgLines = [
-        `📤 XÁC NHẬN XUẤT KHO CHO DỰ ÁN "${state.currentProjectName || state.currentProjectId}":`,
+        shouldAutoApprove
+          ? `📤 XÁC NHẬN TẠO & DUYỆT PHIẾU XUẤT KHO (PXK) CHO "${state.currentProjectName || state.currentProjectId}":`
+          : `📝 XÁC NHẬN GỬI YÊU CẦU XUẤT KHO (PXK CHỜ DUYỆT) CHO "${state.currentProjectName || state.currentProjectId}":`,
         '',
         ...plan.fullSummaryLines,
-        ...(plan.offcutCount > 0 ? [`• Phôi lẻ / Đề-xê kho: đánh dấu đã dùng ${plan.offcutCount} đoạn.`] : []),
+        ...(plan.offcutCount > 0 ? [`• Phôi lẻ / Đề-xê kho: dùng ${plan.offcutCount} đoạn.`] : []),
         '',
-        'Thao tác sẽ ghi Sổ cái xuất kho và KHÓA chống trừ kho lần 2 cho dự án này.'
+        shouldAutoApprove
+          ? 'Hệ thống sẽ tạo Phiếu Xuất Kho, duyệt trừ tồn kho nguyên tử & ghi Sổ cái ngay.'
+          : 'Hệ thống sẽ tạo Phiếu Xuất Kho (PXK) trạng thái CHỜ THỦ KHO DUYỆT và gửi thông báo.'
       ];
       if (!skipConfirm && !confirm(msgLines.join('\n'))) {
         return false;
       }
 
-      window.SupabaseDB.setLoading(true, 'Đang xuất kho & ghi Sổ cái giao dịch...');
+      window.SupabaseDB.setLoading(true, shouldAutoApprove ? 'Đang tạo & duyệt Phiếu Xuất Kho...' : 'Đang tạo Phiếu Xuất Kho chờ duyệt...');
       try {
         const actor = state.currentUser ? state.currentUser.username : '';
-        const res = await window.SupabaseDB.dispatchProjectInventory({
+        const voucher = await window.SupabaseDB.createProjectOutVoucher({
           projectId: state.currentProjectId,
           projectName: state.currentProjectName || state.currentProjectId,
-          projectDeductedAt: state.inventoryDeductedAt,
           fullBarsByProfile: plan.fullBarsByProfile,
           offcutsUsed: plan.offcutsUsed,
-          createdBy: actor
+          createdBy: actor,
+          autoApprove: shouldAutoApprove
         });
 
-        state.inventoryDeductedAt = res.deductedAt;
-        state.inventoryDeductedBy = actor;
-        state.inventoryDeductedSnapshot = { fullBars: res.fullBars, offcuts: res.offcuts };
-        if (res.totalOffcutsDeducted > 0) {
-          state.offcutsDeducted = true;
-          state.offcutsDeductedAt = res.deductedAt;
+        state.activeProjectOutVoucher = voucher;
+        if (voucher && voucher.status === 'approved') {
+          const approvedTs = voucher.approvedAt || new Date().toISOString();
+          state.inventoryDeductedAt = approvedTs;
+          state.inventoryDeductedBy = voucher.approvedBy || actor;
+          if (plan.offcutCount > 0) {
+            state.offcutsDeducted = true;
+            state.offcutsDeductedAt = approvedTs;
+          }
+          state.hasPendingActiveSave = false;
+          clearTimeout(state.activeSaveTimer);
+          state.lastLocalProjectWriteAt = Date.now();
+          const snap = buildActiveDataSnapshot();
+          const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+          const updatedProj = await window.SupabaseDB.updateProjectFields(state.currentProjectId, {
+            data: snap,
+            inventoryDeductedAt: approvedTs
+          });
+          if (curProj && updatedProj) Object.assign(curProj, updatedProj);
+          await Promise.all([initSavedProfiles(), initStockOffcuts()]);
+          renderOffcutSuggestionBox();
+          showToast(`✅ Đã tạo & duyệt xuất kho ${voucher.voucherCode}!`);
+        } else {
+          showToast(`⏳ Đã tạo phiếu ${voucher.voucherCode} chờ Thủ kho duyệt!`);
         }
 
-        state.hasPendingActiveSave = false;
-        clearTimeout(state.activeSaveTimer);
-        state.lastLocalProjectWriteAt = Date.now();
-        const snap = buildActiveDataSnapshot();
-        const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
-        const updatedProj = await window.SupabaseDB.updateProjectFields(state.currentProjectId, {
-          data: snap,
-          inventoryDeductedAt: res.deductedAt
-        });
-        if (curProj && updatedProj) Object.assign(curProj, updatedProj);
-
-        await Promise.all([initSavedProfiles(), initStockOffcuts()]);
-        renderOffcutSuggestionBox();
+        if (window.SharedUI) window.SharedUI.refreshPendingVouchersBadge();
         renderMaterialsGrouped(state.result);
-        showToast(`📤 Đã xuất kho: -${res.totalFullDeducted} cây nguyên${res.totalOffcutsDeducted > 0 ? ` và -${res.totalOffcutsDeducted} đoạn lẻ` : ''}!`);
         return true;
       } catch (err) {
-        showToast('❌ Không xuất được kho: ' + err.message);
+        showToast('❌ Không tạo được phiếu xuất kho: ' + err.message);
+        return false;
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function approvePendingProjectOutVoucher() {
+      const v = state.activeProjectOutVoucher;
+      if (!v || v.status !== 'pending') return false;
+      if (!confirm(`✅ Duyệt xuất kho ngay theo phiếu ${v.voucherCode}? Tồn kho sẽ được trừ nguyên tử.`)) return false;
+      window.SupabaseDB.setLoading(true, `Đang duyệt phiếu ${v.voucherCode}...`);
+      try {
+        await window.SupabaseDB.approveWarehouseVoucher(v.id);
+        await refreshActiveProjectOutVoucher();
+        const approvedTs = (state.activeProjectOutVoucher && state.activeProjectOutVoucher.approvedAt) || new Date().toISOString();
+        state.inventoryDeductedAt = approvedTs;
+        state.inventoryDeductedBy = state.currentUser ? state.currentUser.username : '';
+        await Promise.all([initSavedProfiles(), initStockOffcuts()]);
+        renderOffcutSuggestionBox();
+        if (state.result) renderMaterialsGrouped(state.result);
+        if (window.SharedUI) window.SharedUI.refreshPendingVouchersBadge();
+        showToast(`✅ Đã duyệt xuất kho ${v.voucherCode}!`);
+        return true;
+      } catch (err) {
+        showToast('❌ Lỗi duyệt phiếu: ' + err.message);
         return false;
       } finally {
         window.SupabaseDB.setLoading(false);
@@ -359,10 +424,56 @@
 
     async function returnActiveProjectToWarehouse() {
       if (state.userRole === 'operator') return false;
-      if (!state.currentProjectId || !state.inventoryDeductedAt) {
-        showToast('Dự án này chưa xuất kho nên không cần hoàn kho!');
+      const activeVoucher = state.activeProjectOutVoucher;
+      if (!state.currentProjectId || (!state.inventoryDeductedAt && !activeVoucher)) {
+        showToast('Dự án này chưa có phiếu xuất kho nên không cần hoàn kho!');
         return false;
       }
+
+      if (activeVoucher) {
+        const isPending = activeVoucher.status === 'pending';
+        if (!confirm(
+          isPending
+            ? `✕ Hủy phiếu chờ duyệt ${activeVoucher.voucherCode} của dự án "${state.currentProjectName}"?`
+            : `↩️ XÁC NHẬN HỦY ĐẢO KHO PHIẾU ${activeVoucher.voucherCode}:\n\n• Hệ thống sẽ gọi RPC đảo ngược tồn kho & ghi bút toán hoàn kho vào Sổ cái.\n• Dự án sẽ mở lại trạng thái Chưa xuất kho.`
+        )) {
+          return false;
+        }
+        window.SupabaseDB.setLoading(true, isPending ? 'Đang hủy phiếu chờ duyệt...' : 'Đang hủy đảo kho phiếu xuất...');
+        try {
+          await window.SupabaseDB.cancelWarehouseVoucher(activeVoucher.id, 'Hoàn kho từ Bàn xếp phôi');
+          state.activeProjectOutVoucher = null;
+          state.inventoryDeductedAt = null;
+          state.inventoryDeductedBy = '';
+          state.inventoryDeductedSnapshot = null;
+          state.offcutsDeducted = false;
+          state.offcutsDeductedAt = null;
+
+          state.hasPendingActiveSave = false;
+          clearTimeout(state.activeSaveTimer);
+          state.lastLocalProjectWriteAt = Date.now();
+          const projSnap = buildActiveDataSnapshot();
+          const curProj = (state.savedProjects || []).find(p => p.id === state.currentProjectId);
+          const updatedProj = await window.SupabaseDB.updateProjectFields(state.currentProjectId, {
+            data: projSnap,
+            inventoryDeductedAt: null
+          });
+          if (curProj && updatedProj) Object.assign(curProj, updatedProj);
+
+          await Promise.all([initSavedProfiles(), initStockOffcuts()]);
+          renderOffcutSuggestionBox();
+          if (state.result) renderMaterialsGrouped(state.result);
+          if (window.SharedUI) window.SharedUI.refreshPendingVouchersBadge();
+          showToast(isPending ? `✕ Đã hủy phiếu ${activeVoucher.voucherCode}` : `↩️ Đã hoàn kho & hủy đảo phiếu ${activeVoucher.voucherCode}!`);
+          return true;
+        } catch (err) {
+          showToast('❌ Lỗi hoàn kho: ' + err.message);
+          return false;
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
+      }
+
       const snap = state.inventoryDeductedSnapshot || { fullBars: [], offcuts: [] };
       const fullQty = (snap.fullBars || []).reduce((a, b) => a + (Number(b.deductedQty) || 0), 0);
       const offQty = (snap.offcuts || []).reduce((a, b) => a + (Number(b.usedQty) || 0), 0);
@@ -424,6 +535,8 @@ if (typeof window !== "undefined") {
   window.deductUsedOffcutsFromWarehouse = deductUsedOffcutsFromWarehouse;
   window.computeDispatchPlanForResult = computeDispatchPlanForResult;
   window.computeDispatchNeedsForAnyProject = computeDispatchNeedsForAnyProject;
+  window.refreshActiveProjectOutVoucher = refreshActiveProjectOutVoucher;
   window.dispatchActiveProjectToWarehouse = dispatchActiveProjectToWarehouse;
+  window.approvePendingProjectOutVoucher = approvePendingProjectOutVoucher;
   window.returnActiveProjectToWarehouse = returnActiveProjectToWarehouse;
 }

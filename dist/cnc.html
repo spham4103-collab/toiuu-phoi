@@ -491,6 +491,9 @@
           applyLoggedInUserUI(user);
           await loadWorkshopData();
           initRealtime();
+          if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+            window.SharedUI.initPendingVouchersBadge();
+          }
           return;
         }
         showLoginGate();
@@ -519,6 +522,9 @@
         applyLoggedInUserUI(found);
         await loadWorkshopData();
         initRealtime();
+        if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+          window.SharedUI.initPendingVouchersBadge();
+        }
         showToast(`✓ Xin chào ${found.fullName || found.username}!`);
       } catch (err) {
         $('loginErr').textContent = '❌ ' + (err.message || 'Sai tài khoản hoặc mật khẩu!');
@@ -1230,6 +1236,31 @@
         });
         if (created && !stockOffcuts.some(o => o.id === created.id)) {
           stockOffcuts.unshift(created);
+        }
+        if (created && window.SharedUI && typeof window.SharedUI.canCreateVouchers === 'function' && window.SharedUI.canCreateVouchers(currentUser)) {
+          try {
+            await window.SupabaseDB.createWarehouseVoucher({
+              voucherType: 'RETURN',
+              status: 'pending',
+              projectId: activeProjectId,
+              department: 'Tổ Laser CNC',
+              note: `Hoàn đề-xê CNC từ ${barKey.replace('__', ' - ')}`,
+              createdBy: currentUser ? currentUser.username : ''
+            }, [{
+              inventoryId: null,
+              offcutId: created.id,
+              profile: prof,
+              materialGroup: 'tube_1d',
+              unit: 'đoạn',
+              qty: qty,
+              lengthMm: cleanLen,
+              unitPrice: 0,
+              note: `Hoàn đề-xê CNC ${numVN(cleanLen)}mm`
+            }]);
+            window.SharedUI.refreshPendingVouchersBadge();
+          } catch (vErr) {
+            console.warn('Ghi phiếu hoàn đề-xê (best-effort):', vErr);
+          }
         }
         renderPatterns();
         showToast(`♻️ Đã nhập kho đề-xê: ${qty} đoạn ${prof} (${numVN(cleanLen)} mm)!`);

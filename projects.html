@@ -475,6 +475,7 @@
 
     let currentUser = null;
     let projectsList = [];
+    let projectOutVouchersMap = {};
     let trashList = [];
     let currentProjId = null;
     let activeTab = 'active';
@@ -574,6 +575,9 @@
         $('inpLoginPass').value = '';
         applyLoggedInUserUI(found);
         await loadData();
+        if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+          window.SharedUI.initPendingVouchersBadge();
+        }
         showToast(`✓ Xin chào ${found.fullName || found.username}!`);
       } catch (err) {
         errEl.textContent = '❌ ' + (err.message || 'Tên tài khoản hoặc mật khẩu không chính xác!');
@@ -602,7 +606,13 @@
       }
       window.SupabaseDB.setLoading(true, 'Đang tải danh sách dự án...');
       try {
-        const allProjs = await window.SupabaseDB.getProjectsSummary({ includeTrash: true, includeDraft: false });
+        const [allProjs, outVouchersMap] = await Promise.all([
+          window.SupabaseDB.getProjectsSummary({ includeTrash: true, includeDraft: false }),
+          typeof window.SupabaseDB.getActiveProjectOutVouchersMap === 'function'
+            ? window.SupabaseDB.getActiveProjectOutVouchersMap().catch(() => ({}))
+            : Promise.resolve({})
+        ]);
+        projectOutVouchersMap = outVouchersMap || {};
         projectsList = allProjs.filter(p => !p.isTrashed && !p.isDraft);
         trashList = allProjs.filter(p => p.isTrashed && !p.isDraft);
         sortByUpdatedDesc(projectsList);
@@ -611,6 +621,9 @@
         window.SupabaseDB.clearConnectionError();
         renderAll();
         initRealtime();
+        if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+          window.SharedUI.initPendingVouchersBadge();
+        }
       } catch (err) {
         console.error('Lỗi tải dự án:', err);
         window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải dự án: ' + err.message, () => loadData());
@@ -649,6 +662,12 @@
         profiles: (ev) => {
           if (currentUser && ev.newRecord && ev.newRecord.id === currentUser.id) {
             applyLoggedInUserUI(Object.assign({}, currentUser, ev.newRecord));
+          }
+        },
+        warehouse_vouchers: async () => {
+          if (typeof window.SupabaseDB.getActiveProjectOutVouchersMap === 'function') {
+            projectOutVouchersMap = await window.SupabaseDB.getActiveProjectOutVouchersMap().catch(() => ({}));
+            renderList();
           }
         }
       }, null, {
@@ -717,6 +736,8 @@
         const totalPcs = parts.reduce((a, b) => a + (Number(b.qty) || 0), 0);
         const profs = (p.data && Array.isArray(p.data.activeProfiles)) ? p.data.activeProfiles : [];
         const dateStr = (isTrash ? p.deletedAt : p.updatedAt) ? new Date(isTrash ? p.deletedAt : p.updatedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Vừa xong';
+        const outV = !isTrash ? (projectOutVouchersMap && projectOutVouchersMap[p.id]) : null;
+        const isLegacyDispatched = !isTrash && !outV && Boolean(p.inventoryDeductedAt || p.inventory_deducted_at || (p.data && p.data.inventoryDeductedAt));
 
         return `
           <div class="proj-item ${isActive ? 'active-proj' : ''} ${p.isLocked && !isTrash ? 'locked-proj' : ''} ${isTrash ? 'trash-proj' : ''}">
@@ -726,6 +747,9 @@
                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
                   ${isActive ? '<span class="pill pill-green">● Đang mở</span>' : ''}
                   ${p.isLocked && !isTrash ? '<span class="pill pill-amber">🔒 Đã khóa</span>' : ''}
+                  ${outV && outV.status === 'pending' ? `<a href="/vouchers?id=${encodeURIComponent(outV.id)}" class="pill pill-amber" title="Mở phiếu chờ duyệt">⏳ Chờ duyệt ${escapeHtml(outV.voucherCode)}</a>` : ''}
+                  ${outV && outV.status === 'approved' ? `<a href="/vouchers?id=${encodeURIComponent(outV.id)}" class="pill pill-green" title="Xem phiếu đã xuất">✅ Đã xuất ${escapeHtml(outV.voucherCode)}</a>` : ''}
+                  ${isLegacyDispatched ? '<span class="pill pill-green">✅ Đã xuất kho</span>' : ''}
                   ${isTrash ? '<span class="pill pill-red">Đã xóa</span>' : ''}
                 </div>
               </div>
@@ -802,7 +826,8 @@
                 Object.assign(p, fullP);
               }
             }
-            const alreadyDispatched = Boolean(p.inventoryDeductedAt || p.inventory_deducted_at || (p.data && p.data.inventoryDeductedAt));
+            const existingOutV = projectOutVouchersMap && projectOutVouchersMap[p.id];
+            const alreadyDispatched = Boolean(existingOutV || p.inventoryDeductedAt || p.inventory_deducted_at || (p.data && p.data.inventoryDeductedAt));
             if (!alreadyDispatched) {
               const invItems = await window.SupabaseDB.getInventory().catch(() => []);
               const plan = computeDispatchNeedsForProject(p, invItems);
@@ -814,41 +839,47 @@
               }, 0);
 
               if (totalDeductibleFull > 0 || plan.offcutCount > 0) {
+                const canApp = window.SharedUI && window.SharedUI.canApproveVouchers(currentUser);
                 const wantDispatch = confirm(
                   `📦 CHỐT KHÓA SẢN XUẤT "${p.name}":\n\n` +
                   (plan.fullSummaryLines.length ? plan.fullSummaryLines.join('\n') + '\n' : '') +
                   (plan.offcutCount > 0 ? `• Phôi lẻ/đề-xê kho: dùng ${plan.offcutCount} đoạn\n` : '') +
-                  `\n• Bấm [OK] để XUẤT KHO & KHÓA BẢO VỆ DỰ ÁN (chống trừ trùng).\n` +
+                  `\n• Bấm [OK] để ${canApp ? 'TẠO & DUYỆT PHIẾU XUẤT KHO (PXK)' : 'TẠO PHIẾU XUẤT KHO CHỜ DUYỆT (PXK)'} & KHÓA DỰ ÁN.\n` +
                   `• Bấm [Cancel] để giữ nguyên kho (chỉ Khóa bảo vệ dự án).`
                 );
                 if (wantDispatch) {
-                  window.SupabaseDB.setLoading(true, 'Đang xuất kho trước khi khóa dự án...');
+                  window.SupabaseDB.setLoading(true, 'Đang tạo Phiếu Xuất Kho trước khi khóa dự án...');
                   try {
                     const actor = currentUser ? currentUser.username : '';
-                    const dispRes = await window.SupabaseDB.dispatchProjectInventory({
+                    const voucher = await window.SupabaseDB.createProjectOutVoucher({
                       projectId: p.id,
                       projectName: p.name || p.id,
-                      projectDeductedAt: null,
                       fullBarsByProfile: plan.fullBarsByProfile,
                       offcutsUsed: plan.offcutsUsed,
-                      createdBy: actor
+                      createdBy: actor,
+                      autoApprove: Boolean(canApp)
                     });
-                    const snapObj = { fullBars: dispRes.fullBars, offcuts: dispRes.offcuts };
-                    const nextData = Object.assign({}, p.data || {}, {
-                      inventoryDeductedAt: dispRes.deductedAt,
-                      inventoryDeductedBy: actor,
-                      inventoryDeductedSnapshot: snapObj,
-                      offcutsDeducted: dispRes.totalOffcutsDeducted > 0 ? true : Boolean(p.data && p.data.offcutsDeducted),
-                      offcutsDeductedAt: dispRes.totalOffcutsDeducted > 0 ? dispRes.deductedAt : (p.data && p.data.offcutsDeductedAt) || null
-                    });
-                    const updatedData = await window.SupabaseDB.updateProjectFields(p.id, {
-                      data: nextData,
-                      inventoryDeductedAt: dispRes.deductedAt
-                    });
-                    Object.assign(p, updatedData);
-                    showToast(`📤 Đã xuất kho: -${dispRes.totalFullDeducted} cây nguyên${dispRes.totalOffcutsDeducted > 0 ? `, -${dispRes.totalOffcutsDeducted} đoạn lẻ` : ''}!`);
+                    projectOutVouchersMap[p.id] = voucher;
+                    if (voucher && voucher.status === 'approved') {
+                      const appTs = voucher.approvedAt || new Date().toISOString();
+                      const nextData = Object.assign({}, p.data || {}, {
+                        inventoryDeductedAt: appTs,
+                        inventoryDeductedBy: actor,
+                        offcutsDeducted: plan.offcutCount > 0 ? true : Boolean(p.data && p.data.offcutsDeducted),
+                        offcutsDeductedAt: plan.offcutCount > 0 ? appTs : (p.data && p.data.offcutsDeductedAt) || null
+                      });
+                      const updatedData = await window.SupabaseDB.updateProjectFields(p.id, {
+                        data: nextData,
+                        inventoryDeductedAt: appTs
+                      });
+                      Object.assign(p, updatedData);
+                      showToast(`✅ Đã tạo & duyệt xuất kho ${voucher.voucherCode}!`);
+                    } else {
+                      showToast(`⏳ Đã tạo phiếu ${voucher.voucherCode} chờ Thủ kho duyệt!`);
+                    }
+                    if (window.SharedUI) window.SharedUI.refreshPendingVouchersBadge();
                   } catch (dispErr) {
-                    showToast('⚠️ Chưa xuất được kho: ' + dispErr.message);
+                    showToast('⚠️ Chưa tạo được phiếu xuất kho: ' + dispErr.message);
                   } finally {
                     window.SupabaseDB.setLoading(false);
                   }
@@ -1217,6 +1248,7 @@
             stockOffcuts = oRes || [];
           } catch (e) {}
         }
+        const outV = projectOutVouchersMap && projectOutVouchersMap[p.id];
         return {
           project: p,
           result,
@@ -1227,6 +1259,8 @@
           inventoryDeductedAt: p.inventoryDeductedAt || p.inventory_deducted_at || (d && d.inventoryDeductedAt) || null,
           inventoryDeductedBy: p.inventoryDeductedBy || p.inventory_deducted_by || (d && d.inventoryDeductedBy) || '',
           inventoryDeductedSnapshot: p.inventoryDeductedSnapshot || (d && d.inventoryDeductedSnapshot) || null,
+          dispatchVoucherCode: outV ? outV.voucherCode : '',
+          dispatchVoucherStatus: outV ? outV.status : '',
           exportedBy: currentUser ? currentUser.username : ''
         };
       } catch (err) {

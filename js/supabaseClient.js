@@ -2469,7 +2469,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (!voucherId) throw new Error('Thiếu ID chứng từ cần duyệt');
     var client = getClient();
     var res = await client.rpc('approve_warehouse_voucher', { p_voucher_id: voucherId });
-    return throwIfError(res, 'Duyệt phiếu kho thất bại');
+    var result = throwIfError(res, 'Duyệt phiếu kho thất bại');
+    try {
+      var vInfo = await getWarehouseVoucherById(voucherId);
+      if (vInfo && vInfo.voucherType === 'OUT' && vInfo.projectId) {
+        await client.from('projects').update({ inventory_deducted_at: vInfo.approvedAt || new Date().toISOString() }).eq('id', vInfo.projectId);
+      }
+    } catch (e) {}
+    return result;
   }
 
   async function cancelWarehouseVoucher(voucherId, reason) {
@@ -2479,7 +2486,152 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       p_voucher_id: voucherId,
       p_reason: String(reason || '').trim()
     });
-    return throwIfError(res, 'Hủy phiếu kho thất bại');
+    var result = throwIfError(res, 'Hủy phiếu kho thất bại');
+    try {
+      var vInfo = await getWarehouseVoucherById(voucherId);
+      if (vInfo && vInfo.voucherType === 'OUT' && vInfo.projectId) {
+        await client.from('projects').update({ inventory_deducted_at: null }).eq('id', vInfo.projectId);
+      }
+    } catch (e) {}
+    return result;
+  }
+
+  async function getPendingVouchersCount() {
+    if (!isConfigured()) return 0;
+    try {
+      var client = getClient();
+      var res = await client
+        .from('warehouse_vouchers')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (res && res.error) return 0;
+      return Number(res && res.count) || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  async function getProjectOutVouchers(projectId) {
+    if (!projectId || projectId === DRAFT_PROJECT_ID || !isConfigured()) return [];
+    try {
+      var client = getClient();
+      var res = await client
+        .from('warehouse_vouchers')
+        .select('*, supplier:suppliers(id,code,name), project:projects(id,name), warehouse_voucher_items(*)')
+        .eq('project_id', String(projectId))
+        .eq('voucher_type', 'OUT')
+        .in('status', ['pending', 'approved'])
+        .order('created_at', { ascending: false });
+      if (res && res.error) return [];
+      return (res.data || []).map(mapVoucherFromDb);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function getActiveProjectOutVouchersMap() {
+    if (!isConfigured()) return {};
+    try {
+      var client = getClient();
+      var res = await client
+        .from('warehouse_vouchers')
+        .select('id, voucher_code, voucher_type, status, project_id, created_at, approved_at, created_by, approved_by')
+        .eq('voucher_type', 'OUT')
+        .in('status', ['pending', 'approved'])
+        .not('project_id', 'is', null)
+        .order('created_at', { ascending: false });
+      if (res && res.error) return {};
+      var map = {};
+      (res.data || []).forEach(function (row) {
+        if (row.project_id && !map[row.project_id]) {
+          map[row.project_id] = mapVoucherFromDb(row);
+        }
+      });
+      return map;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function createProjectOutVoucher(opts) {
+    var o = opts || {};
+    var projectId = String(o.projectId || '').trim();
+    if (!projectId || projectId === DRAFT_PROJECT_ID) {
+      throw new Error('Vui lòng lưu dự án thành đơn hàng chính thức trước khi tạo Phiếu Xuất Kho!');
+    }
+
+    // Chống trùng lặp: kiểm tra đã có PXK pending/approved chưa
+    var existingList = await getProjectOutVouchers(projectId);
+    if (existingList.length > 0) {
+      var dup = existingList[0];
+      throw new Error('Dự án đã có phiếu ' + dup.voucherCode + ' (' + (dup.status === 'approved' ? 'Đã duyệt xuất' : 'Đang chờ duyệt') + ').');
+    }
+
+    var invList = await getInventory();
+    var invByProf = {};
+    invList.forEach(function (r) { invByProf[r.profileName] = r; });
+
+    var items = [];
+    var fullBars = Array.isArray(o.fullBarsByProfile) ? o.fullBarsByProfile : [];
+    for (var i = 0; i < fullBars.length; i++) {
+      var f = fullBars[i];
+      var qty = Math.max(0, Number(f.qty) || 0);
+      if (!f.profile || qty <= 0) continue;
+      var invRow = invByProf[f.profile];
+      if (!invRow) {
+        invRow = await _ensureInventoryProfileRow(f.profile, f.lengthMm || 6000);
+      }
+      items.push({
+        inventoryId: invRow.id,
+        offcutId: null,
+        profile: invRow.profileName,
+        materialGroup: invRow.materialGroup || 'tube_1d',
+        unit: invRow.unit || 'cây',
+        qty: qty,
+        lengthMm: f.lengthMm || invRow.standardLengthMm || 6000,
+        unitPrice: Number(invRow.avgCost || invRow.unitPrice || 0),
+        note: 'Xuất cây nguyên cho dự án'
+      });
+    }
+
+    var offcuts = Array.isArray(o.offcutsUsed) ? o.offcutsUsed : [];
+    for (var j = 0; j < offcuts.length; j++) {
+      var off = offcuts[j];
+      var oQty = Math.max(0, Number(off.usedQty || off.qty) || 0);
+      if (!off.id || oQty <= 0) continue;
+      items.push({
+        inventoryId: null,
+        offcutId: off.id,
+        profile: off.profile || 'Chung',
+        materialGroup: 'tube_1d',
+        unit: 'đoạn',
+        qty: oQty,
+        lengthMm: Number(off.lengthMm) || null,
+        unitPrice: 0,
+        note: 'Xuất đề-xê tái sử dụng'
+      });
+    }
+
+    if (!items.length) {
+      throw new Error('Không có dòng vật tư nào cần xuất kho!');
+    }
+
+    var projName = String(o.projectName || projectId).trim();
+    var created = await createWarehouseVoucher({
+      voucherType: 'OUT',
+      status: 'pending',
+      projectId: projectId,
+      department: String(o.department || 'Tổ Laser / Hàn Khung').trim(),
+      note: String(o.note || ('Xuất vật tư sản xuất dự án: ' + projName)).trim(),
+      allowNegative: Boolean(o.allowNegative),
+      createdBy: String(o.createdBy || '').trim()
+    }, items);
+
+    if (o.autoApprove) {
+      await approveWarehouseVoucher(created.id);
+      return await getWarehouseVoucherById(created.id);
+    }
+    return created;
   }
 
   async function uploadVoucherAttachment(blobOrFile, fileNameHint) {
@@ -2704,6 +2856,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           raw: payload
         };
       }
+      if (table === 'warehouse_vouchers') {
+        return {
+          eventType: eventType,
+          newRecord: mapVoucherFromDb(payload.new),
+          oldRecord: mapVoucherFromDb(payload.old),
+          raw: payload
+        };
+      }
       return payload;
     };
 
@@ -2883,6 +3043,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     updateWarehouseVoucher: updateWarehouseVoucher,
     approveWarehouseVoucher: approveWarehouseVoucher,
     cancelWarehouseVoucher: cancelWarehouseVoucher,
+    getPendingVouchersCount: getPendingVouchersCount,
+    getProjectOutVouchers: getProjectOutVouchers,
+    getActiveProjectOutVouchersMap: getActiveProjectOutVouchersMap,
+    createProjectOutVoucher: createProjectOutVoucher,
     uploadVoucherAttachment: uploadVoucherAttachment,
     getVoucherAttachmentSignedUrl: getVoucherAttachmentSignedUrl,
     getCutProgress: getCutProgress,
