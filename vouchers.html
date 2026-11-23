@@ -1,0 +1,1313 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p === '/index.html' || p.endsWith('/index.html')) {
+        history.replaceState(null, '', (p.slice(0, -10) || '/') + location.search + location.hash);
+      } else if (p.endsWith('.html')) {
+        history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+      }
+    }
+  </script>
+  <title>Chứng Từ Nhập / Xuất / Hoàn Kho · An Bình</title>
+  <meta name="description" content="Quản lý Phiếu Nhập Kho (PNK), Phiếu Xuất Kho (PXK), Phiếu Hoàn Kho (PHK), duyệt nguyên tử bình quân gia quyền &amp; đính kèm ảnh chứng từ.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+  <style>
+    :root {
+      --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
+      --edge: #D5E9E5; --p: #0F766E; --p-h: #0D635D; --p3: #CCFBF1;
+      --cta: #C2410C; --cta-h: #9A3412; --dark: #0B3B38; --bad: #B4232C;
+      --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --r: 14px; --gut: 28px;
+      --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F8FAFC; color: #1E293B; font: 400 15px/1.55 var(--font); min-height: 100vh; }
+    a { color: var(--p); text-decoration: none; }
+    h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--dark); }
+    h1 { font-size: clamp(20px, 2.8vw, 26px); }
+    h2 { font-size: 18px; }
+    .wrap { max-width: 1320px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
+
+    .top { position: sticky; top: 0; z-index: 40; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--edge); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 10px 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--dark); flex-shrink: 0; white-space: nowrap; }
+    .brand-logo-img { height: 40px; max-width: 130px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+    .brand-divider { width: 1.5px; height: 26px; background: var(--edge); margin: 0 2px; flex-shrink: 0; }
+    .brand-text-col { display: flex; flex-direction: column; justify-content: center; white-space: nowrap; }
+    .brand-main-title { font-weight: 800; font-size: 15.5px; color: var(--dark); line-height: 1.15; }
+    .brand-sub-title { font-weight: 600; color: var(--p); font-size: 11.5px; line-height: 1.15; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid transparent; font: 700 13px/1.2 var(--font); cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
+    .btn-p { background: var(--p); color: #fff; }
+    .btn-p:hover { background: var(--p-h); }
+    .btn-cta { background: var(--cta); color: #fff; }
+    .btn-cta:hover { background: var(--cta-h); }
+    .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+    .btn-danger:hover { background: #FEE2E2; }
+    .btn-ok { background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; }
+    .btn-ok:hover { background: #BBF7D0; }
+    .btn-sm { min-height: 32px; padding: 4px 11px; font-size: 12px; }
+
+    .kpi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 16px 0 18px; }
+    .kpi-card { background: #fff; border: 1.5px solid #E2E8F0; border-radius: var(--r); padding: 14px 16px; display: flex; align-items: center; gap: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+    .kpi-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: #F0FDFA; color: var(--p); flex-shrink: 0; }
+    .kpi-val { font-size: 21px; font-weight: 800; line-height: 1.15; color: #0F172A; }
+    .kpi-label { font-size: 12px; font-weight: 700; color: var(--mut); margin-top: 2px; }
+    .kpi-sub { font-size: 11px; font-weight: 600; color: #64748B; margin-top: 1px; }
+
+    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 20px; box-shadow: var(--sh); margin-bottom: 20px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+
+    input[type=text], input[type=number], input[type=password], input[type=date], input[type=email], select, textarea {
+      width: 100%; min-height: 36px; padding: 6px 10px; border-radius: 8px; border: 1.5px solid #CBD5E1; font: 500 13.5px var(--font); color: #0F172A; background: #fff;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p); box-shadow: 0 0 0 3px var(--p3); }
+
+    .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #E2E8F0; border-radius: 10px; }
+    .v-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 780px; }
+    .v-table th { background: #F8FAFC; color: #475569; font-weight: 700; text-align: left; padding: 10px 12px; border-bottom: 1.5px solid #E2E8F0; white-space: nowrap; }
+    .v-table td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+    .v-table th.r, .v-table td.r { text-align: right; }
+    .v-table tr:last-child td { border-bottom: none; }
+    .v-table tr:hover { background: #F8FAFC; }
+
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+    .pill-in { background: #DCFCE7; color: #15803D; }
+    .pill-out { background: #FFEDD5; color: #C2410C; }
+    .pill-ret { background: #E0F2FE; color: #0369A1; }
+    .pill-adj { background: #F3E8FF; color: #7E22CE; }
+
+    .inv-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.56); backdrop-filter: blur(3px); z-index: 200; display: none; align-items: center; justify-content: center; padding: 14px; }
+    .inv-modal-backdrop.open { display: flex; }
+    .inv-modal { background: #fff; border-radius: 16px; border: 1px solid #CBD5E1; width: min(1040px, 100%); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.28); overflow: hidden; }
+    .inv-modal.narrow { width: min(620px, 100%); }
+    .inv-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #E2E8F0; background: #F8FAFC; }
+    .inv-modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+    .inv-modal-foot { padding: 12px 20px; border-top: 1px solid #E2E8F0; background: #F8FAFC; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+    .form-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .lbl { font-size: 12px; font-weight: 700; display: block; margin-bottom: 4px; color: #334155; }
+
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff;
+      padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1000; opacity: 0; transform: translateY(12px);
+      transition: all 0.25s ease; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    body.role-no-create .creator-only { display: none !important; }
+    body.role-no-approve .approver-only { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <header class="top no-print">
+    <div class="wrap">
+      <a class="brand" href="/" title="Quay về Bàn Xếp Phôi Chính">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
+          <div class="brand-sub-title">Chứng Từ Nhập / Xuất &amp; Hoàn Kho (WMS)</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span>Trực tuyến 24/7</span>
+        </div>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4; white-space:nowrap;">
+          <span id="userIcon">👷</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </div>
+
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
+        <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/vouchers" class="subnav-link active">🧾 Phiếu Nhập / Xuất</a>
+        <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Inline Login Gate -->
+  <div id="loginGateWrap" class="no-print" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">🧾</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">ĐĂNG NHẬP CHỨNG TỪ KHO</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Vui lòng đăng nhập tài khoản xưởng Cơ Khí An Bình</p>
+      </div>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;">
+        <label class="lbl">Tên đăng nhập *</label>
+        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản (admin, warehouse, ke_toan, kt1)...">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label class="lbl">Mật khẩu *</label>
+        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
+      </div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">
+        🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="wrap no-print" id="mainContent" style="display:none; padding-top:16px; padding-bottom:60px;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+      <div>
+        <h1>Quản Lý Phiếu Nhập / Xuất / Hoàn Kho (WMS)</h1>
+        <p style="color:var(--mut); font-size:13.5px; margin:4px 0 0;">
+          Lập chứng từ đa dòng, đính kèm ảnh hóa đơn đã nén, duyệt nguyên tử tự tính Giá vốn Bình quân &amp; ghi Sổ cái.
+        </p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button type="button" class="btn btn-p btn-sm creator-only" id="btnNewVoucherIn">+ Phiếu Nhập (PNK)</button>
+        <button type="button" class="btn btn-cta btn-sm creator-only" id="btnNewVoucherOut">+ Phiếu Xuất (PXK)</button>
+        <button type="button" class="btn btn-soft btn-sm creator-only" id="btnNewVoucherRet">+ Hoàn kho (PHK)</button>
+        <button type="button" class="btn btn-soft btn-sm creator-only" id="btnOpenSuppliers">🏢 Nhà cung cấp</button>
+        <a href="/inventory" class="btn btn-soft btn-sm">📦 Kho Vật Tư</a>
+      </div>
+    </div>
+
+    <div id="dot5VouchersWarn" style="display:none; margin:10px 0; padding:12px 16px; border-radius:10px; background:#FEF3C7; border:1.5px solid #F59E0B; color:#92400E; font-size:13px; font-weight:700;">
+      ⚠️ Bảng chứng từ kho (<code>suppliers</code>, <code>warehouse_vouchers</code>) chưa được tạo trên Supabase. Admin vui lòng chạy file <code>supabase_migration_dot5_wms_vouchers.sql</code> trong Supabase SQL Editor!
+    </div>
+
+    <!-- 4 KPI Cards -->
+    <div class="kpi-cards">
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">🧾</div>
+        <div>
+          <div class="kpi-val" id="kpiVouchTotal">0 phiếu</div>
+          <div class="kpi-label">Tổng số chứng từ</div>
+          <div class="kpi-sub" id="kpiVouchBreakdown">PNK: 0 · PXK: 0 · PHK: 0</div>
+        </div>
+      </div>
+      <div class="kpi-card" style="border-color:#FDE68A; background:linear-gradient(135deg,#FFFBEB,#FFFFFF);">
+        <div class="kpi-icon" style="background:#FEF3C7; color:#B45309;">⏳</div>
+        <div>
+          <div class="kpi-val" id="kpiVouchPending">0 phiếu</div>
+          <div class="kpi-label">Đang chờ Thủ kho duyệt</div>
+          <div class="kpi-sub">Bấm ✅ Duyệt để hạch toán tồn</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#DCFCE7; color:#15803D;">✅</div>
+        <div>
+          <div class="kpi-val" id="kpiVouchApproved">0 phiếu</div>
+          <div class="kpi-label">Đã duyệt hạch toán</div>
+          <div class="kpi-sub">Đã ghi sổ cái nguyên tử</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">💰</div>
+        <div>
+          <div class="kpi-val" id="kpiVouchMoneyIn">0 đ</div>
+          <div class="kpi-label">Giá trị Nhập đã duyệt</div>
+          <div class="kpi-sub" id="kpiVouchMoneyOut">Xuất: 0 đ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danh sách Chứng từ Kho -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Danh Sách Chứng Từ Nhập – Xuất – Hoàn Kho</h2>
+        </div>
+        <button type="button" class="btn btn-soft btn-sm" id="btnRefreshVouchers">🔄 Tải lại</button>
+      </div>
+
+      <div class="filter-bar">
+        <select id="selFilterType" style="max-width:170px;">
+          <option value="ALL">Tất cả loại phiếu</option>
+          <option value="IN">🚚 Phiếu Nhập (PNK)</option>
+          <option value="OUT">📤 Phiếu Xuất (PXK)</option>
+          <option value="RETURN">♻️ Phiếu Hoàn (PHK)</option>
+          <option value="ADJUST">📋 Kiểm kê (KKK)</option>
+        </select>
+        <select id="selFilterStatus" style="max-width:165px;">
+          <option value="ALL">Tất cả trạng thái</option>
+          <option value="pending">⏳ Chờ duyệt</option>
+          <option value="approved">✅ Đã duyệt</option>
+          <option value="draft">📝 Lưu nháp</option>
+          <option value="cancelled">✕ Đã hủy</option>
+        </select>
+        <input type="date" id="inpFilterDateFrom" style="max-width:150px;" title="Từ ngày">
+        <input type="date" id="inpFilterDateTo" style="max-width:150px;" title="Đến ngày">
+        <select id="selFilterProject" style="max-width:190px;">
+          <option value="ALL">Tất cả dự án</option>
+        </select>
+        <select id="selFilterSupplier" style="max-width:190px;">
+          <option value="ALL">Tất cả Nhà cung cấp</option>
+        </select>
+        <input type="text" id="inpSearchVoucher" placeholder="🔍 Mã phiếu, hóa đơn, vật tư..." style="max-width:220px;">
+      </div>
+
+      <div class="table-responsive">
+        <table class="v-table">
+          <thead>
+            <tr>
+              <th>Mã phiếu &amp; Ngày</th>
+              <th>Loại phiếu</th>
+              <th>Đối tác / Dự án / Bộ phận</th>
+              <th class="r">Vật tư &amp; Tổng tiền</th>
+              <th>Trạng thái</th>
+              <th>Người lập / Duyệt</th>
+              <th class="r">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="vouchersTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL LẬP / SỬA CHỨNG TỪ NHIỀU DÒNG -->
+  <div class="inv-modal-backdrop no-print" id="modalVoucherForm" aria-hidden="true">
+    <div class="inv-modal">
+      <div class="inv-modal-head">
+        <div>
+          <h3 id="voucherModalTitle" style="font-size:17px;">🧾 Lập Phiếu Kho Mới</h3>
+          <div style="font-size:12px; color:#475569; margin-top:2px;">Số phiếu tự động sinh theo định dạng chuẩn khi lưu lên Supabase.</div>
+        </div>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseVoucherModal">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body">
+        <input type="hidden" id="hidEditVoucherId">
+        <div class="form-grid-3">
+          <div>
+            <label class="lbl">Loại chứng từ *</label>
+            <select id="selVoucherType">
+              <option value="IN">🚚 Phiếu Nhập Kho (PNK - Nhập mua)</option>
+              <option value="OUT">📤 Phiếu Xuất Kho (PXK - Sản xuất)</option>
+              <option value="RETURN">♻️ Phiếu Hoàn Kho / Đề-xê (PHK)</option>
+              <option value="ADJUST">📋 Phiếu Kiểm Kê Điều Chỉnh (KKK)</option>
+            </select>
+          </div>
+          <div id="wrapSupplierField">
+            <label class="lbl">Nhà cung cấp</label>
+            <select id="selVoucherSupplier">
+              <option value="">-- Không chọn NCC --</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">Dự án liên quan</label>
+            <select id="selVoucherProject">
+              <option value="">-- Dùng chung / Không gắn dự án --</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">Bộ phận (Laser / CNC / Hàn...)</label>
+            <input type="text" id="inpVoucherDept" list="deptSuggestions" placeholder="Laser / CNC / Hàn / Lắp ráp">
+            <datalist id="deptSuggestions">
+              <option value="Tổ Laser CNC"></option>
+              <option value="Tổ Gia Công Tiện/Phay CNC"></option>
+              <option value="Tổ Hàn Khung"></option>
+              <option value="Tổ Lắp Ráp"></option>
+              <option value="Kho Vật Tư"></option>
+            </datalist>
+          </div>
+          <div>
+            <label class="lbl">Số hóa đơn / Phiếu giao</label>
+            <input type="text" id="inpVoucherInvoiceNo" placeholder="Vd: HD-001245">
+          </div>
+          <div>
+            <label class="lbl">Trạng thái khi lưu</label>
+            <select id="selVoucherInitStatus">
+              <option value="pending">⏳ Gửi Thủ kho duyệt (Chờ duyệt)</option>
+              <option value="draft">📝 Lưu nháp</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:end; margin-bottom:12px;">
+          <div>
+            <label class="lbl">Ghi chú chứng từ</label>
+            <input type="text" id="inpVoucherNote" placeholder="Diễn giải chi tiết phiếu nhập / xuất...">
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <label class="btn btn-soft btn-sm" for="inpVoucherAttachment" style="cursor:pointer; margin:0;">
+              📷 Đính kèm ảnh phiếu/hóa đơn
+            </label>
+            <input type="file" id="inpVoucherAttachment" accept="image/*" style="display:none;">
+            <span id="lblAttachmentStatus" style="font-size:12px; color:#0F766E; font-weight:700;">Chưa đính kèm</span>
+            <input type="hidden" id="hidVoucherAttachmentUrl">
+          </div>
+        </div>
+
+        <div id="wrapAllowNegative" style="display:none; margin-bottom:12px; padding:8px 12px; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12.5px; font-weight:700; color:#991B1B;">
+            <input type="checkbox" id="chkAllowNegative" style="width:16px; height:16px;">
+            <span>Cho phép xuất vượt tồn kho hiện có (Chỉ dành cho trường hợp đặc biệt)</span>
+          </label>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin:10px 0 8px;">
+          <strong style="color:var(--dark); font-size:14px;">Danh sách vật tư trên phiếu:</strong>
+          <button type="button" class="btn btn-p btn-sm" id="btnAddVoucherItemRow">+ Thêm dòng vật tư</button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="v-table" style="min-width:860px;">
+            <thead>
+              <tr>
+                <th style="width:240px;">Vật tư trong kho *</th>
+                <th style="width:125px;">Nhóm &amp; ĐVT</th>
+                <th class="r" style="width:95px;">Dài/Khổ (mm)</th>
+                <th class="r" style="width:95px;">Số lượng *</th>
+                <th class="r" style="width:120px;">Đơn giá (đ)</th>
+                <th class="r" style="width:125px;">Thành tiền</th>
+                <th>Ghi chú dòng</th>
+                <th class="r" style="width:50px;">Xóa</th>
+              </tr>
+            </thead>
+            <tbody id="voucherItemsTableBody"></tbody>
+          </table>
+        </div>
+        <div style="text-align:right; margin-top:10px; font-size:15px; font-weight:800; color:var(--dark);">
+          Tổng cộng giá trị phiếu: <span id="lblVoucherTotalAmount" style="color:var(--p);">0 đ</span>
+        </div>
+      </div>
+      <div class="inv-modal-foot">
+        <div style="font-size:12px; color:#475569;" id="voucherFormHint">Với PNK (Nhập): giá vốn bình quân gia quyền được tính tự động khi Thủ kho bấm Duyệt.</div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-soft" id="btnCancelVoucherModal">Hủy</button>
+          <button type="button" class="btn btn-p" id="btnSaveVoucher">💾 Lưu chứng từ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL QUẢN LÝ NHÀ CUNG CẤP -->
+  <div class="inv-modal-backdrop no-print" id="modalSuppliers" aria-hidden="true">
+    <div class="inv-modal" style="width:min(860px, 100%);">
+      <div class="inv-modal-head">
+        <h3 style="font-size:17px;">🏢 Danh Sách Nhà Cung Cấp Thép &amp; Vật Tư</h3>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseSuppliersModal">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:14px; align-items:end;">
+          <div>
+            <label class="lbl">Mã NCC</label>
+            <input type="text" id="inpSupCode" placeholder="Vd: NCC-HOAPHAT">
+          </div>
+          <div style="grid-column: span 2;">
+            <label class="lbl">Tên Nhà cung cấp *</label>
+            <input type="text" id="inpSupName" placeholder="Công ty TNHH Thép...">
+          </div>
+          <div>
+            <label class="lbl">Điện thoại</label>
+            <input type="text" id="inpSupPhone" placeholder="09xx...">
+          </div>
+          <div>
+            <label class="lbl">Mã số thuế</label>
+            <input type="text" id="inpSupTax" placeholder="MST...">
+          </div>
+          <div>
+            <label class="lbl">Địa chỉ</label>
+            <input type="text" id="inpSupAddr" placeholder="KCN...">
+          </div>
+          <button type="button" class="btn btn-p" id="btnAddSupplier" style="min-height:36px;">+ Thêm NCC</button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="v-table" style="min-width:620px;">
+            <thead>
+              <tr>
+                <th>Mã NCC</th>
+                <th>Tên Nhà cung cấp</th>
+                <th>Điện thoại</th>
+                <th>MST &amp; Địa chỉ</th>
+                <th class="r">Xóa</th>
+              </tr>
+            </thead>
+            <tbody id="suppliersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL XEM CHI TIẾT & ẢNH CHỨNG TỪ -->
+  <div class="inv-modal-backdrop no-print" id="modalVoucherView" aria-hidden="true">
+    <div class="inv-modal" style="width:min(880px, 100%);">
+      <div class="inv-modal-head">
+        <h3 id="viewVoucherTitle" style="font-size:17px;">Chi Tiết Chứng Từ</h3>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseViewVoucher">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body" id="viewVoucherBody"></div>
+      <div class="inv-modal-foot">
+        <div id="viewVoucherStatusNote" style="font-size:12.5px; color:#475569;"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;" id="viewVoucherActions"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VÙNG IN CHỨNG TỪ A4/A5 -->
+  <div id="voucherPrintArea"></div>
+
+  <div id="toast" class="no-print"></div>
+
+  <script>
+    let currentUser = null;
+    let vouchersList = [];
+    let inventoryItems = [];
+    let suppliersList = [];
+    let projectsList = [];
+    let draftItems = [];
+    let realtimeUnsub = null;
+
+    const $ = id => document.getElementById(id);
+
+    function escapeHtml(str) {
+      return String(str == null ? '' : str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    function numVN(n, dec) {
+      if (n == null || isNaN(n)) return '0';
+      const num = Number(n);
+      if (dec !== undefined && dec !== null) return num.toLocaleString('vi-VN', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+      return Number.isInteger(num) ? num.toLocaleString('vi-VN') : num.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+    }
+
+    function formatShortDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function showToast(msg, ms = 3200) {
+      const t = $('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), ms);
+    }
+
+    function getVoucherTypeMeta(t) {
+      const map = {
+        IN: { label: '🚚 Nhập kho (PNK)', title: 'PHIẾU NHẬP KHO NGUYÊN VẬT LIỆU', cls: 'pill-in' },
+        OUT: { label: '📤 Xuất kho (PXK)', title: 'PHIẾU XUẤT KHO SẢN XUẤT', cls: 'pill-out' },
+        RETURN: { label: '♻️ Hoàn kho (PHK)', title: 'PHIẾU HOÀN KHO / ĐỀ-XÊ', cls: 'pill-ret' },
+        ADJUST: { label: '📋 Kiểm kê (KKK)', title: 'PHIẾU KIỂM KÊ ĐIỀU CHỈNH KHO', cls: 'pill-adj' }
+      };
+      return map[t] || map.IN;
+    }
+
+    function getStatusMeta(st) {
+      const map = {
+        draft: { label: '📝 Lưu nháp', cls: 'vouch-draft' },
+        pending: { label: '⏳ Chờ duyệt', cls: 'vouch-pending' },
+        approved: { label: '✅ Đã duyệt', cls: 'vouch-approved' },
+        cancelled: { label: '✕ Đã hủy', cls: 'vouch-cancelled' }
+      };
+      return map[st] || map.pending;
+    }
+
+    function applyLoggedInUserUI(user) {
+      currentUser = user;
+      const canCreate = window.SharedUI ? window.SharedUI.canCreateVouchers(user) : Boolean(user && user.role !== 'operator');
+      const canApprove = window.SharedUI ? window.SharedUI.canApproveVouchers(user) : Boolean(user && (user.role === 'admin' || user.role === 'warehouse'));
+      const isSuperAdmin = Boolean(user && user.role === 'admin');
+      const rMeta = window.SharedUI ? window.SharedUI.getRoleMeta(user && user.role) : { icon: '👷', shortLabel: 'Nhân sự' };
+
+      document.body.classList.toggle('role-no-create', !canCreate);
+      document.body.classList.toggle('role-no-approve', !canApprove);
+
+      $('userIcon').textContent = rMeta.icon;
+      $('userNameDisp').textContent = `${user.fullName || user.username} [${rMeta.shortLabel}]`;
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
+      $('loginGateWrap').style.display = 'none';
+      $('mainContent').style.display = 'block';
+    }
+
+    function showLoginGate(msg = '') {
+      currentUser = null;
+      if (realtimeUnsub) {
+        try { realtimeUnsub(); } catch (e) {}
+        realtimeUnsub = null;
+      }
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = 'none';
+      $('userIcon').textContent = '🔒';
+      $('userNameDisp').textContent = 'Chưa đăng nhập';
+      $('loginGateWrap').style.display = 'block';
+      $('mainContent').style.display = 'none';
+      if (msg && $('loginErr')) {
+        $('loginErr').textContent = msg;
+        $('loginErr').style.display = 'block';
+      }
+    }
+
+    async function checkAuth() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
+        showLoginGate('⚠️ Chưa cấu hình Supabase Client.');
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang kiểm tra phiên đăng nhập...');
+      try {
+        const user = await window.SupabaseDB.getCurrentAuthUser();
+        if (user) {
+          applyLoggedInUserUI(user);
+          await loadAllData();
+          return;
+        }
+        showLoginGate();
+      } catch (err) {
+        showLoginGate('❌ Lỗi kết nối Supabase: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function handleLogin() {
+      const u = ($('inpLoginUser').value || '').trim();
+      const p = ($('inpLoginPass').value || '').trim();
+      if (!u || !p) {
+        $('loginErr').textContent = '⚠️ Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!';
+        $('loginErr').style.display = 'block';
+        return;
+      }
+      window.SupabaseDB.setLoading(true, 'Đang xác thực Supabase Auth...');
+      try {
+        const user = await window.SupabaseDB.signInWithUsername(u, p);
+        $('loginErr').style.display = 'none';
+        $('inpLoginPass').value = '';
+        applyLoggedInUserUI(user);
+        await loadAllData();
+        showToast('🎉 Đăng nhập thành công!');
+      } catch (err) {
+        $('loginErr').textContent = '❌ ' + (err.message || 'Đăng nhập thất bại');
+        $('loginErr').style.display = 'block';
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function loadAllData() {
+      window.SupabaseDB.setLoading(true, 'Đang tải chứng từ & vật tư kho...');
+      try {
+        const [vRows, invRows, supRows, projRows] = await Promise.all([
+          window.SupabaseDB.getWarehouseVouchers({ limit: 300 }).catch(() => []),
+          window.SupabaseDB.getInventory().catch(() => []),
+          window.SupabaseDB.getSuppliers().catch(() => []),
+          window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => [])
+        ]);
+        vouchersList = Array.isArray(vRows) ? vRows : [];
+        inventoryItems = Array.isArray(invRows) ? invRows : [];
+        suppliersList = Array.isArray(supRows) ? supRows : [];
+        projectsList = Array.isArray(projRows) ? projRows : [];
+
+        const wmsReady = typeof window.SupabaseDB.isWmsVouchersReady === 'function' ? window.SupabaseDB.isWmsVouchersReady() : true;
+        $('dot5VouchersWarn').style.display = wmsReady ? 'none' : 'block';
+
+        populateFilterDropdowns();
+        renderKpis();
+        renderVouchersTable();
+        initRealtime();
+      } catch (err) {
+        showToast('❌ Lỗi tải dữ liệu chứng từ: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    function initRealtime() {
+      if (realtimeUnsub || !window.SupabaseDB || !window.SupabaseDB.isConfigured()) return;
+      realtimeUnsub = window.SupabaseDB.subscribeTables({
+        warehouse_vouchers: () => loadAllData(),
+        warehouse_voucher_items: () => loadAllData(),
+        suppliers: () => window.SupabaseDB.getSuppliers().then(s => { suppliersList = s; populateFilterDropdowns(); }).catch(() => {}),
+        inventory: () => window.SupabaseDB.getInventory().then(i => { inventoryItems = i; }).catch(() => {})
+      });
+    }
+
+    function populateFilterDropdowns() {
+      const fillSel = (id, list, defaultLabel, mapFn) => {
+        const el = $(id);
+        if (!el) return;
+        const prev = el.value;
+        el.innerHTML = `<option value="${defaultLabel.val}">${defaultLabel.txt}</option>` + list.map(mapFn).join('');
+        if (prev && Array.from(el.options).some(o => o.value === prev)) el.value = prev;
+      };
+      fillSel('selFilterProject', projectsList, { val: 'ALL', txt: 'Tất cả dự án' }, p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)}</option>`);
+      fillSel('selFilterSupplier', suppliersList, { val: 'ALL', txt: 'Tất cả Nhà cung cấp' }, s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`);
+      fillSel('selVoucherProject', projectsList, { val: '', txt: '-- Không gắn dự án --' }, p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)}</option>`);
+      fillSel('selVoucherSupplier', suppliersList, { val: '', txt: '-- Không chọn NCC --' }, s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.code ? s.code + ' - ' + s.name : s.name)}</option>`);
+    }
+
+    function getVoucherTotal(v) {
+      return (v.items || []).reduce((a, it) => a + (Number(it.totalAmount) || (Number(it.qty) * Number(it.unitPrice || 0))), 0);
+    }
+
+    function renderKpis() {
+      const cntIn = vouchersList.filter(v => v.voucherType === 'IN').length;
+      const cntOut = vouchersList.filter(v => v.voucherType === 'OUT').length;
+      const cntRet = vouchersList.filter(v => v.voucherType === 'RETURN').length;
+      const pending = vouchersList.filter(v => v.status === 'pending' || v.status === 'draft').length;
+      const approved = vouchersList.filter(v => v.status === 'approved');
+      const moneyIn = approved.filter(v => v.voucherType === 'IN').reduce((a, v) => a + getVoucherTotal(v), 0);
+      const moneyOut = approved.filter(v => v.voucherType === 'OUT').reduce((a, v) => a + getVoucherTotal(v), 0);
+
+      $('kpiVouchTotal').textContent = `${numVN(vouchersList.length)} phiếu`;
+      $('kpiVouchBreakdown').textContent = `PNK: ${cntIn} · PXK: ${cntOut} · PHK: ${cntRet}`;
+      $('kpiVouchPending').textContent = `${numVN(pending)} phiếu`;
+      $('kpiVouchApproved').textContent = `${numVN(approved.length)} phiếu`;
+      $('kpiVouchMoneyIn').textContent = `${numVN(moneyIn, 0)} đ`;
+      $('kpiVouchMoneyOut').textContent = `Xuất Đã duyệt: ${numVN(moneyOut, 0)} đ`;
+    }
+
+    function getFilteredVouchers() {
+      const typeF = $('selFilterType').value;
+      const statusF = $('selFilterStatus').value;
+      const fromF = $('inpFilterDateFrom').value;
+      const toF = $('inpFilterDateTo').value;
+      const projF = $('selFilterProject').value;
+      const supF = $('selFilterSupplier').value;
+      const q = ($('inpSearchVoucher').value || '').trim().toLowerCase();
+
+      return vouchersList.filter(v => {
+        if (typeF !== 'ALL' && v.voucherType !== typeF) return false;
+        if (statusF !== 'ALL' && v.status !== statusF) return false;
+        if (projF !== 'ALL' && v.projectId !== projF) return false;
+        if (supF !== 'ALL' && v.supplierId !== supF) return false;
+        if (fromF && String(v.createdAt || '').slice(0, 10) < fromF) return false;
+        if (toF && String(v.createdAt || '').slice(0, 10) > toF) return false;
+        if (q) {
+          const hay = [
+            v.voucherCode, v.invoiceNo, v.note, v.department, v.supplierName, v.projectName, v.createdBy,
+            ...(v.items || []).map(it => it.profile)
+          ].join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderVouchersTable() {
+      const list = getFilteredVouchers();
+      const tbody = $('vouchersTableBody');
+      if (!tbody) return;
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748B;">Chưa có chứng từ nào khớp bộ lọc. Hãy bấm <b>+ Phiếu Nhập (PNK)</b> hoặc <b>+ Phiếu Xuất (PXK)</b> để khởi tạo!</td></tr>`;
+        return;
+      }
+
+      const canApprove = window.SharedUI ? window.SharedUI.canApproveVouchers(currentUser) : false;
+      const canCreate = window.SharedUI ? window.SharedUI.canCreateVouchers(currentUser) : false;
+      const isAdmin = Boolean(currentUser && currentUser.role === 'admin');
+
+      tbody.innerHTML = list.map(v => {
+        const tm = getVoucherTypeMeta(v.voucherType);
+        const sm = getStatusMeta(v.status);
+        const totalAmt = getVoucherTotal(v);
+        const itemCount = (v.items || []).length;
+        const firstItems = (v.items || []).slice(0, 2).map(it => `${it.profile} (${numVN(it.qty)} ${it.unit})`).join(', ');
+        const contextParts = [];
+        if (v.supplierName) contextParts.push(`🏢 ${escapeHtml(v.supplierName)}`);
+        if (v.projectName) contextParts.push(`📁 ${escapeHtml(v.projectName)}`);
+        if (v.department) contextParts.push(`🛠️ ${escapeHtml(v.department)}`);
+        if (v.invoiceNo) contextParts.push(`🧾 HĐ: ${escapeHtml(v.invoiceNo)}`);
+
+        const isPendingOrDraft = v.status === 'pending' || v.status === 'draft';
+        const canCancelThis = (isPendingOrDraft && canCreate) || (v.status === 'approved' && isAdmin);
+
+        return `
+          <tr>
+            <td>
+              <strong style="font-family:monospace; color:var(--dark); font-size:13.5px;">${escapeHtml(v.voucherCode)}</strong>
+              <div style="font-size:11.5px; color:#64748B;">${escapeHtml(formatShortDate(v.createdAt))}</div>
+            </td>
+            <td><span class="pill ${tm.cls}">${tm.label}</span></td>
+            <td style="font-size:12.5px;">
+              ${contextParts.length ? contextParts.join('<br>') : '<span style="color:#94A3B8;">—</span>'}
+              ${v.attachmentUrl ? '<div style="margin-top:3px;"><span class="pill" style="background:#EFF6FF;color:#1D4ED8;">📷 Có ảnh chứng từ</span></div>' : ''}
+            </td>
+            <td class="r">
+              <div><b>${itemCount} dòng</b> · <strong style="color:var(--p);">${totalAmt > 0 ? numVN(totalAmt, 0) + ' đ' : '0 đ'}</strong></div>
+              <div style="font-size:11.5px; color:#64748B; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-left:auto;">${escapeHtml(firstItems)}</div>
+            </td>
+            <td><span class="vouch-status ${sm.cls}">${sm.label}</span></td>
+            <td style="font-size:12px;">
+              <div>Lập: <b>${escapeHtml(v.createdBy || '—')}</b></div>
+              ${v.approvedBy ? `<div style="color:#15803D;">Duyệt: <b>${escapeHtml(v.approvedBy)}</b></div>` : ''}
+            </td>
+            <td class="r" style="white-space:nowrap;">
+              <button type="button" class="btn btn-sm btn-soft btn-view-vouch" data-id="${escapeHtml(v.id)}">👁️ Xem</button>
+              <button type="button" class="btn btn-sm btn-soft btn-print-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">🖨️ In</button>
+              ${isPendingOrDraft && canCreate ? `<button type="button" class="btn btn-sm btn-soft btn-edit-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">✏️ Sửa</button>` : ''}
+              ${isPendingOrDraft && canApprove ? `<button type="button" class="btn btn-sm btn-ok btn-approve-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">✅ Duyệt</button>` : ''}
+              ${canCancelThis ? `<button type="button" class="btn btn-sm btn-danger btn-cancel-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">✕ Hủy</button>` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('.btn-view-vouch').forEach(b => b.onclick = () => openViewVoucherModal(b.dataset.id));
+      tbody.querySelectorAll('.btn-print-vouch').forEach(b => b.onclick = () => printVoucherById(b.dataset.id));
+      tbody.querySelectorAll('.btn-edit-vouch').forEach(b => b.onclick = () => openEditVoucherModal(b.dataset.id));
+      tbody.querySelectorAll('.btn-approve-vouch').forEach(b => b.onclick = () => handleApproveVoucher(b.dataset.id));
+      tbody.querySelectorAll('.btn-cancel-vouch').forEach(b => b.onclick = () => handleCancelVoucher(b.dataset.id));
+    }
+
+    // =========================================================================
+    // FORM LẬP / SỬA PHIẾU NHIỀU DÒNG
+    // =========================================================================
+    function createEmptyDraftItem() {
+      const firstInv = inventoryItems[0];
+      return {
+        inventoryId: firstInv ? firstInv.id : null,
+        profile: firstInv ? firstInv.profileName : '',
+        materialGroup: firstInv ? (firstInv.materialGroup || 'tube_1d') : 'tube_1d',
+        unit: firstInv ? (firstInv.unit || 'cây') : 'cây',
+        lengthMm: firstInv ? (firstInv.standardLengthMm || 6000) : 6000,
+        qty: 1,
+        unitPrice: firstInv ? (Number(firstInv.avgCost || firstInv.unitPrice) || 0) : 0,
+        note: ''
+      };
+    }
+
+    function syncVoucherTypeUI() {
+      const t = $('selVoucherType').value;
+      $('wrapSupplierField').style.display = t === 'IN' ? 'block' : 'none';
+      const canAllowNeg = currentUser && (currentUser.role === 'admin' || currentUser.role === 'warehouse');
+      $('wrapAllowNegative').style.display = (t === 'OUT' && canAllowNeg) ? 'block' : 'none';
+      renderVoucherItemsRows();
+    }
+
+    function updateVoucherTotalDisp() {
+      const total = draftItems.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0);
+      $('lblVoucherTotalAmount').textContent = numVN(total, 0) + ' đ';
+    }
+
+    function renderVoucherItemsRows() {
+      const tbody = $('voucherItemsTableBody');
+      if (!tbody) return;
+      const vType = $('selVoucherType').value;
+      const unitOpts = (window.SharedUI && window.SharedUI.UNITS) || ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
+
+      tbody.innerHTML = draftItems.map((it, idx) => {
+        const gMeta = window.SharedUI ? window.SharedUI.getMaterialGroupMeta(it.materialGroup) : { badgeClass: 'grp-tube_1d', icon: '🪵', shortLabel: it.materialGroup };
+        const invMatch = inventoryItems.find(x => x.id === it.inventoryId || x.profileName === it.profile);
+        const curStockHint = invMatch ? `Tồn: ${numVN(invMatch.stockQty)} ${invMatch.unit || 'cây'}` : 'Vật tư mới';
+        const lineTotal = Math.round((Number(it.qty) || 0) * (Number(it.unitPrice) || 0));
+
+        return `
+          <tr>
+            <td>
+              <select class="vi-inv-sel" data-idx="${idx}" style="font-size:12.5px;">
+                <option value="">-- Nhập tay / Vật tư mới --</option>
+                ${inventoryItems.map(r => `<option value="${escapeHtml(r.id)}" ${(it.inventoryId === r.id || (!it.inventoryId && it.profile === r.profileName)) ? 'selected' : ''}>${escapeHtml(r.profileName)}${r.sku ? ' [' + escapeHtml(r.sku) + ']' : ''}</option>`).join('')}
+              </select>
+              <input type="text" class="vi-prof-inp" data-idx="${idx}" value="${escapeHtml(it.profile)}" placeholder="Hoặc gõ tên vật tư mới..." style="margin-top:4px; min-height:30px; font-size:12.5px;">
+              <div style="font-size:11px; color:#0F766E; margin-top:2px;">${escapeHtml(curStockHint)}</div>
+            </td>
+            <td>
+              <select class="vi-grp-sel" data-idx="${idx}" style="min-height:30px; font-size:12px; margin-bottom:4px;">
+                <option value="tube_1d" ${it.materialGroup === 'tube_1d' ? 'selected' : ''}>🪵 1D</option>
+                <option value="sheet_2d" ${it.materialGroup === 'sheet_2d' ? 'selected' : ''}>📐 2D</option>
+                <option value="solid_cnc" ${it.materialGroup === 'solid_cnc' ? 'selected' : ''}>🔩 CNC</option>
+                <option value="consumable" ${it.materialGroup === 'consumable' ? 'selected' : ''}>🧰 Phụ</option>
+              </select>
+              <select class="vi-unit-sel" data-idx="${idx}" style="min-height:28px; font-size:12px;">
+                ${unitOpts.map(u => `<option value="${u}" ${it.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+              </select>
+            </td>
+            <td class="r"><input type="number" class="vi-len" data-idx="${idx}" value="${it.lengthMm || ''}" min="1" step="10" style="text-align:right;"></td>
+            <td class="r"><input type="number" class="vi-qty" data-idx="${idx}" value="${it.qty}" min="0.01" step="0.01" style="text-align:right; font-weight:800;"></td>
+            <td class="r"><input type="number" class="vi-price" data-idx="${idx}" value="${it.unitPrice || 0}" min="0" step="1000" ${vType === 'OUT' ? 'title="Tự chốt theo giá vốn BQ khi Thủ kho duyệt"' : ''} style="text-align:right;"></td>
+            <td class="r" style="font-weight:700; color:var(--dark);"><span class="vi-total" data-idx="${idx}">${numVN(lineTotal, 0)} đ</span></td>
+            <td><input type="text" class="vi-note" data-idx="${idx}" value="${escapeHtml(it.note || '')}" placeholder="Ghi chú..."></td>
+            <td class="r"><button type="button" class="btn btn-sm btn-danger btn-del-vi" data-idx="${idx}">✕</button></td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('.vi-inv-sel').forEach(sel => {
+        sel.onchange = () => {
+          const i = parseInt(sel.dataset.idx, 10);
+          const chosen = inventoryItems.find(x => x.id === sel.value);
+          if (chosen && draftItems[i]) {
+            draftItems[i].inventoryId = chosen.id;
+            draftItems[i].profile = chosen.profileName;
+            draftItems[i].materialGroup = chosen.materialGroup || 'tube_1d';
+            draftItems[i].unit = chosen.unit || 'cây';
+            draftItems[i].lengthMm = chosen.standardLengthMm || 6000;
+            draftItems[i].unitPrice = Number(chosen.avgCost || chosen.unitPrice) || 0;
+            renderVoucherItemsRows();
+          }
+        };
+      });
+
+      const bindField = (cls, key, isNum) => {
+        tbody.querySelectorAll('.' + cls).forEach(el => {
+          el.oninput = () => {
+            const i = parseInt(el.dataset.idx, 10);
+            if (!draftItems[i]) return;
+            draftItems[i][key] = isNum ? (parseFloat(el.value) || 0) : el.value;
+            if (key === 'profile') draftItems[i].inventoryId = null;
+            const totalEl = tbody.querySelector(`.vi-total[data-idx="${i}"]`);
+            if (totalEl) totalEl.textContent = numVN(Math.round((Number(draftItems[i].qty) || 0) * (Number(draftItems[i].unitPrice) || 0)), 0) + ' đ';
+            updateVoucherTotalDisp();
+          };
+          el.onchange = el.oninput;
+        });
+      };
+      bindField('vi-prof-inp', 'profile', false);
+      bindField('vi-grp-sel', 'materialGroup', false);
+      bindField('vi-unit-sel', 'unit', false);
+      bindField('vi-len', 'lengthMm', true);
+      bindField('vi-qty', 'qty', true);
+      bindField('vi-price', 'unitPrice', true);
+      bindField('vi-note', 'note', false);
+
+      tbody.querySelectorAll('.btn-del-vi').forEach(b => {
+        b.onclick = () => {
+          const i = parseInt(b.dataset.idx, 10);
+          draftItems.splice(i, 1);
+          if (!draftItems.length) draftItems.push(createEmptyDraftItem());
+          renderVoucherItemsRows();
+        };
+      });
+      updateVoucherTotalDisp();
+    }
+
+    function openNewVoucherModal(type = 'IN') {
+      $('hidEditVoucherId').value = '';
+      $('voucherModalTitle').textContent = `🧾 Lập ${getVoucherTypeMeta(type).label}`;
+      $('selVoucherType').value = type;
+      $('selVoucherSupplier').value = '';
+      $('selVoucherProject').value = '';
+      $('inpVoucherDept').value = type === 'OUT' ? 'Tổ Laser CNC' : '';
+      $('inpVoucherInvoiceNo').value = '';
+      $('inpVoucherNote').value = '';
+      $('selVoucherInitStatus').value = 'pending';
+      $('chkAllowNegative').checked = false;
+      $('hidVoucherAttachmentUrl').value = '';
+      $('lblAttachmentStatus').textContent = 'Chưa đính kèm';
+      draftItems = [createEmptyDraftItem()];
+      syncVoucherTypeUI();
+      $('modalVoucherForm').classList.add('open');
+    }
+
+    function openEditVoucherModal(id) {
+      const v = vouchersList.find(x => x.id === id);
+      if (!v) return;
+      $('hidEditVoucherId').value = v.id;
+      $('voucherModalTitle').textContent = `✏️ Sửa Chứng Từ ${v.voucherCode}`;
+      $('selVoucherType').value = v.voucherType;
+      $('selVoucherSupplier').value = v.supplierId || '';
+      $('selVoucherProject').value = v.projectId || '';
+      $('inpVoucherDept').value = v.department || '';
+      $('inpVoucherInvoiceNo').value = v.invoiceNo || '';
+      $('inpVoucherNote').value = v.note || '';
+      $('selVoucherInitStatus').value = v.status === 'draft' ? 'draft' : 'pending';
+      $('chkAllowNegative').checked = Boolean(v.allowNegative);
+      $('hidVoucherAttachmentUrl').value = v.attachmentUrl || '';
+      $('lblAttachmentStatus').textContent = v.attachmentUrl ? '📷 Đã có ảnh đính kèm' : 'Chưa đính kèm';
+      draftItems = (v.items || []).map(it => Object.assign({}, it));
+      if (!draftItems.length) draftItems = [createEmptyDraftItem()];
+      syncVoucherTypeUI();
+      $('modalVoucherForm').classList.add('open');
+    }
+
+    async function handleSaveVoucher() {
+      const editId = $('hidEditVoucherId').value;
+      const validItems = draftItems.filter(it => String(it.profile || '').trim() && Number(it.qty) > 0);
+      if (!validItems.length) {
+        showToast('⚠️ Vui lòng nhập ít nhất 1 dòng vật tư có tên và số lượng > 0!');
+        return;
+      }
+      const payload = {
+        voucherType: $('selVoucherType').value,
+        supplierId: $('selVoucherType').value === 'IN' ? ($('selVoucherSupplier').value || null) : null,
+        projectId: $('selVoucherProject').value || null,
+        department: ($('inpVoucherDept').value || '').trim(),
+        invoiceNo: ($('inpVoucherInvoiceNo').value || '').trim(),
+        note: ($('inpVoucherNote').value || '').trim(),
+        attachmentUrl: $('hidVoucherAttachmentUrl').value || '',
+        status: $('selVoucherInitStatus').value,
+        allowNegative: Boolean($('chkAllowNegative').checked),
+        createdBy: currentUser ? currentUser.username : ''
+      };
+
+      window.SupabaseDB.setLoading(true, 'Đang lưu chứng từ kho...');
+      try {
+        if (editId) {
+          await window.SupabaseDB.updateWarehouseVoucher(editId, payload, validItems);
+          showToast('✓ Đã cập nhật chứng từ thành công!');
+        } else {
+          const created = await window.SupabaseDB.createWarehouseVoucher(payload, validItems);
+          showToast(`🧾 Đã tạo phiếu ${created.voucherCode}!`);
+        }
+        $('modalVoucherForm').classList.remove('open');
+        await loadAllData();
+      } catch (err) {
+        showToast('❌ Lỗi lưu chứng từ: ' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function handleApproveVoucher(id) {
+      const v = vouchersList.find(x => x.id === id);
+      if (!v) return;
+      if (!confirm(`✅ Xác nhận DUYỆT PHIẾU [${v.voucherCode}]?\n\nHệ thống sẽ tự động hạch toán tồn kho, tính lại Giá vốn Bình quân & ghi vào Sổ cái.`)) return;
+      window.SupabaseDB.setLoading(true, `Đang duyệt nguyên tử phiếu ${v.voucherCode}...`);
+      try {
+        await window.SupabaseDB.approveWarehouseVoucher(id);
+        showToast(`✅ Đã duyệt hạch toán phiếu ${v.voucherCode}!`);
+        $('modalVoucherView').classList.remove('open');
+        await loadAllData();
+      } catch (err) {
+        alert('❌ Không duyệt được phiếu:\n' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function handleCancelVoucher(id) {
+      const v = vouchersList.find(x => x.id === id);
+      if (!v) return;
+      const isApproved = v.status === 'approved';
+      const warnTxt = isApproved
+        ? `⚠️ CẢNH BÁO ADMIN: Phiếu [${v.voucherCode}] ĐÃ DUYỆT!\nHủy phiếu sẽ tự động ĐẢO NGƯỢC tồn kho và ghi bút toán đảo vào Sổ cái.\n\nNhập lý do hủy phiếu:`
+        : `Nhập lý do hủy phiếu [${v.voucherCode}]:`;
+      const reason = prompt(warnTxt, '');
+      if (reason === null) return;
+      window.SupabaseDB.setLoading(true, `Đang hủy phiếu ${v.voucherCode}...`);
+      try {
+        await window.SupabaseDB.cancelWarehouseVoucher(id, reason);
+        showToast(`🗑️ Đã hủy phiếu ${v.voucherCode}${isApproved ? ' và đảo ngược tồn kho!' : '!'}`);
+        $('modalVoucherView').classList.remove('open');
+        await loadAllData();
+      } catch (err) {
+        alert('❌ Lỗi hủy phiếu:\n' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function openViewVoucherModal(id) {
+      const v = vouchersList.find(x => x.id === id);
+      if (!v) return;
+      const tm = getVoucherTypeMeta(v.voucherType);
+      const sm = getStatusMeta(v.status);
+      $('viewVoucherTitle').textContent = `${v.voucherCode} · ${tm.label}`;
+      const totalAmt = getVoucherTotal(v);
+
+      let attHtml = '';
+      if (v.attachmentUrl) {
+        attHtml = `<div style="margin-top:12px;"><b>📷 Ảnh chứng từ đính kèm:</b> <span id="attSignedWrap" style="color:#475569;">Đang tải link ảnh...</span></div>`;
+      }
+
+      $('viewVoucherBody').innerHTML = `
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:8px 16px; margin-bottom:14px; font-size:13px; background:#F8FAFC; padding:12px; border-radius:10px; border:1px solid #E2E8F0;">
+          <div><b>Trạng thái:</b> <span class="vouch-status ${sm.cls}">${sm.label}</span></div>
+          <div><b>Ngày lập:</b> ${escapeHtml(formatShortDate(v.createdAt))}</div>
+          <div><b>Người lập:</b> ${escapeHtml(v.createdBy || '—')}</div>
+          <div><b>Người duyệt:</b> ${escapeHtml(v.approvedBy || 'Chưa duyệt')}${v.approvedAt ? ' (' + escapeHtml(formatShortDate(v.approvedAt)) + ')' : ''}</div>
+          <div><b>Nhà cung cấp:</b> ${escapeHtml(v.supplierName || '—')}</div>
+          <div><b>Dự án / Bộ phận:</b> ${escapeHtml(v.projectName || '—')}${v.department ? ' · ' + escapeHtml(v.department) : ''}</div>
+          <div><b>Số hóa đơn:</b> ${escapeHtml(v.invoiceNo || '—')}</div>
+          <div><b>Ghi chú:</b> ${escapeHtml(v.note || v.cancelReason || '—')}</div>
+        </div>
+        <div class="table-responsive">
+          <table class="v-table" style="min-width:620px;">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Vật tư / Quy cách</th>
+                <th>Nhóm</th>
+                <th class="r">Số lượng</th>
+                <th class="r">Đơn giá (đ)</th>
+                <th class="r">Thành tiền</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(v.items || []).map((it, idx) => {
+                const gm = window.SharedUI ? window.SharedUI.getMaterialGroupMeta(it.materialGroup) : { shortLabel: it.materialGroup, badgeClass: 'grp-tube_1d', icon: '' };
+                return `
+                  <tr>
+                    <td>${idx + 1}</td>
+                    <td><strong>${escapeHtml(it.profile)}</strong>${it.lengthMm ? ` <span style="font-size:11.5px;color:#64748B;">(${numVN(it.lengthMm)}mm)</span>` : ''}</td>
+                    <td><span class="grp-badge ${gm.badgeClass}">${gm.icon} ${escapeHtml(gm.shortLabel)}</span></td>
+                    <td class="r"><b>${numVN(it.qty)} ${escapeHtml(it.unit)}</b></td>
+                    <td class="r">${numVN(it.unitPrice, 0)} đ</td>
+                    <td class="r"><b>${numVN(it.totalAmount || (it.qty * it.unitPrice), 0)} đ</b></td>
+                    <td>${escapeHtml(it.note || '')}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="text-align:right; margin-top:10px; font-size:15px; font-weight:800; color:var(--dark);">
+          Tổng cộng: <span style="color:var(--p);">${numVN(totalAmt, 0)} đ</span>
+        </div>
+        ${attHtml}
+      `;
+
+      const canApprove = window.SharedUI && window.SharedUI.canApproveVouchers(currentUser);
+      const isPending = v.status === 'pending' || v.status === 'draft';
+      const isAdmin = Boolean(currentUser && currentUser.role === 'admin');
+      const btns = [];
+      btns.push(`<button type="button" class="btn btn-soft" onclick="printVoucherById('${escapeHtml(v.id)}')">🖨️ In phiếu A4/A5</button>`);
+      if (isPending && canApprove) {
+        btns.push(`<button type="button" class="btn btn-ok" onclick="handleApproveVoucher('${escapeHtml(v.id)}')">✅ Duyệt &amp; Hạch toán kho</button>`);
+      }
+      if ((isPending && window.SharedUI.canCreateVouchers(currentUser)) || (v.status === 'approved' && isAdmin)) {
+        btns.push(`<button type="button" class="btn btn-danger" onclick="handleCancelVoucher('${escapeHtml(v.id)}')">✕ Hủy phiếu</button>`);
+      }
+      $('viewVoucherActions').innerHTML = btns.join('');
+      $('viewVoucherStatusNote').textContent = isPending ? 'Phiếu đang chờ Thủ kho/Admin duyệt trước khi cộng trừ tồn kho.' : '';
+
+      $('modalVoucherView').classList.add('open');
+
+      if (v.attachmentUrl) {
+        window.SupabaseDB.getVoucherAttachmentSignedUrl(v.attachmentUrl, 3600).then(url => {
+          const wrap = $('attSignedWrap');
+          if (!wrap) return;
+          if (!url) { wrap.textContent = 'Không lấy được link ảnh.'; return; }
+          wrap.innerHTML = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="font-weight:700; text-decoration:underline;">Mở ảnh gốc ↗</a><div style="margin-top:8px;"><img src="${escapeHtml(url)}" alt="Ảnh chứng từ" style="max-width:100%; max-height:320px; border-radius:10px; border:1px solid #CBD5E1;"></div>`;
+        });
+      }
+    }
+
+    function printVoucherById(id) {
+      const v = vouchersList.find(x => x.id === id);
+      if (!v) return;
+      const tm = getVoucherTypeMeta(v.voucherType);
+      const totalAmt = getVoucherTotal(v);
+      const createdDate = v.createdAt ? new Date(v.createdAt).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN');
+
+      $('voucherPrintArea').innerHTML = `
+        <div class="vp-header">
+          <div>
+            <div class="vp-company">CÔNG TY TNHH CƠ KHÍ AN BÌNH</div>
+            <div style="font-size:11px; color:#475569;">Hệ thống Quản lý Kho Vật Tư &amp; Xếp Phôi CNC · xepphoi.cloud</div>
+          </div>
+          <div style="text-align:right; font-size:11px;">
+            <div>Ngày chứng từ: <b>${escapeHtml(createdDate)}</b></div>
+            <div>Trạng thái: <b>${escapeHtml(getStatusMeta(v.status).label.replace(/^[^a-zA-ZÀ-ỹ]+/, ''))}</b></div>
+          </div>
+        </div>
+        <div class="vp-title">${escapeHtml(tm.title)}</div>
+        <div class="vp-code">Số phiếu: ${escapeHtml(v.voucherCode)} ${v.invoiceNo ? ('· Hóa đơn/PGH: ' + escapeHtml(v.invoiceNo)) : ''}</div>
+        <div class="vp-meta">
+          <div><b>Đơn vị / Nhà cung cấp:</b> ${escapeHtml(v.supplierName || v.department || 'Kho An Bình')}</div>
+          <div><b>Dự án / Công trình:</b> ${escapeHtml(v.projectName || 'Dùng chung xưởng')}</div>
+          <div><b>Người lập phiếu:</b> ${escapeHtml(v.createdBy || '—')}</div>
+          <div><b>Diễn giải:</b> ${escapeHtml(v.note || '—')}</div>
+        </div>
+        <table class="vp-table">
+          <thead>
+            <tr>
+              <th class="c" style="width:34px;">STT</th>
+              <th>Tên vật tư / Quy cách</th>
+              <th class="c" style="width:55px;">ĐVT</th>
+              <th class="r" style="width:70px;">Dài (mm)</th>
+              <th class="r" style="width:70px;">Số lượng</th>
+              <th class="r" style="width:95px;">Đơn giá (đ)</th>
+              <th class="r" style="width:105px;">Thành tiền (đ)</th>
+              <th>Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(v.items || []).map((it, idx) => `
+              <tr>
+                <td class="c">${idx + 1}</td>
+                <td><b>${escapeHtml(it.profile)}</b></td>
+                <td class="c">${escapeHtml(it.unit)}</td>
+                <td class="r">${it.lengthMm ? numVN(it.lengthMm) : '—'}</td>
+                <td class="r"><b>${numVN(it.qty)}</b></td>
+                <td class="r">${numVN(it.unitPrice, 0)}</td>
+                <td class="r"><b>${numVN(it.totalAmount || (it.qty * it.unitPrice), 0)}</b></td>
+                <td>${escapeHtml(it.note || '')}</td>
+              </tr>
+            `).join('')}
+            <tr>
+              <td colspan="6" class="r"><b>TỔNG CỘNG GIÁ TRỊ PHIẾU</b></td>
+              <td class="r"><b>${numVN(totalAmt, 0)} đ</b></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="vp-signs">
+          <div>
+            <div class="vp-sign-title">NGƯỜI LẬP PHIẾU</div>
+            <div class="vp-sign-sub">(Ký, ghi rõ họ tên)</div>
+            <div class="vp-sign-name">${escapeHtml(v.createdBy || '')}</div>
+          </div>
+          <div>
+            <div class="vp-sign-title">THỦ KHO</div>
+            <div class="vp-sign-sub">(Ký, kiểm nhận số lượng)</div>
+            <div class="vp-sign-name">${escapeHtml(v.approvedBy || '')}</div>
+          </div>
+          <div>
+            <div class="vp-sign-title">NGƯỜI GIAO / NHẬN</div>
+            <div class="vp-sign-sub">(Ký, ghi rõ họ tên)</div>
+            <div class="vp-sign-name"></div>
+          </div>
+        </div>
+      `;
+
+      document.body.classList.add('printing-voucher');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => document.body.classList.remove('printing-voucher'), 350);
+      }, 60);
+    }
+
+    // =========================================================================
+    // QUẢN LÝ NHÀ CUNG CẤP
+    // =========================================================================
+    function renderSuppliersTable() {
+      const tbody = $('suppliersTableBody');
+      if (!tbody) return;
+      if (!suppliersList.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#64748B;">Chưa có nhà cung cấp nào.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = suppliersList.map(s => `
+        <tr>
+          <td style="font-family:monospace; font-weight:700;">${escapeHtml(s.code || '—')}</td>
+          <td><strong>${escapeHtml(s.name)}</strong></td>
+          <td>${escapeHtml(s.phone || '—')}</td>
+          <td style="font-size:12px;">${escapeHtml(s.taxCode ? 'MST: ' + s.taxCode + ' · ' : '')}${escapeHtml(s.address || '')}</td>
+          <td class="r"><button type="button" class="btn btn-sm btn-danger btn-del-sup" data-id="${escapeHtml(s.id)}">✕</button></td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.btn-del-sup').forEach(b => {
+        b.onclick = async () => {
+          if (!confirm('Xóa nhà cung cấp này?')) return;
+          try {
+            await window.SupabaseDB.deleteSupplier(b.dataset.id);
+            suppliersList = suppliersList.filter(x => x.id !== b.dataset.id);
+            populateFilterDropdowns();
+            renderSuppliersTable();
+            showToast('🗑️ Đã xóa nhà cung cấp');
+          } catch (err) {
+            showToast('❌ ' + err.message);
+          }
+        };
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('btnSubmitLogin').onclick = handleLogin;
+      $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+      $('btnLogout').onclick = async () => {
+        if (window.SupabaseDB) await window.SupabaseDB.signOut();
+        showLoginGate();
+        showToast('👋 Đã đăng xuất!');
+      };
+
+      ['selFilterType', 'selFilterStatus', 'inpFilterDateFrom', 'inpFilterDateTo', 'selFilterProject', 'selFilterSupplier'].forEach(id => {
+        if ($(id)) $(id).onchange = renderVouchersTable;
+      });
+      if ($('inpSearchVoucher')) $('inpSearchVoucher').oninput = renderVouchersTable;
+      if ($('btnRefreshVouchers')) $('btnRefreshVouchers').onclick = loadAllData;
+
+      if ($('btnNewVoucherIn')) $('btnNewVoucherIn').onclick = () => openNewVoucherModal('IN');
+      if ($('btnNewVoucherOut')) $('btnNewVoucherOut').onclick = () => openNewVoucherModal('OUT');
+      if ($('btnNewVoucherRet')) $('btnNewVoucherRet').onclick = () => openNewVoucherModal('RETURN');
+
+      if ($('selVoucherType')) $('selVoucherType').onchange = syncVoucherTypeUI;
+      if ($('btnAddVoucherItemRow')) $('btnAddVoucherItemRow').onclick = () => {
+        draftItems.push(createEmptyDraftItem());
+        renderVoucherItemsRows();
+      };
+      if ($('btnSaveVoucher')) $('btnSaveVoucher').onclick = handleSaveVoucher;
+      if ($('btnCloseVoucherModal')) $('btnCloseVoucherModal').onclick = () => $('modalVoucherForm').classList.remove('open');
+      if ($('btnCancelVoucherModal')) $('btnCancelVoucherModal').onclick = () => $('modalVoucherForm').classList.remove('open');
+      if ($('btnCloseViewVoucher')) $('btnCloseViewVoucher').onclick = () => $('modalVoucherView').classList.remove('open');
+
+      if ($('inpVoucherAttachment')) {
+        $('inpVoucherAttachment').onchange = async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          $('lblAttachmentStatus').textContent = 'Đang nén ảnh (<300KB)...';
+          try {
+            const compressed = window.SharedUI
+              ? await window.SharedUI.compressImageFile(file, 300 * 1024, 1600)
+              : file;
+            const kb = Math.max(1, Math.round(compressed.size / 1024));
+            $('lblAttachmentStatus').textContent = `Đang tải lên (${kb} KB)...`;
+            const path = await window.SupabaseDB.uploadVoucherAttachment(compressed, file.name);
+            $('hidVoucherAttachmentUrl').value = path;
+            $('lblAttachmentStatus').textContent = `✓ Đã đính kèm (${kb} KB)`;
+            showToast(`📷 Đã nén & tải ảnh chứng từ (${kb} KB) thành công!`);
+          } catch (err) {
+            $('lblAttachmentStatus').textContent = '❌ Lỗi tải ảnh';
+            showToast('❌ ' + err.message);
+          } finally {
+            e.target.value = '';
+          }
+        };
+      }
+
+      if ($('btnOpenSuppliers')) {
+        $('btnOpenSuppliers').onclick = () => {
+          renderSuppliersTable();
+          $('modalSuppliers').classList.add('open');
+        };
+      }
+      if ($('btnCloseSuppliersModal')) $('btnCloseSuppliersModal').onclick = () => $('modalSuppliers').classList.remove('open');
+      if ($('btnAddSupplier')) {
+        $('btnAddSupplier').onclick = async () => {
+          const name = ($('inpSupName').value || '').trim();
+          if (!name) { showToast('⚠️ Vui lòng nhập tên nhà cung cấp!'); return; }
+          try {
+            const saved = await window.SupabaseDB.saveSupplier({
+              code: ($('inpSupCode').value || '').trim(),
+              name,
+              phone: ($('inpSupPhone').value || '').trim(),
+              taxCode: ($('inpSupTax').value || '').trim(),
+              address: ($('inpSupAddr').value || '').trim()
+            });
+            suppliersList.push(saved);
+            populateFilterDropdowns();
+            renderSuppliersTable();
+            ['inpSupCode', 'inpSupName', 'inpSupPhone', 'inpSupTax', 'inpSupAddr'].forEach(i => $(i).value = '');
+            showToast(`✓ Đã thêm NCC "${saved.name}"!`);
+          } catch (err) {
+            showToast('❌ ' + err.message);
+          }
+        };
+      }
+
+      checkAuth();
+    });
+  </script>
+</body>
+</html>

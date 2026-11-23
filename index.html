@@ -25,11 +25,13 @@
   <script src="toi-uu-engine.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabaseClient.js"></script>
+  <script src="js/shared-ui.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/workshopExport.js"></script>
   <script id="embeddedFusionData" type="application/json"></script>
   <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
+  <link rel="stylesheet" href="css/shared.css">
   <link rel="stylesheet" href="css/index.css">
   <link rel="stylesheet" href="css/print-a4.css" media="print">
 </head>
@@ -132,6 +134,9 @@
         </a>
         <a href="/inventory" class="subnav-link" title="Thư viện quy cách thép hộp, phôi tồn kho lẻ &amp; bảng vật tư BOM">
           📦 Kho Phôi &amp; Quy Cách
+        </a>
+        <a href="/vouchers" class="subnav-link" title="Lập, duyệt &amp; in Phiếu Nhập kho (PNK), Xuất kho (PXK), Hoàn kho (PHK)">
+          🧾 Phiếu Nhập / Xuất
         </a>
         <a href="/cnc" class="subnav-link" title="Sơ đồ cắt trực quan, tích tiến độ xưởng &amp; xuất file .IGS cho máy Laser CNC">
           ⚡ Sơ Đồ &amp; Tiến Độ CNC

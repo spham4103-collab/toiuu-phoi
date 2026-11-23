@@ -24,9 +24,11 @@
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/workshopExport.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
   <style>
     :root {
       --bg: #FFFFFF; --tint: #F0FDFA; --mu: #EEF4F6; --ink: #134E4A; --mut: #475569;
@@ -180,6 +182,7 @@
         <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
         <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
         <a href="/inventory" class="subnav-link active">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
         <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
@@ -233,6 +236,9 @@
     <div id="dot4MigrationWarn" style="display:none; margin:10px 0; padding:10px 14px; border-radius:10px; background:#EFF6FF; border:1.5px solid #93C5FD; color:#1E40AF; font-size:13px; font-weight:700;">
       ℹ️ Để bật đầy đủ Sổ cái giao dịch, định mức tối thiểu, vị trí kệ &amp; kg/m thép, Admin vui lòng chạy file <code>supabase_migration_dot4_inventory_ledger.sql</code> trong Supabase SQL Editor.
     </div>
+    <div id="dot5WmsWarn" style="display:none; margin:10px 0; padding:10px 14px; border-radius:10px; background:#F0FDFA; border:1.5px solid #5EEAD4; color:#0F766E; font-size:13px; font-weight:700;">
+      ℹ️ Để bật đầy đủ 4 nhóm vật tư (Thép tấm 2D, Phôi đặc CNC, Vật tư phụ), SKU, Giá vốn bình quân &amp; Hệ thống Chứng từ Kho, Admin vui lòng chạy file <code>supabase_migration_dot5_wms_vouchers.sql</code> trong Supabase SQL Editor.
+    </div>
 
     <!-- 4 KPI Cards Kho Toàn Xưởng -->
     <div class="kpi-cards">
@@ -279,26 +285,35 @@
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="library">📏 Thư viện Quy cách (<span id="tabLibraryBadge">0</span>)</button>
     </div>
 
-    <!-- KHU VỰC 1: TỒN KHO CÂY NGUYÊN -->
+    <!-- KHU VỰC 1: TỒN KHO NGUYÊN VẬT LIỆU (4 NHÓM WMS) -->
     <section class="card" id="sectionBars">
       <div class="card-head">
         <div>
-          <h2>1. Tồn Kho Cây Nguyên Thực Tế Toàn Xưởng</h2>
-          <div class="card-sub" style="margin-bottom:0;">Theo dõi số cây nguyên hiện còn tại xưởng, cảnh báo định mức tối thiểu, khối lượng thép &amp; vị trí kệ.</div>
+          <h2>1. Tồn Kho Nguyên Vật Liệu Thực Tế Toàn Xưởng</h2>
+          <div class="card-sub" style="margin-bottom:0;">Quản lý tồn kho cho cả 4 nhóm vật tư, mã SKU, đơn vị tính, giá vốn bình quân gia quyền &amp; cảnh báo tồn tối thiểu.</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;" class="eng-only">
           <button type="button" class="btn btn-cta btn-sm" id="btnBarsOpening">+ Tồn đầu kỳ</button>
-          <button type="button" class="btn btn-p btn-sm" id="btnBarsPurchase">+ Nhập mua mới</button>
+          <button type="button" class="btn btn-p btn-sm" id="btnBarsPurchase">+ Nhập mua nhanh</button>
+          <a href="/vouchers" class="btn btn-soft btn-sm" style="border-color:var(--p); color:var(--p);">🧾 Lập phiếu Kho ↗</a>
           <button type="button" class="btn btn-soft btn-sm" id="btnBarsStocktake">📋 Kiểm kê</button>
         </div>
       </div>
 
+      <div class="wms-group-pills" id="wmsGroupPillsBars">
+        <button type="button" class="wms-group-pill active" data-grp="ALL">📚 Tất cả (<span id="grpCntAll">0</span>)</button>
+        <button type="button" class="wms-group-pill" data-grp="tube_1d">🪵 Thép hộp / Ống 1D (<span id="grpCntTube">0</span>)</button>
+        <button type="button" class="wms-group-pill" data-grp="sheet_2d">📐 Thép tấm 2D (<span id="grpCntSheet">0</span>)</button>
+        <button type="button" class="wms-group-pill" data-grp="solid_cnc">🔩 Phôi đặc CNC (<span id="grpCntSolid">0</span>)</button>
+        <button type="button" class="wms-group-pill" data-grp="consumable">🧰 Vật tư phụ &amp; Tiêu hao (<span id="grpCntCons">0</span>)</button>
+      </div>
+
       <div class="filter-bar">
-        <input type="text" id="inpSearchBars" placeholder="🔍 Tìm tên hộp / ống..." style="max-width:230px;">
+        <input type="text" id="inpSearchBars" placeholder="🔍 Tìm tên vật tư, SKU hoặc kệ..." style="max-width:250px;">
         <select id="selFilterBarsStatus" style="max-width:220px;">
           <option value="ALL">Tất cả trạng thái tồn</option>
           <option value="low">⚠️ Sắp hết hoặc đã hết</option>
-          <option value="zero">⭕ Đã hết hàng (0 cây)</option>
+          <option value="zero">⭕ Đã hết hàng (0)</option>
           <option value="ok">✅ Đủ tồn kho</option>
         </select>
         <select id="selFilterBarsRack" style="max-width:190px;">
@@ -311,11 +326,12 @@
         <table class="inv-table">
           <thead>
             <tr>
-              <th>Quy cách thép</th>
-              <th class="r">Dài chuẩn (mm)</th>
-              <th class="r">Tồn thực tế (cây)</th>
-              <th class="r">Định mức tối thiểu</th>
-              <th class="r">Tổng dài &amp; Khối lượng</th>
+              <th>Vật tư / Quy cách &amp; SKU</th>
+              <th>Nhóm &amp; ĐVT</th>
+              <th class="r">Thông số / Dài chuẩn</th>
+              <th class="r">Tồn thực tế</th>
+              <th class="r">Định mức</th>
+              <th class="r">Giá vốn BQ &amp; Trị giá</th>
               <th>Vị trí kệ</th>
               <th>Trạng thái</th>
               <th class="r eng-only">Thao tác kho</th>
@@ -517,32 +533,69 @@
       </details>
     </section>
 
-    <!-- KHU VỰC 5: THƯ VIỆN QUY CÁCH (ĐỊNH MỨC, KG/M, ĐƠN GIÁ, CHIỀU DÀI CHUẨN) -->
+    <!-- KHU VỰC 5: THƯ VIỆN VẬT TƯ & QUY CÁCH (4 NHÓM WMS) -->
     <section class="card" id="sectionLibrary" style="display:none;">
       <div class="card-head">
         <div>
-          <h2>5. Thư Viện Quy Cách Thép Hộp / Ống Toàn Xưởng</h2>
-          <div class="card-sub" style="margin-bottom:0;">Quản lý chiều dài cây chuẩn, trọng lượng kg/m, đơn giá tham khảo, định mức tồn tối thiểu &amp; vị trí kệ.</div>
+          <h2>5. Thư Viện Vật Tư &amp; Quy Cách Toàn Xưởng (4 Nhóm)</h2>
+          <div class="card-sub" style="margin-bottom:0;">Quản lý mã SKU, đơn vị tính, dài/khổ chuẩn, trọng lượng kg/m, giá vốn BQ, định mức tồn tối thiểu &amp; vị trí kệ.</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <input type="text" id="inpSearchProf" placeholder="🔍 Lọc quy cách..." style="max-width:200px;">
+          <input type="text" id="inpSearchProf" placeholder="🔍 Lọc tên / SKU..." style="max-width:200px;">
           <button type="button" class="btn btn-soft btn-sm eng-only" id="btnResetDefaultProfs">🔄 Khôi phục mặc định</button>
         </div>
       </div>
 
-      <!-- Form thêm quy cách mới -->
+      <div class="wms-group-pills" id="wmsGroupPillsLib">
+        <button type="button" class="wms-group-pill active" data-grp="ALL">📚 Tất cả</button>
+        <button type="button" class="wms-group-pill" data-grp="tube_1d">🪵 Hộp / Ống 1D</button>
+        <button type="button" class="wms-group-pill" data-grp="sheet_2d">📐 Thép tấm 2D</button>
+        <button type="button" class="wms-group-pill" data-grp="solid_cnc">🔩 Phôi đặc CNC</button>
+        <button type="button" class="wms-group-pill" data-grp="consumable">🧰 Vật tư phụ</button>
+      </div>
+
+      <!-- Form thêm vật tư / quy cách mới -->
       <div class="eng-only" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap:8px; margin:10px 0 14px; padding:12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; align-items:end;">
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Nhóm vật tư *</label>
+          <select id="selNewProfGroup">
+            <option value="tube_1d">🪵 Hộp / Ống 1D</option>
+            <option value="sheet_2d">📐 Thép tấm 2D</option>
+            <option value="solid_cnc">🔩 Phôi đặc CNC</option>
+            <option value="consumable">🧰 Vật tư phụ</option>
+          </select>
+        </div>
         <div style="grid-column: span 2;">
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Tên quy cách thép mới *</label>
-          <input type="text" id="inpNewProfName" placeholder="Vd: Hộp 40x80x2.0 hoặc Ống Ø42x1.8">
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Tên vật tư / Quy cách *</label>
+          <input type="text" id="inpNewProfName" placeholder="Vd: Hộp 40x80x2.0, Tấm SS400 1500x3000x5, Que hàn 3.2...">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Mã SKU nội bộ</label>
+          <input type="text" id="inpNewProfSku" placeholder="Vd: TAM-5-1530">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Đơn vị tính</label>
+          <select id="selNewProfUnit">
+            <option value="cây">cây</option>
+            <option value="tấm">tấm</option>
+            <option value="kg">kg</option>
+            <option value="cái">cái</option>
+            <option value="bộ">bộ</option>
+            <option value="hộp">hộp</option>
+            <option value="m">m</option>
+          </select>
         </div>
         <div>
           <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Dài chuẩn (mm)</label>
-          <input type="number" id="inpNewProfStdLen" value="6000" min="500" step="100">
+          <input type="number" id="inpNewProfStdLen" value="6000" min="1" step="100">
         </div>
         <div>
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Khối lượng (kg/m)</label>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Kg/m (hoặc Kg/đơn vị)</label>
           <input type="number" id="inpNewProfWeight" value="0" min="0" step="0.01">
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Giá vốn BQ (đ)</label>
+          <input type="number" id="inpNewProfAvgCost" value="0" min="0" step="1000">
         </div>
         <div>
           <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Định mức tối thiểu</label>
@@ -552,19 +605,19 @@
           <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Vị trí kệ</label>
           <input type="text" id="inpNewProfRack" placeholder="Kệ A1">
         </div>
-        <button type="button" class="btn btn-p" id="btnAddProfToLib" style="min-height:36px;">+ Thêm quy cách</button>
+        <button type="button" class="btn btn-p" id="btnAddProfToLib" style="min-height:36px;">+ Thêm vật tư</button>
       </div>
 
       <div class="table-responsive">
         <table class="inv-table">
           <thead>
             <tr>
-              <th>Tên quy cách</th>
-              <th>Tiết diện</th>
-              <th class="r">Dài chuẩn (mm)</th>
+              <th>Tên vật tư &amp; SKU</th>
+              <th>Nhóm &amp; ĐVT</th>
+              <th class="r">Dài / Khổ chuẩn</th>
               <th class="r">Kg/m</th>
-              <th class="r">Đơn giá (đ)</th>
-              <th class="r">Định mức tối thiểu</th>
+              <th class="r">Giá vốn BQ (đ)</th>
+              <th class="r">Định mức</th>
               <th>Vị trí kệ</th>
               <th class="r">Thao tác</th>
             </tr>
@@ -591,40 +644,89 @@
           <button type="button" class="btn btn-sm btn-soft ob-subtab-btn" data-subtab="offcuts">♻️ Chế độ 2: Nhập hàng loạt / Excel phôi lẻ cũ</button>
         </div>
 
-        <!-- Chế độ 1: Cây nguyên cũ -->
+        <!-- Chế độ 1: Tồn đầu kỳ 4 nhóm vật tư -->
         <div id="obPaneBars">
-          <div style="display:flex; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:12px; align-items:end;">
-            <div style="flex:1.6; min-width:170px;">
-              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Thêm nhanh quy cách chưa có</label>
-              <input type="text" id="obQuickProfName" placeholder="Vd: Hộp 40x80x2.0">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+            <button type="button" class="btn btn-soft btn-sm" id="btnObBarsTogglePaste">📋 Dán từ Excel (4 nhóm vật tư)</button>
+            <button type="button" class="btn btn-p btn-sm" id="btnObBarsUploadExcel">📂 Nhập từ Excel (.xlsx / .csv)</button>
+            <input type="file" id="inpObBarsExcelFile" accept=".xlsx,.xls,.csv" style="display:none;">
+          </div>
+
+          <div id="obBarsPasteBox" style="display:none; padding:12px; background:#F8FAFC; border:1.5px dashed #94A3B8; border-radius:10px; margin-bottom:12px;">
+            <div style="font-size:12px; font-weight:700; color:#0F172A; margin-bottom:5px;">
+              Dán vùng Excel (<code>Tên vật tư | Nhóm (1D/2D/CNC/Phu) | ĐVT | Số lượng tồn | Giá vốn | Kệ | SKU | Dài/Khổ mm</code>):
             </div>
-            <div style="width:110px;">
+            <textarea id="txtObBarsPasteArea" rows="4" placeholder="Tấm SS400 1500x3000x5&#9;sheet_2d&#9;tấm&#9;12&#9;2450000&#9;Kệ T1&#9;TAM-5&#9;3000&#10;Trục đặc S45C Ø40&#9;solid_cnc&#9;kg&#9;85.5&#9;32000&#9;Kệ C1&#9;PHOI-40&#9;1000"></textarea>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px;">
+              <span style="font-size:11.5px; color:#475569;">Hoặc dán 3 cột tối thiểu: <code>Tên vật tư | ĐVT | Số lượng</code>.</span>
+              <button type="button" class="btn btn-p btn-sm" id="btnObBarsApplyPaste">📥 Nạp vào bảng đầu kỳ</button>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:8px; padding:10px 12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:12px; align-items:end;">
+            <div>
+              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Nhóm vật tư</label>
+              <select id="obQuickGroup">
+                <option value="tube_1d">🪵 Hộp/Ống 1D</option>
+                <option value="sheet_2d">📐 Thép tấm 2D</option>
+                <option value="solid_cnc">🔩 Phôi đặc CNC</option>
+                <option value="consumable">🧰 Vật tư phụ</option>
+              </select>
+            </div>
+            <div style="grid-column: span 2;">
+              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Thêm vật tư mới vào bảng</label>
+              <input type="text" id="obQuickProfName" placeholder="Vd: Tấm Inox 304 1220x2440x2 hoặc Que hàn...">
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">SKU</label>
+              <input type="text" id="obQuickSku" placeholder="Mã SKU">
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">ĐVT</label>
+              <select id="obQuickUnit">
+                <option value="cây">cây</option>
+                <option value="tấm">tấm</option>
+                <option value="kg">kg</option>
+                <option value="cái">cái</option>
+                <option value="bộ">bộ</option>
+                <option value="hộp">hộp</option>
+                <option value="m">m</option>
+              </select>
+            </div>
+            <div>
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Dài chuẩn (mm)</label>
-              <input type="number" id="obQuickProfLen" value="6000" min="500">
+              <input type="number" id="obQuickProfLen" value="6000" min="1">
             </div>
-            <div style="width:105px;">
+            <div>
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">SL đang có</label>
-              <input type="number" id="obQuickProfQty" value="0" min="0">
+              <input type="number" id="obQuickProfQty" value="0" min="0" step="0.01">
             </div>
-            <div style="width:120px;">
+            <div>
+              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Giá vốn BQ</label>
+              <input type="number" id="obQuickAvgCost" value="0" min="0" step="1000">
+            </div>
+            <div>
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Vị trí kệ</label>
               <input type="text" id="obQuickProfRack" placeholder="Kệ A1">
             </div>
-            <div style="width:95px;">
+            <div>
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Định mức</label>
               <input type="number" id="obQuickProfMin" value="0" min="0">
             </div>
-            <button type="button" class="btn btn-soft btn-sm" id="btnObQuickAddRow">+ Thêm vào bảng</button>
+            <button type="button" class="btn btn-soft btn-sm" id="btnObQuickAddRow">+ Thêm dòng</button>
           </div>
           <div class="table-responsive">
-            <table class="inv-table" style="min-width:640px;">
+            <table class="inv-table" style="min-width:860px;">
               <thead>
                 <tr>
-                  <th>Quy cách thép</th>
-                  <th class="r">Chiều dài chuẩn (mm)</th>
-                  <th class="r">Số cây nguyên đang có</th>
+                  <th>Tên vật tư / Quy cách &amp; SKU</th>
+                  <th>Nhóm</th>
+                  <th>ĐVT</th>
+                  <th class="r">Dài/Khổ (mm)</th>
+                  <th class="r">SL tồn đầu kỳ</th>
+                  <th class="r">Giá vốn BQ (đ)</th>
                   <th>Vị trí kệ</th>
-                  <th class="r">Định mức tối thiểu</th>
+                  <th class="r">Định mức</th>
                   <th class="r">Kg/m</th>
                 </tr>
               </thead>
@@ -785,8 +887,26 @@
       return VALID_TABS.includes(h) ? h : 'bars';
     }
     let activeInvTab = resolveInitialTab();
+    let activeGroupBars = 'ALL';
+    let activeGroupLib = 'ALL';
     let openingSubTab = 'bars';
     let obOffcutDraftRows = [];
+
+    function getGroupMeta(grp) {
+      if (window.SharedUI && typeof window.SharedUI.getMaterialGroupMeta === 'function') {
+        return window.SharedUI.getMaterialGroupMeta(grp);
+      }
+      return { key: grp || 'tube_1d', label: 'Hộp/Ống 1D', shortLabel: 'Hộp/Ống 1D', icon: '🪵', defaultUnit: 'cây', badgeClass: 'grp-tube_1d' };
+    }
+
+    function normalizeGroupKey(raw) {
+      const s = String(raw || '').trim().toLowerCase();
+      if (!s || s === 'tube_1d' || s.includes('1d') || s.includes('hộp') || s.includes('ống')) return 'tube_1d';
+      if (s === 'sheet_2d' || s.includes('2d') || s.includes('tấm')) return 'sheet_2d';
+      if (s === 'solid_cnc' || s.includes('cnc') || s.includes('đặc') || s.includes('trục')) return 'solid_cnc';
+      if (s === 'consumable' || s.includes('phụ') || s.includes('tiêu hao')) return 'consumable';
+      return 'tube_1d';
+    }
 
     const $ = id => document.getElementById(id);
     const makeId = prefix => (window.SupabaseDB && typeof window.SupabaseDB.uid === 'function')
@@ -858,11 +978,17 @@
 
     function applyLoggedInUserUI(found) {
       currentUser = found;
-      const isOp = !found || found.role === 'operator';
+      const canManageInv = window.SharedUI && typeof window.SharedUI.canManageInventory === 'function'
+        ? window.SharedUI.canManageInventory(found)
+        : Boolean(found && (found.role === 'admin' || found.role === 'engineer' || found.role === 'warehouse'));
+      const isOp = !canManageInv;
       const isSuperAdmin = Boolean(found && found.role === 'admin');
+      const rMeta = window.SharedUI && typeof window.SharedUI.getRoleMeta === 'function'
+        ? window.SharedUI.getRoleMeta(found && found.role)
+        : { icon: isOp ? '👷' : '📐', shortLabel: isOp ? 'Thợ CNC' : 'Kỹ sư' };
       document.body.classList.toggle('role-operator', isOp);
-      $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
-      $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : (isSuperAdmin ? 'Admin' : 'Kỹ sư')}]`;
+      $('userIcon').textContent = rMeta.icon;
+      $('userNameDisp').textContent = `${found.fullName || found.username} [${rMeta.shortLabel}]`;
       $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
       $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
       $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
@@ -1197,12 +1323,15 @@
     function updateMigrationNotices() {
       const offWarn = $('offcutsMigrationWarn');
       const d4Warn = $('dot4MigrationWarn');
+      const d5Warn = $('dot5WmsWarn');
       const offReady = !(window.SupabaseDB && typeof window.SupabaseDB.isOffcutsTableReady === 'function') || window.SupabaseDB.isOffcutsTableReady();
       const enhReady = !(window.SupabaseDB && typeof window.SupabaseDB.isInventoryEnhancedReady === 'function') || window.SupabaseDB.isInventoryEnhancedReady();
       const ledReady = !(window.SupabaseDB && typeof window.SupabaseDB.isLedgerTableReady === 'function') || window.SupabaseDB.isLedgerTableReady();
+      const wmsReady = !(window.SupabaseDB && typeof window.SupabaseDB.isInventoryWmsReady === 'function') || window.SupabaseDB.isInventoryWmsReady();
 
       if (offWarn) offWarn.style.display = offReady ? 'none' : 'block';
       if (d4Warn) d4Warn.style.display = (offReady && (!enhReady || !ledReady)) ? 'block' : 'none';
+      if (d5Warn) d5Warn.style.display = (offReady && enhReady && ledReady && !wmsReady) ? 'block' : 'none';
     }
 
     function updateKpisAndBadges() {
@@ -1266,6 +1395,12 @@
       if ($('tabOffcutsBadge')) $('tabOffcutsBadge').textContent = numVN(totalOffPieces);
       if ($('tabLedgerBadge')) $('tabLedgerBadge').textContent = numVN(ledgerTransactions.length);
       if ($('tabLibraryBadge')) $('tabLibraryBadge').textContent = numVN(inventoryItems.length);
+
+      if ($('grpCntAll')) $('grpCntAll').textContent = inventoryItems.length;
+      if ($('grpCntTube')) $('grpCntTube').textContent = inventoryItems.filter(r => (r.materialGroup || 'tube_1d') === 'tube_1d').length;
+      if ($('grpCntSheet')) $('grpCntSheet').textContent = inventoryItems.filter(r => r.materialGroup === 'sheet_2d').length;
+      if ($('grpCntSolid')) $('grpCntSolid').textContent = inventoryItems.filter(r => r.materialGroup === 'solid_cnc').length;
+      if ($('grpCntCons')) $('grpCntCons').textContent = inventoryItems.filter(r => r.materialGroup === 'consumable').length;
     }
 
     function renderBarsSection() {
@@ -1282,7 +1417,9 @@
       const rackF = (rackSel && rackSel.value) || 'ALL';
 
       const filtered = inventoryItems.filter(r => {
-        if (q && !(r.profileName || '').toLowerCase().includes(q) && !(r.rackLocation || '').toLowerCase().includes(q)) return false;
+        const grp = r.materialGroup || 'tube_1d';
+        if (activeGroupBars !== 'ALL' && grp !== activeGroupBars) return false;
+        if (q && !(r.profileName || '').toLowerCase().includes(q) && !(r.sku || '').toLowerCase().includes(q) && !(r.rackLocation || '').toLowerCase().includes(q)) return false;
         if (rackF !== 'ALL' && (r.rackLocation || '').trim() !== rackF) return false;
         const qty = Math.max(0, Number(r.stockQty) || 0);
         const minQ = Math.max(0, Number(r.minStockQty) || 0);
@@ -1296,17 +1433,22 @@
       const tbody = $('barsTableBody');
       if (!tbody) return;
       if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:26px; color:#64748B;">Không có quy cách nào khớp bộ lọc. Hãy dùng nút <b>"📦 Nhập tồn đầu kỳ (Phôi cũ)"</b> để nhập tồn kho ban đầu!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:26px; color:#64748B;">Không có vật tư nào khớp bộ lọc. Hãy dùng nút <b>"📦 Nhập tồn đầu kỳ"</b> để nhập tồn kho ban đầu cho cả 4 nhóm!</td></tr>`;
         return;
       }
 
       tbody.innerHTML = filtered.map(r => {
+        const grp = r.materialGroup || 'tube_1d';
+        const gMeta = getGroupMeta(grp);
+        const unit = r.unit || gMeta.defaultUnit || 'cây';
         const qty = Math.max(0, Number(r.stockQty) || 0);
         const minQ = Math.max(0, Number(r.minStockQty) || 0);
         const stdLen = Number(r.standardLengthMm || r.standardLength) || 6000;
-        const totalMeters = (qty * stdLen) / 1000;
+        const avgCost = Math.max(0, Number(r.avgCost != null ? r.avgCost : r.unitPrice) || 0);
+        const totalValue = qty * avgCost;
+        const totalMeters = grp === 'tube_1d' ? (qty * stdLen) / 1000 : 0;
         const wPerM = getEffectiveWeightPerM(r);
-        const totalKg = totalMeters * wPerM;
+        const totalKg = grp === 'tube_1d' ? (totalMeters * wPerM) : (qty * (Number(r.weightPerM) || 0));
 
         let badgeHtml = '<span class="pill pill-green">✅ Đủ tồn</span>';
         if (qty === 0) {
@@ -1316,16 +1458,26 @@
         }
 
         const qtyColor = qty === 0 ? '#B91C1C' : ((minQ > 0 && qty <= minQ) ? '#C2410C' : '#0F766E');
+        const specText = grp === 'tube_1d'
+          ? `${numVN(stdLen)} mm${totalMeters > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalMeters, 1)} m${wPerM > 0 ? ' · ' + numVN(totalKg, 1) + ' kg' : ''}</div>` : ''}`
+          : (stdLen > 0 && grp !== 'consumable' ? `${numVN(stdLen)} mm${totalKg > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalKg, 1)} kg</div>` : ''}` : '<span style="color:#94A3B8;">—</span>');
 
         return `
           <tr>
-            <td><strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong></td>
-            <td class="r">${numVN(stdLen)} mm</td>
-            <td class="r" style="font-size:16px; font-weight:800; color:${qtyColor};">${numVN(qty)} cây</td>
-            <td class="r">${minQ > 0 ? numVN(minQ) + ' cây' : '<span style="color:#94A3B8;">—</span>'}</td>
+            <td>
+              <strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong>
+              ${r.sku ? `<div style="font-size:11px; font-family:monospace; color:#475569;">SKU: ${escapeHtml(r.sku)}</div>` : ''}
+            </td>
+            <td>
+              <span class="grp-badge ${gMeta.badgeClass}">${gMeta.icon} ${escapeHtml(gMeta.shortLabel)}</span>
+              <span class="pill pill-slate" style="margin-left:3px;">${escapeHtml(unit)}</span>
+            </td>
+            <td class="r">${specText}</td>
+            <td class="r" style="font-size:15.5px; font-weight:800; color:${qtyColor};">${numVN(qty)} ${escapeHtml(unit)}</td>
+            <td class="r">${minQ > 0 ? numVN(minQ) + ' ' + escapeHtml(unit) : '<span style="color:#94A3B8;">—</span>'}</td>
             <td class="r">
-              <div><b>${numVN(totalMeters, 1)} m</b></div>
-              <div style="font-size:11.5px; color:#64748B;">${wPerM > 0 ? `${numVN(totalKg, 1)} kg` : 'Chưa có kg/m'}</div>
+              <div><b>${avgCost > 0 ? numVN(avgCost, 0) + ' đ' : '—'}</b></div>
+              <div style="font-size:11px; color:#64748B;">${totalValue > 0 ? 'Trị giá: ' + numVN(totalValue, 0) + ' đ' : ''}</div>
             </td>
             <td>${r.rackLocation ? `<span class="pill pill-slate">📍 ${escapeHtml(r.rackLocation)}</span>` : '<span style="color:#94A3B8;">—</span>'}</td>
             <td>${badgeHtml}</td>
@@ -1632,17 +1784,25 @@
       const q = ($('inpSearchProf').value || '').trim().toLowerCase();
       const tbody = $('profilesTableBody');
       if (!tbody) return;
-      const filtered = inventoryItems.filter(r => !q || (r.profileName || '').toLowerCase().includes(q));
+      const filtered = inventoryItems.filter(r => {
+        const grp = r.materialGroup || 'tube_1d';
+        if (activeGroupLib !== 'ALL' && grp !== activeGroupLib) return false;
+        return !q || (r.profileName || '').toLowerCase().includes(q) || (r.sku || '').toLowerCase().includes(q);
+      });
 
       if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:#64748B;">Không tìm thấy quy cách phù hợp.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:#64748B;">Không tìm thấy vật tư phù hợp.</td></tr>`;
         return;
       }
 
+      const unitOpts = ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
       const locked = isCurrentProjectLocked();
       tbody.innerHTML = filtered.map(r => {
-        const cls = classifyProfile(r.profileName);
+        const grp = r.materialGroup || 'tube_1d';
+        const gMeta = getGroupMeta(grp);
+        const unit = r.unit || gMeta.defaultUnit || 'cây';
         const stdLen = Number(r.standardLengthMm || r.standardLength) || 6000;
+        const avgCost = Number(r.avgCost != null ? r.avgCost : r.unitPrice) || 0;
         const inProj = ((activeProject && activeProject.activeProfiles) || []).includes(r.profileName);
 
         return `
@@ -1650,15 +1810,28 @@
             <td>
               <strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong>
               ${inProj ? '<span class="pill pill-teal" style="margin-left:5px;">Đang mở</span>' : ''}
+              <div style="margin-top:4px;">
+                <input type="text" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="sku" value="${escapeHtml(r.sku || '')}" placeholder="Mã SKU..." style="width:120px; min-height:28px; font-size:11.5px; font-family:monospace;">
+              </div>
             </td>
-            <td><span class="pill ${cls.cls}">${cls.label}</span></td>
-            <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="standardLengthMm" value="${stdLen}" min="500" step="100" style="width:92px; text-align:right;"></td>
+            <td>
+              <select class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="materialGroup" style="min-height:30px; font-size:12px; width:135px; margin-bottom:4px;">
+                <option value="tube_1d" ${grp === 'tube_1d' ? 'selected' : ''}>🪵 Hộp/Ống 1D</option>
+                <option value="sheet_2d" ${grp === 'sheet_2d' ? 'selected' : ''}>📐 Thép tấm 2D</option>
+                <option value="solid_cnc" ${grp === 'solid_cnc' ? 'selected' : ''}>🔩 Phôi đặc CNC</option>
+                <option value="consumable" ${grp === 'consumable' ? 'selected' : ''}>🧰 Vật tư phụ</option>
+              </select>
+              <select class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="unit" style="min-height:28px; font-size:12px; width:72px;">
+                ${unitOpts.map(u => `<option value="${u}" ${unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+              </select>
+            </td>
+            <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="standardLengthMm" value="${stdLen}" min="1" step="100" style="width:92px; text-align:right;"></td>
             <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="weightPerM" value="${Number(r.weightPerM) || 0}" min="0" step="0.01" style="width:76px; text-align:right;"></td>
-            <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="unitPrice" value="${Number(r.unitPrice) || 0}" min="0" step="1000" style="width:100px; text-align:right;"></td>
+            <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="avgCost" value="${avgCost}" min="0" step="1000" style="width:104px; text-align:right;"></td>
             <td class="r"><input type="number" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="minStockQty" value="${Number(r.minStockQty) || 0}" min="0" style="width:72px; text-align:right;"></td>
             <td><input type="text" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="rackLocation" value="${escapeHtml(r.rackLocation || '')}" placeholder="Kệ..." style="width:96px;"></td>
             <td class="r" style="white-space:nowrap;">
-              <button type="button" class="btn btn-sm btn-p btn-use-prof eng-only" data-prof="${escapeHtml(r.profileName)}" ${locked ? 'disabled style="opacity:0.45;" title="Dự án đang khóa bảo vệ"' : ''}>+ Đưa vào dự án</button>
+              ${grp === 'tube_1d' ? `<button type="button" class="btn btn-sm btn-p btn-use-prof eng-only" data-prof="${escapeHtml(r.profileName)}" ${locked ? 'disabled style="opacity:0.45;" title="Dự án đang khóa bảo vệ"' : ''}>+ Dự án</button>` : ''}
               <button type="button" class="btn btn-sm btn-danger btn-del-prof eng-only" data-prof="${escapeHtml(r.profileName)}" style="margin-left:4px;">✕</button>
             </td>
           </tr>
@@ -1669,15 +1842,18 @@
         inp.onchange = async () => {
           const prof = inp.dataset.prof;
           const field = inp.dataset.f;
-          const val = field === 'rackLocation' ? inp.value.trim() : Math.max(0, Number(inp.value) || 0);
+          const strFields = new Set(['rackLocation', 'sku', 'materialGroup', 'unit']);
+          const val = strFields.has(field) ? inp.value.trim() : Math.max(0, Number(inp.value) || 0);
           try {
-            const updated = await window.SupabaseDB.updateInventoryProfile(prof, { [field]: val });
+            const patch = { [field]: val };
+            if (field === 'avgCost') patch.unitPrice = val;
+            const updated = await window.SupabaseDB.updateInventoryProfile(prof, patch);
             inventoryItems = inventoryItems.map(x => x.profileName === prof ? updated : x);
             updateKpisAndBadges();
             renderBarsSection();
             showToast(`✓ Đã cập nhật thông số "${prof}"`);
           } catch (err) {
-            showToast('❌ Lỗi cập nhật quy cách: ' + err.message);
+            showToast('❌ Lỗi cập nhật vật tư: ' + err.message);
           }
         };
       });
@@ -1804,16 +1980,41 @@
     function renderOpeningBarsRows(rowsList) {
       const tbody = $('obBarsTableBody');
       if (!tbody) return;
-      tbody.innerHTML = rowsList.map((r, idx) => `
+      const unitOpts = ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
+      tbody.innerHTML = rowsList.map((r, idx) => {
+        const grp = r.materialGroup || 'tube_1d';
+        const gMeta = getGroupMeta(grp);
+        const unit = r.unit || gMeta.defaultUnit || 'cây';
+        const avgCost = Number(r.avgCost != null ? r.avgCost : r.unitPrice) || 0;
+        return `
         <tr data-idx="${idx}">
-          <td><strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong><input type="hidden" class="ob-b-prof" value="${escapeHtml(r.profileName)}"></td>
-          <td class="r"><input type="number" class="ob-b-len" value="${Number(r.standardLengthMm) || 6000}" min="500" step="100" style="width:96px; text-align:right;"></td>
-          <td class="r"><input type="number" class="ob-b-qty" value="${Math.max(0, Number(r.stockQty) || 0)}" min="0" style="width:92px; text-align:right; font-weight:800; color:#0F766E;"></td>
-          <td><input type="text" class="ob-b-rack" value="${escapeHtml(r.rackLocation || '')}" placeholder="Kệ..." style="width:105px;"></td>
-          <td class="r"><input type="number" class="ob-b-min" value="${Math.max(0, Number(r.minStockQty) || 0)}" min="0" style="width:82px; text-align:right;"></td>
-          <td class="r"><input type="number" class="ob-b-kg" value="${Number(r.weightPerM) || estimateWeight(r.profileName)}" min="0" step="0.01" style="width:76px; text-align:right;"></td>
+          <td>
+            <strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong>
+            <input type="hidden" class="ob-b-prof" value="${escapeHtml(r.profileName)}">
+            <div><input type="text" class="ob-b-sku" value="${escapeHtml(r.sku || '')}" placeholder="SKU..." style="width:110px; min-height:26px; font-size:11.5px; margin-top:2px;"></div>
+          </td>
+          <td>
+            <select class="ob-b-grp" style="min-height:30px; font-size:12px; width:125px;">
+              <option value="tube_1d" ${grp === 'tube_1d' ? 'selected' : ''}>🪵 Hộp/Ống 1D</option>
+              <option value="sheet_2d" ${grp === 'sheet_2d' ? 'selected' : ''}>📐 Thép tấm 2D</option>
+              <option value="solid_cnc" ${grp === 'solid_cnc' ? 'selected' : ''}>🔩 Phôi đặc CNC</option>
+              <option value="consumable" ${grp === 'consumable' ? 'selected' : ''}>🧰 Vật tư phụ</option>
+            </select>
+          </td>
+          <td>
+            <select class="ob-b-unit" style="min-height:30px; font-size:12px; width:72px;">
+              ${unitOpts.map(u => `<option value="${u}" ${unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+            </select>
+          </td>
+          <td class="r"><input type="number" class="ob-b-len" value="${Number(r.standardLengthMm) || 6000}" min="1" step="100" style="width:88px; text-align:right;"></td>
+          <td class="r"><input type="number" class="ob-b-qty" value="${Math.max(0, Number(r.stockQty) || 0)}" min="0" step="0.01" style="width:86px; text-align:right; font-weight:800; color:#0F766E;"></td>
+          <td class="r"><input type="number" class="ob-b-cost" value="${avgCost}" min="0" step="1000" style="width:98px; text-align:right;"></td>
+          <td><input type="text" class="ob-b-rack" value="${escapeHtml(r.rackLocation || '')}" placeholder="Kệ..." style="width:96px;"></td>
+          <td class="r"><input type="number" class="ob-b-min" value="${Math.max(0, Number(r.minStockQty) || 0)}" min="0" style="width:74px; text-align:right;"></td>
+          <td class="r"><input type="number" class="ob-b-kg" value="${Number(r.weightPerM) || estimateWeight(r.profileName)}" min="0" step="0.01" style="width:70px; text-align:right;"></td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function renderOpeningOffcutsRows() {
@@ -2019,6 +2220,26 @@
       });
       window.addEventListener('hashchange', () => switchInvTab(resolveInitialTab()));
 
+      // 4-group WMS pills (Tab 1 & Tab 5)
+      if ($('wmsGroupPillsBars')) {
+        $('wmsGroupPillsBars').querySelectorAll('.wms-group-pill').forEach(btn => {
+          btn.onclick = () => {
+            activeGroupBars = btn.dataset.grp || 'ALL';
+            $('wmsGroupPillsBars').querySelectorAll('.wms-group-pill').forEach(b => b.classList.toggle('active', b === btn));
+            renderBarsSection();
+          };
+        });
+      }
+      if ($('wmsGroupPillsLib')) {
+        $('wmsGroupPillsLib').querySelectorAll('.wms-group-pill').forEach(btn => {
+          btn.onclick = () => {
+            activeGroupLib = btn.dataset.grp || 'ALL';
+            $('wmsGroupPillsLib').querySelectorAll('.wms-group-pill').forEach(b => b.classList.toggle('active', b === btn));
+            renderProfilesTable();
+          };
+        });
+      }
+
       // KPI Low Stock quick filter
       if ($('kpiLowStockCard')) {
         $('kpiLowStockCard').onclick = () => {
@@ -2137,6 +2358,14 @@
       }
 
       // Tab 5 (Library)
+      if ($('selNewProfGroup')) {
+        $('selNewProfGroup').onchange = () => {
+          const gMeta = getGroupMeta($('selNewProfGroup').value);
+          if ($('selNewProfUnit')) $('selNewProfUnit').value = gMeta.defaultUnit;
+          if ($('selNewProfGroup').value === 'consumable' && $('inpNewProfStdLen')) $('inpNewProfStdLen').value = '1000';
+          if ($('selNewProfGroup').value === 'tube_1d' && $('inpNewProfStdLen')) $('inpNewProfStdLen').value = '6000';
+        };
+      }
       if ($('inpNewProfName')) {
         $('inpNewProfName').addEventListener('blur', () => {
           const wInp = $('inpNewProfWeight');
@@ -2150,16 +2379,25 @@
       $('btnAddProfToLib').onclick = async () => {
         const val = ($('inpNewProfName').value || '').trim();
         if (!val) return;
-        const stdLen = Math.max(500, parseFloat($('inpNewProfStdLen').value) || 6000);
+        const grp = ($('selNewProfGroup') && $('selNewProfGroup').value) || 'tube_1d';
+        const unit = ($('selNewProfUnit') && $('selNewProfUnit').value) || getGroupMeta(grp).defaultUnit;
+        const sku = ($('inpNewProfSku') && $('inpNewProfSku').value.trim()) || '';
+        const stdLen = Math.max(1, parseFloat($('inpNewProfStdLen').value) || 6000);
         const wPerM = Math.max(0, parseFloat($('inpNewProfWeight').value) || 0) || estimateWeight(val);
+        const avgCost = Math.max(0, parseFloat($('inpNewProfAvgCost') && $('inpNewProfAvgCost').value) || 0);
         const minQ = Math.max(0, parseInt($('inpNewProfMinStock').value, 10) || 0);
         const rackLoc = ($('inpNewProfRack').value || '').trim();
 
-        window.SupabaseDB.setLoading(true, 'Đang lưu quy cách lên Supabase...');
+        window.SupabaseDB.setLoading(true, 'Đang lưu vật tư lên Supabase...');
         try {
           const savedRow = await window.SupabaseDB.addProfile(val, {
+            materialGroup: grp,
+            sku: sku,
+            unit: unit,
             standardLengthMm: stdLen,
             weightPerM: wPerM,
+            unitPrice: avgCost,
+            avgCost: avgCost,
             minStockQty: minQ,
             rackLocation: rackLoc,
             stockQty: 0
@@ -2167,12 +2405,14 @@
           inventoryItems = [savedRow, ...inventoryItems.filter(x => x.profileName !== val)];
           savedProfiles = inventoryItems.map(r => r.profileName);
           $('inpNewProfName').value = '';
+          if ($('inpNewProfSku')) $('inpNewProfSku').value = '';
+          if ($('inpNewProfAvgCost')) $('inpNewProfAvgCost').value = '0';
           $('inpNewProfWeight').value = '0';
           $('inpNewProfRack').value = '';
           renderAll();
           showToast(`✓ Đã lưu "${val}" lên Supabase!`);
         } catch (err) {
-          showToast('❌ Lỗi lưu quy cách: ' + err.message);
+          showToast('❌ Lỗi lưu vật tư: ' + err.message);
         } finally {
           window.SupabaseDB.setLoading(false);
         }
@@ -2231,47 +2471,170 @@
       document.querySelectorAll('.ob-subtab-btn').forEach(b => {
         b.onclick = () => switchOpeningSubtab(b.dataset.subtab);
       });
+      if ($('obQuickGroup')) {
+        $('obQuickGroup').onchange = () => {
+          const gm = getGroupMeta($('obQuickGroup').value);
+          if ($('obQuickUnit')) $('obQuickUnit').value = gm.defaultUnit;
+        };
+      }
+
+      const readObTableRows = () => Array.from($('obBarsTableBody').querySelectorAll('tr')).map(tr => ({
+        profileName: tr.querySelector('.ob-b-prof').value,
+        sku: tr.querySelector('.ob-b-sku') ? tr.querySelector('.ob-b-sku').value.trim() : '',
+        materialGroup: tr.querySelector('.ob-b-grp') ? tr.querySelector('.ob-b-grp').value : 'tube_1d',
+        unit: tr.querySelector('.ob-b-unit') ? tr.querySelector('.ob-b-unit').value : 'cây',
+        standardLengthMm: parseFloat(tr.querySelector('.ob-b-len').value) || 6000,
+        stockQty: Math.max(0, parseFloat(tr.querySelector('.ob-b-qty').value) || 0),
+        avgCost: tr.querySelector('.ob-b-cost') ? Math.max(0, parseFloat(tr.querySelector('.ob-b-cost').value) || 0) : 0,
+        unitPrice: tr.querySelector('.ob-b-cost') ? Math.max(0, parseFloat(tr.querySelector('.ob-b-cost').value) || 0) : 0,
+        rackLocation: tr.querySelector('.ob-b-rack').value.trim(),
+        minStockQty: Math.max(0, parseInt(tr.querySelector('.ob-b-min').value, 10) || 0),
+        weightPerM: parseFloat(tr.querySelector('.ob-b-kg').value) || 0
+      }));
+
+      const mergeParsedOpeningRows = (parsedRows) => {
+        if (!parsedRows.length) return;
+        const currentRows = readObTableRows();
+        const byName = {};
+        currentRows.forEach(r => { byName[r.profileName.toLowerCase()] = r; });
+        parsedRows.forEach(nr => {
+          const k = nr.profileName.toLowerCase();
+          if (byName[k]) Object.assign(byName[k], nr);
+          else {
+            currentRows.unshift(nr);
+            byName[k] = nr;
+          }
+        });
+        renderOpeningBarsRows(currentRows);
+      };
+
+      const parseOpeningMaterialsAoa = (aoa) => {
+        const out = [];
+        (aoa || []).forEach(cols => {
+          const c = Array.isArray(cols) ? cols.map(x => String(x == null ? '' : x).trim()) : [];
+          if (!c.length || !c[0]) return;
+          if (/^(tên|quy cách|vật tư|profile|name|stt)/i.test(c[0])) {
+            if (c[1] && /^(nhóm|group|đvt|unit)/i.test(c[1])) return;
+          }
+          const name = c[0];
+          let grp = 'tube_1d';
+          let unit = 'cây';
+          let qty = 0;
+          let avgCost = 0;
+          let rack = '';
+          let sku = '';
+          let stdLen = 6000;
+          if (c.length <= 4) {
+            unit = c[1] || 'cây';
+            qty = Math.max(0, parseFloat(String(c[2] || '0').replace(',', '.')) || 0);
+            avgCost = Math.max(0, parseFloat(String(c[3] || '0').replace(',', '')) || 0);
+          } else {
+            grp = normalizeGroupKey(c[1]);
+            unit = c[2] || getGroupMeta(grp).defaultUnit;
+            qty = Math.max(0, parseFloat(String(c[3] || '0').replace(',', '.')) || 0);
+            avgCost = Math.max(0, parseFloat(String(c[4] || '0').replace(',', '')) || 0);
+            rack = c[5] || '';
+            sku = c[6] || '';
+            stdLen = Math.max(1, parseFloat(String(c[7] || '6000').replace(',', '.')) || 6000);
+          }
+          out.push({
+            profileName: name,
+            materialGroup: grp,
+            unit: unit,
+            stockQty: qty,
+            avgCost: avgCost,
+            unitPrice: avgCost,
+            rackLocation: rack,
+            sku: sku,
+            standardLengthMm: stdLen,
+            minStockQty: 0,
+            weightPerM: estimateWeight(name)
+          });
+        });
+        return out;
+      };
+
+      if ($('btnObBarsTogglePaste')) {
+        $('btnObBarsTogglePaste').onclick = () => {
+          const b = $('obBarsPasteBox');
+          b.style.display = b.style.display === 'none' ? 'block' : 'none';
+          if (b.style.display === 'block') $('txtObBarsPasteArea').focus();
+        };
+      }
+      if ($('btnObBarsApplyPaste')) {
+        $('btnObBarsApplyPaste').onclick = () => {
+          const txt = ($('txtObBarsPasteArea').value || '').trim();
+          if (!txt) return;
+          const aoa = txt.split(/\r?\n/).map(line => line.split(/\t|;/));
+          const parsed = parseOpeningMaterialsAoa(aoa);
+          if (!parsed.length) { showToast('⚠️ Không đọc được dòng vật tư hợp lệ nào!'); return; }
+          mergeParsedOpeningRows(parsed);
+          $('txtObBarsPasteArea').value = '';
+          $('obBarsPasteBox').style.display = 'none';
+          showToast(`📋 Đã nạp ${parsed.length} vật tư vào bảng tồn đầu kỳ!`);
+        };
+      }
+      if ($('btnObBarsUploadExcel')) $('btnObBarsUploadExcel').onclick = () => $('inpObBarsExcelFile').click();
+      if ($('inpObBarsExcelFile')) {
+        $('inpObBarsExcelFile').onchange = async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          try {
+            let aoa = [];
+            if (/\.csv$/i.test(file.name)) {
+              const txt = await file.text();
+              aoa = txt.split(/\r?\n/).map(l => l.split(/,|;|\t/));
+            } else if (typeof XLSX !== 'undefined') {
+              const buf = await file.arrayBuffer();
+              const wb = XLSX.read(buf, { type: 'array' });
+              aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+            }
+            const parsed = parseOpeningMaterialsAoa(aoa);
+            if (!parsed.length) { showToast('⚠️ Không đọc được dữ liệu trong file!'); return; }
+            mergeParsedOpeningRows(parsed);
+            showToast(`📂 Đã nạp ${parsed.length} vật tư từ "${file.name}"!`);
+          } catch (err) {
+            showToast('❌ Lỗi đọc file Excel: ' + err.message);
+          } finally {
+            e.target.value = '';
+          }
+        };
+      }
+
       $('btnObQuickAddRow').onclick = () => {
         const name = ($('obQuickProfName').value || '').trim();
-        if (!name) { showToast('⚠️ Vui lòng nhập tên quy cách cần thêm!'); return; }
-        const tbody = $('obBarsTableBody');
-        const currentRows = Array.from(tbody.querySelectorAll('tr')).map(tr => ({
-          profileName: tr.querySelector('.ob-b-prof').value,
-          standardLengthMm: parseFloat(tr.querySelector('.ob-b-len').value) || 6000,
-          stockQty: Math.max(0, parseInt(tr.querySelector('.ob-b-qty').value, 10) || 0),
-          rackLocation: tr.querySelector('.ob-b-rack').value.trim(),
-          minStockQty: Math.max(0, parseInt(tr.querySelector('.ob-b-min').value, 10) || 0),
-          weightPerM: parseFloat(tr.querySelector('.ob-b-kg').value) || 0
-        }));
+        if (!name) { showToast('⚠️ Vui lòng nhập tên vật tư cần thêm!'); return; }
+        const currentRows = readObTableRows();
         if (currentRows.some(r => r.profileName.toLowerCase() === name.toLowerCase())) {
-          showToast(`Quy cách "${name}" đã có trong bảng!`);
+          showToast(`Vật tư "${name}" đã có trong bảng!`);
           return;
         }
+        const grp = ($('obQuickGroup') && $('obQuickGroup').value) || 'tube_1d';
+        const unit = ($('obQuickUnit') && $('obQuickUnit').value) || getGroupMeta(grp).defaultUnit;
+        const avgCost = Math.max(0, parseFloat($('obQuickAvgCost') && $('obQuickAvgCost').value) || 0);
         currentRows.unshift({
           profileName: name,
+          sku: ($('obQuickSku') && $('obQuickSku').value.trim()) || '',
+          materialGroup: grp,
+          unit: unit,
           standardLengthMm: parseFloat($('obQuickProfLen').value) || 6000,
-          stockQty: Math.max(0, parseInt($('obQuickProfQty').value, 10) || 0),
+          stockQty: Math.max(0, parseFloat($('obQuickProfQty').value) || 0),
+          avgCost: avgCost,
+          unitPrice: avgCost,
           rackLocation: ($('obQuickProfRack').value || '').trim(),
           minStockQty: Math.max(0, parseInt($('obQuickProfMin').value, 10) || 0),
           weightPerM: estimateWeight(name)
         });
         renderOpeningBarsRows(currentRows);
         $('obQuickProfName').value = '';
+        if ($('obQuickSku')) $('obQuickSku').value = '';
         $('obQuickProfQty').value = '0';
         $('obQuickProfRack').value = '';
       };
 
       $('btnSaveOpeningBars').onclick = async () => {
-        const trs = Array.from($('obBarsTableBody').querySelectorAll('tr'));
-        const payload = trs.map(tr => ({
-          profileName: tr.querySelector('.ob-b-prof').value,
-          standardLengthMm: parseFloat(tr.querySelector('.ob-b-len').value) || 6000,
-          stockQty: Math.max(0, parseInt(tr.querySelector('.ob-b-qty').value, 10) || 0),
-          rackLocation: tr.querySelector('.ob-b-rack').value.trim(),
-          minStockQty: Math.max(0, parseInt(tr.querySelector('.ob-b-min').value, 10) || 0),
-          weightPerM: parseFloat(tr.querySelector('.ob-b-kg').value) || 0
-        }));
-        window.SupabaseDB.setLoading(true, 'Đang lưu toàn bộ tồn cây nguyên đầu kỳ...');
+        const payload = readObTableRows();
+        window.SupabaseDB.setLoading(true, 'Đang lưu tồn kho đầu kỳ 4 nhóm vật tư...');
         try {
           const res = await window.SupabaseDB.saveOpeningBalanceBars(payload, currentUser ? currentUser.username : '');
           const [invRows, txs] = await Promise.all([
@@ -2283,7 +2646,7 @@
           ledgerTransactions = txs;
           renderAll();
           closeOpeningBalanceModal();
-          showToast(`📦 Đã lưu tồn đầu kỳ ${payload.length} quy cách (ghi ${res.txCount} bút toán sổ cái)!`);
+          showToast(`📦 Đã lưu tồn đầu kỳ ${payload.length} vật tư (ghi ${res.txCount} bút toán sổ cái)!`);
         } catch (err) {
           showToast('❌ Lỗi lưu tồn đầu kỳ: ' + err.message);
         } finally {

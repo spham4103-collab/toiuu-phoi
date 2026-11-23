@@ -1,24 +1,28 @@
 /**
  * Service Worker - PWA for Xếp Phôi CNC An Bình
- * Cache Version 18 - Hỗ trợ URL sạch (/projects, /inventory, /cnc, /admin),
+ * Cache Version 19 - Hỗ trợ WMS (4 nhóm vật tư, /vouchers, /css/shared.css, /js/shared-ui.js) & URL sạch,
  * Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
  * Network-First cho HTML, /toi-uu-engine.js, /css/ và toàn bộ /js/ với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v18';
+const CACHE_NAME = 'toiuu-phoi-pwa-v19';
 const STATIC_ASSETS = [
   '/',
   '/projects',
   '/inventory',
+  '/vouchers',
   '/cnc',
   '/admin',
   '/index.html',
   '/projects.html',
   '/inventory.html',
+  '/vouchers.html',
   '/cnc.html',
   '/admin.html',
   '/toi-uu-engine.js',
   '/js/supabaseClient.js',
+  '/js/shared-ui.js',
   '/js/workshopExport.js',
+  '/css/shared.css',
   '/css/index.css',
   '/css/print-a4.css',
   '/js/index/state.js',
@@ -60,6 +64,7 @@ function pickRouteFallbackUrl(pathname) {
   const p = String(pathname || '/').toLowerCase();
   if (p.startsWith('/projects')) return '/projects';
   if (p.startsWith('/inventory')) return '/inventory';
+  if (p.startsWith('/vouchers')) return '/vouchers';
   if (p.startsWith('/cnc')) return '/cnc';
   if (p.startsWith('/admin')) return '/admin';
   return '/';

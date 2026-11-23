@@ -35,6 +35,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   var _supportsPatternHash = true;
   var _offcutsTableReady = true;
   var _inventoryEnhancedReady = true;
+  var _inventoryWmsReady = true;
+  var _wmsVouchersReady = true;
   var _ledgerTableReady = true;
   var _projectsDeductedColReady = true;
 
@@ -415,16 +417,26 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   function mapInventoryFromDb(row) {
     if (!row) return null;
     var stdLen = Number(row.standard_length_mm != null ? row.standard_length_mm : row.standard_length) || 6000;
+    var specObj = (row.spec_json && typeof row.spec_json === 'object' && !Array.isArray(row.spec_json))
+      ? row.spec_json
+      : {};
+    var uPrice = Math.max(0, Number(row.unit_price) || 0);
+    var aCost = row.avg_cost != null ? Math.max(0, Number(row.avg_cost) || 0) : uPrice;
     return {
       id: row.id,
       profileName: row.profile_name,
       category: row.category || classifyProfile(row.profile_name),
+      materialGroup: row.material_group || 'tube_1d',
+      sku: row.sku ? String(row.sku) : '',
+      unit: row.unit ? String(row.unit) : 'cây',
+      specJson: specObj,
       standardLength: stdLen,
       standardLengthMm: stdLen,
       stockQty: row.stock_qty != null ? Math.max(0, Number(row.stock_qty) || 0) : 0,
       minStockQty: Math.max(0, Number(row.min_stock_qty) || 0),
       weightPerM: Math.max(0, Number(row.weight_per_m) || 0),
-      unitPrice: Math.max(0, Number(row.unit_price) || 0),
+      unitPrice: uPrice,
+      avgCost: aCost,
       rackLocation: String(row.rack_location || ''),
       notes: row.notes || '',
       isDefault: Boolean(row.is_default),
@@ -485,9 +497,75 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       qtyChange: Number(row.qty_change) || 0,
       balanceAfter: row.balance_after != null ? Number(row.balance_after) : null,
       projectId: row.project_id || null,
+      voucherId: row.voucher_id || null,
+      unitPrice: Number(row.unit_price) || 0,
       note: String(row.note || ''),
       createdBy: String(row.created_by || ''),
       createdAt: row.created_at || new Date().toISOString()
+    };
+  }
+
+  function mapSupplierFromDb(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      code: String(row.code || ''),
+      name: String(row.name || ''),
+      phone: String(row.phone || ''),
+      email: String(row.email || ''),
+      address: String(row.address || ''),
+      taxCode: String(row.tax_code || ''),
+      note: String(row.note || ''),
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null
+    };
+  }
+
+  function mapVoucherItemFromDb(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      voucherId: row.voucher_id,
+      inventoryId: row.inventory_id || null,
+      offcutId: row.offcut_id || null,
+      profile: String(row.profile || ''),
+      materialGroup: String(row.material_group || 'tube_1d'),
+      unit: String(row.unit || 'cây'),
+      qty: Number(row.qty) || 0,
+      lengthMm: row.length_mm != null ? Number(row.length_mm) : null,
+      unitPrice: Number(row.unit_price) || 0,
+      totalAmount: Number(row.total_amount) || 0,
+      note: String(row.note || ''),
+      createdAt: row.created_at || null
+    };
+  }
+
+  function mapVoucherFromDb(row) {
+    if (!row) return null;
+    var rawItems = Array.isArray(row.items) ? row.items : (Array.isArray(row.warehouse_voucher_items) ? row.warehouse_voucher_items : []);
+    return {
+      id: row.id,
+      voucherCode: String(row.voucher_code || ''),
+      voucherType: String(row.voucher_type || 'IN'),
+      status: String(row.status || 'pending'),
+      projectId: row.project_id || null,
+      supplierId: row.supplier_id || null,
+      supplierName: row.supplier && row.supplier.name ? String(row.supplier.name) : String(row.supplier_name || ''),
+      projectName: row.project && row.project.name ? String(row.project.name) : String(row.project_name || ''),
+      department: String(row.department || ''),
+      invoiceNo: String(row.invoice_no || ''),
+      attachmentUrl: String(row.attachment_url || ''),
+      note: String(row.note || ''),
+      cancelReason: String(row.cancel_reason || ''),
+      allowNegative: Boolean(row.allow_negative),
+      createdBy: String(row.created_by || ''),
+      createdByUid: row.created_by_uid || null,
+      approvedBy: String(row.approved_by || ''),
+      approvedByUid: row.approved_by_uid || null,
+      approvedAt: row.approved_at || null,
+      createdAt: row.created_at || new Date().toISOString(),
+      updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
+      items: rawItems.map(mapVoucherItemFromDb).filter(Boolean)
     };
   }
 
@@ -758,12 +836,30 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return _inventoryEnhancedReady;
   }
 
+  function isInventoryWmsReady() {
+    return _inventoryWmsReady;
+  }
+
+  function isWmsVouchersReady() {
+    return _wmsVouchersReady;
+  }
+
   function isLedgerTableReady() {
     return _ledgerTableReady;
   }
 
-  function _stripEnhancedInventoryCols(obj) {
+  function _stripWmsInventoryCols(obj) {
     var copy = Object.assign({}, obj);
+    delete copy.material_group;
+    delete copy.sku;
+    delete copy.unit;
+    delete copy.spec_json;
+    delete copy.avg_cost;
+    return copy;
+  }
+
+  function _stripEnhancedInventoryCols(obj) {
+    var copy = _stripWmsInventoryCols(obj);
     delete copy.standard_length_mm;
     delete copy.min_stock_qty;
     delete copy.weight_per_m;
@@ -772,14 +868,19 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return copy;
   }
 
+  function _sanitizeInvPayload(obj) {
+    if (!_inventoryEnhancedReady) return _stripEnhancedInventoryCols(obj);
+    if (!_inventoryWmsReady) return _stripWmsInventoryCols(obj);
+    return obj;
+  }
+
   async function getInventory() {
     var client = getClient();
     var res = await client.from('inventory').select('*').order('created_at', { ascending: true });
     var rows = throwIfError(res, 'Không tải được thư viện quy cách') || [];
-    if (rows.length > 0 && !Object.prototype.hasOwnProperty.call(rows[0], 'rack_location')) {
-      _inventoryEnhancedReady = false;
-    } else if (rows.length > 0) {
-      _inventoryEnhancedReady = true;
+    if (rows.length > 0) {
+      _inventoryEnhancedReady = Object.prototype.hasOwnProperty.call(rows[0], 'rack_location');
+      _inventoryWmsReady = Object.prototype.hasOwnProperty.call(rows[0], 'material_group');
     }
     return rows.map(mapInventoryFromDb);
   }
@@ -789,31 +890,42 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (!clean) throw new Error('Tên quy cách không được để trống');
     var info = meta || {};
     var client = getClient();
-    var stdLen = Math.max(100, Number(info.standardLengthMm != null ? info.standardLengthMm : (info.standardLength != null ? info.standardLength : 6000)) || 6000);
+    var stdLen = Math.max(1, Number(info.standardLengthMm != null ? info.standardLengthMm : (info.standardLength != null ? info.standardLength : 6000)) || 6000);
     var qtyVal = info.stockQty !== undefined && info.stockQty !== null && info.stockQty !== ''
-      ? Math.max(0, Math.round(Number(info.stockQty) || 0))
+      ? Math.max(0, Number(info.stockQty) || 0)
       : 0;
+    var uPrice = Math.max(0, Number(info.unitPrice) || 0);
     var payload = {
       profile_name: clean,
       category: info.category || classifyProfile(clean),
+      material_group: String(info.materialGroup || 'tube_1d').trim() || 'tube_1d',
+      sku: String(info.sku || '').trim() || null,
+      unit: String(info.unit || 'cây').trim() || 'cây',
+      spec_json: (info.specJson && typeof info.specJson === 'object') ? info.specJson : {},
       standard_length: stdLen,
       standard_length_mm: stdLen,
       stock_qty: qtyVal,
       min_stock_qty: Math.max(0, Math.round(Number(info.minStockQty) || 0)),
       weight_per_m: Math.max(0, Number(info.weightPerM != null ? info.weightPerM : estimateSteelWeightPerM(clean)) || 0),
-      unit_price: Math.max(0, Number(info.unitPrice) || 0),
+      unit_price: uPrice,
+      avg_cost: info.avgCost !== undefined ? Math.max(0, Number(info.avgCost) || 0) : uPrice,
       rack_location: String(info.rackLocation || '').trim(),
       notes: String(info.notes || ''),
       is_default: Boolean(info.isDefault)
     };
-    if (!_inventoryEnhancedReady) {
-      payload = _stripEnhancedInventoryCols(payload);
-    }
     var res = await client
       .from('inventory')
-      .upsert(payload, { onConflict: 'profile_name' })
+      .upsert(_sanitizeInvPayload(payload), { onConflict: 'profile_name' })
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /material_group|sku|unit|spec_json|avg_cost/i)) {
+      _inventoryWmsReady = false;
+      res = await client
+        .from('inventory')
+        .upsert(_sanitizeInvPayload(payload), { onConflict: 'profile_name' })
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /standard_length_mm|min_stock_qty|weight_per_m|unit_price|rack_location/i)) {
       _inventoryEnhancedReady = false;
       res = await client
@@ -822,7 +934,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         .select()
         .single();
     }
-    var row = throwIfError(res, 'Không lưu được quy cách hộp');
+    var row = throwIfError(res, 'Không lưu được quy cách vật tư');
     return mapInventoryFromDb(row);
   }
 
@@ -838,13 +950,17 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       updateObj.category = p.category || classifyProfile(cleanName);
     }
     if (p.category !== undefined) updateObj.category = String(p.category || 'other');
+    if (p.materialGroup !== undefined) updateObj.material_group = String(p.materialGroup || 'tube_1d');
+    if (p.sku !== undefined) updateObj.sku = String(p.sku || '').trim() || null;
+    if (p.unit !== undefined) updateObj.unit = String(p.unit || 'cây');
+    if (p.specJson !== undefined) updateObj.spec_json = (p.specJson && typeof p.specJson === 'object') ? p.specJson : {};
     if (p.standardLengthMm !== undefined || p.standardLength !== undefined) {
-      var sLen = Math.max(100, Number(p.standardLengthMm !== undefined ? p.standardLengthMm : p.standardLength) || 6000);
+      var sLen = Math.max(1, Number(p.standardLengthMm !== undefined ? p.standardLengthMm : p.standardLength) || 6000);
       updateObj.standard_length = sLen;
       updateObj.standard_length_mm = sLen;
     }
     if (p.stockQty !== undefined) {
-      updateObj.stock_qty = Math.max(0, Math.round(Number(p.stockQty) || 0));
+      updateObj.stock_qty = Math.max(0, Number(p.stockQty) || 0);
     }
     if (p.minStockQty !== undefined) {
       updateObj.min_stock_qty = Math.max(0, Math.round(Number(p.minStockQty) || 0));
@@ -855,6 +971,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (p.unitPrice !== undefined) {
       updateObj.unit_price = Math.max(0, Number(p.unitPrice) || 0);
     }
+    if (p.avgCost !== undefined) {
+      updateObj.avg_cost = Math.max(0, Number(p.avgCost) || 0);
+    }
     if (p.rackLocation !== undefined) {
       updateObj.rack_location = String(p.rackLocation || '').trim();
     }
@@ -864,14 +983,22 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
 
     var isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(profileNameOrId));
     var colKey = isUuid ? 'id' : 'profile_name';
-    var execUpdate = _inventoryEnhancedReady ? updateObj : _stripEnhancedInventoryCols(updateObj);
 
     var res = await client
       .from('inventory')
-      .update(execUpdate)
+      .update(_sanitizeInvPayload(updateObj))
       .eq(colKey, String(profileNameOrId).trim())
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /material_group|sku|unit|spec_json|avg_cost/i)) {
+      _inventoryWmsReady = false;
+      res = await client
+        .from('inventory')
+        .update(_sanitizeInvPayload(updateObj))
+        .eq(colKey, String(profileNameOrId).trim())
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /standard_length_mm|min_stock_qty|weight_per_m|unit_price|rack_location/i)) {
       _inventoryEnhancedReady = false;
       res = await client
@@ -945,14 +1072,20 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .map(function (it) {
         var name = String((it && (it.profileName || it.profile)) || '').trim();
         if (!name) return null;
-        var stdLen = Math.max(100, Number(it.standardLengthMm != null ? it.standardLengthMm : (it.standardLength || 6000)) || 6000);
+        var stdLen = Math.max(1, Number(it.standardLengthMm != null ? it.standardLengthMm : (it.standardLength || 6000)) || 6000);
+        var uPrice = Math.max(0, Number(it.unitPrice) || 0);
         return {
           profileName: name,
-          stockQty: Math.max(0, Math.round(Number(it.stockQty != null ? it.stockQty : it.qty) || 0)),
+          materialGroup: String(it.materialGroup || 'tube_1d').trim() || 'tube_1d',
+          sku: String(it.sku || '').trim() || null,
+          unit: String(it.unit || 'cây').trim() || 'cây',
+          specJson: (it.specJson && typeof it.specJson === 'object') ? it.specJson : {},
+          stockQty: Math.max(0, Number(it.stockQty != null ? it.stockQty : it.qty) || 0),
           standardLengthMm: stdLen,
           minStockQty: Math.max(0, Math.round(Number(it.minStockQty) || 0)),
           weightPerM: it.weightPerM != null ? Math.max(0, Number(it.weightPerM) || 0) : estimateSteelWeightPerM(name),
-          unitPrice: Math.max(0, Number(it.unitPrice) || 0),
+          unitPrice: uPrice,
+          avgCost: it.avgCost !== undefined ? Math.max(0, Number(it.avgCost) || 0) : uPrice,
           rackLocation: String(it.rackLocation || '').trim(),
           notes: String(it.notes || '')
         };
@@ -970,24 +1103,36 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       var obj = {
         profile_name: it.profileName,
         category: classifyProfile(it.profileName),
+        material_group: it.materialGroup || (prev ? prev.materialGroup : 'tube_1d'),
+        sku: it.sku !== null ? it.sku : (prev && prev.sku ? prev.sku : null),
+        unit: it.unit || (prev ? prev.unit : 'cây'),
+        spec_json: (it.specJson && Object.keys(it.specJson).length) ? it.specJson : (prev ? (prev.specJson || {}) : {}),
         standard_length: it.standardLengthMm,
         standard_length_mm: it.standardLengthMm,
         stock_qty: it.stockQty,
         min_stock_qty: it.minStockQty,
         weight_per_m: it.weightPerM > 0 ? it.weightPerM : (prev ? prev.weightPerM : estimateSteelWeightPerM(it.profileName)),
         unit_price: it.unitPrice > 0 ? it.unitPrice : (prev ? prev.unitPrice : 0),
+        avg_cost: it.avgCost > 0 ? it.avgCost : (prev ? prev.avgCost : 0),
         rack_location: it.rackLocation,
         notes: it.notes || (prev ? prev.notes : ''),
         is_default: prev ? Boolean(prev.isDefault) : (DEFAULT_PROFILES.indexOf(it.profileName) !== -1),
         updated_at: new Date().toISOString()
       };
-      return _inventoryEnhancedReady ? obj : _stripEnhancedInventoryCols(obj);
+      return _sanitizeInvPayload(obj);
     });
 
     var res = await client
       .from('inventory')
       .upsert(payloads, { onConflict: 'profile_name' })
       .select();
+    if (res && res.error && _isMissingColumnError(res.error, /material_group|sku|unit|spec_json|avg_cost/i)) {
+      _inventoryWmsReady = false;
+      res = await client
+        .from('inventory')
+        .upsert(payloads.map(_sanitizeInvPayload), { onConflict: 'profile_name' })
+        .select();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /standard_length_mm|min_stock_qty|weight_per_m|unit_price|rack_location/i)) {
       _inventoryEnhancedReady = false;
       res = await client
@@ -2142,6 +2287,226 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   // =========================================================================
+  // WMS ĐỢT 5: NHÀ CUNG CẤP, CHỨNG TỪ KHO & DUYỆT / HỦY NGUYÊN TỬ (RPC)
+  // =========================================================================
+  var VOUCHER_BUCKET = 'voucher-attachments';
+
+  async function getSuppliers() {
+    var client = getClient();
+    var res = await client.from('suppliers').select('*').order('name', { ascending: true });
+    if (res && res.error && _isMissingTableError(res.error, 'suppliers')) {
+      _wmsVouchersReady = false;
+      return [];
+    }
+    var rows = throwIfError(res, 'Không tải được danh sách nhà cung cấp') || [];
+    _wmsVouchersReady = true;
+    return rows.map(mapSupplierFromDb);
+  }
+
+  async function saveSupplier(payload) {
+    var p = payload || {};
+    var cleanName = String(p.name || '').trim();
+    if (!cleanName) throw new Error('Tên nhà cung cấp không được để trống');
+    var client = getClient();
+    var row = {
+      code: String(p.code || '').trim() || null,
+      name: cleanName,
+      phone: String(p.phone || '').trim(),
+      email: String(p.email || '').trim(),
+      address: String(p.address || '').trim(),
+      tax_code: String(p.taxCode || p.tax_code || '').trim(),
+      note: String(p.note || '').trim(),
+      updated_at: new Date().toISOString()
+    };
+    var res;
+    if (p.id) {
+      res = await client.from('suppliers').update(row).eq('id', p.id).select().single();
+    } else {
+      res = await client.from('suppliers').insert(row).select().single();
+    }
+    var saved = throwIfError(res, 'Không lưu được thông tin nhà cung cấp');
+    return mapSupplierFromDb(saved);
+  }
+
+  async function deleteSupplier(id) {
+    var client = getClient();
+    var res = await client.from('suppliers').delete().eq('id', id);
+    throwIfError(res, 'Không xóa được nhà cung cấp');
+    return true;
+  }
+
+  async function getWarehouseVouchers(filters) {
+    var f = filters || {};
+    var client = getClient();
+    var q = client
+      .from('warehouse_vouchers')
+      .select('*, supplier:suppliers(id,code,name), project:projects(id,name), warehouse_voucher_items(*)')
+      .order('created_at', { ascending: false })
+      .limit(Math.min(500, Math.max(10, Number(f.limit) || 200)));
+
+    if (f.voucherType && f.voucherType !== 'ALL') q = q.eq('voucher_type', String(f.voucherType));
+    if (f.status && f.status !== 'ALL') q = q.eq('status', String(f.status));
+    if (f.projectId && f.projectId !== 'ALL') q = q.eq('project_id', String(f.projectId));
+    if (f.supplierId && f.supplierId !== 'ALL') q = q.eq('supplier_id', String(f.supplierId));
+    if (f.dateFrom) q = q.gte('created_at', String(f.dateFrom) + 'T00:00:00');
+    if (f.dateTo) q = q.lte('created_at', String(f.dateTo) + 'T23:59:59');
+
+    var res = await q;
+    if (res && res.error && _isMissingTableError(res.error, 'warehouse_vouchers')) {
+      _wmsVouchersReady = false;
+      return [];
+    }
+    var rows = throwIfError(res, 'Không tải được danh sách chứng từ kho') || [];
+    _wmsVouchersReady = true;
+    return rows.map(mapVoucherFromDb);
+  }
+
+  async function getWarehouseVoucherById(id) {
+    var client = getClient();
+    var res = await client
+      .from('warehouse_vouchers')
+      .select('*, supplier:suppliers(id,code,name), project:projects(id,name), warehouse_voucher_items(*)')
+      .eq('id', id)
+      .single();
+    var row = throwIfError(res, 'Không tải được chi tiết phiếu kho');
+    return mapVoucherFromDb(row);
+  }
+
+  function _normalizeVoucherItemsInput(items) {
+    return (Array.isArray(items) ? items : [])
+      .map(function (it) {
+        var profile = String((it && it.profile) || '').trim();
+        var qty = Number(it && it.qty) || 0;
+        if (!profile || qty <= 0) return null;
+        var price = Math.max(0, Number(it.unitPrice != null ? it.unitPrice : it.unit_price) || 0);
+        return {
+          inventory_id: it.inventoryId || it.inventory_id || null,
+          offcut_id: it.offcutId || it.offcut_id || null,
+          profile: profile,
+          material_group: String(it.materialGroup || it.material_group || 'tube_1d'),
+          unit: String(it.unit || 'cây'),
+          qty: qty,
+          length_mm: (it.lengthMm != null && Number(it.lengthMm) > 0) ? Number(it.lengthMm) : null,
+          unit_price: price,
+          total_amount: Math.round(qty * price),
+          note: String(it.note || '').trim()
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async function createWarehouseVoucher(payload, items) {
+    var p = payload || {};
+    var cleanItems = _normalizeVoucherItemsInput(items);
+    if (!cleanItems.length) throw new Error('Phiếu phải có ít nhất 1 dòng vật tư với số lượng > 0');
+
+    var client = getClient();
+    var headerRow = {
+      voucher_code: String(p.voucherCode || '').trim() || '',
+      voucher_type: String(p.voucherType || 'IN'),
+      status: p.status === 'draft' ? 'draft' : 'pending',
+      project_id: p.projectId || null,
+      supplier_id: p.supplierId || null,
+      department: String(p.department || '').trim(),
+      invoice_no: String(p.invoiceNo || '').trim(),
+      attachment_url: String(p.attachmentUrl || '').trim(),
+      note: String(p.note || '').trim(),
+      allow_negative: Boolean(p.allowNegative),
+      created_by: String(p.createdBy || '').trim()
+    };
+
+    var vRes = await client.from('warehouse_vouchers').insert(headerRow).select().single();
+    if (vRes && vRes.error && _isMissingTableError(vRes.error, 'warehouse_vouchers')) {
+      _wmsVouchersReady = false;
+      throw new Error('Chưa chạy SQL Đợt 5 (supabase_migration_dot5_wms_vouchers.sql) trên Supabase.');
+    }
+    var created = throwIfError(vRes, 'Không tạo được phiếu kho');
+
+    var itemsRows = cleanItems.map(function (it) {
+      return Object.assign({ voucher_id: created.id }, it);
+    });
+    var iRes = await client.from('warehouse_voucher_items').insert(itemsRows).select();
+    if (iRes && iRes.error) {
+      try { await client.from('warehouse_vouchers').delete().eq('id', created.id); } catch (e) {}
+      throwIfError(iRes, 'Không lưu được chi tiết dòng vật tư trên phiếu');
+    }
+
+    return getWarehouseVoucherById(created.id);
+  }
+
+  async function updateWarehouseVoucher(voucherId, patch, items) {
+    var p = patch || {};
+    var client = getClient();
+    var updateObj = { updated_at: new Date().toISOString() };
+    if (p.voucherType !== undefined) updateObj.voucher_type = String(p.voucherType);
+    if (p.status !== undefined && (p.status === 'draft' || p.status === 'pending')) updateObj.status = p.status;
+    if (p.projectId !== undefined) updateObj.project_id = p.projectId || null;
+    if (p.supplierId !== undefined) updateObj.supplier_id = p.supplierId || null;
+    if (p.department !== undefined) updateObj.department = String(p.department || '').trim();
+    if (p.invoiceNo !== undefined) updateObj.invoice_no = String(p.invoiceNo || '').trim();
+    if (p.attachmentUrl !== undefined) updateObj.attachment_url = String(p.attachmentUrl || '').trim();
+    if (p.note !== undefined) updateObj.note = String(p.note || '').trim();
+    if (p.allowNegative !== undefined) updateObj.allow_negative = Boolean(p.allowNegative);
+
+    var uRes = await client.from('warehouse_vouchers').update(updateObj).eq('id', voucherId).select().single();
+    throwIfError(uRes, 'Không cập nhật được thông tin phiếu kho');
+
+    if (Array.isArray(items)) {
+      var cleanItems = _normalizeVoucherItemsInput(items);
+      if (!cleanItems.length) throw new Error('Phiếu phải có ít nhất 1 dòng vật tư với số lượng > 0');
+      var delRes = await client.from('warehouse_voucher_items').delete().eq('voucher_id', voucherId);
+      throwIfError(delRes, 'Không làm mới được dòng vật tư của phiếu');
+      var insRes = await client
+        .from('warehouse_voucher_items')
+        .insert(cleanItems.map(function (it) { return Object.assign({ voucher_id: voucherId }, it); }));
+      throwIfError(insRes, 'Không lưu được danh sách dòng vật tư mới');
+    }
+
+    return getWarehouseVoucherById(voucherId);
+  }
+
+  async function approveWarehouseVoucher(voucherId) {
+    if (!voucherId) throw new Error('Thiếu ID chứng từ cần duyệt');
+    var client = getClient();
+    var res = await client.rpc('approve_warehouse_voucher', { p_voucher_id: voucherId });
+    return throwIfError(res, 'Duyệt phiếu kho thất bại');
+  }
+
+  async function cancelWarehouseVoucher(voucherId, reason) {
+    if (!voucherId) throw new Error('Thiếu ID chứng từ cần hủy');
+    var client = getClient();
+    var res = await client.rpc('cancel_warehouse_voucher', {
+      p_voucher_id: voucherId,
+      p_reason: String(reason || '').trim()
+    });
+    return throwIfError(res, 'Hủy phiếu kho thất bại');
+  }
+
+  async function uploadVoucherAttachment(blobOrFile, fileNameHint) {
+    var client = getClient();
+    var baseName = toAsciiSafe(fileNameHint || 'phieu_giao_hang').replace(/[^a-z0-9_.-]+/gi, '_');
+    var path = 'vouchers/' + new Date().toISOString().slice(0, 10) + '/' + Date.now() + '_' + baseName + '.jpg';
+    var res = await client.storage.from(VOUCHER_BUCKET).upload(path, blobOrFile, {
+      contentType: (blobOrFile && blobOrFile.type) || 'image/jpeg',
+      upsert: false
+    });
+    if (res && res.error) {
+      throw new Error('Lỗi tải ảnh chứng từ lên Storage: ' + res.error.message);
+    }
+    return path;
+  }
+
+  async function getVoucherAttachmentSignedUrl(pathOrUrl, expiresInSec) {
+    var clean = String(pathOrUrl || '').trim();
+    if (!clean) return null;
+    if (/^https?:\/\//i.test(clean)) return clean;
+    var client = getClient();
+    var res = await client.storage.from(VOUCHER_BUCKET).createSignedUrl(clean, expiresInSec || 3600);
+    if (res && res.error) return null;
+    return res && res.data ? res.data.signedUrl : null;
+  }
+
+  // =========================================================================
   // PRIVATE STORAGE BUCKET: igs-files (ĐỌC QUA JWT AUTHENTICATED)
   // =========================================================================
   function extractIgsStoragePath(pathOrUrl) {
@@ -2498,6 +2863,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     permanentDeleteProject: permanentDeleteProject,
     emptyTrash: emptyTrash,
     isInventoryEnhancedReady: isInventoryEnhancedReady,
+    isInventoryWmsReady: isInventoryWmsReady,
+    isWmsVouchersReady: isWmsVouchersReady,
     isLedgerTableReady: isLedgerTableReady,
     getInventory: getInventory,
     addProfile: addProfile,
@@ -2507,6 +2874,17 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     saveOpeningBalanceBars: saveOpeningBalanceBars,
     purchaseInInventory: purchaseInInventory,
     stocktakeAdjustInventory: stocktakeAdjustInventory,
+    getSuppliers: getSuppliers,
+    saveSupplier: saveSupplier,
+    deleteSupplier: deleteSupplier,
+    getWarehouseVouchers: getWarehouseVouchers,
+    getWarehouseVoucherById: getWarehouseVoucherById,
+    createWarehouseVoucher: createWarehouseVoucher,
+    updateWarehouseVoucher: updateWarehouseVoucher,
+    approveWarehouseVoucher: approveWarehouseVoucher,
+    cancelWarehouseVoucher: cancelWarehouseVoucher,
+    uploadVoucherAttachment: uploadVoucherAttachment,
+    getVoucherAttachmentSignedUrl: getVoucherAttachmentSignedUrl,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,

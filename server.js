@@ -85,7 +85,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 const STATIC_EXT_ALLOWLIST = new Set(['.html', '.js', '.css', '.json', '.jpg', '.jpeg', '.png', '.svg', '.ico', '.webp']);
 const PUBLIC_ROOT_FILES = new Set([
-  'index.html', 'projects.html', 'inventory.html', 'cnc.html', 'admin.html',
+  'index.html', 'projects.html', 'inventory.html', 'vouchers.html', 'cnc.html', 'admin.html',
   'toi-uu-engine.js', 'sw.js', 'manifest.json', 'logo_an_binh.jpg', 'workshop_config.json'
 ]);
 const PUBLIC_ROOT_DIRS = new Set(['css', 'js']);
@@ -711,7 +711,7 @@ const server = http.createServer(async (req, res) => {
       const rawUser = String(body.username || '').trim().toLowerCase().replace(/\s+/g, '');
       const password = String(body.password || '').trim();
       const displayName = String(body.displayName || body.fullName || '').trim();
-      const role = ['admin', 'engineer', 'operator'].includes(body.role) ? body.role : 'operator';
+      const role = ['admin', 'engineer', 'warehouse', 'accountant', 'operator'].includes(body.role) ? body.role : 'operator';
 
       if (!/^[a-z0-9._-]{3,32}$/.test(rawUser)) {
         return sendJson(res, 400, { success: false, error: 'Tên đăng nhập phải dài 3-32 ký tự (chữ thường, số, ., _, -).' });
@@ -730,7 +730,14 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 409, { success: false, error: `Tài khoản @${rawUser} đã tồn tại.` });
       }
 
-      const resolvedName = displayName || (role === 'operator' ? `Thợ CNC (${rawUser})` : `Kỹ sư (${rawUser})`);
+      const roleNames = {
+        admin: 'Quản trị',
+        engineer: 'Kỹ sư',
+        warehouse: 'Thủ kho',
+        accountant: 'Kế toán',
+        operator: 'Thợ CNC'
+      };
+      const resolvedName = displayName || `${roleNames[role] || 'Nhân sự'} (${rawUser})`;
       const { data: createdAuth, error: crtErr } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -806,7 +813,7 @@ const server = http.createServer(async (req, res) => {
       const targetId = adminRoleMatch[1];
       const body = await readJsonBody(req, 64 * 1024);
       const nextRole = String(body.role || '').trim();
-      if (!['admin', 'engineer', 'operator'].includes(nextRole)) {
+      if (!['admin', 'engineer', 'warehouse', 'accountant', 'operator'].includes(nextRole)) {
         return sendJson(res, 400, { success: false, error: 'Vai trò không hợp lệ.' });
       }
       if (targetId === authCheck.user.id && nextRole !== 'admin') {
@@ -958,6 +965,8 @@ const server = http.createServer(async (req, res) => {
     '/projects/': '/projects.html',
     '/inventory': '/inventory.html',
     '/inventory/': '/inventory.html',
+    '/vouchers': '/vouchers.html',
+    '/vouchers/': '/vouchers.html',
     '/cnc': '/cnc.html',
     '/cnc/': '/cnc.html'
   };

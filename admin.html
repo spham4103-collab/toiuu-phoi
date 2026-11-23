@@ -34,6 +34,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
 
   <style>
 
@@ -789,6 +791,8 @@
 
         <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
 
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
+
         <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
 
         <a href="/admin" class="subnav-link subnav-admin active">⚙️ Quản Trị &amp; Nhân Sự</a>
@@ -1011,13 +1015,17 @@
 
           <input type="text" id="inpSearchUser" placeholder="🔍 Tìm theo tên hoặc @tài khoản..." style="max-width:240px; min-height:34px; font-size:13px;">
 
-          <select id="selFilterRole" style="max-width:180px; min-height:34px; font-size:13px;">
+          <select id="selFilterRole" style="max-width:205px; min-height:34px; font-size:13px;">
 
             <option value="ALL">Tất cả vai trò</option>
 
             <option value="admin">👑 Quản trị viên</option>
 
             <option value="engineer">📐 Kỹ sư thiết kế</option>
+
+            <option value="warehouse">📦 Thủ kho</option>
+
+            <option value="accountant">💼 Kế toán / Mua hàng</option>
 
             <option value="operator">👷 Thợ máy CNC</option>
 
@@ -1111,11 +1119,15 @@
 
             <select id="selNewRole">
 
-              <option value="operator">👷 Thợ Máy CNC (Chỉ xem sơ đồ &amp; tích tiến độ cắt)</option>
+              <option value="operator">👷 Thợ Máy CNC (Xem sơ đồ &amp; tích tiến độ cắt)</option>
 
-              <option value="engineer">📐 Kỹ Sư Thiết Kế (Toàn quyền dự án, kho &amp; Storage)</option>
+              <option value="warehouse">📦 Thủ Kho (Quản lý tồn kho, lập &amp; duyệt phiếu NXK)</option>
 
-              <option value="admin">👑 Quản Trị Viên (Toàn quyền kỹ thuật + nhân sự)</option>
+              <option value="accountant">💼 Kế Toán / Mua Hàng (Lập phiếu nhập &amp; NCC)</option>
+
+              <option value="engineer">📐 Kỹ Sư Thiết Kế (Dự án, CAD/IGS, kho &amp; yêu cầu xuất)</option>
+
+              <option value="admin">👑 Quản Trị Viên (Toàn quyền hệ thống + nhân sự)</option>
 
             </select>
 
@@ -1329,7 +1341,8 @@
           $('topAdminBadge').style.display = 'none';
           $('btnAdminLogout').style.display = 'inline-flex';
           $('deniedUsername').textContent = '@' + user.username;
-          $('deniedRoleName').textContent = user.role === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Máy CNC';
+          const roleLabel = window.SharedUI ? window.SharedUI.getRoleMeta(user.role).label : (user.role || 'Nhân sự');
+          $('deniedRoleName').textContent = roleLabel;
           return;
         }
 
@@ -1434,24 +1447,31 @@
       }
 
       let html = '';
+      const validRoles = (window.SharedUI && window.SharedUI.VALID_ROLES) || ['admin', 'engineer', 'warehouse', 'accountant', 'operator'];
       filtered.forEach((u) => {
         const isCurrentAdminUser = u.role === 'admin';
         const isRootAdmin = String(u.username || '').toLowerCase() === 'admin';
         const isSelf = currentUser && u.id === currentUser.id;
+        const rMeta = window.SharedUI && typeof window.SharedUI.getRoleMeta === 'function'
+          ? window.SharedUI.getRoleMeta(u.role)
+          : { icon: isCurrentAdminUser ? '👑' : '👷', label: u.role, pillClass: isCurrentAdminUser ? 'role-admin' : 'role-op' };
         const isEng = u.role === 'engineer' || u.role === 'admin';
         const createdDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mặc định';
-        const rolePillHtml = isCurrentAdminUser
-          ? '<span class="role-pill role-admin">👑 Quản Trị Viên</span>'
-          : (u.role === 'engineer'
-              ? '<span class="role-pill role-eng">📐 Kỹ Sư Thiết Kế</span>'
-              : '<span class="role-pill role-op">👷 Thợ Máy CNC</span>');
+        const rolePillHtml = `<span class="role-pill ${rMeta.pillClass}">${rMeta.icon} ${escapeHtml(rMeta.label)}</span>`;
+        const avatarBg = u.role === 'warehouse' ? '#DBEAFE' : (u.role === 'accountant' ? '#F3E8FF' : (isEng ? '#CCFBF1' : '#FFEDD5'));
+        const avatarClr = u.role === 'warehouse' ? '#1D4ED8' : (u.role === 'accountant' ? '#7E22CE' : (isEng ? '#0F766E' : '#C2410C'));
+
+        const roleSelectOptions = validRoles.map(rk => {
+          const rm = window.SharedUI ? window.SharedUI.getRoleMeta(rk) : { icon: '', label: rk };
+          return `<option value="${rk}" ${u.role === rk ? 'selected' : ''}>${rm.icon} ${escapeHtml(rm.label)}</option>`;
+        }).join('');
 
         html += `
           <tr>
             <td>
               <div style="display:flex; align-items:center; gap:8px;">
-                <span style="width:32px; height:32px; border-radius:50%; background:${isEng ? '#CCFBF1' : '#FFEDD5'}; color:${isEng ? '#0F766E' : '#C2410C'}; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800;">
-                  ${isCurrentAdminUser ? '👑' : (isEng ? '📐' : '👷')}
+                <span style="width:32px; height:32px; border-radius:50%; background:${avatarBg}; color:${avatarClr}; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800;">
+                  ${rMeta.icon}
                 </span>
                 <div>
                   <strong style="font-family:monospace; font-size:14px; color:#0F172A;">@${escapeHtml(u.username)}</strong>
@@ -1465,7 +1485,7 @@
             <td style="color:#64748B; font-size:12.5px;">${createdDate}</td>
             <td style="text-align:right; white-space:nowrap;">
               <button type="button" class="btn btn-soft btn-sm btn-change-pass" data-id="${escapeHtml(u.id)}" data-user="${escapeHtml(u.username)}" title="Đổi mật khẩu cho tài khoản này">🔑 Đổi MK</button>
-              <button type="button" class="btn btn-soft btn-sm btn-toggle-role" data-id="${escapeHtml(u.id)}" data-user="${escapeHtml(u.username)}" title="Chuyển đổi phân quyền" style="margin-left:4px;" ${isRootAdmin ? 'disabled style="opacity:0.4;margin-left:4px;"' : ''}>⇄ Đổi quyền</button>
+              <select class="sel-inline-role" data-id="${escapeHtml(u.id)}" data-prev="${escapeHtml(u.role)}" ${isRootAdmin ? 'disabled style="opacity:0.45;margin-left:4px;max-width:155px;min-height:30px;font-size:12px;display:inline-block;"' : 'style="margin-left:4px;max-width:155px;min-height:30px;font-size:12px;display:inline-block;"'} title="Đổi vai trò trong xưởng">${roleSelectOptions}</select>
               ${!isRootAdmin && !isSelf ? `<button type="button" class="btn btn-danger btn-sm btn-del-user" data-id="${escapeHtml(u.id)}" data-user="${escapeHtml(u.username)}" title="Xóa tài khoản này" style="margin-left:4px;">✕ Xóa</button>` : ''}
             </td>
           </tr>
@@ -1508,18 +1528,23 @@
         };
       });
 
-      tbody.querySelectorAll('.btn-toggle-role').forEach(btn => {
-        btn.onclick = async () => {
-          const uid = btn.getAttribute('data-id');
+      tbody.querySelectorAll('.sel-inline-role').forEach(sel => {
+        sel.onchange = async () => {
+          const uid = sel.getAttribute('data-id');
+          const prevRole = sel.getAttribute('data-prev');
+          const newRole = sel.value;
           const target = usersList.find(x => x.id === uid);
-          if (!target) return;
+          if (!target || newRole === prevRole) return;
           if (String(target.username || '').toLowerCase() === 'admin' || (currentUser && target.id === currentUser.id)) {
             alert('🔒 Không thể hạ quyền tài khoản Quản trị viên đang đăng nhập hoặc @admin!');
+            sel.value = prevRole;
             return;
           }
-          const newRole = target.role === 'operator' ? 'engineer' : (target.role === 'engineer' ? 'operator' : 'engineer');
-          const roleLabel = newRole === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Vận Hành CNC';
-          if (!confirm(`Bạn có chắc chắn muốn đổi quyền của @${target.username} thành [${roleLabel}] không?`)) return;
+          const roleLabel = window.SharedUI ? window.SharedUI.getRoleMeta(newRole).label : newRole;
+          if (!confirm(`Bạn có chắc chắn muốn đổi vai trò của @${target.username} thành [${roleLabel}] không?`)) {
+            sel.value = prevRole;
+            return;
+          }
 
           window.SupabaseDB.setLoading(true, 'Đang cập nhật phân quyền...');
           try {
@@ -1528,6 +1553,7 @@
             renderDashboard();
             showToast(`✓ Đã đổi quyền của @${target.username} thành ${roleLabel}!`);
           } catch (err) {
+            sel.value = prevRole;
             showToast('❌ Lỗi đổi quyền: ' + err.message);
           } finally {
             window.SupabaseDB.setLoading(false);
@@ -1585,10 +1611,11 @@
 
       window.SupabaseDB.setLoading(true, 'Đang tạo tài khoản trên Supabase Auth...');
       try {
+        const defaultLabel = window.SharedUI ? window.SharedUI.getRoleMeta(r).shortLabel : r;
         const created = await window.SupabaseDB.adminCreateUser({
           username: u,
           password: p,
-          displayName: fn || (r === 'operator' ? `Thợ CNC (${u})` : `Kỹ sư (${u})`),
+          displayName: fn || `${defaultLabel} (${u})`,
           role: r
         });
         usersList.push(created);

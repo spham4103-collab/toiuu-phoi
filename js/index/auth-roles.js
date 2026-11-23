@@ -19,7 +19,7 @@
         const user = await window.SupabaseDB.getCurrentAuthUser();
         if (user) {
           state.currentUser = user;
-          state.userRole = user.role === 'operator' ? 'operator' : 'engineer';
+          state.userRole = (user.role === 'admin' || user.role === 'engineer') ? 'engineer' : 'operator';
           if ($('loginOverlayGate')) $('loginOverlayGate').style.display = 'none';
           applyUserRoleUI();
           return true;
@@ -37,9 +37,19 @@
 
     function applyUserRoleUI() {
       const user = state.currentUser;
-      const isOp = !user || user.role === 'operator';
-      const isSuperAdmin = Boolean(user && user.role === 'admin');
-      state.userRole = isOp ? 'operator' : 'engineer';
+      const rawRole = (user && user.role) || 'operator';
+      const canEditDesign = Boolean(user && (rawRole === 'admin' || rawRole === 'engineer'));
+      const isOp = !canEditDesign;
+      const isSuperAdmin = Boolean(user && rawRole === 'admin');
+      const roleMeta = window.SharedUI && typeof window.SharedUI.getRoleMeta === 'function'
+        ? window.SharedUI.getRoleMeta(rawRole)
+        : {
+            icon: isSuperAdmin ? '👑' : (rawRole === 'engineer' ? '📐' : '👷'),
+            label: isSuperAdmin ? 'Quản Trị Viên' : (rawRole === 'engineer' ? 'Kỹ Sư Thiết Kế' : 'Thợ Máy CNC'),
+            shortLabel: isSuperAdmin ? 'Admin' : (rawRole === 'engineer' ? 'Kỹ sư' : 'Thợ CNC'),
+            desc: ''
+          };
+      state.userRole = canEditDesign ? 'engineer' : 'operator';
 
       const roleBadge = $('btnRoleSelector');
       const roleIcon = $('roleBadgeIcon');
@@ -54,8 +64,8 @@
           roleBadge.style.borderColor = '#FDBA74';
           roleBadge.style.color = '#C2410C';
         }
-        if (roleIcon) roleIcon.textContent = '👷';
-        if (roleText) roleText.textContent = user ? `${user.fullName || user.username} [Thợ CNC]` : 'Chưa đăng nhập';
+        if (roleIcon) roleIcon.textContent = roleMeta.icon;
+        if (roleText) roleText.textContent = user ? `${user.fullName || user.username} [${roleMeta.shortLabel}]` : 'Chưa đăng nhập';
         if (roleLock) roleLock.textContent = '🔒';
       } else {
         document.body.classList.remove('role-operator');
@@ -65,26 +75,18 @@
           roleBadge.style.borderColor = '#99F6E4';
           roleBadge.style.color = '#0F766E';
         }
-        if (roleIcon) roleIcon.textContent = isSuperAdmin ? '👑' : '📐';
-        if (roleText) roleText.textContent = `${user.fullName || user.username} [${isSuperAdmin ? 'Admin' : 'Kỹ sư'}]`;
+        if (roleIcon) roleIcon.textContent = roleMeta.icon;
+        if (roleText) roleText.textContent = `${user.fullName || user.username} [${roleMeta.shortLabel}]`;
         if (roleLock) roleLock.textContent = '🔓';
       }
 
       if (user) {
-        if ($('accModalUserIcon')) $('accModalUserIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
+        if ($('accModalUserIcon')) $('accModalUserIcon').textContent = roleMeta.icon;
         if ($('accModalFullName')) $('accModalFullName').textContent = user.fullName || user.username;
         if ($('accModalUsername')) $('accModalUsername').textContent = '@' + user.username;
         if ($('accModalRoleBadge')) {
-          if (isSuperAdmin) {
-            $('accModalRoleBadge').textContent = 'QUẢN TRỊ VIÊN TỐI CAO (ADMIN)';
-            $('accModalRoleBadge').style.background = '#0F766E';
-          } else if (isOp) {
-            $('accModalRoleBadge').textContent = 'THỢ VẬN HÀNH CNC (KHÓA AN TOÀN)';
-            $('accModalRoleBadge').style.background = '#C2410C';
-          } else {
-            $('accModalRoleBadge').textContent = 'KỸ SƯ THIẾT KẾ (TOÀN QUYỀN KỸ THUẬT)';
-            $('accModalRoleBadge').style.background = '#0369A1';
-          }
+          $('accModalRoleBadge').textContent = `${roleMeta.label.toUpperCase()}${isOp ? ' (KHÓA SỬA BẢN VẼ)' : ''}`;
+          $('accModalRoleBadge').style.background = isSuperAdmin ? '#0F766E' : (rawRole === 'engineer' ? '#0369A1' : (rawRole === 'warehouse' ? '#1D4ED8' : (rawRole === 'accountant' ? '#7E22CE' : '#C2410C')));
         }
         if ($('currentAccountCard')) {
           $('currentAccountCard').style.borderColor = isOp ? '#FDBA74' : (isSuperAdmin ? '#0F766E' : '#38BDF8');
@@ -92,11 +94,11 @@
         }
         if ($('accModalRoleDesc')) {
           if (isSuperAdmin) {
-            $('accModalRoleDesc').innerHTML = '• <strong>Quyền Quản trị viên (Admin):</strong> Toàn quyền tối cao quản lý nhân sự, phân quyền qua Supabase Auth, tính toán tối ưu và quản lý toàn bộ dự án.';
-          } else if (isOp) {
-            $('accModalRoleDesc').innerHTML = '• <strong>Quyền hạn Thợ CNC:</strong> Được xem sơ đồ cắt, tải file <code>.IGS</code> bảo mật cho máy laser và bấm tích <code>[✅ Đã cắt xong]</code>.<br>• <strong>Bảo vệ an toàn:</strong> Đã khóa toàn bộ nút Xóa dự án, Xóa phôi, Sửa kích thước cả ở giao diện lẫn Database RLS.';
-          } else {
+            $('accModalRoleDesc').innerHTML = '• <strong>Quyền Quản trị viên (Admin):</strong> Toàn quyền tối cao quản lý nhân sự, phân quyền qua Supabase Auth, chứng từ kho, tính toán tối ưu và quản lý toàn bộ dự án.';
+          } else if (rawRole === 'engineer') {
             $('accModalRoleDesc').innerHTML = '• <strong>Quyền hạn Kỹ sư Thiết kế:</strong> Toàn quyền tính toán tối ưu, thêm/sửa/xóa quy cách hộp, quản lý dự án và xuất nhập bản vẽ từ Autodesk Fusion 360.';
+          } else {
+            $('accModalRoleDesc').innerHTML = `• <strong>Vai trò ${roleMeta.label}:</strong> ${roleMeta.desc}<br>• <strong>Bảo vệ bản vẽ CAD:</strong> Đã khóa sửa đổi kích thước &amp; xóa dự án trên Bàn xếp phôi chính; vui lòng thao tác chứng từ tại nhánh <b>/inventory</b> hoặc <b>/vouchers</b>.`;
           }
         }
       }

@@ -8,7 +8,7 @@ dist_dir = os.path.join(toiuu_phoi_dir, 'dist')
 
 src_py = os.path.join(toiuu_phoi_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
 src_html = os.path.join(toiuu_phoi_dir, 'index.html')
-sub_branches = ['admin', 'projects', 'inventory', 'cnc']
+sub_branches = ['admin', 'projects', 'inventory', 'vouchers', 'cnc']
 branch_htmls = [os.path.join(toiuu_phoi_dir, b + '.html') for b in sub_branches]
 src_engine = os.path.join(toiuu_phoi_dir, 'toi-uu-engine.js')
 src_helper = os.path.join(toiuu_phoi_dir, 'run_engine_helper.cjs')

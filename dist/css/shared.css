@@ -1,0 +1,205 @@
+/* ============================================================================
+ * SHARED STYLES - XẾP PHÔI & WMS AN BÌNH (xepphoi.cloud)
+ * Dùng chung cho thanh điều hướng, phân quyền 5 vai trò, lọc 4 nhóm vật tư & in chứng từ A4/A5
+ * ============================================================================ */
+
+.subnav-bar {
+  background: #F8FAFC;
+  border-top: 1px solid var(--edge, #D5E9E5);
+}
+
+.subnav-inner {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 6px var(--gut, 28px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.subnav-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.subnav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--mut, #475569);
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.subnav-link:hover {
+  border-color: var(--p, #0F766E);
+  color: var(--p, #0F766E);
+  background: var(--tint, #F0FDFA);
+}
+
+.subnav-link.active {
+  background: var(--dark, #0B3B38);
+  color: #FFFFFF;
+  border-color: var(--dark, #0B3B38);
+  box-shadow: 0 2px 6px rgba(11, 59, 56, 0.22);
+}
+
+.subnav-link.subnav-admin {
+  background: #F0FDFA;
+  color: #0F766E;
+  border-color: #99F6E4;
+}
+
+.subnav-link.subnav-admin.active {
+  background: var(--dark, #0B3B38);
+  color: #FFFFFF;
+  border-color: var(--dark, #0B3B38);
+}
+
+/* Badges cho 5 vai trò xưởng */
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.role-admin { background: #0F766E; color: #FFFFFF; border: 1px solid #0B3B38; }
+.role-eng { background: #CCFBF1; color: #0F766E; border: 1px solid #99F6E4; }
+.role-warehouse { background: #DBEAFE; color: #1D4ED8; border: 1px solid #93C5FD; }
+.role-accountant { background: #F3E8FF; color: #7E22CE; border: 1px solid #D8B4FE; }
+.role-op { background: #FFEDD5; color: #C2410C; border: 1px solid #FED7AA; }
+
+/* Thanh phân loại 4 nhóm vật tư WMS */
+.wms-group-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.wms-group-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1.5px solid #CBD5E1;
+  background: #FFFFFF;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.14s ease;
+}
+
+.wms-group-pill:hover {
+  border-color: var(--p, #0F766E);
+  color: var(--p, #0F766E);
+  background: #F0FDFA;
+}
+
+.wms-group-pill.active {
+  background: var(--p, #0F766E);
+  color: #FFFFFF;
+  border-color: var(--p, #0F766E);
+  box-shadow: 0 2px 6px rgba(15, 118, 110, 0.2);
+}
+
+/* Badges nhóm vật tư & trạng thái phiếu */
+.grp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.grp-tube_1d { background: #CCFBF1; color: #0F766E; }
+.grp-sheet_2d { background: #E0F2FE; color: #0369A1; }
+.grp-solid_cnc { background: #F3E8FF; color: #7E22CE; }
+.grp-consumable { background: #FEF3C7; color: #92400E; }
+
+.vouch-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.vouch-draft { background: #F1F5F9; color: #475569; }
+.vouch-pending { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
+.vouch-approved { background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0; }
+.vouch-cancelled { background: #FEE2E2; color: #B91C1C; border: 1px solid #FECACA; }
+
+/* Vùng in chứng từ A4/A5 */
+#voucherPrintArea {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body.printing-voucher header,
+  body.printing-voucher main,
+  body.printing-voucher .inv-modal-backdrop,
+  body.printing-voucher #toast {
+    display: none !important;
+  }
+
+  body.printing-voucher #voucherPrintArea {
+    display: block !important;
+    padding: 8mm 10mm;
+    color: #0F172A;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .vp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #0B3B38;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+
+  .vp-company { font-weight: 800; font-size: 14px; color: #0B3B38; }
+  .vp-title { text-align: center; font-size: 18px; font-weight: 800; margin: 8px 0 4px; text-transform: uppercase; color: #0B3B38; }
+  .vp-code { text-align: center; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 10px; }
+  .vp-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-bottom: 10px; font-size: 12px; }
+  .vp-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11.5px; }
+  .vp-table th, .vp-table td { border: 1px solid #334155; padding: 5px 7px; }
+  .vp-table th { background: #F1F5F9; text-align: left; font-weight: 800; }
+  .vp-table td.r, .vp-table th.r { text-align: right; }
+  .vp-table td.c, .vp-table th.c { text-align: center; }
+  .vp-signs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; text-align: center; }
+  .vp-sign-title { font-weight: 800; font-size: 12px; }
+  .vp-sign-sub { font-size: 10.5px; color: #64748B; font-style: italic; margin-bottom: 46px; }
+  .vp-sign-name { font-weight: 700; font-size: 11.5px; }
+}

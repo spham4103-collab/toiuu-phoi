@@ -24,9 +24,11 @@
   <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/workshopExport.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
   <style>
     :root {
       --bg: #FFFFFF;
@@ -336,6 +338,7 @@
           📁 Quản Lý Dự Án <span id="subnavProjBadge" style="background:#fff;color:var(--dark);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
         </a>
         <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
         <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
