@@ -313,6 +313,9 @@ CREATE INDEX IF NOT EXISTS idx_voucher_items_inventory_id ON public.warehouse_vo
 -- ============================================================================
 -- 4. MỞ RỘNG SỔ CÁI public.inventory_transactions LIÊN KẾT CHỨNG TỪ
 -- ============================================================================
+-- Gỡ policy tham chiếu qty_change/tx_type trước khi ALTER COLUMN TYPE
+DROP POLICY IF EXISTS "inventory_transactions_insert_role_scoped" ON public.inventory_transactions;
+
 ALTER TABLE public.inventory_transactions
   ADD COLUMN IF NOT EXISTS voucher_id UUID REFERENCES public.warehouse_vouchers(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS unit_price NUMERIC NOT NULL DEFAULT 0;
@@ -357,7 +360,6 @@ BEGIN
 END;
 $$;
 
-DROP POLICY IF EXISTS "inventory_transactions_insert_role_scoped" ON public.inventory_transactions;
 CREATE POLICY "inventory_transactions_insert_role_scoped"
   ON public.inventory_transactions FOR INSERT TO authenticated
   WITH CHECK (
