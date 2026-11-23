@@ -1,11 +1,16 @@
 /**
  * Service Worker - PWA for Xếp Phôi CNC An Bình
- * Cache Version 17 - Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
+ * Cache Version 18 - Hỗ trợ URL sạch (/projects, /inventory, /cnc, /admin),
+ * Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
  * Network-First cho HTML, /toi-uu-engine.js, /css/ và toàn bộ /js/ với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v17';
+const CACHE_NAME = 'toiuu-phoi-pwa-v18';
 const STATIC_ASSETS = [
   '/',
+  '/projects',
+  '/inventory',
+  '/cnc',
+  '/admin',
   '/index.html',
   '/projects.html',
   '/inventory.html',
@@ -53,11 +58,11 @@ self.addEventListener('activate', event => {
 
 function pickRouteFallbackUrl(pathname) {
   const p = String(pathname || '/').toLowerCase();
-  if (p.startsWith('/projects')) return '/projects.html';
-  if (p.startsWith('/inventory')) return '/inventory.html';
-  if (p.startsWith('/cnc')) return '/cnc.html';
-  if (p.startsWith('/admin')) return '/admin.html';
-  return '/index.html';
+  if (p.startsWith('/projects')) return '/projects';
+  if (p.startsWith('/inventory')) return '/inventory';
+  if (p.startsWith('/cnc')) return '/cnc';
+  if (p.startsWith('/admin')) return '/admin';
+  return '/';
 }
 
 self.addEventListener('fetch', event => {

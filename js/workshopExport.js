@@ -155,8 +155,8 @@
 
     var isRealProj = Boolean(projectId && projectId !== '__draft__');
     var cncUrl = isRealProj
-      ? ('https://xepphoi.cloud/cnc/?project=' + encodeURIComponent(String(projectId)))
-      : 'https://xepphoi.cloud/cnc/';
+      ? ('https://xepphoi.cloud/cnc?project=' + encodeURIComponent(String(projectId)))
+      : 'https://xepphoi.cloud/cnc';
 
     return {
       projectId: projectId || '__draft__',
@@ -252,7 +252,7 @@
   }
 
   function generateQrSvg(url) {
-    var target = String(url || 'https://xepphoi.cloud/cnc/');
+    var target = String(url || 'https://xepphoi.cloud/cnc');
     try {
       if (typeof global.qrcode === 'function') {
         var qr = global.qrcode(0, 'M');

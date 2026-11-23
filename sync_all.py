@@ -29,22 +29,14 @@ def sha256_short(fp):
             h.update(chunk)
     return h.hexdigest()[:12]
 
-def sync_clean_subdirs():
+def remove_stale_clean_subdirs(target_dir):
+    removed = []
     for b in sub_branches:
-        b_src = os.path.join(toiuu_phoi_dir, b + '.html')
-        if os.path.exists(b_src):
-            b_dir = os.path.join(toiuu_phoi_dir, b)
-            os.makedirs(b_dir, exist_ok=True)
-            shutil.copy2(b_src, os.path.join(b_dir, 'index.html'))
-    print('Synced clean-URL sub-directories:', ', '.join(sub_branches))
-
-def copy_branches_to(target_dir):
-    for b in sub_branches:
-        b_src = os.path.join(toiuu_phoi_dir, b + '.html')
-        if os.path.exists(b_src):
-            sub_d = os.path.join(target_dir, b)
-            os.makedirs(sub_d, exist_ok=True)
-            shutil.copy2(b_src, os.path.join(sub_d, 'index.html'))
+        b_dir = os.path.join(target_dir, b)
+        if os.path.isdir(b_dir):
+            shutil.rmtree(b_dir, ignore_errors=True)
+            removed.append(b)
+    return removed
 
 def copy_db_files(target_dir, include_json=False):
     src_db_dir = os.path.join(toiuu_phoi_dir, 'database')
@@ -89,7 +81,7 @@ def sync_fusion_appdata():
     for f in all_web_assets:
         if os.path.exists(f):
             shutil.copy2(f, os.path.join(fusion_script_dir, os.path.basename(f)))
-    copy_branches_to(fusion_script_dir)
+    remove_stale_clean_subdirs(fusion_script_dir)
     copy_db_files(fusion_script_dir, include_json=True)
     copy_js_files(fusion_script_dir)
     copy_css_files(fusion_script_dir)
@@ -149,8 +141,10 @@ if '--fusion-only' in sys.argv[1:]:
     print('Fusion 360 AppData synchronization completed!')
     sys.exit(0)
 
-# 0 & 1-2. Đồng bộ clean-URL & Fusion Script AppData
-sync_clean_subdirs()
+# 0 & 1-2. Dọn thư mục con trùng lặp (tận dụng extensionless URL GitHub Pages) & Đồng bộ Fusion Script AppData
+removed_root = remove_stale_clean_subdirs(toiuu_phoi_dir)
+if removed_root:
+    print('Removed duplicate clean-URL sub-directories:', ', '.join(removed_root))
 sync_fusion_appdata()
 
 # 3. Copy web assets to Fusion360/toiuu-phoi
@@ -158,7 +152,7 @@ os.makedirs(fusion_workspace_dir, exist_ok=True)
 for f in all_web_assets + [src_py]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
-copy_branches_to(fusion_workspace_dir)
+remove_stale_clean_subdirs(fusion_workspace_dir)
 copy_db_files(fusion_workspace_dir, include_json=True)
 copy_js_files(fusion_workspace_dir)
 copy_css_files(fusion_workspace_dir)
@@ -172,7 +166,7 @@ if os.path.exists(stale_dist_netlify):
 for f in [src_html] + branch_htmls + [src_engine, src_logo, src_cfg, src_manifest, src_sw]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(dist_dir, os.path.basename(f)))
-copy_branches_to(dist_dir)
+remove_stale_clean_subdirs(dist_dir)
 copy_db_files(dist_dir, include_json=False)
 copy_js_files(dist_dir)
 copy_css_files(dist_dir)

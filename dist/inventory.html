@@ -3,6 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p === '/index.html' || p.endsWith('/index.html')) {
+        history.replaceState(null, '', (p.slice(0, -10) || '/') + location.search + location.hash);
+      } else if (p.endsWith('.html')) {
+        history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+      }
+    }
+  </script>
   <title>Quản Lý Kho Phôi Vật Tư &amp; Sổ Cái · An Bình</title>
   <meta name="description" content="Hệ thống quản lý tồn kho cây nguyên, kho phôi lẻ đề-xê, sổ cái xuất nhập và BOM đối chiếu kho xưởng Cơ Khí An Bình.">
   <link rel="manifest" href="/manifest.json">
@@ -144,7 +154,7 @@
 
   <header class="top">
     <div class="wrap">
-      <a class="brand" href="/index.html" title="Quay về Bàn Xếp Phôi Chính">
+      <a class="brand" href="/" title="Quay về Bàn Xếp Phôi Chính">
         <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
@@ -167,11 +177,11 @@
 
     <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
       <div class="subnav-inner">
-        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
-        <a href="/projects.html" class="subnav-link">📁 Quản Lý Dự Án</a>
-        <a href="/inventory.html" class="subnav-link active">📦 Kho Phôi &amp; Quy Cách</a>
-        <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
-        <a href="/admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+        <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
+        <a href="/inventory" class="subnav-link active">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
     </nav>
   </header>
@@ -213,7 +223,7 @@
         <button type="button" class="btn btn-cta btn-sm eng-only" id="btnOpenOpeningBalance">📦 Nhập tồn đầu kỳ (Phôi cũ)</button>
         <button type="button" class="btn btn-p btn-sm eng-only" id="btnOpenPurchaseIn">+ Nhập mua mới</button>
         <button type="button" class="btn btn-soft btn-sm eng-only" id="btnOpenStocktake">📋 Kiểm kê</button>
-        <a href="/index.html" class="btn btn-soft btn-sm">📐 Bàn Xếp Phôi</a>
+        <a href="/" class="btn btn-soft btn-sm">📐 Bàn Xếp Phôi</a>
       </div>
     </div>
 
@@ -1522,7 +1532,7 @@
           ? `<span style="color:#15803D; font-weight:800;">+${numVN(qChg)}</span>`
           : (qChg < 0 ? `<span style="color:#B91C1C; font-weight:800;">${numVN(qChg)}</span>` : '<span style="color:#64748B; font-weight:700;">0</span>');
         const projLabel = tx.projectId
-          ? `<a href="/index.html?project=${encodeURIComponent(tx.projectId)}" style="font-weight:700; text-decoration:underline;">${escapeHtml(allProjectsMap[tx.projectId] || tx.projectId)}</a>`
+          ? `<a href="/?project=${encodeURIComponent(tx.projectId)}" style="font-weight:700; text-decoration:underline;">${escapeHtml(allProjectsMap[tx.projectId] || tx.projectId)}</a>`
           : '<span style="color:#94A3B8;">—</span>';
 
         return `

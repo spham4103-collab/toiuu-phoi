@@ -7,6 +7,16 @@
   <meta charset="utf-8">
 
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p === '/index.html' || p.endsWith('/index.html')) {
+        history.replaceState(null, '', (p.slice(0, -10) || '/') + location.search + location.hash);
+      } else if (p.endsWith('.html')) {
+        history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+      }
+    }
+  </script>
 
   <title>Quản Trị Hệ Thống &amp; Nhân Sự Xưởng · An Bình</title>
 
@@ -735,7 +745,7 @@
 
     <div class="wrap">
 
-      <a class="brand" href="/index.html" title="Quay về Trang Chủ Xếp Phôi">
+      <a class="brand" href="/" title="Quay về Trang Chủ Xếp Phôi">
 
         <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
 
@@ -773,15 +783,15 @@
 
       <div class="subnav-inner">
 
-        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
 
-        <a href="/projects.html" class="subnav-link">📁 Quản Lý Dự Án</a>
+        <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
 
-        <a href="/inventory.html" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
 
-        <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
 
-        <a href="/admin.html" class="subnav-link subnav-admin active">⚙️ Quản Trị &amp; Nhân Sự</a>
+        <a href="/admin" class="subnav-link subnav-admin active">⚙️ Quản Trị &amp; Nhân Sự</a>
 
       </div>
 

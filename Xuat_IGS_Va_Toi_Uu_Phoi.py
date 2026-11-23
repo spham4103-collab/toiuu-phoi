@@ -2231,11 +2231,11 @@ def execute_export_workflow(app, ui, doc, des, root, selected_occs, use_root_mod
         if synced_project_id:
             q_pid = urllib.parse.quote(synced_project_id, safe='')
             project_web_url = f"{permanent_custom_url}/?project={q_pid}"
-            project_cnc_url = f"{permanent_custom_url}/cnc/?project={q_pid}"
+            project_cnc_url = f"{permanent_custom_url}/cnc?project={q_pid}"
             local_proj_url = f"{server_url}/?project={q_pid}"
         else:
             project_web_url = permanent_custom_url
-            project_cnc_url = f"{permanent_custom_url}/cnc/"
+            project_cnc_url = f"{permanent_custom_url}/cnc"
             local_proj_url = server_url
 
         if cloud_synced:

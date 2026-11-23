@@ -3,6 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p === '/index.html' || p.endsWith('/index.html')) {
+        history.replaceState(null, '', (p.slice(0, -10) || '/') + location.search + location.hash);
+      } else if (p.endsWith('.html')) {
+        history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+      }
+    }
+  </script>
   <title>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống · An Bình</title>
   <meta name="description" content="Ứng dụng tối ưu xếp phôi cắt thép hộp, ống tròn, thanh nhôm 1D. Bộ nhớ lưu quy cách hộp, xếp riêng từng loại hộp và tính toán số cây cần dùng chính xác.">
   <link rel="manifest" href="manifest.json">
@@ -28,7 +38,7 @@
   <!-- Top bar (2 tầng chống chồng chéo chữ + Điều hướng đa nhánh web con) -->
   <header class="top no-print">
     <div class="wrap">
-      <a class="brand" href="index.html" title="An Bình - Tối Ưu Xếp Phôi Thép Hộp">
+      <a class="brand" href="/" title="An Bình - Tối Ưu Xếp Phôi Thép Hộp">
         <img src="logo_an_binh.jpg" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
@@ -114,19 +124,19 @@
     <!-- Tầng 2: Thanh Điều Hướng Các Nhánh Web Con -->
     <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
       <div class="subnav-inner">
-        <a href="index.html" class="subnav-link active" title="Trang tính toán &amp; xếp phôi chính">
+        <a href="/" class="subnav-link active" title="Trang tính toán &amp; xếp phôi chính">
           📐 Bàn Xếp Phôi
         </a>
-        <a href="projects.html" class="subnav-link" title="Quản lý danh sách dự án, đơn hàng &amp; thùng rác">
+        <a href="/projects" class="subnav-link" title="Quản lý danh sách dự án, đơn hàng &amp; thùng rác">
           📁 Quản Lý Dự Án <span id="badgeProjectCount" style="background:#0F766E;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
         </a>
-        <a href="inventory.html" class="subnav-link" title="Thư viện quy cách thép hộp, phôi tồn kho lẻ &amp; bảng vật tư BOM">
+        <a href="/inventory" class="subnav-link" title="Thư viện quy cách thép hộp, phôi tồn kho lẻ &amp; bảng vật tư BOM">
           📦 Kho Phôi &amp; Quy Cách
         </a>
-        <a href="cnc.html" class="subnav-link" title="Sơ đồ cắt trực quan, tích tiến độ xưởng &amp; xuất file .IGS cho máy Laser CNC">
+        <a href="/cnc" class="subnav-link" title="Sơ đồ cắt trực quan, tích tiến độ xưởng &amp; xuất file .IGS cho máy Laser CNC">
           ⚡ Sơ Đồ &amp; Tiến Độ CNC
         </a>
-        <a href="admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;" title="Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Độc quyền Admin)">
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;" title="Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Độc quyền Admin)">
           ⚙️ Quản Trị &amp; Nhân Sự
         </a>
       </div>
@@ -159,7 +169,7 @@
         <button class="btn btn-sm btn-p" id="btnBannerOpenManager" title="Mở nhanh danh sách các dự án">
           Danh sách dự án
         </button>
-        <a href="projects.html" class="btn btn-sm btn-soft" style="border-color:var(--p); color:var(--p); text-decoration:none;" title="Mở nhánh web con Quản Lý Dự Án chuyên sâu">
+        <a href="/projects" class="btn btn-sm btn-soft" style="border-color:var(--p); color:var(--p); text-decoration:none;" title="Mở nhánh web con Quản Lý Dự Án chuyên sâu">
           Mở trang Dự án ↗
         </a>
       </div>
@@ -218,7 +228,7 @@
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
               <input type="text" id="inpCustomProfile" placeholder="Thêm quy cách mới (vd: Hộp 25x25x1, 40x10x1.2...)" style="max-width:250px;min-height:32px;padding:3px 10px;font-size:12.5px;">
               <button class="btn btn-p btn-sm" id="btnAddCustomProfile" type="button">+ Lưu bộ nhớ</button>
-              <a href="inventory.html" style="font-size:12px;font-weight:700;color:var(--p);white-space:nowrap;padding:4px 8px;background:#fff;border:1px solid #99F6E4;border-radius:6px;text-decoration:none;" title="Mở nhánh web con Quản lý Kho Phôi &amp; Quy Cách">📦 Quản lý kho ↗</a>
+              <a href="/inventory" style="font-size:12px;font-weight:700;color:var(--p);white-space:nowrap;padding:4px 8px;background:#fff;border:1px solid #99F6E4;border-radius:6px;text-decoration:none;" title="Mở nhánh web con Quản lý Kho Phôi &amp; Quy Cách">📦 Quản lý kho ↗</a>
             </div>
           </div>
           <div class="memory-chips-wrap" id="memoryChipsWrap">
@@ -281,7 +291,7 @@
                 <input type="checkbox" id="chkUseWarehouseOffcuts" style="width:16px; height:16px; accent-color:#0F766E;">
                 <span>♻️ Ưu tiên cắt từ phôi đề-xê đang có trong kho</span>
               </label>
-              <a href="inventory.html#offcuts" style="font-size:11.5px; font-weight:700; color:#0F766E; text-decoration:underline;">Mở Kho đề-xê ↗</a>
+              <a href="/inventory#offcuts" style="font-size:11.5px; font-weight:700; color:#0F766E; text-decoration:underline;">Mở Kho đề-xê ↗</a>
             </div>
             <div id="offcutSuggestionDetail" style="font-size:12px; color:#134E4A; line-height:1.45;"></div>
             <div id="offcutActionRow" style="display:none; margin-top:7px;"></div>
@@ -440,7 +450,7 @@
             </span>
           </div>
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-            <a href="cnc.html" class="btn btn-p btn-sm" style="font-size:11.5px; padding:3px 10px; text-decoration:none;" title="Mở nhánh web con dành riêng cho máy cắt Laser CNC">
+            <a href="/cnc" class="btn btn-p btn-sm" style="font-size:11.5px; padding:3px 10px; text-decoration:none;" title="Mở nhánh web con dành riêng cho máy cắt Laser CNC">
               ⚡ Mở màn hình Xưởng CNC ↗
             </a>
             <button type="button" class="btn btn-soft btn-sm" id="btnResetCutProgress" style="font-size:11.5px; padding:3px 9px; color:#64748B;" title="Đặt lại toàn bộ tiến độ cắt về 0%">
@@ -685,7 +695,7 @@
 
         <!-- Nút Trỏ Tới Nhánh Web Con Quản Trị Hệ Thống Toàn Diện -->
         <div id="btnGoAdminSubpageWrap" style="display:none; margin-bottom:14px;">
-          <a href="admin.html" class="btn btn-p" style="width:100%; text-decoration:none; justify-content:center; padding:10px 16px; font-size:14px; font-weight:800; border-radius:10px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">
+          <a href="/admin" class="btn btn-p" style="width:100%; text-decoration:none; justify-content:center; padding:10px 16px; font-size:14px; font-weight:800; border-radius:10px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">
             🚀 MỞ TRANG QUẢN TRỊ NHÂN SỰ &amp; PHÂN QUYỀN (/admin) ↗
           </a>
         </div>

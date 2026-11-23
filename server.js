@@ -88,7 +88,7 @@ const PUBLIC_ROOT_FILES = new Set([
   'index.html', 'projects.html', 'inventory.html', 'cnc.html', 'admin.html',
   'toi-uu-engine.js', 'sw.js', 'manifest.json', 'logo_an_binh.jpg', 'workshop_config.json'
 ]);
-const PUBLIC_ROOT_DIRS = new Set(['css', 'js', 'admin', 'projects', 'inventory', 'cnc']);
+const PUBLIC_ROOT_DIRS = new Set(['css', 'js']);
 const clientDefaults = readClientJsDefaults();
 const SUPABASE_URL = (process.env.SUPABASE_URL || envVars.SUPABASE_URL || clientDefaults.url || '').trim();
 const SUPABASE_SECRET_KEY_RAW = (
@@ -895,7 +895,8 @@ const server = http.createServer(async (req, res) => {
         wasVersioned: Boolean(result.wasVersioned),
         versionReason: result.versionReason || '',
         orphansRemovedCount: Number(result.orphansRemovedCount || 0),
-        webUrl: 'https://xepphoi.cloud',
+        webUrl: `https://xepphoi.cloud/?project=${encodeURIComponent(result.project.id)}`,
+        cncUrl: `https://xepphoi.cloud/cnc?project=${encodeURIComponent(result.project.id)}`,
         lanUrls: HOST === '127.0.0.1' ? [] : getLanAddresses()
       }));
     } catch (err) {

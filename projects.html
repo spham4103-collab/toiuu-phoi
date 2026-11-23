@@ -3,6 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p === '/index.html' || p.endsWith('/index.html')) {
+        history.replaceState(null, '', (p.slice(0, -10) || '/') + location.search + location.hash);
+      } else if (p.endsWith('.html')) {
+        history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+      }
+    }
+  </script>
   <title>Quản Lý Dự Án &amp; Đơn Hàng · Xếp Phôi An Bình</title>
   <meta name="description" content="Nhánh quản lý toàn bộ dự án, đơn hàng cắt thép hộp, thùng rác khôi phục và đồng bộ dữ liệu xưởng cơ khí An Bình.">
   <link rel="manifest" href="/manifest.json">
@@ -298,7 +308,7 @@
 
   <header class="top">
     <div class="wrap">
-      <a class="brand" href="/index.html" title="Quay về Bàn Xếp Phôi Chính">
+      <a class="brand" href="/" title="Quay về Bàn Xếp Phôi Chính">
         <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
@@ -321,13 +331,13 @@
 
     <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
       <div class="subnav-inner">
-        <a href="/index.html" class="subnav-link">📐 Bàn Xếp Phôi</a>
-        <a href="/projects.html" class="subnav-link active">
+        <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/projects" class="subnav-link active">
           📁 Quản Lý Dự Án <span id="subnavProjBadge" style="background:#fff;color:var(--dark);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
         </a>
-        <a href="/inventory.html" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
-        <a href="/cnc.html" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
-        <a href="/admin.html" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+        <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
+        <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
       </div>
     </nav>
   </header>
@@ -749,14 +759,14 @@
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (p) {
           activateProjectSelection(p);
-          window.location.href = `/index.html?project=${encodeURIComponent(p.id)}`;
+          window.location.href = `/?project=${encodeURIComponent(p.id)}`;
         }
       });
       wrap.querySelectorAll('.btn-open-cnc').forEach(b => b.onclick = () => {
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (p) {
           activateProjectSelection(p);
-          window.location.href = `/cnc.html?project=${encodeURIComponent(p.id)}`;
+          window.location.href = `/cnc?project=${encodeURIComponent(p.id)}`;
         }
       });
       wrap.querySelectorAll('.btn-print-a4').forEach(b => b.onclick = async () => {

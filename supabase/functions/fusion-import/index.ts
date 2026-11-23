@@ -534,7 +534,7 @@ Deno.serve(async (req: Request) => {
       uploadedIgsCount: igsFilesMeta.length,
       orphansRemovedCount,
       webUrl: `https://xepphoi.cloud/?project=${encodeURIComponent(projectId)}`,
-      cncUrl: `https://xepphoi.cloud/cnc/?project=${encodeURIComponent(projectId)}`,
+      cncUrl: `https://xepphoi.cloud/cnc?project=${encodeURIComponent(projectId)}`,
     });
   }
 
@@ -825,6 +825,6 @@ Deno.serve(async (req: Request) => {
     versionReason,
     orphansRemovedCount,
     webUrl: `https://xepphoi.cloud/?project=${encodeURIComponent(projectId)}`,
-    cncUrl: `https://xepphoi.cloud/cnc/?project=${encodeURIComponent(projectId)}`,
+    cncUrl: `https://xepphoi.cloud/cnc?project=${encodeURIComponent(projectId)}`,
   });
 });
