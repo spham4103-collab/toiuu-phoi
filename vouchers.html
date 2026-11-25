@@ -868,6 +868,7 @@
         const contextParts = [];
         if (v.supplierName) contextParts.push(`🏢 ${escapeHtml(v.supplierName)}`);
         if (v.projectName) contextParts.push(`📁 ${escapeHtml(v.projectName)}`);
+        if ((v.items || []).some(it => it.projectRequestId)) contextParts.push('📋 Đề nghị vật tư dự án');
         if (v.machineName || v.recipientName) {
           contextParts.push(`🔧 ${escapeHtml(v.machineName || v.department || '')}${v.recipientName ? ' · 👤 ' + escapeHtml(v.recipientName) : ''}`);
         } else if (v.department) {
@@ -1273,7 +1274,7 @@
                 return `
                   <tr>
                     <td>${idx + 1}</td>
-                    <td><strong>${escapeHtml(it.profile)}</strong>${it.lengthMm ? ` <span style="font-size:11.5px;color:#64748B;">(${numVN(it.lengthMm)}mm)</span>` : ''}</td>
+                    <td><strong>${escapeHtml(it.profile)}</strong>${it.lengthMm ? ` <span style="font-size:11.5px;color:#64748B;">(${numVN(it.lengthMm)}mm)</span>` : ''}${it.projectRequestId ? ' <span style="font-size:10.5px;padding:2px 6px;border-radius:999px;background:#CCFBF1;color:#0F766E;font-weight:700;">📋 Đề nghị DA</span>' : ''}</td>
                     <td><span class="grp-badge ${gm.badgeClass}">${gm.icon} ${escapeHtml(gm.shortLabel)}</span></td>
                     <td class="r"><b>${numVN(it.qty)} ${escapeHtml(it.unit)}</b></td>
                     <td class="r price-only">${numVN(it.unitPrice, 0)} đ</td>

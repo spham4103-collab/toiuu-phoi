@@ -28,6 +28,7 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/workshopExport.js"></script>
+  <script src="/js/project-bom.js"></script>
   <link rel="stylesheet" href="/css/shared.css">
   <style>
     :root {
@@ -458,6 +459,21 @@
           <input type="text" id="inpFormCustomer" placeholder="Ví dụ: Công ty Cơ Khí An Bình">
         </div>
         <div>
+          <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Hạn giao hàng (tùy chọn)</label>
+          <input type="date" id="inpFormDueDate">
+        </div>
+        <div>
+          <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:6px;">Công đoạn thực hiện</label>
+          <div id="grpFormStages" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(175px, 1fr)); gap:6px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox" value="laser_tube" checked> ⚡ Cắt Laser Thép Hình</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox" value="laser_sheet"> 🟦 Cắt Laser Thép Tấm</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox" value="cnc_mill_turn"> ⚙️ Phay / Tiện CNC</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox" value="welding_assembly"> 🔥 Hàn &amp; Lắp ráp</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox" value="consumable_tooling"> 🔩 Vật tư phụ &amp; Dao cụ</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox" value="outsourced"> 🚚 Gia công / Mua ngoài</label>
+          </div>
+        </div>
+        <div>
           <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Ghi chú</label>
           <textarea id="inpFormNotes" rows="3" placeholder="Ghi chú tiến độ, yêu cầu vật tư..."></textarea>
         </div>
@@ -602,6 +618,8 @@
       arr.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
     }
 
+    let projectReqSummaryMap = {};
+
     async function loadData() {
       if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) {
         projectsList = [];
@@ -611,13 +629,17 @@
       }
       window.SupabaseDB.setLoading(true, 'Đang tải danh sách dự án...');
       try {
-        const [allProjs, outVouchersMap] = await Promise.all([
+        const [allProjs, outVouchersMap, reqSummaryMap] = await Promise.all([
           window.SupabaseDB.getProjectsSummary({ includeTrash: true, includeDraft: false }),
           typeof window.SupabaseDB.getActiveProjectOutVouchersMap === 'function'
             ? window.SupabaseDB.getActiveProjectOutVouchersMap().catch(() => ({}))
+            : Promise.resolve({}),
+          typeof window.SupabaseDB.getProjectRequestsSummaryMap === 'function'
+            ? window.SupabaseDB.getProjectRequestsSummaryMap().catch(() => ({}))
             : Promise.resolve({})
         ]);
         projectOutVouchersMap = outVouchersMap || {};
+        projectReqSummaryMap = reqSummaryMap || {};
         projectsList = allProjs.filter(p => !p.isTrashed && !p.isDraft);
         trashList = allProjs.filter(p => p.isTrashed && !p.isDraft);
         sortByUpdatedDesc(projectsList);
@@ -672,6 +694,12 @@
         warehouse_vouchers: async () => {
           if (typeof window.SupabaseDB.getActiveProjectOutVouchersMap === 'function') {
             projectOutVouchersMap = await window.SupabaseDB.getActiveProjectOutVouchersMap().catch(() => ({}));
+            renderList();
+          }
+        },
+        project_material_requests: async () => {
+          if (typeof window.SupabaseDB.getProjectRequestsSummaryMap === 'function') {
+            projectReqSummaryMap = await window.SupabaseDB.getProjectRequestsSummaryMap().catch(() => ({}));
             renderList();
           }
         }
@@ -743,6 +771,15 @@
         const dateStr = (isTrash ? p.deletedAt : p.updatedAt) ? new Date(isTrash ? p.deletedAt : p.updatedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Vừa xong';
         const outV = !isTrash ? (projectOutVouchersMap && projectOutVouchersMap[p.id]) : null;
         const isLegacyDispatched = !isTrash && !outV && Boolean(p.inventoryDeductedAt || p.inventory_deducted_at || (p.data && p.data.inventoryDeductedAt));
+        const workStages = (p.data && Array.isArray(p.data.workStages)) ? p.data.workStages : [];
+        const dueDate = (p.data && p.data.dueDate) ? p.data.dueDate : '';
+        const reqStat = !isTrash ? (projectReqSummaryMap && projectReqSummaryMap[p.id]) : null;
+        const stageBadgesHtml = workStages.map(sk => {
+          const m = window.SharedUI && typeof window.SharedUI.getWorkStageMeta === 'function' ? window.SharedUI.getWorkStageMeta(sk) : null;
+          if (!m) return '';
+          const clr = m.color || '#0F766E';
+          return `<span class="pill" style="background:${clr}15; color:${clr}; border-color:${clr}40;">${m.icon} ${escapeHtml(m.shortLabel)}</span>`;
+        }).join('');
 
         return `
           <div class="proj-item ${isActive ? 'active-proj' : ''} ${p.isLocked && !isTrash ? 'locked-proj' : ''} ${isTrash ? 'trash-proj' : ''}">
@@ -752,6 +789,7 @@
                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
                   ${isActive ? '<span class="pill pill-green">● Đang mở</span>' : ''}
                   ${p.isLocked && !isTrash ? '<span class="pill pill-amber">🔒 Đã khóa</span>' : ''}
+                  ${dueDate && !isTrash ? `<span class="pill pill-amber">📅 ${escapeHtml(dueDate)}</span>` : ''}
                   ${outV && outV.status === 'pending' ? `<a href="/vouchers?id=${encodeURIComponent(outV.id)}" class="pill pill-amber" title="Mở phiếu chờ duyệt">⏳ Chờ duyệt ${escapeHtml(outV.voucherCode)}</a>` : ''}
                   ${outV && outV.status === 'approved' ? `<a href="/vouchers?id=${encodeURIComponent(outV.id)}" class="pill pill-green" title="Xem phiếu đã xuất">✅ Đã xuất ${escapeHtml(outV.voucherCode)}</a>` : ''}
                   ${isLegacyDispatched ? '<span class="pill pill-green">✅ Đã xuất kho</span>' : ''}
@@ -760,9 +798,11 @@
               </div>
               ${p.customer ? `<div style="font-size:13px; color:#475569; margin-bottom:3px;">Khách hàng: <b>${escapeHtml(p.customer)}</b></div>` : ''}
               ${p.notes ? `<div style="font-size:12px; color:#64748B; font-style:italic; margin-bottom:6px;">${escapeHtml(p.notes)}</div>` : ''}
+              ${stageBadgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">${stageBadgesHtml}</div>` : ''}
               <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;">
                 <span class="pill pill-slate">📏 ${profs.length} loại hộp</span>
                 <span class="pill pill-slate">🧩 ${totalPcs} chi tiết</span>
+                ${reqStat && reqStat.total > 0 ? `<span class="pill ${reqStat.fulfilled >= reqStat.total ? 'pill-green' : 'pill-amber'}">📋 Vật tư: ${reqStat.fulfilled}/${reqStat.total} dòng đã xuất</span>` : ''}
                 <span class="pill pill-slate">🕒 ${dateStr}</span>
               </div>
             </div>
@@ -772,7 +812,8 @@
                 <button type="button" class="btn btn-sm btn-p btn-restore eng-only" data-id="${p.id}">↩️ Khôi phục</button>
                 <button type="button" class="btn btn-sm btn-danger btn-perm-del eng-only" data-id="${p.id}">❌ Xóa vĩnh viễn</button>
               ` : `
-                <button type="button" class="btn btn-sm btn-p btn-open-main" data-id="${p.id}">🚀 Mở xếp phôi</button>
+                <button type="button" class="btn btn-sm btn-p btn-open-bom" data-id="${p.id}">📋 Đề nghị Vật tư &amp; Chi tiết</button>
+                <button type="button" class="btn btn-sm btn-soft btn-open-main" data-id="${p.id}">🚀 Mở xếp phôi</button>
                 <button type="button" class="btn btn-sm btn-cta btn-open-cnc" data-id="${p.id}">⚡ Sơ đồ CNC</button>
                 <button type="button" class="btn btn-sm btn-soft btn-print-a4" data-id="${p.id}">🖨️ Phiếu A4</button>
                 <button type="button" class="btn btn-sm btn-soft btn-exp-xlsx" data-id="${p.id}">📊 .xlsx</button>
@@ -787,6 +828,35 @@
         `;
       }).join('');
 
+      wrap.querySelectorAll('.btn-open-bom').forEach(b => b.onclick = async () => {
+        if (!window.ProjectBomModal) return;
+        const inv = await window.SupabaseDB.getInventory().catch(() => []);
+        window.ProjectBomModal.open(b.dataset.id, {
+          projectsList,
+          inventoryItems: inv,
+          currentUser,
+          onProjectChanged: async () => {
+            if (typeof window.SupabaseDB.getProjectRequestsSummaryMap === 'function') {
+              projectReqSummaryMap = await window.SupabaseDB.getProjectRequestsSummaryMap().catch(() => ({}));
+              renderList();
+            }
+          },
+          onOpenMain: (pid) => {
+            const p = projectsList.find(x => x.id === pid);
+            if (p) activateProjectSelection(p);
+            window.location.href = `/?project=${encodeURIComponent(pid)}`;
+          },
+          onOpenCnc: (pid) => {
+            const p = projectsList.find(x => x.id === pid);
+            if (p) activateProjectSelection(p);
+            window.location.href = `/cnc?project=${encodeURIComponent(pid)}`;
+          },
+          onPrintA4: async (pid) => {
+            const expOpts = await prepareProjectExportPayload(pid);
+            if (expOpts && window.WorkshopExport) window.WorkshopExport.printProductionSheet(expOpts);
+          }
+        });
+      });
       wrap.querySelectorAll('.btn-open-main').forEach(b => b.onclick = () => {
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (p) {
@@ -1026,6 +1096,7 @@
 
     function openProjModal(id = null) {
       editingId = id;
+      const stageChecks = document.querySelectorAll('#grpFormStages input[type="checkbox"]');
       if (id) {
         const p = projectsList.find(x => x.id === id);
         if (!p) return;
@@ -1033,11 +1104,16 @@
         $('inpFormName').value = p.name || '';
         $('inpFormCustomer').value = p.customer || '';
         $('inpFormNotes').value = p.notes || '';
+        $('inpFormDueDate').value = (p.data && p.data.dueDate) ? p.data.dueDate : '';
+        const stages = (p.data && Array.isArray(p.data.workStages)) ? p.data.workStages : ['laser_tube'];
+        stageChecks.forEach(chk => { chk.checked = stages.includes(chk.value); });
       } else {
         $('modalFormTitle').textContent = 'Tạo Dự Án Mới';
         $('inpFormName').value = `Dự án #${projectsList.length + 1} (${new Date().toLocaleDateString('vi-VN')})`;
         $('inpFormCustomer').value = '';
         $('inpFormNotes').value = '';
+        $('inpFormDueDate').value = '';
+        stageChecks.forEach(chk => { chk.checked = (chk.value === 'laser_tube'); });
       }
       $('modalProjForm').style.display = 'flex';
       setTimeout(() => $('inpFormName').focus(), 50);
@@ -1048,14 +1124,22 @@
       if (!name) { alert('Vui lòng nhập tên dự án!'); return; }
       const customer = ($('inpFormCustomer').value || '').trim();
       const notes = ($('inpFormNotes').value || '').trim();
+      const dueDate = ($('inpFormDueDate').value || '').trim();
+      const workStages = Array.from(document.querySelectorAll('#grpFormStages input[type="checkbox"]:checked')).map(c => c.value);
       const now = new Date().toISOString();
 
       window.SupabaseDB.setLoading(true, 'Đang lưu dự án...');
       try {
         if (editingId) {
-          const updated = await window.SupabaseDB.updateProjectFields(editingId, { name, customer, notes });
           const p = projectsList.find(x => x.id === editingId);
-          if (p) Object.assign(p, updated);
+          const nextData = Object.assign({}, (p && p.data) || {}, { dueDate, workStages });
+          let updated;
+          if (p) {
+            updated = await window.SupabaseDB.saveProject(Object.assign({}, p, { name, customer, notes, data: nextData, updatedAt: now }));
+            Object.assign(p, updated);
+          } else {
+            updated = await window.SupabaseDB.updateProjectFields(editingId, { name, customer, notes });
+          }
           showToast(`✓ Đã cập nhật "${name}"`);
         } else {
           const newProj = {
@@ -1068,7 +1152,9 @@
               selectedTabProfile: 'Hộp 30x30x1.8',
               parts: [],
               stock: [{ id: makeId('s_def'), profile: 'Hộp 30x30x1.8', name: 'Cây mới 6.000', length: 6000, qty: null, clamp: 80 }],
-              method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0
+              method: 'cnc', kerf: 0, clamp: 80, interlock: true, gap: 0,
+              dueDate,
+              workStages
             },
             igsFiles: []
           };

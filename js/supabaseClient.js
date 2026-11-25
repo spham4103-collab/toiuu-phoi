@@ -542,6 +542,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       totalAmount: Number(row.total_amount) || 0,
       issueReason: String(row.issue_reason || 'new'),
       returnedOldQty: Number(row.returned_old_qty) || 0,
+      projectRequestId: row.project_request_id || null,
       note: String(row.note || ''),
       createdAt: row.created_at || null
     };
@@ -2441,6 +2442,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           total_amount: Math.round(qty * price),
           issue_reason: String(it.issueReason || it.issue_reason || 'new'),
           returned_old_qty: Math.max(0, Number(it.returnedOldQty != null ? it.returnedOldQty : it.returned_old_qty) || 0),
+          project_request_id: it.projectRequestId || it.project_request_id || null,
           note: String(it.note || '').trim()
         };
       })
@@ -2458,6 +2460,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var copy = Object.assign({}, obj);
     delete copy.issue_reason;
     delete copy.returned_old_qty;
+    delete copy.project_request_id;
     return copy;
   }
 
@@ -2843,6 +2846,224 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   }
 
   // =========================================================================
+  // WMS ĐỢT 8: ĐỀ NGHỊ VẬT TƯ DỰ ÁN (project_material_requests) & ĐÍNH KÈM
+  // =========================================================================
+  var PROJECT_ATT_BUCKET = 'project-attachments';
+
+  function mapProjectRequestFromDb(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      workStage: String(row.work_stage || 'laser_sheet'),
+      inventoryId: row.inventory_id || null,
+      itemName: String(row.item_name || ''),
+      materialGrade: String(row.material_grade || ''),
+      specDimensions: String(row.spec_dimensions || ''),
+      calcWeightKg: Number(row.calc_weight_kg) || 0,
+      unit: String(row.unit || 'cái'),
+      requiredQty: Number(row.required_qty) || 0,
+      issuedQty: Number(row.issued_qty) || 0,
+      status: String(row.status || 'pending'),
+      note: String(row.note || ''),
+      createdBy: row.created_by || null,
+      createdAt: row.created_at || new Date().toISOString()
+    };
+  }
+
+  function mapProjectAttachmentFromDb(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      fileName: String(row.file_name || ''),
+      fileType: String(row.file_type || 'other'),
+      storagePath: String(row.storage_path || ''),
+      fileSize: Number(row.file_size) || 0,
+      note: String(row.note || ''),
+      uploadedBy: row.uploaded_by || null,
+      createdAt: row.created_at || new Date().toISOString()
+    };
+  }
+
+  async function getProjectMaterialRequests(projectId) {
+    if (!projectId || !isConfigured()) return [];
+    var client = getClient();
+    var res = await client
+      .from('project_material_requests')
+      .select('*')
+      .eq('project_id', String(projectId))
+      .order('created_at', { ascending: true });
+    if (res && res.error && _isMissingTableError(res.error, 'project_material_requests')) {
+      return [];
+    }
+    var rows = throwIfError(res, 'Không tải được đề nghị vật tư dự án') || [];
+    return rows.map(mapProjectRequestFromDb);
+  }
+
+  async function getProjectRequestsSummaryMap() {
+    if (!isConfigured()) return {};
+    try {
+      var client = getClient();
+      var res = await client
+        .from('project_material_requests')
+        .select('project_id, status, required_qty, issued_qty');
+      if (res && res.error) return {};
+      var map = {};
+      (res.data || []).forEach(function (r) {
+        if (!r.project_id) return;
+        if (!map[r.project_id]) map[r.project_id] = { total: 0, fulfilled: 0 };
+        if (r.status !== 'cancelled') {
+          map[r.project_id].total += 1;
+          if (r.status === 'fulfilled' || Number(r.issued_qty) >= Number(r.required_qty)) {
+            map[r.project_id].fulfilled += 1;
+          }
+        }
+      });
+      return map;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function addProjectMaterialRequest(payload) {
+    var p = payload || {};
+    var client = getClient();
+    var row = {
+      project_id: String(p.projectId),
+      work_stage: String(p.workStage || 'laser_sheet'),
+      inventory_id: p.inventoryId || null,
+      item_name: String(p.itemName || '').trim(),
+      material_grade: String(p.materialGrade || '').trim(),
+      spec_dimensions: String(p.specDimensions || '').trim(),
+      calc_weight_kg: Math.max(0, Number(p.calcWeightKg) || 0),
+      unit: String(p.unit || 'cái').trim() || 'cái',
+      required_qty: Math.max(0.001, Number(p.requiredQty) || 1),
+      issued_qty: 0,
+      status: p.status === 'need_purchase' ? 'need_purchase' : 'pending',
+      note: String(p.note || '').trim()
+    };
+    var res = await client.from('project_material_requests').insert(row).select().single();
+    return mapProjectRequestFromDb(throwIfError(res, 'Không thêm được dòng đề nghị vật tư'));
+  }
+
+  async function bulkAddProjectMaterialRequests(items) {
+    var list = (Array.isArray(items) ? items : []).filter(function (p) { return p && p.projectId && p.itemName; });
+    if (!list.length) return [];
+    var client = getClient();
+    var rows = list.map(function (p) {
+      return {
+        project_id: String(p.projectId),
+        work_stage: String(p.workStage || 'laser_sheet'),
+        inventory_id: p.inventoryId || null,
+        item_name: String(p.itemName || '').trim(),
+        material_grade: String(p.materialGrade || '').trim(),
+        spec_dimensions: String(p.specDimensions || '').trim(),
+        calc_weight_kg: Math.max(0, Number(p.calcWeightKg) || 0),
+        unit: String(p.unit || 'cái').trim() || 'cái',
+        required_qty: Math.max(0.001, Number(p.requiredQty) || 1),
+        issued_qty: 0,
+        status: p.status === 'need_purchase' ? 'need_purchase' : 'pending',
+        note: String(p.note || '').trim()
+      };
+    });
+    var res = await client.from('project_material_requests').insert(rows).select();
+    var saved = throwIfError(res, 'Không nhập được danh sách đề nghị vật tư') || [];
+    return saved.map(mapProjectRequestFromDb);
+  }
+
+  async function updateProjectMaterialRequest(id, patch) {
+    var p = patch || {};
+    var client = getClient();
+    var upd = {};
+    if (p.workStage !== undefined) upd.work_stage = String(p.workStage);
+    if (p.inventoryId !== undefined) upd.inventory_id = p.inventoryId || null;
+    if (p.itemName !== undefined) upd.item_name = String(p.itemName || '').trim();
+    if (p.materialGrade !== undefined) upd.material_grade = String(p.materialGrade || '').trim();
+    if (p.specDimensions !== undefined) upd.spec_dimensions = String(p.specDimensions || '').trim();
+    if (p.calcWeightKg !== undefined) upd.calc_weight_kg = Math.max(0, Number(p.calcWeightKg) || 0);
+    if (p.unit !== undefined) upd.unit = String(p.unit || 'cái');
+    if (p.requiredQty !== undefined) upd.required_qty = Math.max(0.001, Number(p.requiredQty) || 1);
+    if (p.status !== undefined) upd.status = String(p.status);
+    if (p.note !== undefined) upd.note = String(p.note || '').trim();
+    var res = await client.from('project_material_requests').update(upd).eq('id', id).select().single();
+    return mapProjectRequestFromDb(throwIfError(res, 'Không cập nhật được dòng đề nghị vật tư'));
+  }
+
+  async function deleteProjectMaterialRequest(id) {
+    var client = getClient();
+    var res = await client.from('project_material_requests').delete().eq('id', id);
+    throwIfError(res, 'Không xóa được dòng đề nghị vật tư (chú ý: dòng đã xuất kho sẽ bị khóa xóa)');
+    return true;
+  }
+
+  async function getProjectAttachments(projectId) {
+    if (!projectId || !isConfigured()) return [];
+    var client = getClient();
+    var res = await client
+      .from('project_attachments')
+      .select('*')
+      .eq('project_id', String(projectId))
+      .order('created_at', { ascending: false });
+    if (res && res.error && _isMissingTableError(res.error, 'project_attachments')) {
+      return [];
+    }
+    var rows = throwIfError(res, 'Không tải được file đính kèm dự án') || [];
+    return rows.map(mapProjectAttachmentFromDb);
+  }
+
+  async function uploadProjectAttachment(projectId, file, note) {
+    if (!projectId || !file) throw new Error('Thiếu thông tin dự án hoặc tệp đính kèm');
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('Dung lượng tệp vượt quá giới hạn an toàn 10MB');
+    }
+    var client = getClient();
+    var safeFile = toAsciiSafe(file.name || 'file');
+    var storagePath = toAsciiSafe(projectId) + '/' + Date.now() + '_' + safeFile;
+    var upRes = await client.storage.from(PROJECT_ATT_BUCKET).upload(storagePath, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false
+    });
+    if (upRes && upRes.error) {
+      throw new Error('Lỗi tải tệp lên Storage: ' + upRes.error.message);
+    }
+    var ext = (file.name || '').toLowerCase();
+    var fType = 'other';
+    if (/\.(xlsx|xls|csv)$/i.test(ext)) fType = 'excel';
+    else if (/\.pdf$/i.test(ext)) fType = 'pdf';
+    else if (/\.(dxf|dwg|igs|iges|step|stp)$/i.test(ext)) fType = 'cad';
+    else if (/\.(png|jpg|jpeg|webp|gif)$/i.test(ext)) fType = 'image';
+
+    var insRes = await client.from('project_attachments').insert({
+      project_id: String(projectId),
+      file_name: String(file.name || safeFile),
+      file_type: fType,
+      storage_path: storagePath,
+      file_size: Number(file.size) || 0,
+      note: String(note || '').trim()
+    }).select().single();
+    return mapProjectAttachmentFromDb(throwIfError(insRes, 'Không lưu được thông tin file đính kèm'));
+  }
+
+  async function getProjectAttachmentSignedUrl(storagePath, expiresInSec) {
+    if (!storagePath) return null;
+    var client = getClient();
+    var res = await client.storage.from(PROJECT_ATT_BUCKET).createSignedUrl(storagePath, expiresInSec || 3600);
+    if (res && res.error) return null;
+    return res && res.data ? res.data.signedUrl : null;
+  }
+
+  async function deleteProjectAttachment(id, storagePath) {
+    var client = getClient();
+    if (storagePath) {
+      try { await client.storage.from(PROJECT_ATT_BUCKET).remove([storagePath]); } catch (e) {}
+    }
+    var res = await client.from('project_attachments').delete().eq('id', id);
+    throwIfError(res, 'Không xóa được file đính kèm');
+    return true;
+  }
+
+  // =========================================================================
   // PRIVATE STORAGE BUCKET: igs-files (ĐỌC QUA JWT AUTHENTICATED)
   // =========================================================================
   function extractIgsStoragePath(pathOrUrl) {
@@ -3048,6 +3269,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           raw: payload
         };
       }
+      if (table === 'project_material_requests') {
+        return {
+          eventType: eventType,
+          newRecord: mapProjectRequestFromDb(payload.new),
+          oldRecord: mapProjectRequestFromDb(payload.old),
+          raw: payload
+        };
+      }
       return payload;
     };
 
@@ -3241,6 +3470,16 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     getToolingConsumptionReport: getToolingConsumptionReport,
     bulkImportToolingCatalog: bulkImportToolingCatalog,
     submitCncOffcutReturn: submitCncOffcutReturn,
+    getProjectMaterialRequests: getProjectMaterialRequests,
+    getProjectRequestsSummaryMap: getProjectRequestsSummaryMap,
+    addProjectMaterialRequest: addProjectMaterialRequest,
+    bulkAddProjectMaterialRequests: bulkAddProjectMaterialRequests,
+    updateProjectMaterialRequest: updateProjectMaterialRequest,
+    deleteProjectMaterialRequest: deleteProjectMaterialRequest,
+    getProjectAttachments: getProjectAttachments,
+    uploadProjectAttachment: uploadProjectAttachment,
+    getProjectAttachmentSignedUrl: getProjectAttachmentSignedUrl,
+    deleteProjectAttachment: deleteProjectAttachment,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,

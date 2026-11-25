@@ -78,7 +78,7 @@ function verifyHtmlAndJs() {
   assert(rep.includes('secTabTooling') && rep.includes('getToolingConsumptionReport') && rep.includes('btnExportToolingXlsx'), 'reports.html missing Tab 4 tooling');
 
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-  assert(sw.includes('toiuu-phoi-pwa-v22'), 'sw.js must be v22');
+  assert(sw.includes('toiuu-phoi-pwa-v23'), 'sw.js must be v23');
   console.log('[OK] HTML/JS Đợt 7 features & sw.js v22 verified');
 }
 

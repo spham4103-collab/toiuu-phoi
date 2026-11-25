@@ -119,6 +119,30 @@
 
   var MACHINES = ['CNC Phay', 'CNC Tiện', 'Laser Ống', 'Laser Tấm', 'Tổ Hàn', 'Tổ Lắp Ráp', 'Kho / Chung'];
 
+  var WORK_STAGES = {
+    laser_sheet: { key: 'laser_sheet', label: 'Cắt Laser Tấm', shortLabel: 'Laser Tấm', icon: '📐' },
+    cnc_mill_turn: { key: 'cnc_mill_turn', label: 'Phay / Tiện CNC', shortLabel: 'Phay/Tiện CNC', icon: '🔩' },
+    laser_tube: { key: 'laser_tube', label: 'Thép hình / Laser Ống', shortLabel: 'Thép hình 1D', icon: '🪵' },
+    welding_assembly: { key: 'welding_assembly', label: 'Hàn / Lắp ráp', shortLabel: 'Hàn/Lắp ráp', icon: '🔥' },
+    consumable_tooling: { key: 'consumable_tooling', label: 'Vật tư phụ & Dao cụ', shortLabel: 'Vật tư/Dao cụ', icon: '🔧' },
+    outsourced: { key: 'outsourced', label: 'Gia công / Mua ngoài', shortLabel: 'Mua ngoài', icon: '🛒' }
+  };
+
+  var MATERIAL_DENSITIES = {
+    'SS400': 7.85,
+    'CT3': 7.85,
+    'S45C': 7.85,
+    'SUS 304': 7.93,
+    'SUS 201': 7.93,
+    'Nhôm 6061': 2.70,
+    'Nhôm 5052': 2.68,
+    'Thép 2083': 7.80,
+    'SKD11': 7.85,
+    'POM': 1.41,
+    'Nhựa phíp': 1.35,
+    'Đồng thau': 8.50
+  };
+
   var UNITS = ['cây', 'tấm', 'kg', 'cái', 'mũi', 'viên', 'bộ', 'hộp', 'vỉ', 'cuộn', 'can', 'lít', 'm', 'đoạn'];
 
   var NAV_ITEMS = [
@@ -306,6 +330,35 @@
     };
   }
 
+  function getWorkStageMeta(stageKey) {
+    var k = String(stageKey || 'laser_sheet').trim();
+    return WORK_STAGES[k] || WORK_STAGES.laser_sheet;
+  }
+
+  function calcMaterialWeightKg(opts) {
+    var o = opts || {};
+    var shape = String(o.shape || 'plate').toLowerCase();
+    var grade = String(o.grade || 'SS400').trim();
+    var density = Number(o.customDensity) > 0
+      ? Number(o.customDensity)
+      : (MATERIAL_DENSITIES[grade] || 7.85);
+    var volCm3 = 0;
+    if (shape === 'round' || shape === 'cylinder') {
+      var dMm = Math.max(0, Number(o.diameterMm) || 0);
+      var lMm = Math.max(0, Number(o.lengthMm) || 0);
+      var rCm = (dMm / 10) / 2;
+      var lCm = lMm / 10;
+      volCm3 = Math.PI * rCm * rCm * lCm;
+    } else {
+      var lenMm = Math.max(0, Number(o.lengthMm) || 0);
+      var widMm = Math.max(0, Number(o.widthMm) || 0);
+      var thkMm = Math.max(0, Number(o.thicknessMm) || 0);
+      volCm3 = (lenMm / 10) * (widMm / 10) * (thkMm / 10);
+    }
+    var kg = (volCm3 * density) / 1000;
+    return Math.round(kg * 1000) / 1000;
+  }
+
   var _pendingVouchersUnsub = null;
   var _pendingVouchersTimer = null;
 
@@ -351,12 +404,16 @@
     SUB_CATEGORIES: SUB_CATEGORIES,
     ISSUE_REASONS: ISSUE_REASONS,
     MACHINES: MACHINES,
+    WORK_STAGES: WORK_STAGES,
+    MATERIAL_DENSITIES: MATERIAL_DENSITIES,
     UNITS: UNITS,
     NAV_ITEMS: NAV_ITEMS,
     getRoleMeta: getRoleMeta,
     getMaterialGroupMeta: getMaterialGroupMeta,
     getSubCategoryLabel: getSubCategoryLabel,
     getIssueReasonLabel: getIssueReasonLabel,
+    getWorkStageMeta: getWorkStageMeta,
+    calcMaterialWeightKg: calcMaterialWeightKg,
     convertPackToBase: convertPackToBase,
     canManageInventory: canManageInventory,
     canCreateVouchers: canCreateVouchers,
