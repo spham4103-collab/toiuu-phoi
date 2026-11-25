@@ -91,7 +91,7 @@ function run() {
 
   // 4. sw.js v32 & dist/
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v32'), 'sw.js must be v32');
+  assert(sw.includes('toiuu-phoi-pwa-v33'), 'sw.js must be v33');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'qr-scanner.js')), 'dist/js/qr-scanner.js missing');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'project-bom.js')), 'dist/js/project-bom.js missing');
   console.log('[OK] 4. sw.js (v32) & dist/ verified.');

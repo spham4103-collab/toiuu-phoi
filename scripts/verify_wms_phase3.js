@@ -58,7 +58,7 @@ function verifyHtmlAndJsSyntax() {
   }
 
   const swText = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-  assert(swText.includes('toiuu-phoi-pwa-v32'), 'sw.js must be bumped to v32');
+  assert(swText.includes('toiuu-phoi-pwa-v33'), 'sw.js must be bumped to v33');
   assert(swText.includes("'/reports'") && swText.includes("'/reports.html'"), 'sw.js must cache /reports');
 
   console.log('[OK] Syntax check passed for all JS & HTML files including reports.html + sw.js v21');

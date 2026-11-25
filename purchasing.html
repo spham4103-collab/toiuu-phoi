@@ -489,39 +489,50 @@
     };
 
     async function boot() {
-      SharedUI.initNetworkBadge();
-      const user = await SupabaseDB.getCurrentSession();
-      if (!user) {
+      try {
+        window.SharedUI?.initNetworkBadge?.();
+        const user = await SupabaseDB.getCurrentAuthUser();
+        if (!user) {
+          $('loginGateWrap').style.display = 'block';
+          $('mainContent').style.display = 'none';
+          return;
+        }
+        currentUser = user;
+        $('loginGateWrap').style.display = 'none';
+        $('mainContent').style.display = 'block';
+        window.SharedUI?.initHeaderUser?.(user);
+        await window.SharedUI?.loadWmsSettings?.();
+        window.SharedUI?.applyPriceVisibilityUI?.(user);
+        window.SharedUI?.initPendingVouchersBadge?.();
+        window.SharedUI?.initPendingPrBadge?.();
+        await loadMasterData();
+        await refreshAllData();
+        handleInitialQuery();
+        window.SharedUI?.initStickySection?.(null, $('prTable'));
+        window.SharedUI?.initStickySection?.(null, $('poTable'));
+      } catch (err) {
+        console.error('[Purchasing boot error]', err);
         $('loginGateWrap').style.display = 'block';
         $('mainContent').style.display = 'none';
-        return;
+        if ($('loginErr')) {
+          $('loginErr').style.display = 'block';
+          $('loginErr').textContent = '⚠️ Lỗi khởi tạo trang Mua hàng: ' + (err && err.message ? err.message : String(err));
+        }
       }
-      currentUser = user;
-      $('loginGateWrap').style.display = 'none';
-      $('mainContent').style.display = 'block';
-      SharedUI.initHeaderUser(user);
-      SharedUI.applyPriceVisibilityUI(user);
-      SharedUI.initPendingVouchersBadge();
-      SharedUI.initPendingPrBadge();
-      await loadMasterData();
-      await refreshAllData();
-      handleInitialQuery();
-      SharedUI.initStickySection(null, $('prTable'));
-      SharedUI.initStickySection(null, $('poTable'));
     }
 
     async function loadMasterData() {
       const [inv, sups, projs] = await Promise.all([
-        SupabaseDB.getInventoryItems({ includeInactive: false }).catch(() => []),
+        SupabaseDB.getInventory().catch(() => []),
         SupabaseDB.getSuppliers().catch(() => []),
-        SupabaseDB.getProjectsList().catch(() => [])
+        SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => [])
       ]);
-      allInventory = inv || [];
+      allInventory = (inv || []).filter(i => i.isActive !== false);
       allSuppliers = sups || [];
       allProjects = projs || [];
 
       const projOpts = '<option value="">-- Dùng chung / Tồn kho --</option>' +
-        allProjects.map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.name || '')}</option>`).join('');
+        allProjects.map(p => `<option value="${esc(p.id)}">${esc(p.customerPoNo || p.code || p.id)} - ${esc(p.name || '')}</option>`).join('');
       $('prProjectId').innerHTML = projOpts;
       $('poProjectId').innerHTML = projOpts;
 
@@ -530,7 +541,7 @@
       $('poSupplierId').innerHTML = supOpts;
 
       const invOpts = '<option value="">-- Chọn vật tư từ kho WMS --</option>' +
-        allInventory.map(i => `<option value="${esc(i.id)}">[${esc(i.sku || i.materialGroup)}] ${esc(i.name)} (${esc(i.unit || 'Cái')} · Tồn: ${fmtNum(i.qty)})</option>`).join('');
+        allInventory.map(i => `<option value="${esc(i.id)}">[${esc(i.sku || i.materialGroup)}] ${esc(i.profileName || i.name || '')} (${esc(i.unit || 'Cái')} · Tồn: ${fmtNum(i.stockQty != null ? i.stockQty : i.qty)})</option>`).join('');
       $('prAddInvSelect').innerHTML = invOpts;
       $('poAddInvSelect').innerHTML = invOpts;
     }
@@ -1018,7 +1029,7 @@
         const id = $('prAddInvSelect').value;
         const inv = allInventory.find(x => x.id === id);
         if (!inv) return;
-        prDraftItems.push({ inventoryId: inv.id, itemName: inv.name, unit: inv.unit || 'Cái', requestedQty: Math.max(1, Number(inv.minStock || 1)), estimatedUnitPrice: Number(inv.unitPrice || 0), note: '' });
+        prDraftItems.push({ inventoryId: inv.id, itemName: inv.profileName || inv.name || '', unit: inv.unit || 'Cái', requestedQty: Math.max(1, Number(inv.minStockQty || inv.minStock || 1)), estimatedUnitPrice: Number(inv.avgCost || inv.unitPrice || 0), note: '' });
         renderPrDraftItems();
       });
       $('btnPrAddManualRow').addEventListener('click', () => {
@@ -1029,7 +1040,7 @@
         const id = $('poAddInvSelect').value;
         const inv = allInventory.find(x => x.id === id);
         if (!inv) return;
-        poDraftItems.push({ inventoryId: inv.id, itemName: inv.name, unit: inv.unit || 'Cái', orderedQty: 1, unitPrice: Number(inv.unitPrice || 0) });
+        poDraftItems.push({ inventoryId: inv.id, itemName: inv.profileName || inv.name || '', unit: inv.unit || 'Cái', orderedQty: 1, unitPrice: Number(inv.avgCost || inv.unitPrice || 0) });
         renderPoDraftItems();
       });
       $('btnPoAddManualRow').addEventListener('click', () => {

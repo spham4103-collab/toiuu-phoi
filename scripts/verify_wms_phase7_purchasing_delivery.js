@@ -96,12 +96,21 @@ function run() {
   assert(syncPy.includes("'purchasing'") && syncPy.includes("'delivery'"), 'sync_all.py missing purchasing/delivery');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v32'), 'sw.js must be v32');
+  assert(sw.includes('toiuu-phoi-pwa-v33'), 'sw.js must be v33');
   assert(sw.includes('/purchasing') && sw.includes('/delivery'), 'sw.js missing /purchasing or /delivery');
 
   assert(fs.existsSync(path.join(ROOT, 'dist', 'purchasing.html')), 'dist/purchasing.html missing (run sync_all.py)');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'delivery.html')), 'dist/delivery.html missing (run sync_all.py)');
-  console.log('[OK] 5. server.js, sync_all.py, sw.js (v30) & dist/ verified.');
+  console.log('[OK] 5. server.js, sync_all.py, sw.js (v33) & dist/ verified.');
+
+  // 6. Verify every SharedUI.<fn> and SupabaseDB.<fn> call in purchasing.html & delivery.html actually exists
+  [['purchasing.html', purchHtml], ['delivery.html', delivHtml]].forEach(([fname, html]) => {
+    const uiCalls = [...html.matchAll(/SharedUI(?:\?\.)?\.([A-Za-z0-9_]+)(?:\?\.)?\(/g)].map(m => m[1]);
+    uiCalls.forEach(fn => assert(sharedJs.includes(fn + ':'), `${fname} calls missing SharedUI.${fn}`));
+    const dbCalls = [...html.matchAll(/SupabaseDB(?:\?\.)?\.([A-Za-z0-9_]+)(?:\?\.)?\(/g)].map(m => m[1]);
+    dbCalls.forEach(fn => assert(dbJs.includes(fn + ':'), `${fname} calls missing SupabaseDB.${fn}`));
+  });
+  console.log('[OK] 6. All SharedUI.* and SupabaseDB.* calls in purchasing.html & delivery.html verified.');
   console.log('=== PHASE 7 VERIFICATION PASSED 100% ===');
 }
 

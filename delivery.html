@@ -417,28 +417,39 @@
     function closeModal(id) { $(id).classList.remove('open'); }
 
     async function boot() {
-      SharedUI.initNetworkBadge();
-      const user = await SupabaseDB.getCurrentSession();
-      if (!user) {
+      try {
+        window.SharedUI?.initNetworkBadge?.();
+        const user = await SupabaseDB.getCurrentAuthUser();
+        if (!user) {
+          $('loginGateWrap').style.display = 'block';
+          $('mainContent').style.display = 'none';
+          return;
+        }
+        currentUser = user;
+        $('loginGateWrap').style.display = 'none';
+        $('mainContent').style.display = 'block';
+        window.SharedUI?.initHeaderUser?.(user);
+        await window.SharedUI?.loadWmsSettings?.();
+        window.SharedUI?.applyPriceVisibilityUI?.(user);
+        window.SharedUI?.initPendingVouchersBadge?.();
+        window.SharedUI?.initPendingPrBadge?.();
+        allProjects = await SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => []);
+        const projOpts = allProjects.map(p => `<option value="${esc(p.id)}">${esc(p.customerPoNo || p.code || p.id)} - ${esc(p.name || '')}</option>`).join('');
+        $('selFgProject').innerHTML = '<option value="">Tất cả dự án</option>' + projOpts;
+        $('fgItemProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
+        $('pntpProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
+        $('pxghProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
+        await refreshAllData();
+        window.SharedUI?.initStickySection?.(null, $('fgTable'));
+      } catch (err) {
+        console.error('[Delivery boot error]', err);
         $('loginGateWrap').style.display = 'block';
         $('mainContent').style.display = 'none';
-        return;
+        if ($('loginErr')) {
+          $('loginErr').style.display = 'block';
+          $('loginErr').textContent = '⚠️ Lỗi khởi tạo trang Giao hàng: ' + (err && err.message ? err.message : String(err));
+        }
       }
-      currentUser = user;
-      $('loginGateWrap').style.display = 'none';
-      $('mainContent').style.display = 'block';
-      SharedUI.initHeaderUser(user);
-      SharedUI.applyPriceVisibilityUI(user);
-      SharedUI.initPendingVouchersBadge();
-      SharedUI.initPendingPrBadge();
-      allProjects = await SupabaseDB.getProjectsList().catch(() => []);
-      const projOpts = allProjects.map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.name || '')}</option>`).join('');
-      $('selFgProject').innerHTML = '<option value="">Tất cả dự án</option>' + projOpts;
-      $('fgItemProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
-      $('pntpProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
-      $('pxghProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
-      await refreshAllData();
-      SharedUI.initStickySection(null, $('fgTable'));
     }
 
     async function refreshAllData() {
@@ -801,7 +812,7 @@
           let url = null;
           if (file) {
             $('deliverPreview').textContent = 'Đang nén & tải ảnh biên bản...';
-            const blob = await SharedUI.compressImageFile(file, 1400, 290 * 1024);
+            const blob = await SharedUI.compressImageFile(file, 290 * 1024, 1400);
             url = await SupabaseDB.uploadDeliveryAttachment(blob, code);
           }
           await SupabaseDB.markDeliveryNoteDelivered(id, url);

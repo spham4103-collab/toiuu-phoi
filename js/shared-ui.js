@@ -1011,6 +1011,38 @@
     modal.style.display = 'flex';
   }
 
+  function initNetworkBadge() {
+    if (typeof document === 'undefined') return;
+    function syncBadge() {
+      var el = document.getElementById('networkStatusBadge');
+      if (!el) return;
+      var online = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+      el.style.background = online ? '#DCFCE7' : '#FEF3C7';
+      el.style.color = online ? '#15803D' : '#B45309';
+      el.style.borderColor = online ? '#BBF7D0' : '#FDE68A';
+      el.innerHTML = '<span style="width:7px;height:7px;border-radius:50%;background:' +
+        (online ? '#10B981' : '#F59E0B') + ';display:inline-block;"></span><span>' +
+        (online ? 'Trực tuyến' : 'Ngoại tuyến') + '</span>';
+    }
+    syncBadge();
+    if (typeof window !== 'undefined' && !window._xpNetBadgeBound) {
+      window._xpNetBadgeBound = true;
+      window.addEventListener('online', syncBadge);
+      window.addEventListener('offline', syncBadge);
+    }
+  }
+
+  function initHeaderUser(user) {
+    if (typeof document === 'undefined' || !user) return;
+    var rMeta = getRoleMeta(user.role);
+    var iconEl = document.getElementById('userIcon');
+    var nameEl = document.getElementById('userNameDisp');
+    var navAdm = document.getElementById('navLinkAdmin');
+    if (iconEl) iconEl.textContent = rMeta.icon;
+    if (nameEl) nameEl.textContent = (user.fullName || user.username || 'User') + ' [' + rMeta.shortLabel + ']';
+    if (navAdm) navAdm.style.display = user.role === 'admin' ? 'inline-flex' : 'none';
+  }
+
   global.SharedUI = {
     ROLES: ROLES,
     VALID_ROLES: VALID_ROLES,
@@ -1037,6 +1069,8 @@
     canAccessDelivery: canAccessDelivery,
     canAllocateStock: canAllocateStock,
     canManageProjects: canManageProjects,
+    initNetworkBadge: initNetworkBadge,
+    initHeaderUser: initHeaderUser,
     initNotificationBell: initNotificationBell,
     openZaloReadyModal: openZaloReadyModal,
     canCreateVouchers: canCreateVouchers,
