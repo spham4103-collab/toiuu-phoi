@@ -438,6 +438,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       standardLength: stdLen,
       standardLengthMm: stdLen,
       stockQty: row.stock_qty != null ? Math.max(0, Number(row.stock_qty) || 0) : 0,
+      reservedQty: row.reserved_qty != null ? Math.max(0, Number(row.reserved_qty) || 0) : 0,
+      freeQty: Math.max(0, (row.stock_qty != null ? Number(row.stock_qty) || 0 : 0) - (row.reserved_qty != null ? Number(row.reserved_qty) || 0 : 0)),
       minStockQty: Math.max(0, Number(row.min_stock_qty) || 0),
       weightPerM: Math.max(0, Number(row.weight_per_m) || 0),
       unitPrice: uPrice,
@@ -2962,6 +2964,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       unit: String(row.unit || 'cái'),
       requiredQty: Number(row.required_qty) || 0,
       issuedQty: Number(row.issued_qty) || 0,
+      allocatedQty: Number(row.allocated_qty) || 0,
+      expectedDate: row.expected_date || null,
+      readyNotifiedAt: row.ready_notified_at || null,
       status: String(row.status || 'pending'),
       note: String(row.note || ''),
       createdBy: row.created_by || null,
@@ -3982,6 +3987,116 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     };
   }
 
+  // =========================================================================
+  // WMS ĐỢT 12: GIỮ HÀNG ĐÍCH DANH (ALLOCATION), BÁO ZALO & THÔNG BÁO REALTIME
+  // =========================================================================
+  async function allocateFreeStockToRequest(requestId, qty) {
+    var client = getClient();
+    var res = await client.rpc('allocate_free_stock_to_request', {
+      p_request_id: requestId,
+      p_qty: Number(qty)
+    });
+    return throwIfError(res, 'Không giữ được phôi cho đơn hàng');
+  }
+
+  async function releaseRequestAllocation(requestId, qty) {
+    var client = getClient();
+    var res = await client.rpc('release_request_allocation', {
+      p_request_id: requestId,
+      p_qty: Number(qty)
+    });
+    return throwIfError(res, 'Không hủy giữ được phôi');
+  }
+
+  async function markRequestsZaloNotified(requestIds) {
+    if (!Array.isArray(requestIds) || !requestIds.length) return { ok: true, count: 0 };
+    var client = getClient();
+    var res = await client.rpc('mark_requests_zalo_notified', {
+      p_request_ids: requestIds
+    });
+    return throwIfError(res, 'Không cập nhật được trạng thái báo Zalo');
+  }
+
+  async function getReadyAllocatedRequests() {
+    if (!isConfigured()) return [];
+    try {
+      var client = getClient();
+      var res = await client
+        .from('project_material_requests')
+        .select('id, project_id, work_stage, inventory_id, item_name, spec_dimensions, unit, required_qty, issued_qty, allocated_qty, ready_notified_at, projects(id, name, customer), inventory(id, profile_name, rack_location, stock_qty, reserved_qty)')
+        .gt('allocated_qty', 0)
+        .order('updated_at', { ascending: false });
+      if (res && res.error) return [];
+      return (res.data || []).map(function (r) {
+        var proj = r.projects || {};
+        var inv = r.inventory || {};
+        return {
+          id: r.id,
+          request_id: r.id,
+          projectId: r.project_id,
+          project_id: r.project_id,
+          projectName: proj.name || r.project_id,
+          project_name: proj.name || r.project_id,
+          customer: proj.customer || '',
+          workStage: r.work_stage || '',
+          inventoryId: r.inventory_id || inv.id || null,
+          inventory_id: r.inventory_id || inv.id || null,
+          itemName: r.item_name || inv.profile_name || '',
+          item_name: r.item_name || inv.profile_name || '',
+          specDimensions: r.spec_dimensions || '',
+          unit: r.unit || 'cái',
+          requiredQty: Number(r.required_qty || 0),
+          issuedQty: Number(r.issued_qty || 0),
+          allocatedQty: Number(r.allocated_qty || 0),
+          qty: Number(r.allocated_qty || 0),
+          rackLocation: inv.rack_location || '',
+          rack_location: inv.rack_location || '',
+          readyNotifiedAt: r.ready_notified_at || null
+        };
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function getWmsNotifications(limit) {
+    if (!isConfigured()) return [];
+    try {
+      var client = getClient();
+      var res = await client
+        .from('wms_notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(Number(limit) || 20);
+      if (res && res.error) return [];
+      return res.data || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function markNotificationRead(notificationId) {
+    if (!notificationId || !isConfigured()) return;
+    try {
+      var client = getClient();
+      await client.rpc('mark_notification_read', { p_notification_id: notificationId });
+    } catch (e) {}
+  }
+
+  function subscribeNotifications(callback) {
+    if (!isConfigured() || typeof callback !== 'function') return function () {};
+    var client = getClient();
+    var ch = client
+      .channel('wms_notif_rt_' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wms_notifications' }, function (payload) {
+        try { callback(payload.new || payload); } catch (_) {}
+      })
+      .subscribe();
+    return function () {
+      try { client.removeChannel(ch); } catch (_) {}
+    };
+  }
+
   global.SupabaseDB = {
     SUPABASE_URL: SUPABASE_URL,
     SUPABASE_ANON_KEY: SUPABASE_ANON_KEY,
@@ -4107,6 +4222,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     cancelDeliveryNote: cancelDeliveryNote,
     uploadDeliveryAttachment: uploadDeliveryAttachment,
     getCompanyDashboardSummary: getCompanyDashboardSummary,
+    allocateFreeStockToRequest: allocateFreeStockToRequest,
+    releaseRequestAllocation: releaseRequestAllocation,
+    markRequestsZaloNotified: markRequestsZaloNotified,
+    getReadyAllocatedRequests: getReadyAllocatedRequests,
+    getWmsNotifications: getWmsNotifications,
+    markNotificationRead: markNotificationRead,
+    subscribeNotifications: subscribeNotifications,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,

@@ -1214,10 +1214,39 @@
       if (!confirm(`✅ Xác nhận DUYỆT PHIẾU [${v.voucherCode}]?\n\nHệ thống sẽ tự động hạch toán tồn kho, tính lại Giá vốn Bình quân & ghi vào Sổ cái.`)) return;
       window.SupabaseDB.setLoading(true, `Đang duyệt nguyên tử phiếu ${v.voucherCode}...`);
       try {
-        await window.SupabaseDB.approveWarehouseVoucher(id);
+        const res = await window.SupabaseDB.approveWarehouseVoucher(id);
         showToast(`✅ Đã duyệt hạch toán phiếu ${v.voucherCode}!`);
         $('modalVoucherView').classList.remove('open');
         await loadAllData();
+        if (v.voucherType === 'IN' && res && Array.isArray(res.ready_items) && res.ready_items.length > 0 && window.SharedUI && typeof window.SharedUI.openZaloReadyModal === 'function') {
+          window.SharedUI.openZaloReadyModal({
+            projectId: res.ready_items[0].project_id || v.projectId,
+            projectName: res.ready_items[0].project_name || v.projectName,
+            customer: res.ready_items[0].customer || '',
+            items: res.ready_items,
+            onCrossDock: (items, projectId) => {
+              openNewVoucherModal('OUT');
+              if (projectId && $('selVoucherProject')) $('selVoucherProject').value = projectId;
+              if ($('inpVoucherDept')) $('inpVoucherDept').value = 'Tổ Sản Xuất';
+              if ($('inpVoucherNote')) $('inpVoucherNote').value = `Xuất thẳng (Cross-docking) từ phiếu ${v.voucherCode}`;
+              draftItems = items.map(it => {
+                const invMatch = inventoryItems.find(x => x.id === it.inventory_id || x.profileName === it.item_name);
+                return {
+                  inventoryId: it.inventory_id || (invMatch ? invMatch.id : ''),
+                  projectRequestId: it.request_id || null,
+                  profile: it.item_name || (invMatch ? invMatch.profileName : ''),
+                  materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
+                  unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
+                  lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
+                  qty: Number(it.qty || 1),
+                  unitPrice: invMatch ? Number(invMatch.avgCost || invMatch.unitPrice || 0) : 0,
+                  note: `Xuất thẳng theo ${v.voucherCode}`
+                };
+              });
+              renderVoucherItemsRows();
+            }
+          });
+        }
       } catch (err) {
         alert('❌ Không duyệt được phiếu:\n' + err.message);
       } finally {
@@ -1562,6 +1591,35 @@
             } catch (err) {
               console.warn('Không tải được PO:', err);
             }
+          } else if (qFrom === 'crossdock') {
+            try {
+              const rawCd = sessionStorage.getItem('xp_crossdock_pxk');
+              if (rawCd) {
+                const cd = JSON.parse(rawCd);
+                sessionStorage.removeItem('xp_crossdock_pxk');
+                if (cd.projectId && $('selVoucherProject')) $('selVoucherProject').value = cd.projectId;
+                if ($('inpVoucherDept')) $('inpVoucherDept').value = 'Tổ Sản Xuất';
+                if ($('inpVoucherNote')) $('inpVoucherNote').value = `Xuất thẳng cho sản xuất đơn ${cd.projectName || cd.projectId || ''}`;
+                if (Array.isArray(cd.items) && cd.items.length) {
+                  draftItems = cd.items.map(it => {
+                    const invMatch = inventoryItems.find(x => x.id === (it.inventory_id || it.inventoryId) || x.profileName === (it.item_name || it.itemName));
+                    return {
+                      inventoryId: it.inventory_id || it.inventoryId || (invMatch ? invMatch.id : ''),
+                      projectRequestId: it.request_id || it.id || null,
+                      profile: it.item_name || it.itemName || (invMatch ? invMatch.profileName : ''),
+                      materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
+                      unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
+                      lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
+                      qty: Number(it.qty || it.allocatedQty || 1),
+                      unitPrice: invMatch ? Number(invMatch.avgCost || invMatch.unitPrice || 0) : 0,
+                      note: 'Xuất thẳng cho sản xuất'
+                    };
+                  });
+                  renderVoucherItemsRows();
+                }
+              }
+            } catch (e) {}
+            return;
           } else if (qFrom === 'reorder') {
             try {
               const raw = sessionStorage.getItem('xp_reorder_draft_pnk');

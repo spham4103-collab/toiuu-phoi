@@ -220,12 +220,25 @@
       </div>
 
       <div class="quick-actions">
-        <a href="/vouchers" class="btn btn-p">➕ Lập Phiếu Nhập/Xuất</a>
+        <a href="/vouchers" class="btn btn-p non-sales-action">➕ Lập Phiếu Nhập/Xuất</a>
         <button type="button" class="btn btn-p" id="btnHomeScanQr" style="background:#0369A1;">📷 Quét QR Tra Kho</button>
         <a href="/projects" class="btn btn-cta">📁 Tạo Dự Án / Đề Nghị VT</a>
-        <a href="/inventory?action=stocktake" class="btn btn-soft">📋 Tạo Phiên Kiểm Kê</a>
+        <a href="/inventory?action=stocktake" class="btn btn-soft non-sales-action">📋 Tạo Phiên Kiểm Kê</a>
         <a href="/reports" class="btn btn-soft reports-nav-link" id="btnHomeReports" style="display:none;">📊 Xem Báo Cáo NXT</a>
       </div>
+
+      <section class="card" id="readyMaterialSectionManager" style="border-color:#86EFAC; background:linear-gradient(135deg,#F0FDF4,#FFFFFF);">
+        <div class="card-head">
+          <h2>🟢 Phôi Đã Về Kho — Sẵn Sàng Lĩnh</h2>
+          <a href="/projects" class="btn btn-soft btn-sm">Xem tất cả dự án ↗</a>
+        </div>
+        <div class="table-responsive">
+          <table class="wms-table">
+            <thead><tr><th>Đơn hàng / Dự án</th><th>Vật tư / Quy cách</th><th class="r">SL đã giữ</th><th>Vị trí kệ</th><th>Trạng thái Zalo</th><th>Thao tác</th></tr></thead>
+            <tbody id="readyMatManagerBody"></tbody>
+          </table>
+        </div>
+      </section>
 
       <div class="dash-grid">
         <section class="card">
@@ -267,6 +280,19 @@
           <button type="button" class="btn btn-p" id="btnOpScanQr" style="background:#0369A1; min-height:44px; font-size:14.5px;">📷 Quét QR Tra Vị Trí Kệ &amp; Tồn Kho</button>
         </div>
       </div>
+
+      <section class="card" id="readyMaterialSectionOp" style="border-color:#86EFAC; background:linear-gradient(135deg,#F0FDF4,#FFFFFF);">
+        <div class="card-head">
+          <h2>🟢 Phôi Đã Về Kho — Sẵn Sàng Lĩnh</h2>
+          <a href="/projects" class="btn btn-soft btn-sm">Xem chi tiết đơn ↗</a>
+        </div>
+        <div class="table-responsive">
+          <table class="wms-table">
+            <thead><tr><th>Đơn hàng / Dự án</th><th>Vật tư / Quy cách</th><th class="r">SL đã giữ</th><th>Vị trí kệ</th><th>Thao tác</th></tr></thead>
+            <tbody id="readyMatOpBody"></tbody>
+          </table>
+        </div>
+      </section>
 
       <section class="card">
         <div class="card-head">
@@ -361,14 +387,19 @@
     }
 
     async function loadDashboard() {
-      const [inv, vouches, projs, summary] = await Promise.all([
+      const [inv, vouches, projs, summary, readyList] = await Promise.all([
         window.SupabaseDB.getInventory().catch(() => []),
         window.SupabaseDB.getWarehouseVouchers({ limit: 80 }).catch(() => []),
         window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => []),
-        (window.SupabaseDB.getCompanyDashboardSummary ? window.SupabaseDB.getCompanyDashboardSummary().catch(() => null) : Promise.resolve(null))
+        (window.SupabaseDB.getCompanyDashboardSummary ? window.SupabaseDB.getCompanyDashboardSummary().catch(() => null) : Promise.resolve(null)),
+        (window.SupabaseDB.getReadyAllocatedRequests ? window.SupabaseDB.getReadyAllocatedRequests().catch(() => []) : Promise.resolve([]))
       ]);
       invList = inv || [];
       vouchersList = vouches || [];
+      if (currentUser && currentUser.role === 'sales') {
+        document.querySelectorAll('.non-sales-action').forEach(el => { el.style.display = 'none'; });
+      }
+      renderReadyMaterialBoard(readyList || []);
 
       if (currentUser && currentUser.role !== 'operator') {
         const lowItems = invList.filter(r => {
@@ -410,6 +441,58 @@
         renderOperatorCatalog();
         renderOperatorBorrowed();
       }
+    }
+
+    function renderReadyMaterialBoard(readyList) {
+      const canWh = currentUser && (currentUser.role === 'admin' || currentUser.role === 'warehouse');
+      const mBody = $('readyMatManagerBody');
+      if (mBody) {
+        mBody.innerHTML = readyList.length ? readyList.map(r => {
+          const zBadge = r.readyNotifiedAt
+            ? '<span style="color:#059669;font-weight:700;font-size:12px;">✓ Đã báo Zalo</span>'
+            : '<span style="color:#B45309;font-weight:700;font-size:12px;">Chưa báo Zalo</span>';
+          const btns = [
+            `<a href="/projects?id=${encodeURIComponent(r.projectId)}" class="btn btn-soft btn-sm">👁️ Xem đơn</a>`,
+            canWh ? `<button type="button" class="btn btn-soft btn-sm" onclick="triggerHomeZalo(${escapeHtml(JSON.stringify(JSON.stringify(r)))})">📲 Báo Zalo</button>` : '',
+            canWh ? `<button type="button" class="btn btn-cta btn-sm" onclick="triggerHomeCrossDock(${escapeHtml(JSON.stringify(JSON.stringify(r)))})">⚡ Xuất kho</button>` : ''
+          ].filter(Boolean).join(' ');
+          return `<tr>
+            <td><strong>${escapeHtml(r.projectName)}</strong>${r.customer ? `<div style="font-size:11px;color:#64748B;">KH: ${escapeHtml(r.customer)}</div>` : ''}</td>
+            <td><strong>${escapeHtml(r.itemName)}</strong>${r.specDimensions ? `<div style="font-size:11px;color:#64748B;">${escapeHtml(r.specDimensions)}</div>` : ''}</td>
+            <td class="r" style="font-weight:800;color:#15803D;">${numVN(r.allocatedQty)} ${escapeHtml(r.unit)}</td>
+            <td>${escapeHtml(r.rackLocation || 'Kho')}</td>
+            <td>${zBadge}</td>
+            <td style="white-space:nowrap;">${btns}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="6" style="text-align:center;color:#64748B;padding:16px;">Hiện chưa có phôi giữ riêng chờ lĩnh.</td></tr>';
+      }
+      const oBody = $('readyMatOpBody');
+      if (oBody) {
+        oBody.innerHTML = readyList.length ? readyList.map(r => `<tr>
+          <td><strong>${escapeHtml(r.projectName)}</strong></td>
+          <td><strong>${escapeHtml(r.itemName)}</strong></td>
+          <td class="r" style="font-weight:800;color:#15803D;">${numVN(r.allocatedQty)} ${escapeHtml(r.unit)}</td>
+          <td>${escapeHtml(r.rackLocation || 'Kho')}</td>
+          <td><a href="/projects?id=${encodeURIComponent(r.projectId)}" class="btn btn-soft btn-sm">👁️ Xem đơn</a></td>
+        </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:#64748B;padding:16px;">Hiện chưa có phôi chờ lĩnh.</td></tr>';
+      }
+    }
+
+    function triggerHomeZalo(jsonStr) {
+      try {
+        const r = JSON.parse(jsonStr);
+        if (window.SharedUI && typeof window.SharedUI.openZaloReadyModal === 'function') {
+          window.SharedUI.openZaloReadyModal({ projectId: r.projectId, projectName: r.projectName, customer: r.customer, items: [r] });
+        }
+      } catch (_) {}
+    }
+
+    function triggerHomeCrossDock(jsonStr) {
+      try {
+        const r = JSON.parse(jsonStr);
+        sessionStorage.setItem('xp_crossdock_pxk', JSON.stringify({ projectId: r.projectId, projectName: r.projectName, items: [r] }));
+        window.location.href = '/vouchers?new=OUT&from=crossdock';
+      } catch (_) {}
     }
 
     function renderOperatorCatalog() {

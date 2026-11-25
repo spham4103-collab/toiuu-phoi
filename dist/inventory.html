@@ -1300,6 +1300,7 @@
         ? window.SharedUI.getRoleMeta(found && found.role)
         : { icon: isOp ? '👷' : '📐', shortLabel: isOp ? 'Thợ CNC' : 'Kỹ sư' };
       document.body.classList.toggle('role-operator', isOp);
+      document.body.classList.toggle('role-sales', Boolean(found && found.role === 'sales'));
       $('userIcon').textContent = rMeta.icon;
       $('userNameDisp').textContent = `${found.fullName || found.username} [${rMeta.shortLabel}]`;
       $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
@@ -1873,7 +1874,10 @@
               <span class="pill pill-slate" style="margin-left:3px;">${escapeHtml(unit)}</span>
             </td>
             <td class="r">${specText}</td>
-            <td class="r" style="font-size:15.5px; font-weight:800; color:${qtyColor};">${numVN(qty)} ${escapeHtml(unit)}</td>
+            <td class="r" style="font-size:15.5px; font-weight:800; color:${qtyColor};">
+              ${numVN(qty)} ${escapeHtml(unit)}
+              ${Number(r.reservedQty || 0) > 0 ? `<div style="font-size:11px; color:#B45309; font-weight:700; margin-top:2px;">🔒 Giữ đơn: ${numVN(r.reservedQty)} | Khả dụng: ${numVN(Math.max(0, qty - Number(r.reservedQty || 0)))}</div>` : ''}
+            </td>
             <td class="r">${minQ > 0 ? numVN(minQ) + ' ' + escapeHtml(unit) : '<span style="color:#94A3B8;">—</span>'}</td>
             <td class="r price-only">
               <div><b>${avgCost > 0 ? numVN(avgCost, 0) + ' đ' : '—'}</b></div>

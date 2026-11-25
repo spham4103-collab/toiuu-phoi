@@ -386,8 +386,8 @@ async function runAtomicVoucherAndCompatTests() {
   const DB = global.SupabaseDB;
   const UI = global.SharedUI;
 
-  // Verify 5 roles permissions matrix
-  assert(UI.VALID_ROLES.length === 5, 'Should define 5 workshop roles');
+  // Verify 6 roles permissions matrix
+  assert(UI.VALID_ROLES.length === 6, 'Should define 6 workshop roles');
   assert(UI.canApproveVouchers({ role: 'warehouse' }) && UI.canApproveVouchers({ role: 'admin' }));
   assert(!UI.canApproveVouchers({ role: 'accountant' }) && !UI.canApproveVouchers({ role: 'engineer' }));
   assert(UI.canCreateVouchers({ role: 'accountant' }) && !UI.canCreateVouchers({ role: 'operator' }));
@@ -503,7 +503,7 @@ function verifyPhase2Features() {
     execFileSync(process.execPath, ['--check', path.join(ROOT, rel)], { stdio: 'pipe' });
   }
   const swText = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-  assert(swText.includes('toiuu-phoi-pwa-v30'), 'sw.js must be bumped to v30');
+  assert(swText.includes('toiuu-phoi-pwa-v31'), 'sw.js must be bumped to v31');
   assert(swText.includes('/js/qr-scanner.js'), 'sw.js must cache /js/qr-scanner.js');
 
   const invHtml = fs.readFileSync(path.join(ROOT, 'inventory.html'), 'utf8');

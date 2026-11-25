@@ -1025,6 +1025,8 @@
 
             <option value="admin">👑 Quản trị viên</option>
 
+            <option value="sales">🤝 Kinh doanh</option>
+
             <option value="engineer">📐 Kỹ sư thiết kế</option>
 
             <option value="warehouse">📦 Thủ kho</option>
@@ -1130,6 +1132,8 @@
               <option value="accountant">💼 Kế Toán / Mua Hàng (Lập phiếu nhập &amp; NCC)</option>
 
               <option value="engineer">📐 Kỹ Sư Thiết Kế (Dự án, CAD/IGS, kho &amp; yêu cầu xuất)</option>
+
+              <option value="sales">🤝 Kinh Doanh (Đơn hàng/Dự án &amp; tồn khả dụng, ẩn giá)</option>
 
               <option value="admin">👑 Quản Trị Viên (Toàn quyền hệ thống + nhân sự)</option>
 
@@ -1484,7 +1488,7 @@
       }
 
       let html = '';
-      const validRoles = (window.SharedUI && window.SharedUI.VALID_ROLES) || ['admin', 'engineer', 'warehouse', 'accountant', 'operator'];
+      const validRoles = (window.SharedUI && window.SharedUI.VALID_ROLES) || ['admin', 'sales', 'engineer', 'warehouse', 'accountant', 'operator'];
       filtered.forEach((u) => {
         const isCurrentAdminUser = u.role === 'admin';
         const isRootAdmin = String(u.username || '').toLowerCase() === 'admin';

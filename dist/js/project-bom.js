@@ -73,7 +73,7 @@
 
   function canEditBom() {
     var u = STATE.currentUser;
-    return Boolean(u && (u.role === 'admin' || u.role === 'engineer'));
+    return Boolean(u && (u.role === 'admin' || u.role === 'engineer' || u.role === 'sales'));
   }
 
   function canCreatePxk() {
@@ -343,14 +343,50 @@
       fulfilled: { label: 'Đã cấp đủ', cls: 'bom-status-fulfilled' }
     };
 
+    var canAlloc = window.SharedUI && typeof window.SharedUI.canAllocateStock === 'function'
+      ? window.SharedUI.canAllocateStock(STATE.currentUser)
+      : Boolean(STATE.currentUser && (STATE.currentUser.role === 'admin' || STATE.currentUser.role === 'warehouse'));
+
     var tableRowsHtml = rows.length ? rows.map(function (r) {
       var m = getStageMeta(r.workStage);
       var inv = getInventoryById(r.inventoryId);
       var stockQty = inv ? Number(inv.qty || 0) : null;
-      var remainingToIssue = Math.max(0, Number(r.requiredQty || 0) - Number(r.issuedQty || 0));
-      var shortageToBuy = inv ? Math.max(0, remainingToIssue - stockQty) : remainingToIssue;
-      var st = statusMap[r.status] || statusMap.pending;
+      var reservedQty = inv ? Number(inv.reservedQty || 0) : 0;
+      var freeStock = inv ? Math.max(0, stockQty - reservedQty) : 0;
+      var allocQty = Number(r.allocatedQty || 0);
+      var issuedQty = Number(r.issuedQty || 0);
+      var reqQty = Number(r.requiredQty || 0);
+      var remainingToIssue = Math.max(0, reqQty - issuedQty - allocQty);
+      var shortageToBuy = inv ? Math.max(0, remainingToIssue - freeStock) : remainingToIssue;
       var checked = Boolean(STATE.selectedIds[r.id]);
+
+      var tlHtml = '';
+      if (issuedQty >= reqQty && reqQty > 0) {
+        tlHtml = '<span class="bom-stage-badge" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1;">⚪ Đã xuất SX</span>';
+      } else if (allocQty > 0) {
+        var rackTxt = (inv && inv.rackLocation) ? (' · Kệ: ' + escapeHtml(inv.rackLocation)) : '';
+        var zaloPill = r.readyNotifiedAt
+          ? '<div style="font-size:10.5px;color:#059669;font-weight:700;margin-top:2px;">✓ Đã báo Zalo</div>'
+          : '<div style="font-size:10.5px;color:#B45309;font-weight:700;margin-top:2px;">Chưa báo Zalo</div>';
+        tlHtml = '<span class="bom-stage-badge" style="background:#DCFCE7;color:#15803D;border-color:#86EFAC;">🟢 Phôi đã về kho – Sẵn sàng lĩnh (' + numVN(allocQty) + ')' + rackTxt + '</span>' + zaloPill;
+      } else if (r.expectedDate) {
+        var pParts = String(r.expectedDate).split('-');
+        var ddmm = pParts.length === 3 ? (pParts[2] + '/' + pParts[1]) : r.expectedDate;
+        tlHtml = '<span class="bom-stage-badge" style="background:#FEF3C7;color:#B45309;border-color:#FCD34D;">🟡 Đang về – Dự kiến ' + escapeHtml(ddmm) + '</span>';
+      } else {
+        tlHtml = '<span class="bom-stage-badge" style="background:#FEE2E2;color:#B91C1C;border-color:#FECACA;">🔴 Thiếu kho – Chờ mua</span>';
+      }
+
+      var actionBtns = '';
+      if (canAlloc && remainingToIssue > 0 && inv && freeStock > 0) {
+        actionBtns += '<button type="button" class="btn btn-sm btn-p bom-alloc-btn" data-id="' + escapeHtml(r.id) + '" data-max="' + Math.min(remainingToIssue, freeStock) + '" style="margin-bottom:3px;">🔒 Giữ phôi có sẵn</button> ';
+      }
+      if (allocQty > 0) {
+        actionBtns += '<button type="button" class="btn btn-sm btn-soft bom-zalo-btn" data-id="' + escapeHtml(r.id) + '" style="margin-bottom:3px;">📲 Báo nhóm Zalo</button> ';
+      }
+      if (editable && issuedQty === 0 && allocQty === 0) {
+        actionBtns += '<button type="button" class="btn btn-sm btn-danger bom-del-req" data-id="' + escapeHtml(r.id) + '" title="Xóa dòng đề nghị">🗑️</button>';
+      }
 
       return '<tr>' +
         '<td><input type="checkbox" class="bom-row-chk" data-id="' + escapeHtml(r.id) + '"' + (checked ? ' checked' : '') + '></td>' +
@@ -361,17 +397,13 @@
         '</td>' +
         '<td>' + escapeHtml(r.materialGrade || '—') + '</td>' +
         '<td>' + (inv
-          ? '<div style="font-size:11.5px;font-weight:700;color:#0F766E;">' + escapeHtml(inv.sku || inv.profileName) + '</div><div style="font-size:11px;color:#475569;">Tồn: <b>' + numVN(stockQty) + '</b> ' + escapeHtml(inv.unit || r.unit) + '</div>'
+          ? '<div style="font-size:11.5px;font-weight:700;color:#0F766E;">' + escapeHtml(inv.sku || inv.profileName) + '</div><div style="font-size:11px;color:#475569;">Khả dụng: <b>' + numVN(freeStock) + '</b> / Tồn: ' + numVN(stockQty) + ' ' + escapeHtml(inv.unit || r.unit) + '</div>'
           : '<span style="font-size:11px;color:#94A3B8;">Ngoài danh mục kho</span>') + '</td>' +
-        '<td style="text-align:right;"><b>' + numVN(r.requiredQty) + '</b> ' + escapeHtml(r.unit) + '</td>' +
-        '<td style="text-align:right;color:#0F766E;font-weight:700;">' + numVN(r.issuedQty) + '</td>' +
+        '<td style="text-align:right;"><b>' + numVN(reqQty) + '</b> ' + escapeHtml(r.unit) + '</td>' +
+        '<td style="text-align:right;color:#0F766E;font-weight:700;">' + numVN(issuedQty) + '</td>' +
         '<td style="text-align:right;color:' + (shortageToBuy > 0 ? '#B4232C' : '#166534') + ';font-weight:700;">' + (shortageToBuy > 0 ? numVN(shortageToBuy) : '0') + '</td>' +
-        '<td><span class="bom-stage-badge ' + st.cls + '">' + st.label + '</span></td>' +
-        '<td style="text-align:right;">' +
-          (editable && Number(r.issuedQty || 0) === 0
-            ? '<button type="button" class="btn btn-sm btn-danger bom-del-req" data-id="' + escapeHtml(r.id) + '" title="Xóa dòng đề nghị">🗑️</button>'
-            : '') +
-        '</td>' +
+        '<td>' + tlHtml + '</td>' +
+        '<td style="text-align:right;white-space:nowrap;">' + actionBtns + '</td>' +
       '</tr>';
     }).join('') : '<tr><td colspan="10" style="text-align:center;padding:24px;color:#64748B;">Chưa có dòng Đề nghị Vật tư nào. Thêm thủ công bên dưới hoặc nhập từ file Excel!</td></tr>';
 
@@ -698,6 +730,47 @@
         }
       });
     }
+
+    document.querySelectorAll('.bom-alloc-btn').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var reqId = btn.getAttribute('data-id');
+        var maxQ = Number(btn.getAttribute('data-max') || 0);
+        var raw = prompt('Nhập số lượng phôi muốn giữ riêng cho đơn hàng (tối đa ' + maxQ + '):', String(maxQ));
+        if (raw === null) return;
+        var qty = Number(raw);
+        if (!qty || qty <= 0) return alert('Số lượng giữ phải > 0');
+        try {
+          await window.SupabaseDB.allocateFreeStockToRequest(reqId, qty);
+          await refreshData();
+          renderModal();
+          toast('✅ Đã giữ ' + qty + ' phôi riêng cho đơn hàng!');
+        } catch (err) {
+          alert('❌ ' + (err.message || err));
+        }
+      });
+    });
+
+    document.querySelectorAll('.bom-zalo-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var reqId = btn.getAttribute('data-id');
+        var r = STATE.requests.find(function (x) { return String(x.id) === String(reqId); });
+        if (!r || !window.SharedUI || typeof window.SharedUI.openZaloReadyModal !== 'function') return;
+        var inv = getInventoryById(r.inventoryId);
+        window.SharedUI.openZaloReadyModal({
+          projectId: STATE.project.id,
+          projectName: STATE.project.name,
+          customer: STATE.project.customer || '',
+          items: [{
+            request_id: r.id,
+            inventory_id: r.inventoryId,
+            item_name: r.itemName,
+            qty: r.allocatedQty,
+            unit: r.unit,
+            rack_location: inv ? inv.rackLocation : ''
+          }]
+        });
+      });
+    });
 
     document.querySelectorAll('.bom-dl-att').forEach(function (btn) {
       btn.addEventListener('click', async function () {

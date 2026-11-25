@@ -16,6 +16,14 @@
       pillClass: 'role-admin',
       desc: 'Toàn quyền tối cao hệ thống, nhân sự, chứng từ kho & duyệt/hủy đảo kho.'
     },
+    sales: {
+      key: 'sales',
+      label: 'Kinh Doanh',
+      shortLabel: 'Kinh doanh',
+      icon: '🤝',
+      pillClass: 'role-sales',
+      desc: 'Quản lý đơn hàng/dự án, tạo đề nghị vật tư, xem tồn kho khả dụng (ẩn đơn giá).'
+    },
     engineer: {
       key: 'engineer',
       label: 'Kỹ Sư Thiết Kế',
@@ -50,7 +58,7 @@
     }
   };
 
-  var VALID_ROLES = ['admin', 'engineer', 'warehouse', 'accountant', 'operator'];
+  var VALID_ROLES = ['admin', 'sales', 'engineer', 'warehouse', 'accountant', 'operator'];
 
   var MATERIAL_GROUPS = {
     tube_1d: {
@@ -221,6 +229,16 @@
     return r === 'admin' || r === 'accountant' || r === 'warehouse' || r === 'engineer';
   }
 
+  function canAllocateStock(user) {
+    var r = user && user.role;
+    return r === 'admin' || r === 'warehouse';
+  }
+
+  function canManageProjects(user) {
+    var r = user && user.role;
+    return r === 'admin' || r === 'engineer' || r === 'sales';
+  }
+
   var _wmsSettingsCache = { allow_engineer_view_price: false };
 
   async function loadWmsSettings() {
@@ -252,14 +270,26 @@
 
   function applyPriceVisibilityUI(user, settingsOverride) {
     var allowed = canViewPrices(user, settingsOverride);
+    var isSales = Boolean(user && user.role === 'sales');
     if (typeof document !== 'undefined' && document.body) {
       document.body.classList.toggle('hide-prices', !allowed);
       document.body.classList.toggle('hide-reports-nav', !allowed);
+      document.body.classList.toggle('role-sales', isSales);
       var navRep = document.getElementById('navLinkReports');
       if (navRep) navRep.style.display = allowed ? 'inline-flex' : 'none';
       document.querySelectorAll('.reports-nav-link').forEach(function (el) {
         el.style.display = allowed ? 'inline-flex' : 'none';
       });
+      if (isSales) {
+        document.querySelectorAll('.subnav-bar a.subnav-link').forEach(function (a) {
+          var href = a.getAttribute('href') || '';
+          var allowSales = href === '/' || href === '/projects' || href === '/inventory';
+          a.style.display = allowSales ? 'inline-flex' : 'none';
+        });
+      }
+      if (user && typeof initNotificationBell === 'function') {
+        initNotificationBell(user);
+      }
     }
     return allowed;
   }
@@ -774,6 +804,212 @@
     return { refresh: syncHeights, destroy: destroy };
   }
 
+  var _notifBellInitFor = null;
+  var _notifRealtimeUnsub = null;
+  function initNotificationBell(user) {
+    if (typeof document === 'undefined' || !user) return;
+    if (_notifBellInitFor === (user.id || user.username)) return;
+    var topActions = document.querySelector('.top-actions');
+    if (!topActions) return;
+    _notifBellInitFor = user.id || user.username;
+
+    var wrap = document.getElementById('wmsNotifWrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'wmsNotifWrap';
+      wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;';
+      wrap.innerHTML =
+        '<button type="button" id="btnWmsNotifBell" class="btn btn-soft btn-sm" title="Thông báo kho & đơn hàng" style="position:relative;min-height:32px;padding:4px 10px;">' +
+        '🔔 <span id="wmsNotifBadge" style="display:none;background:#DC2626;color:#fff;font-size:10.5px;font-weight:800;padding:1px 5px;border-radius:999px;margin-left:2px;">0</span>' +
+        '</button>' +
+        '<div id="wmsNotifDropdown" style="display:none;position:absolute;top:110%;right:0;width:min(360px,90vw);max-height:420px;overflow-y:auto;background:#fff;border:1.5px solid #CBD5E1;border-radius:12px;box-shadow:0 18px 40px rgba(15,23,42,0.2);z-index:2500;padding:10px;">' +
+        '  <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid #E2E8F0;margin-bottom:6px;">' +
+        '    <strong style="font-size:13px;color:#0F172A;">🔔 Thông báo phôi & đơn hàng</strong>' +
+        '    <button type="button" id="btnWmsNotifRefresh" style="border:none;background:none;color:#0F766E;font-size:12px;font-weight:700;cursor:pointer;">Làm mới</button>' +
+        '  </div>' +
+        '  <div id="wmsNotifList" style="font-size:12.5px;color:#334155;">Đang tải...</div>' +
+        '</div>';
+      var pill = document.getElementById('userBadgePill');
+      if (pill && pill.parentNode === topActions) {
+        topActions.insertBefore(wrap, pill);
+      } else {
+        topActions.insertBefore(wrap, topActions.firstChild);
+      }
+    }
+
+    var bellBtn = document.getElementById('btnWmsNotifBell');
+    var dropdown = document.getElementById('wmsNotifDropdown');
+    var badge = document.getElementById('wmsNotifBadge');
+    var listEl = document.getElementById('wmsNotifList');
+
+    function escH(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    async function loadNotifs() {
+      if (!global.SupabaseDB || typeof global.SupabaseDB.getWmsNotifications !== 'function') return;
+      try {
+        var rows = await global.SupabaseDB.getWmsNotifications(20);
+        var uid = user.id || '';
+        var unread = rows.filter(function (n) {
+          return !Array.isArray(n.is_read_by) || n.is_read_by.indexOf(uid) === -1;
+        });
+        if (unread.length > 0) {
+          badge.style.display = 'inline-block';
+          badge.textContent = String(unread.length);
+        } else {
+          badge.style.display = 'none';
+        }
+        if (!rows.length) {
+          listEl.innerHTML = '<div style="text-align:center;color:#94A3B8;padding:18px;">Chưa có thông báo mới.</div>';
+          return;
+        }
+        listEl.innerHTML = rows.map(function (n) {
+          var isUnread = !Array.isArray(n.is_read_by) || n.is_read_by.indexOf(uid) === -1;
+          var targetHref = n.project_id ? ('/projects?id=' + encodeURIComponent(n.project_id)) : '/vouchers';
+          return '<div class="wms-notif-item" data-id="' + escH(n.id) + '" data-href="' + escH(targetHref) + '" style="padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid ' + (isUnread ? '#99F6E4' : '#F1F5F9') + ';background:' + (isUnread ? '#F0FDFA' : '#fff') + ';">' +
+            '<div style="font-weight:700;color:#0B3B38;font-size:12.5px;">' + escH(n.title) + '</div>' +
+            '<div style="font-size:12px;color:#475569;margin-top:2px;">' + escH(n.message) + '</div>' +
+            '<div style="font-size:10.5px;color:#94A3B8;margin-top:3px;">' + escH((n.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
+          '</div>';
+        }).join('');
+        listEl.querySelectorAll('.wms-notif-item').forEach(function (el) {
+          el.onclick = async function () {
+            var nid = el.getAttribute('data-id');
+            var href = el.getAttribute('data-href');
+            if (nid && global.SupabaseDB && typeof global.SupabaseDB.markNotificationRead === 'function') {
+              await global.SupabaseDB.markNotificationRead(nid).catch(function () {});
+            }
+            window.location.href = href;
+          };
+        });
+      } catch (e) {}
+    }
+
+    bellBtn.onclick = function (e) {
+      e.stopPropagation();
+      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+      if (dropdown.style.display === 'block') loadNotifs();
+    };
+    document.getElementById('btnWmsNotifRefresh').onclick = function (e) {
+      e.stopPropagation();
+      loadNotifs();
+    };
+    document.addEventListener('click', function (e) {
+      if (dropdown.style.display === 'block' && !wrap.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+
+    loadNotifs();
+    if (_notifRealtimeUnsub) { try { _notifRealtimeUnsub(); } catch (_) {} }
+    if (global.SupabaseDB && typeof global.SupabaseDB.subscribeNotifications === 'function') {
+      _notifRealtimeUnsub = global.SupabaseDB.subscribeNotifications(function () {
+        loadNotifs();
+      });
+    }
+  }
+
+  function openZaloReadyModal(opts) {
+    if (typeof document === 'undefined') return;
+    var o = opts || {};
+    var items = Array.isArray(o.items) ? o.items : [];
+    var projectId = o.projectId || (items[0] && items[0].project_id) || '';
+    var projectName = o.projectName || (items[0] && items[0].project_name) || projectId || 'Đơn hàng';
+    var customer = o.customer || (items[0] && items[0].customer) || 'Khách hàng';
+    var reqIds = items.map(function (it) { return it.request_id || it.id; }).filter(Boolean);
+
+    var lines = items.map(function (it) {
+      var rk = it.rack_location || it.rackLocation || 'Kho';
+      return '  - ' + (it.item_name || it.itemName || '') + ' × ' + (it.qty || it.allocatedQty || 0) + ' ' + (it.unit || '') + ' (Kệ: ' + rk + ')';
+    });
+    var msgText = [
+      '📦 PHÔI ĐÃ VỀ KHO — SẴN SÀNG LĨNH',
+      '• Đơn hàng: ' + projectName + (customer ? ' (KH: ' + customer + ')' : ''),
+      '• Vật tư vừa về:',
+      lines.join('\n'),
+      '• Trạng thái: Đã giữ riêng tại kho. Mời tổ Sản xuất ra kho lĩnh phôi!',
+      '🔗 Chi tiết: https://xepphoi.cloud/projects?id=' + encodeURIComponent(projectId)
+    ].join('\n');
+
+    var modal = document.getElementById('xpZaloReadyModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'xpZaloReadyModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.58);z-index:3500;display:none;align-items:center;justify-content:center;padding:14px;';
+      modal.innerHTML =
+        '<div style="background:#fff;border-radius:16px;border:1.5px solid #5EEAD4;width:min(560px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 48px rgba(0,0,0,0.28);">' +
+        '  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#F0FDFA;border-bottom:1px solid #CCFBF1;">' +
+        '    <h3 style="margin:0;font-size:16px;color:#0B3B38;">📲 Báo Hàng Về Nhóm Zalo &amp; Xuất Thẳng</h3>' +
+        '    <button type="button" id="btnCloseZaloModal" class="btn btn-soft btn-sm">✕ Đóng</button>' +
+        '  </div>' +
+        '  <div style="padding:16px 18px;overflow-y:auto;">' +
+        '    <p style="font-size:13px;color:#475569;margin:0 0 8px;">Phôi đã được giữ riêng cho đơn hàng. Chọn 1 chạm để báo nhóm Zalo xưởng hoặc xuất thẳng cho Sản xuất:</p>' +
+        '    <textarea id="txtZaloReadyMsg" rows="8" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CBD5E1;font-family:inherit;font-size:13px;line-height:1.45;"></textarea>' +
+        '    <div id="zaloModalStatus" style="font-size:12px;color:#0F766E;font-weight:700;margin-top:6px;"></div>' +
+        '  </div>' +
+        '  <div style="padding:12px 18px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">' +
+        '    <button type="button" id="btnZaloCopyOnly" class="btn btn-p btn-sm">📋 Copy tin nhắn dán Zalo</button>' +
+        '    <button type="button" id="btnZaloNativeShare" class="btn btn-soft btn-sm">📤 Mở Zalo chia sẻ nhanh</button>' +
+        '    <button type="button" id="btnZaloCrossDock" class="btn btn-cta btn-sm">⚡ Xuất thẳng cho Sản xuất (Tạo PXK ngay)</button>' +
+        '  </div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      document.getElementById('btnCloseZaloModal').onclick = function () { modal.style.display = 'none'; };
+    }
+
+    document.getElementById('txtZaloReadyMsg').value = msgText;
+    document.getElementById('zaloModalStatus').textContent = '';
+
+    async function markNotified() {
+      if (reqIds.length && global.SupabaseDB && typeof global.SupabaseDB.markRequestsZaloNotified === 'function') {
+        await global.SupabaseDB.markRequestsZaloNotified(reqIds).catch(function () {});
+      }
+    }
+
+    document.getElementById('btnZaloCopyOnly').onclick = async function () {
+      var txt = document.getElementById('txtZaloReadyMsg').value;
+      try { await navigator.clipboard.writeText(txt); } catch (_) {}
+      await markNotified();
+      document.getElementById('zaloModalStatus').textContent = '✅ Đã copy tin nhắn & đánh dấu Đã báo Zalo!';
+    };
+
+    document.getElementById('btnZaloNativeShare').onclick = async function () {
+      var txt = document.getElementById('txtZaloReadyMsg').value;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Phôi đã về kho — ' + projectName, text: txt });
+          await markNotified();
+          document.getElementById('zaloModalStatus').textContent = '✅ Đã chia sẻ & đánh dấu Đã báo Zalo!';
+          return;
+        } catch (_) {}
+      }
+      try { await navigator.clipboard.writeText(txt); } catch (_) {}
+      await markNotified();
+      document.getElementById('zaloModalStatus').textContent = '✅ Đã copy tin nhắn (hãy dán vào nhóm Zalo)!';
+    };
+
+    document.getElementById('btnZaloCrossDock').onclick = function () {
+      modal.style.display = 'none';
+      if (typeof o.onCrossDock === 'function') {
+        o.onCrossDock(items, projectId);
+      } else {
+        try {
+          sessionStorage.setItem('xp_crossdock_pxk', JSON.stringify({
+            projectId: projectId,
+            projectName: projectName,
+            items: items
+          }));
+        } catch (_) {}
+        window.location.href = '/vouchers?new=OUT&from=crossdock';
+      }
+    };
+
+    modal.style.display = 'flex';
+  }
+
   global.SharedUI = {
     ROLES: ROLES,
     VALID_ROLES: VALID_ROLES,
@@ -798,6 +1034,10 @@
     canApprovePR: canApprovePR,
     canAccessPurchasing: canAccessPurchasing,
     canAccessDelivery: canAccessDelivery,
+    canAllocateStock: canAllocateStock,
+    canManageProjects: canManageProjects,
+    initNotificationBell: initNotificationBell,
+    openZaloReadyModal: openZaloReadyModal,
     canCreateVouchers: canCreateVouchers,
     canApproveVouchers: canApproveVouchers,
     canManageSuppliers: canManageSuppliers,
