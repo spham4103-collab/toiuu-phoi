@@ -68,7 +68,7 @@ function testProjectBomAndPages() {
   assert(vouchersHtml.includes('projectRequestId'), 'vouchers.html must display projectRequestId context');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v24'), 'sw.js must be v24');
+  assert(sw.includes('toiuu-phoi-pwa-v25'), 'sw.js must be v25');
   assert(sw.includes('/js/project-bom.js'), 'sw.js must cache /js/project-bom.js');
 
   const distDir = path.join(ROOT, 'dist');

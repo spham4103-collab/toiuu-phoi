@@ -39,6 +39,8 @@
       --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
       --r: 14px; --gut: 28px;
       --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08), 0 8px 10px -6px rgba(15, 118, 110, 0.04);
+      --top-nav-height: 102px;
+      --inventory-toolbar-height: 148px;
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: #F8FAFC; color: #1E293B; font: 400 15px/1.55 var(--font); -webkit-overflow-scrolling: touch; -webkit-font-smoothing: antialiased; min-height: 100vh; }
@@ -142,6 +144,42 @@
     body.role-operator .eng-only { display: none !important; }
     body.role-operator .stock-inp { pointer-events: none !important; background: #F8FAFC !important; color: #475569 !important; }
 
+    /* Sticky Toolbar & Sticky Table Header for Section 1 */
+    #sectionBars { overflow: visible; }
+    .sticky-sentinel { height: 1px; margin-top: -1px; pointer-events: none; }
+    .inventory-sticky-toolbar {
+      position: sticky;
+      top: var(--top-nav-height, 102px);
+      z-index: 30;
+      background: #FFFFFF;
+      margin: -20px -20px 12px;
+      padding: 18px 20px 10px;
+      border-radius: var(--r) var(--r) 0 0;
+      transition: box-shadow 0.18s ease, padding 0.15s ease;
+    }
+    .inventory-sticky-toolbar.is-stuck {
+      border-radius: 0;
+      padding: 10px 20px 8px;
+      border-bottom: 1.5px solid #CBD5E1;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    }
+    .inventory-sticky-toolbar.is-stuck .card-sub { display: none; }
+    .inventory-sticky-toolbar.is-stuck .card-head { margin-bottom: 6px; }
+    .inventory-sticky-toolbar.is-stuck .wms-group-pills { margin-bottom: 6px; }
+    .inventory-sticky-toolbar.is-stuck .filter-bar { margin-bottom: 0; }
+    .bars-table-wrap { overflow: visible; }
+    #sectionBars .inv-table { border-collapse: separate; border-spacing: 0; }
+    #sectionBars .inv-table thead th {
+      position: sticky;
+      top: calc(var(--top-nav-height, 102px) + var(--inventory-toolbar-height, 148px));
+      z-index: 20;
+      background: #F8FAFC;
+      box-shadow: inset 0 -1.5px 0 #CBD5E1;
+    }
+    .mobile-filter-toggle { display: none; }
+    .bars-search-row { display: flex; gap: 6px; align-items: center; flex: 1 1 240px; max-width: 280px; }
+    .bars-filter-extras { display: contents; }
+
     @media (min-width: 1441px) { .wrap, .subnav-inner { max-width: 1440px; } }
     @media (max-width: 768px) {
       :root { --gut: 10px; }
@@ -151,6 +189,15 @@
       .subnav-inner { padding: 5px 10px; }
       .kpi-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       input[type=text], input[type=number], input[type=password], select { font-size: 16px !important; }
+      .bars-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .inventory-sticky-toolbar { margin: -14px -14px 10px; padding: 12px 14px 8px; }
+      .inventory-sticky-toolbar.is-stuck { padding: 8px 14px; }
+      .inventory-sticky-toolbar .wms-group-pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+      .inventory-sticky-toolbar .mobile-filter-toggle { display: inline-flex; flex-shrink: 0; }
+      .bars-search-row { max-width: 100%; width: 100%; }
+      .inventory-sticky-toolbar.is-stuck:not(.mobile-expanded) .card-head,
+      .inventory-sticky-toolbar.is-stuck:not(.mobile-expanded) .bars-filter-extras { display: none; }
+      .inventory-sticky-toolbar.is-stuck.mobile-expanded .bars-filter-extras { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
     }
   </style>
 </head>
@@ -291,60 +338,68 @@
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="library">📏 Thư viện Quy cách (<span id="tabLibraryBadge">0</span>)</button>
     </div>
 
-    <!-- KHU VỰC 1: TỒN KHO NGUYÊN VẬT LIỆU (4 NHÓM WMS) -->
+    <!-- KHU VỰC 1: TỒN KHO NGUYÊN VẬT LIỆU (5 NHÓM WMS) -->
     <section class="card" id="sectionBars">
-      <div class="card-head">
-        <div>
-          <h2>1. Tồn Kho Nguyên Vật Liệu Thực Tế Toàn Xưởng</h2>
-          <div class="card-sub" style="margin-bottom:0;">Quản lý tồn kho cho cả 4 nhóm vật tư, mã SKU, đơn vị tính, giá vốn bình quân gia quyền &amp; cảnh báo tồn tối thiểu.</div>
+      <div id="barsStickySentinel" class="sticky-sentinel" aria-hidden="true"></div>
+      <div class="inventory-sticky-toolbar" id="inventoryStickyToolbar">
+        <div class="card-head">
+          <div>
+            <h2>1. Tồn Kho Nguyên Vật Liệu Thực Tế Toàn Xưởng</h2>
+            <div class="card-sub" style="margin-bottom:0;">Quản lý tồn kho cho cả 5 nhóm vật tư, mã SKU, đơn vị tính, giá vốn bình quân gia quyền &amp; cảnh báo tồn tối thiểu.</div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-soft btn-sm" id="btnPrintQrBars" style="border-color:#0F172A; color:#0F172A;">🏷️ In tem QR (Khổ A4) <span id="cntSelQrBars">(0)</span></button>
+            <button type="button" class="btn btn-danger btn-sm" id="btnBulkDeleteBars" style="display:none;">🗑️ Xóa/Ẩn đã chọn (<span id="cntBulkDelBars">0</span>)</button>
+            <span class="eng-only" style="display:inline-flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-p btn-sm" id="btnBarsAddSmartItem">+ Thêm quy cách mới</button>
+              <button type="button" class="btn btn-cta btn-sm" id="btnBarsOpening">+ Tồn đầu kỳ</button>
+              <button type="button" class="btn btn-soft btn-sm" id="btnBarsPurchase">+ Nhập mua nhanh</button>
+              <a href="/vouchers" class="btn btn-soft btn-sm" style="border-color:var(--p); color:var(--p);">🧾 Lập phiếu Kho ↗</a>
+              <button type="button" class="btn btn-soft btn-sm" id="btnBarsStocktake">📋 Kiểm kê</button>
+            </span>
+          </div>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="btn btn-soft btn-sm" id="btnPrintQrBars" style="border-color:#0F172A; color:#0F172A;">🏷️ In tem QR (Khổ A4) <span id="cntSelQrBars">(0)</span></button>
-          <button type="button" class="btn btn-danger btn-sm" id="btnBulkDeleteBars" style="display:none;">🗑️ Xóa/Ẩn đã chọn (<span id="cntBulkDelBars">0</span>)</button>
-          <span class="eng-only" style="display:inline-flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" class="btn btn-p btn-sm" id="btnBarsAddSmartItem">+ Thêm quy cách mới</button>
-            <button type="button" class="btn btn-cta btn-sm" id="btnBarsOpening">+ Tồn đầu kỳ</button>
-            <button type="button" class="btn btn-soft btn-sm" id="btnBarsPurchase">+ Nhập mua nhanh</button>
-            <a href="/vouchers" class="btn btn-soft btn-sm" style="border-color:var(--p); color:var(--p);">🧾 Lập phiếu Kho ↗</a>
-            <button type="button" class="btn btn-soft btn-sm" id="btnBarsStocktake">📋 Kiểm kê</button>
-          </span>
+
+        <div class="wms-group-pills" id="wmsGroupPillsBars">
+          <button type="button" class="wms-group-pill active" data-grp="ALL">📚 Tất cả (<span id="grpCntAll">0</span>)</button>
+          <button type="button" class="wms-group-pill" data-grp="tube_1d">🪵 Thép hộp / Ống 1D (<span id="grpCntTube">0</span>)</button>
+          <button type="button" class="wms-group-pill" data-grp="sheet_2d">📐 Thép tấm 2D (<span id="grpCntSheet">0</span>)</button>
+          <button type="button" class="wms-group-pill" data-grp="solid_cnc">🔩 Phôi đặc CNC (<span id="grpCntSolid">0</span>)</button>
+          <button type="button" class="wms-group-pill" data-grp="tooling">🔧 Dao cụ CNC (<span id="grpCntTooling">0</span>)</button>
+          <button type="button" class="wms-group-pill" data-grp="consumable">🧰 Vật tư phụ &amp; Tiêu hao (<span id="grpCntCons">0</span>)</button>
+        </div>
+
+        <div class="filter-bar">
+          <div class="bars-search-row">
+            <input type="text" id="inpSearchBars" placeholder="🔍 Tìm tên, SKU, Ø10, M8, APMT, OSG, kệ...">
+            <button type="button" class="btn btn-soft btn-sm mobile-filter-toggle" id="btnToggleMobileBarsFilters">Bộ lọc ▾</button>
+          </div>
+          <div class="bars-filter-extras">
+            <select id="selFilterBarsSubCat" style="max-width:190px;">
+              <option value="ALL">Tất cả phân loại con</option>
+            </select>
+            <select id="selFilterBarsBrand" style="max-width:165px;">
+              <option value="ALL">Tất cả hãng SX</option>
+            </select>
+            <select id="selFilterBarsStatus" style="max-width:195px;">
+              <option value="ALL">Tất cả trạng thái tồn</option>
+              <option value="low">⚠️ Sắp hết hoặc đã hết</option>
+              <option value="zero">⭕ Đã hết hàng (0)</option>
+              <option value="ok">✅ Đủ tồn kho</option>
+            </select>
+            <select id="selFilterBarsRack" style="max-width:190px;">
+              <option value="ALL">Tất cả vị trí kệ</option>
+            </select>
+            <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;">
+              <input type="checkbox" id="chkShowArchivedBars" style="width:15px; height:15px;">
+              <span>👁️ Hiện mã đã ngừng dùng</span>
+            </label>
+            <button type="button" class="btn btn-soft btn-sm" id="btnResetBarsFilter">↺ Xóa lọc</button>
+          </div>
         </div>
       </div>
 
-      <div class="wms-group-pills" id="wmsGroupPillsBars">
-        <button type="button" class="wms-group-pill active" data-grp="ALL">📚 Tất cả (<span id="grpCntAll">0</span>)</button>
-        <button type="button" class="wms-group-pill" data-grp="tube_1d">🪵 Thép hộp / Ống 1D (<span id="grpCntTube">0</span>)</button>
-        <button type="button" class="wms-group-pill" data-grp="sheet_2d">📐 Thép tấm 2D (<span id="grpCntSheet">0</span>)</button>
-        <button type="button" class="wms-group-pill" data-grp="solid_cnc">🔩 Phôi đặc CNC (<span id="grpCntSolid">0</span>)</button>
-        <button type="button" class="wms-group-pill" data-grp="tooling">🔧 Dao cụ CNC (<span id="grpCntTooling">0</span>)</button>
-        <button type="button" class="wms-group-pill" data-grp="consumable">🧰 Vật tư phụ &amp; Tiêu hao (<span id="grpCntCons">0</span>)</button>
-      </div>
-
-      <div class="filter-bar">
-        <input type="text" id="inpSearchBars" placeholder="🔍 Tìm tên, SKU, Ø10, M8, APMT, OSG, kệ..." style="max-width:260px;">
-        <select id="selFilterBarsSubCat" style="max-width:190px;">
-          <option value="ALL">Tất cả phân loại con</option>
-        </select>
-        <select id="selFilterBarsBrand" style="max-width:165px;">
-          <option value="ALL">Tất cả hãng SX</option>
-        </select>
-        <select id="selFilterBarsStatus" style="max-width:195px;">
-          <option value="ALL">Tất cả trạng thái tồn</option>
-          <option value="low">⚠️ Sắp hết hoặc đã hết</option>
-          <option value="zero">⭕ Đã hết hàng (0)</option>
-          <option value="ok">✅ Đủ tồn kho</option>
-        </select>
-        <select id="selFilterBarsRack" style="max-width:190px;">
-          <option value="ALL">Tất cả vị trí kệ</option>
-        </select>
-        <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;">
-          <input type="checkbox" id="chkShowArchivedBars" style="width:15px; height:15px;">
-          <span>👁️ Hiện mã đã ngừng dùng</span>
-        </label>
-        <button type="button" class="btn btn-soft btn-sm" id="btnResetBarsFilter">↺ Xóa lọc</button>
-      </div>
-
-      <div class="table-responsive">
+      <div class="table-responsive bars-table-wrap">
         <table class="inv-table">
           <thead>
             <tr>
@@ -3929,6 +3984,63 @@
           }
         });
       }
+
+      function initInventoryStickyToolbar() {
+        const headerEl = document.querySelector('header.top');
+        const toolbarEl = $('inventoryStickyToolbar');
+        const sentinelEl = $('barsStickySentinel');
+        const toggleBtn = $('btnToggleMobileBarsFilters');
+        if (!toolbarEl || !sentinelEl) return;
+
+        let topNavH = headerEl ? Math.ceil(headerEl.getBoundingClientRect().height) : 102;
+        const syncHeights = () => {
+          if (headerEl) {
+            topNavH = Math.ceil(headerEl.getBoundingClientRect().height);
+            document.documentElement.style.setProperty('--top-nav-height', `${topNavH}px`);
+          }
+          const tbH = Math.ceil(toolbarEl.getBoundingClientRect().height);
+          document.documentElement.style.setProperty('--inventory-toolbar-height', `${tbH}px`);
+        };
+        syncHeights();
+
+        let stickyObserver = null;
+        const bindStickyObserver = () => {
+          if (stickyObserver) stickyObserver.disconnect();
+          if (typeof IntersectionObserver !== 'undefined') {
+            stickyObserver = new IntersectionObserver((entries) => {
+              const entry = entries[0];
+              if (!entry) return;
+              const stuck = !entry.isIntersecting && entry.boundingClientRect.top <= topNavH + 2;
+              toolbarEl.classList.toggle('is-stuck', stuck);
+              if (!stuck) {
+                toolbarEl.classList.remove('mobile-expanded');
+                if (toggleBtn) toggleBtn.textContent = 'Bộ lọc ▾';
+              }
+            }, { rootMargin: `-${topNavH + 1}px 0px 0px 0px`, threshold: 0 });
+            stickyObserver.observe(sentinelEl);
+          }
+        };
+        bindStickyObserver();
+
+        if (typeof ResizeObserver !== 'undefined') {
+          const ro = new ResizeObserver(() => {
+            const prevTop = topNavH;
+            syncHeights();
+            if (prevTop !== topNavH) bindStickyObserver();
+          });
+          if (headerEl) ro.observe(headerEl);
+          ro.observe(toolbarEl);
+        }
+
+        if (toggleBtn) {
+          toggleBtn.onclick = () => {
+            const expanded = toolbarEl.classList.toggle('mobile-expanded');
+            toggleBtn.textContent = expanded ? 'Thu gọn ▴' : 'Bộ lọc ▾';
+            syncHeights();
+          };
+        }
+      }
+      initInventoryStickyToolbar();
 
       checkAuth();
     });

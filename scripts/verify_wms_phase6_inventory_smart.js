@@ -106,6 +106,12 @@ function testSmartInventoryFiles() {
   assert(invHtml.includes('btnOpenAddSmartItem'), 'inventory.html must have "+ Thêm quy cách mới" button');
   assert(invHtml.includes('chkShowArchivedBars'), 'inventory.html must have archived items toggle');
   assert(invHtml.includes('Dán từ Excel (5 nhóm vật tư)'), 'inventory.html must update paste label to 5 groups');
+  assert(invHtml.includes('inventory-sticky-toolbar'), 'inventory.html must have sticky toolbar wrapper');
+  assert(invHtml.includes('--top-nav-height'), 'inventory.html must define --top-nav-height');
+  assert(invHtml.includes('--inventory-toolbar-height'), 'inventory.html must define --inventory-toolbar-height');
+  assert(invHtml.includes('IntersectionObserver') && invHtml.includes('ResizeObserver'), 'inventory.html must use IntersectionObserver & ResizeObserver for sticky toolbar');
+  assert(invHtml.includes('btnToggleMobileBarsFilters'), 'inventory.html must include mobile filter toggle button');
+  assert(invHtml.includes('cả 5 nhóm vật tư'), 'inventory.html must update subtitle to 5 material groups');
 
   const sbJs = read('js/supabaseClient.js');
   assert(sbJs.includes('checkInventoryUsage'), 'supabaseClient.js must export checkInventoryUsage');
@@ -113,7 +119,7 @@ function testSmartInventoryFiles() {
   assert(sbJs.includes('mergeInventoryItems'), 'supabaseClient.js must export mergeInventoryItems');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v24'), 'sw.js must be v24');
+  assert(sw.includes('toiuu-phoi-pwa-v25'), 'sw.js must be v25');
   assert(sw.includes('/js/inventory-smart.js'), 'sw.js must cache /js/inventory-smart.js');
 
   const distDir = path.join(ROOT, 'dist');
