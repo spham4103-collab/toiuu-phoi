@@ -96,6 +96,19 @@
   };
 
   var SUB_CATEGORIES = {
+    hop_vuong_cn: { key: 'hop_vuong_cn', label: 'Hộp vuông / Chữ nhật', group: 'tube_1d' },
+    ong_tron: { key: 'ong_tron', label: 'Ống tròn', group: 'tube_1d' },
+    thep_v: { key: 'thep_v', label: 'Thép V', group: 'tube_1d' },
+    thep_u: { key: 'thep_u', label: 'Thép U', group: 'tube_1d' },
+    thep_i: { key: 'thep_i', label: 'Thép I', group: 'tube_1d' },
+    thep_la: { key: 'thep_la', label: 'Thép La', group: 'tube_1d' },
+    tam_thep_den: { key: 'tam_thep_den', label: 'Tấm thép đen', group: 'sheet_2d' },
+    tam_inox: { key: 'tam_inox', label: 'Tấm Inox', group: 'sheet_2d' },
+    tam_nhom: { key: 'tam_nhom', label: 'Tấm Nhôm', group: 'sheet_2d' },
+    tam_nhua_phip: { key: 'tam_nhua_phip', label: 'Tấm Nhựa / Phíp', group: 'sheet_2d' },
+    lap_tron_dac: { key: 'lap_tron_dac', label: 'Láp tròn đặc', group: 'solid_cnc' },
+    phoi_khoi_cn: { key: 'phoi_khoi_cn', label: 'Phôi khối / Thanh chữ nhật', group: 'solid_cnc' },
+    ong_duc_day: { key: 'ong_duc_day', label: 'Ống đúc dày', group: 'solid_cnc' },
     dao_phay: { key: 'dao_phay', label: 'Dao phay (Endmill / Mặt)', group: 'tooling' },
     chip_cat: { key: 'chip_cat', label: 'Chíp cắt (Insert APMT/CNMG...)', group: 'tooling' },
     mui_khoan: { key: 'mui_khoan', label: 'Mũi khoan (HSS / Carbide)', group: 'tooling' },
@@ -133,6 +146,7 @@
     'CT3': 7.85,
     'S45C': 7.85,
     'SUS 304': 7.93,
+    'SUS 430': 7.93,
     'SUS 201': 7.93,
     'Nhôm 6061': 2.70,
     'Nhôm 5052': 2.68,
@@ -140,6 +154,7 @@
     'SKD11': 7.85,
     'POM': 1.41,
     'Nhựa phíp': 1.35,
+    'Phíp': 1.35,
     'Đồng thau': 8.50
   };
 
@@ -183,6 +198,11 @@
   function canManageSuppliers(user) {
     var r = user && user.role;
     return r === 'admin' || r === 'accountant';
+  }
+
+  function canDeleteInventory(user) {
+    var r = user && user.role;
+    return r === 'admin' || r === 'warehouse';
   }
 
   var _wmsSettingsCache = { allow_engineer_view_price: false };
@@ -359,6 +379,185 @@
     return Math.round(kg * 1000) / 1000;
   }
 
+  function _detectMaterialGrade(rawLower) {
+    if (/sus\s*430|inox\s*430|\b430\b/.test(rawLower)) return 'SUS 430';
+    if (/sus\s*304|inox\s*304|\b304\b/.test(rawLower)) return 'SUS 304';
+    if (/sus\s*201|inox\s*201|\b201\b/.test(rawLower)) return 'SUS 201';
+    if (/nh[oô]m\s*6061|\b6061\b|a6061/.test(rawLower)) return 'Nhôm 6061';
+    if (/nh[oô]m\s*5052|\b5052\b|a5052/.test(rawLower)) return 'Nhôm 5052';
+    if (/\b2083\b/.test(rawLower)) return 'Thép 2083';
+    if (/skd\s*11/.test(rawLower)) return 'SKD11';
+    if (/s45c|c45/.test(rawLower)) return 'S45C';
+    if (/ss400/.test(rawLower)) return 'SS400';
+    if (/\bct3\b/.test(rawLower)) return 'CT3';
+    if (/\bpom\b/.test(rawLower)) return 'POM';
+    if (/ph[ií]p|bakelite/.test(rawLower)) return 'Nhựa phíp';
+    if (/[đd][ồô]ng\s*thau|brass/.test(rawLower)) return 'Đồng thau';
+    if (/inox/.test(rawLower)) return 'SUS 304';
+    if (/nh[oô]m/.test(rawLower)) return 'Nhôm 6061';
+    return '';
+  }
+
+  function parseSmartMaterialSpec(rawText) {
+    var text = String(rawText || '').trim();
+    var lower = text.toLowerCase();
+    var grade = _detectMaterialGrade(lower);
+    var result = {
+      rawText: text,
+      materialGroup: 'tube_1d',
+      subCategory: 'hop_vuong_cn',
+      materialGrade: grade,
+      unit: 'cây',
+      standardLengthMm: 6000,
+      thicknessMm: 0,
+      widthMm: 0,
+      lengthMm: 0,
+      diameterMm: 0,
+      sectionSpec: '',
+      weightKg: 0,
+      specJson: {}
+    };
+    if (!text) return result;
+
+    // 1. Dao cụ CNC
+    if (/dao\s*phay|endmill|ch[ií]p|insert|apmt|cnmg|wnmg|m[uũ]i\s*khoan|taro|collet|b[aầ]u\s*k[eẹ]p/.test(lower)) {
+      result.materialGroup = 'tooling';
+      result.unit = /ch[ií]p|insert|apmt|cnmg|wnmg/.test(lower) ? 'viên' : (/taro|khoan/.test(lower) ? 'mũi' : 'cái');
+      result.standardLengthMm = 100;
+      if (/ch[ií]p|insert|apmt|cnmg|wnmg/.test(lower)) result.subCategory = 'chip_cat';
+      else if (/khoan/.test(lower)) result.subCategory = 'mui_khoan';
+      else if (/taro/.test(lower)) result.subCategory = 'mui_taro';
+      else if (/collet|k[eẹ]p/.test(lower)) result.subCategory = 'bau_kep_do';
+      else result.subCategory = 'dao_phay';
+      return result;
+    }
+
+    // 2. Vật tư phụ & tiêu hao
+    if (/que\s*h[aà]n|d[aâ]y\s*h[aà]n|[đd][aá]\s*c[aắ]t|[đd][aá]\s*m[aà]i|bu[\s-]*l[oô]ng|[oố]c\s*v[ií]t|v[oò]ng\s*bi|b[eé]c|k[ií]nh\s*b[aả]o|d[aầ]u\s*c[aắ]t|s[oơ]n/.test(lower)) {
+      result.materialGroup = 'consumable';
+      result.standardLengthMm = 100;
+      if (/que\s*h[aà]n|d[aâ]y\s*h[aà]n|[đd][aá]/.test(lower)) {
+        result.subCategory = 'vat_tu_han_mai';
+        result.unit = /que|d[aâ]y/.test(lower) ? 'kg' : 'cái';
+      } else if (/bu[\s-]*l[oô]ng|[oố]c/.test(lower)) {
+        result.subCategory = 'bulong_ocvit';
+        result.unit = 'cái';
+      } else if (/v[oò]ng\s*bi/.test(lower)) {
+        result.subCategory = 'vong_bi_phukien';
+        result.unit = 'cái';
+      } else if (/b[eé]c|k[ií]nh/.test(lower)) {
+        result.subCategory = 'vat_tu_laser';
+        result.unit = 'cái';
+      } else {
+        result.subCategory = 'dau_son_hoachat';
+        result.unit = 'can';
+      }
+      return result;
+    }
+
+    var triMatch = text.match(/(\d+(?:[.,]\d+)?)\s*[xX\*×]\s*(\d+(?:[.,]\d+)?)\s*[xX\*×]\s*(\d+(?:[.,]\d+)?)/);
+    var roundMatch = text.match(/(?:[dD]|Ø|ø|[pP]hi)\s*(\d+(?:[.,]\d+)?)\s*[xX\*×]\s*(\d+(?:[.,]\d+)?)/);
+
+    // 3. Phôi đặc CNC
+    if (/l[aá]p|tr[oò]n\s*[đd][aặ]c|tr[uụ]c\s*[đd][aặ]c|ph[oô]i\s*kh[oố]i|ph[oô]i\s*[đd][aặ]c|[oố]ng\s*[đd][uú]c/.test(lower)) {
+      result.materialGroup = 'solid_cnc';
+      var cncGrade = grade || 'SS400';
+      if (/[oố]ng\s*[đd][uú]c/.test(lower)) {
+        result.subCategory = 'ong_duc_day';
+      } else if (roundMatch && !triMatch) {
+        var dVal = parseFloat(roundMatch[1].replace(',', '.'));
+        var lVal = parseFloat(roundMatch[2].replace(',', '.'));
+        result.subCategory = 'lap_tron_dac';
+        result.diameterMm = dVal;
+        result.lengthMm = lVal;
+        result.standardLengthMm = lVal;
+        result.unit = lVal <= 500 ? 'cục' : 'cây';
+        result.weightKg = calcMaterialWeightKg({ shape: 'round', diameterMm: dVal, lengthMm: lVal, grade: cncGrade });
+        result.specJson = { shape: 'round', material_grade: cncGrade, diameter_mm: dVal, length_mm: lVal, weight_kg: result.weightKg };
+        return result;
+      } else if (triMatch) {
+        var nums = [
+          parseFloat(triMatch[1].replace(',', '.')),
+          parseFloat(triMatch[2].replace(',', '.')),
+          parseFloat(triMatch[3].replace(',', '.'))
+        ].sort(function (a, b) { return a - b; });
+        result.subCategory = 'phoi_khoi_cn';
+        result.thicknessMm = nums[0];
+        result.widthMm = nums[1];
+        result.lengthMm = nums[2];
+        result.standardLengthMm = nums[2];
+        result.unit = 'cục';
+        result.weightKg = calcMaterialWeightKg({ shape: 'plate', thicknessMm: nums[0], widthMm: nums[1], lengthMm: nums[2], grade: cncGrade });
+        result.specJson = { shape: 'plate', material_grade: cncGrade, thickness_mm: nums[0], width_mm: nums[1], length_mm: nums[2], weight_kg: result.weightKg };
+        return result;
+      }
+      return result;
+    }
+
+    // 4. Thép tấm / Inox tấm / Nhôm tấm (sheet_2d)
+    var isSheetKeyword = /t[aấ]m|plate|sheet|t[oô]n|\b[tT]\s*\d/.test(lower);
+    var isBigPlateDims = false;
+    if (triMatch) {
+      var sNums = [
+        parseFloat(triMatch[1].replace(',', '.')),
+        parseFloat(triMatch[2].replace(',', '.')),
+        parseFloat(triMatch[3].replace(',', '.'))
+      ].sort(function (a, b) { return a - b; });
+      if (sNums[1] >= 300 && sNums[2] >= 600) isBigPlateDims = true;
+    }
+    if (isSheetKeyword || isBigPlateDims) {
+      result.materialGroup = 'sheet_2d';
+      result.unit = 'tấm';
+      var sheetGrade = grade || 'SS400';
+      if (/sus|inox/.test(lower)) result.subCategory = 'tam_inox';
+      else if (/nh[oô]m|6061|5052/.test(lower)) result.subCategory = 'tam_nhom';
+      else if (/ph[ií]p|pom|nh[uự]a/.test(lower)) result.subCategory = 'tam_nhua_phip';
+      else result.subCategory = 'tam_thep_den';
+      if (triMatch) {
+        var pNums = [
+          parseFloat(triMatch[1].replace(',', '.')),
+          parseFloat(triMatch[2].replace(',', '.')),
+          parseFloat(triMatch[3].replace(',', '.'))
+        ].sort(function (a, b) { return a - b; });
+        result.thicknessMm = pNums[0];
+        result.widthMm = pNums[1];
+        result.lengthMm = pNums[2];
+        result.standardLengthMm = pNums[2];
+        result.weightKg = calcMaterialWeightKg({ shape: 'plate', thicknessMm: pNums[0], widthMm: pNums[1], lengthMm: pNums[2], grade: sheetGrade });
+        result.specJson = { shape: 'plate', material_grade: sheetGrade, thickness_mm: pNums[0], width_mm: pNums[1], length_mm: pNums[2], weight_kg: result.weightKg };
+      } else {
+        result.standardLengthMm = 2440;
+      }
+      return result;
+    }
+
+    // 5. Thép hình / Ống (tube_1d)
+    result.materialGroup = 'tube_1d';
+    result.unit = 'cây';
+    result.standardLengthMm = 6000;
+    if (/(?:^|\s)[vV]\s*\d+|th[eé]p\s*v\b/.test(text)) {
+      result.subCategory = 'thep_v';
+      result.sectionSpec = triMatch ? ('V' + triMatch[1] + 'x' + triMatch[2] + 'x' + triMatch[3]) : text;
+    } else if (/(?:^|\s)[uU]\s*\d+|th[eé]p\s*u\b/.test(text)) {
+      result.subCategory = 'thep_u';
+      result.sectionSpec = text;
+    } else if (/(?:^|\s)[iI]\s*\d+|th[eé]p\s*i\b/.test(text)) {
+      result.subCategory = 'thep_i';
+      result.sectionSpec = text;
+    } else if (/th[eé]p\s*la\b|(?:^|\s)la\s+\d+/.test(lower)) {
+      result.subCategory = 'thep_la';
+      result.sectionSpec = text;
+    } else if (/[oố]ng|phi|ø|Ø|\b[dD]\d+/.test(text) && roundMatch) {
+      result.subCategory = 'ong_tron';
+      result.sectionSpec = 'D' + roundMatch[1] + 'x' + roundMatch[2];
+    } else {
+      result.subCategory = 'hop_vuong_cn';
+      result.sectionSpec = triMatch ? (triMatch[1] + 'x' + triMatch[2] + 'x' + triMatch[3]) : text;
+    }
+    result.specJson = { shape: 'tube', material_grade: grade || 'SS400', section_spec: result.sectionSpec };
+    return result;
+  }
+
   var _pendingVouchersUnsub = null;
   var _pendingVouchersTimer = null;
 
@@ -414,8 +613,10 @@
     getIssueReasonLabel: getIssueReasonLabel,
     getWorkStageMeta: getWorkStageMeta,
     calcMaterialWeightKg: calcMaterialWeightKg,
+    parseSmartMaterialSpec: parseSmartMaterialSpec,
     convertPackToBase: convertPackToBase,
     canManageInventory: canManageInventory,
+    canDeleteInventory: canDeleteInventory,
     canCreateVouchers: canCreateVouchers,
     canApproveVouchers: canApproveVouchers,
     canManageSuppliers: canManageSuppliers,

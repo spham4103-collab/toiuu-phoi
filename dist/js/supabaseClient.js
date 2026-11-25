@@ -445,6 +445,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       rackLocation: String(row.rack_location || ''),
       notes: row.notes || '',
       isDefault: Boolean(row.is_default),
+      isActive: row.is_active !== false,
       createdAt: row.created_at || null,
       updatedAt: row.updated_at || null
     };
@@ -858,6 +859,12 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return _ledgerTableReady;
   }
 
+  function _stripActiveInventoryCol(obj) {
+    var copy = Object.assign({}, obj);
+    delete copy.is_active;
+    return copy;
+  }
+
   function _stripToolingInventoryCols(obj) {
     var copy = Object.assign({}, obj);
     delete copy.sub_category;
@@ -865,6 +872,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     delete copy.pack_unit;
     delete copy.pack_qty;
     delete copy.is_returnable;
+    delete copy.is_active;
     return copy;
   }
 
@@ -894,7 +902,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return obj;
   }
 
-  async function getInventory() {
+  async function getInventory(opts) {
     var client = getClient();
     var res = await client.from('inventory').select('*').order('created_at', { ascending: true });
     var rows = throwIfError(res, 'Không tải được thư viện quy cách') || [];
@@ -902,7 +910,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       _inventoryEnhancedReady = Object.prototype.hasOwnProperty.call(rows[0], 'rack_location');
       _inventoryWmsReady = Object.prototype.hasOwnProperty.call(rows[0], 'material_group');
     }
-    return rows.map(mapInventoryFromDb);
+    var mapped = rows.map(mapInventoryFromDb);
+    if (opts && opts.includeInactive) return mapped;
+    return mapped.filter(function (r) { return r.isActive !== false; });
   }
 
   async function addProfile(profileName, meta) {
@@ -936,13 +946,21 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       avg_cost: info.avgCost !== undefined ? Math.max(0, Number(info.avgCost) || 0) : uPrice,
       rack_location: String(info.rackLocation || '').trim(),
       notes: String(info.notes || ''),
-      is_default: Boolean(info.isDefault)
+      is_default: Boolean(info.isDefault),
+      is_active: info.isActive !== false
     };
     var res = await client
       .from('inventory')
       .upsert(_sanitizeInvPayload(payload), { onConflict: 'profile_name' })
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /is_active/i)) {
+      res = await client
+        .from('inventory')
+        .upsert(_stripActiveInventoryCol(_sanitizeInvPayload(payload)), { onConflict: 'profile_name' })
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /sub_category|brand|pack_unit|pack_qty|is_returnable/i)) {
       res = await client
         .from('inventory')
@@ -1017,6 +1035,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (p.notes !== undefined) {
       updateObj.notes = String(p.notes || '');
     }
+    if (p.isActive !== undefined) {
+      updateObj.is_active = Boolean(p.isActive);
+    }
 
     var isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(profileNameOrId));
     var colKey = isUuid ? 'id' : 'profile_name';
@@ -1027,10 +1048,19 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .eq(colKey, String(profileNameOrId).trim())
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /is_active/i)) {
+      res = await client
+        .from('inventory')
+        .update(_stripActiveInventoryCol(_sanitizeInvPayload(updateObj)))
+        .eq(colKey, String(profileNameOrId).trim())
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /sub_category|brand|pack_unit|pack_qty|is_returnable/i)) {
       res = await client
         .from('inventory')
-        .upsert(_stripToolingInventoryCols(_sanitizeInvPayload(payload)), { onConflict: 'profile_name' })
+        .update(_stripToolingInventoryCols(_sanitizeInvPayload(updateObj)))
+        .eq(colKey, String(profileNameOrId).trim())
         .select()
         .single();
     }
@@ -1097,6 +1127,60 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return true;
   }
 
+  async function checkInventoryUsage(inventoryId) {
+    var client = getClient();
+    var res = await client.rpc('check_inventory_usage', { p_inventory_id: inventoryId });
+    if (res && res.error && /Could not find the function|does not exist/i.test(res.error.message || '')) {
+      var cur = await client.from('inventory').select('id, profile_name, stock_qty, unit').eq('id', inventoryId).maybeSingle();
+      var row = (cur && cur.data) || {};
+      var sq = Math.max(0, Number(row.stock_qty) || 0);
+      return {
+        id: inventoryId,
+        profile_name: row.profile_name || '',
+        stock_qty: sq,
+        is_active: true,
+        unit: row.unit || 'cây',
+        approved_voucher_items: 0,
+        pending_voucher_items: 0,
+        tx_count: 0,
+        non_zero_opening_tx_count: 0,
+        project_request_count: 0,
+        offcut_count: 0,
+        can_hard_delete: sq === 0,
+        preSqlFallback: true
+      };
+    }
+    return throwIfError(res, 'Không kiểm tra được lịch sử quy cách');
+  }
+
+  async function safeDeleteInventoryItem(inventoryId, mode, forceClearLogs) {
+    var client = getClient();
+    var m = String(mode || 'archive').trim().toLowerCase();
+    var res = await client.rpc('safe_delete_inventory_item', {
+      p_inventory_id: inventoryId,
+      p_mode: m,
+      p_force_clear_logs: Boolean(forceClearLogs)
+    });
+    if (res && res.error && /Could not find the function|does not exist/i.test(res.error.message || '')) {
+      if (m === 'hard') {
+        var delRes = await client.from('inventory').delete().eq('id', inventoryId);
+        throwIfError(delRes, 'Không xóa được quy cách vật tư');
+        return { ok: true, mode: 'hard', id: inventoryId, preSqlFallback: true };
+      }
+      throw new Error('Vui lòng chạy SQL Migration Đợt 9 (supabase_migration_dot9_inventory_smart.sql) để dùng tính năng Ẩn/Khôi phục quy cách!');
+    }
+    return throwIfError(res, 'Không thực hiện được thao tác xóa/ẩn quy cách');
+  }
+
+  async function mergeInventoryItems(sourceId, targetId) {
+    var client = getClient();
+    var res = await client.rpc('merge_inventory_items', {
+      p_source_id: sourceId,
+      p_target_id: targetId
+    });
+    return throwIfError(res, 'Không gộp được quy cách vật tư');
+  }
+
   async function _ensureInventoryProfileRow(profileName, defaultLenMm) {
     var clean = String(profileName || '').trim();
     if (!clean) throw new Error('Thiếu tên quy cách vật tư');
@@ -1137,7 +1221,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .filter(Boolean);
     if (!cleanItems.length) return { savedRows: [], txCount: 0, ledgerSkipped: false };
 
-    var existingList = await getInventory();
+    var existingList = await getInventory({ includeInactive: true });
     var existingMap = {};
     existingList.forEach(function (r) { existingMap[r.profileName] = r; });
 
@@ -1150,6 +1234,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         material_group: it.materialGroup || (prev ? prev.materialGroup : 'tube_1d'),
         sku: it.sku !== null ? it.sku : (prev && prev.sku ? prev.sku : null),
         unit: it.unit || (prev ? prev.unit : 'cây'),
+        sub_category: it.subCategory || (prev && prev.subCategory ? prev.subCategory : null),
+        brand: it.brand || (prev && prev.brand ? prev.brand : null),
         spec_json: (it.specJson && Object.keys(it.specJson).length) ? it.specJson : (prev ? (prev.specJson || {}) : {}),
         standard_length: it.standardLengthMm,
         standard_length_mm: it.standardLengthMm,
@@ -1161,6 +1247,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         rack_location: it.rackLocation,
         notes: it.notes || (prev ? prev.notes : ''),
         is_default: prev ? Boolean(prev.isDefault) : (DEFAULT_PROFILES.indexOf(it.profileName) !== -1),
+        is_active: true,
         updated_at: new Date().toISOString()
       };
       return _sanitizeInvPayload(obj);
@@ -1170,12 +1257,17 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .from('inventory')
       .upsert(payloads, { onConflict: 'profile_name' })
       .select();
+    if (res && res.error && _isMissingColumnError(res.error, /is_active/i)) {
+      res = await client
+        .from('inventory')
+        .upsert(payloads.map(_stripActiveInventoryCol), { onConflict: 'profile_name' })
+        .select();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /sub_category|brand|pack_unit|pack_qty|is_returnable/i)) {
       res = await client
         .from('inventory')
-        .upsert(_stripToolingInventoryCols(_sanitizeInvPayload(payload)), { onConflict: 'profile_name' })
-        .select()
-        .single();
+        .upsert(payloads.map(function (p) { return _stripToolingInventoryCols(_sanitizeInvPayload(p)); }), { onConflict: 'profile_name' })
+        .select();
     }
     if (res && res.error && _isMissingColumnError(res.error, /material_group|sku|unit|spec_json|avg_cost/i)) {
       _inventoryWmsReady = false;
@@ -3444,6 +3536,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     updateInventoryProfile: updateInventoryProfile,
     addProfilesBulk: addProfilesBulk,
     deleteProfile: deleteProfile,
+    checkInventoryUsage: checkInventoryUsage,
+    safeDeleteInventoryItem: safeDeleteInventoryItem,
+    mergeInventoryItems: mergeInventoryItems,
     saveOpeningBalanceBars: saveOpeningBalanceBars,
     purchaseInInventory: purchaseInInventory,
     stocktakeAdjustInventory: stocktakeAdjustInventory,

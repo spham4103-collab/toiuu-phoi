@@ -29,6 +29,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/js/workshopExport.js"></script>
   <script src="/js/qr-scanner.js"></script>
+  <script src="/js/inventory-smart.js"></script>
   <link rel="stylesheet" href="/css/shared.css">
   <style>
     :root {
@@ -226,8 +227,9 @@
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <button type="button" class="btn btn-p btn-sm" id="btnScanQrLookup" style="background:#0369A1;">📷 Quét QR tra kho</button>
+        <button type="button" class="btn btn-p btn-sm eng-only" id="btnOpenAddSmartItem">+ Thêm quy cách mới</button>
         <button type="button" class="btn btn-cta btn-sm eng-only" id="btnOpenOpeningBalance">📦 Nhập tồn đầu kỳ (Phôi cũ)</button>
-        <button type="button" class="btn btn-p btn-sm eng-only" id="btnOpenPurchaseIn">+ Nhập mua mới</button>
+        <button type="button" class="btn btn-soft btn-sm eng-only" id="btnOpenPurchaseIn">+ Nhập mua mới</button>
         <button type="button" class="btn btn-soft btn-sm eng-only" id="btnOpenStocktake">📋 Kiểm kê</button>
         <a href="/" class="btn btn-soft btn-sm">📐 Bàn Xếp Phôi</a>
       </div>
@@ -298,9 +300,11 @@
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button type="button" class="btn btn-soft btn-sm" id="btnPrintQrBars" style="border-color:#0F172A; color:#0F172A;">🏷️ In tem QR (Khổ A4) <span id="cntSelQrBars">(0)</span></button>
+          <button type="button" class="btn btn-danger btn-sm" id="btnBulkDeleteBars" style="display:none;">🗑️ Xóa/Ẩn đã chọn (<span id="cntBulkDelBars">0</span>)</button>
           <span class="eng-only" style="display:inline-flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-p btn-sm" id="btnBarsAddSmartItem">+ Thêm quy cách mới</button>
             <button type="button" class="btn btn-cta btn-sm" id="btnBarsOpening">+ Tồn đầu kỳ</button>
-            <button type="button" class="btn btn-p btn-sm" id="btnBarsPurchase">+ Nhập mua nhanh</button>
+            <button type="button" class="btn btn-soft btn-sm" id="btnBarsPurchase">+ Nhập mua nhanh</button>
             <a href="/vouchers" class="btn btn-soft btn-sm" style="border-color:var(--p); color:var(--p);">🧾 Lập phiếu Kho ↗</a>
             <button type="button" class="btn btn-soft btn-sm" id="btnBarsStocktake">📋 Kiểm kê</button>
           </span>
@@ -333,6 +337,10 @@
         <select id="selFilterBarsRack" style="max-width:190px;">
           <option value="ALL">Tất cả vị trí kệ</option>
         </select>
+        <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;">
+          <input type="checkbox" id="chkShowArchivedBars" style="width:15px; height:15px;">
+          <span>👁️ Hiện mã đã ngừng dùng</span>
+        </label>
         <button type="button" class="btn btn-soft btn-sm" id="btnResetBarsFilter">↺ Xóa lọc</button>
       </div>
 
@@ -732,10 +740,10 @@
           <button type="button" class="btn btn-sm btn-soft ob-subtab-btn" data-subtab="offcuts">♻️ Chế độ 2: Nhập hàng loạt / Excel phôi lẻ cũ</button>
         </div>
 
-        <!-- Chế độ 1: Tồn đầu kỳ 4 nhóm vật tư -->
+        <!-- Chế độ 1: Tồn đầu kỳ 5 nhóm vật tư -->
         <div id="obPaneBars">
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-            <button type="button" class="btn btn-soft btn-sm" id="btnObBarsTogglePaste">📋 Dán từ Excel (4 nhóm vật tư)</button>
+            <button type="button" class="btn btn-soft btn-sm" id="btnObBarsTogglePaste">📋 Dán từ Excel (5 nhóm vật tư)</button>
             <button type="button" class="btn btn-p btn-sm" id="btnObBarsUploadExcel">📂 Nhập từ Excel (.xlsx / .csv)</button>
             <input type="file" id="inpObBarsExcelFile" accept=".xlsx,.xls,.csv" style="display:none;">
           </div>
@@ -758,12 +766,16 @@
                 <option value="tube_1d">🪵 Hộp/Ống 1D</option>
                 <option value="sheet_2d">📐 Thép tấm 2D</option>
                 <option value="solid_cnc">🔩 Phôi đặc CNC</option>
+                <option value="tooling">🔧 Dao cụ CNC</option>
                 <option value="consumable">🧰 Vật tư phụ</option>
               </select>
             </div>
             <div style="grid-column: span 2;">
-              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Thêm vật tư mới vào bảng</label>
-              <input type="text" id="obQuickProfName" placeholder="Vd: Tấm Inox 304 1220x2440x2 hoặc Que hàn...">
+              <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Thêm vật tư mới vào bảng (gõ tự do để tự bóc tách)</label>
+              <div style="display:flex; gap:4px;">
+                <input type="text" id="obQuickProfName" placeholder="Vd: Tấm SUS 430 1.5x1220x2440, Hộp 40x80x2...">
+                <button type="button" class="btn btn-soft btn-sm" id="btnObQuickParse" title="Phân tích quy cách tự động">✨</button>
+              </div>
             </div>
             <div>
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">SKU</label>
@@ -816,6 +828,7 @@
                   <th>Vị trí kệ</th>
                   <th class="r">Định mức</th>
                   <th class="r">Kg/m</th>
+                  <th class="r">Xóa</th>
                 </tr>
               </thead>
               <tbody id="obBarsTableBody"></tbody>
@@ -1106,6 +1119,24 @@
     const selectedQrOffcutIds = new Set();
     let qrPrintDraftList = [];
 
+    let obQuickParsedSpec = null;
+
+    function getActiveInventoryItems() {
+      return inventoryItems.filter(r => r && r.isActive !== false);
+    }
+
+    async function reloadSmartInventory() {
+      const [invRows, txs] = await Promise.all([
+        window.SupabaseDB.getInventory({ includeInactive: true }),
+        window.SupabaseDB.getInventoryTransactions({ limit: 500 }).catch(() => ledgerTransactions)
+      ]);
+      inventoryItems = Array.isArray(invRows) ? invRows : [];
+      savedProfiles = getActiveInventoryItems().map(r => r.profileName).filter(Boolean);
+      ledgerTransactions = Array.isArray(txs) ? txs : ledgerTransactions;
+      selectedQrBarIds.clear();
+      renderAll();
+    }
+
     function getGroupMeta(grp) {
       if (window.SharedUI && typeof window.SharedUI.getMaterialGroupMeta === 'function') {
         return window.SharedUI.getMaterialGroupMeta(grp);
@@ -1348,13 +1379,13 @@
       window.SupabaseDB.setLoading(true, 'Đang tải dữ liệu kho phôi & sổ cái...');
       try {
         const [invRows, allProjs, loadedOffcuts, loadedTxs] = await Promise.all([
-          window.SupabaseDB.getInventory(),
+          window.SupabaseDB.getInventory({ includeInactive: true }),
           window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: true }),
           window.SupabaseDB.getStockOffcuts().catch(() => []),
           window.SupabaseDB.getInventoryTransactions({ limit: 500 }).catch(() => [])
         ]);
         inventoryItems = Array.isArray(invRows) ? invRows : [];
-        savedProfiles = inventoryItems.map(r => r.profileName).filter(Boolean);
+        savedProfiles = getActiveInventoryItems().map(r => r.profileName).filter(Boolean);
         if (!savedProfiles.length) {
           savedProfiles = window.SupabaseDB.DEFAULT_PROFILES.slice();
         }
@@ -1438,8 +1469,8 @@
       realtimeUnsub = window.SupabaseDB.subscribeTables({
         inventory: async () => {
           try {
-            inventoryItems = await window.SupabaseDB.getInventory();
-            savedProfiles = inventoryItems.map(r => r.profileName).filter(Boolean);
+            inventoryItems = await window.SupabaseDB.getInventory({ includeInactive: true });
+            savedProfiles = getActiveInventoryItems().map(r => r.profileName).filter(Boolean);
             renderAll();
           } catch (e) {}
         },
@@ -1566,16 +1597,17 @@
 
     function updateKpisAndBadges() {
       updateMigrationNotices();
+      const activeItems = getActiveInventoryItems();
       const invByProf = {};
-      inventoryItems.forEach(r => { invByProf[r.profileName] = r; });
+      activeItems.forEach(r => { invByProf[r.profileName] = r; });
 
-      const totalBars = inventoryItems.reduce((a, r) => a + Math.max(0, Number(r.stockQty) || 0), 0);
-      const totalBarMeters = inventoryItems.reduce((a, r) => {
+      const totalBars = activeItems.reduce((a, r) => a + Math.max(0, Number(r.stockQty) || 0), 0);
+      const totalBarMeters = activeItems.reduce((a, r) => {
         const qty = Math.max(0, Number(r.stockQty) || 0);
         const lenMm = Number(r.standardLengthMm || r.standardLength) || 6000;
         return a + (qty * lenMm) / 1000;
       }, 0);
-      const lowItems = inventoryItems.filter(r => {
+      const lowItems = activeItems.filter(r => {
         const q = Math.max(0, Number(r.stockQty) || 0);
         const minQ = Math.max(0, Number(r.minStockQty) || 0);
         return q === 0 || (minQ > 0 && q <= minQ);
@@ -1586,7 +1618,7 @@
       const totalOffMeters = availOffcuts.reduce((a, o) => a + ((Number(o.lengthMm) || 0) * Math.max(0, Number(o.quantity) || 0)) / 1000, 0);
 
       let totalKg = 0;
-      inventoryItems.forEach(r => {
+      activeItems.forEach(r => {
         const w = getEffectiveWeightPerM(r);
         if (w > 0) {
           const qty = Math.max(0, Number(r.stockQty) || 0);
@@ -1602,7 +1634,7 @@
       });
 
       $('kpiTotalBarsStock').textContent = `${numVN(totalBars)} cây`;
-      $('kpiTotalBarsMeters').textContent = `${numVN(totalBarMeters, 1)} m · ${inventoryItems.length} quy cách`;
+      $('kpiTotalBarsMeters').textContent = `${numVN(totalBarMeters, 1)} m · ${activeItems.length} quy cách`;
       $('kpiTotalOffcutMeters').textContent = `${numVN(totalOffMeters, 2)} m`;
       $('kpiTotalOffcutsPieces').textContent = `${numVN(totalOffPieces)} đoạn khả dụng`;
       $('kpiTotalWeightKg').textContent = totalKg >= 1000
@@ -1612,7 +1644,7 @@
         ? `(${numVN(totalKg, 0)} kg) · Cây nguyên + phôi lẻ`
         : 'Cây nguyên + phôi lẻ';
 
-      const explicitLowCount = inventoryItems.filter(r => {
+      const explicitLowCount = activeItems.filter(r => {
         const q = Math.max(0, Number(r.stockQty) || 0);
         const minQ = Math.max(0, Number(r.minStockQty) || 0);
         return (minQ > 0 && q <= minQ) || q === 0;
@@ -1623,21 +1655,21 @@
 
       if ($('tabBarsBadge')) $('tabBarsBadge').textContent = numVN(totalBars);
       if ($('tabOffcutsBadge')) $('tabOffcutsBadge').textContent = numVN(totalOffPieces);
-      const reorderCount = inventoryItems.filter(r => {
+      const reorderCount = activeItems.filter(r => {
         const q = Math.max(0, Number(r.stockQty) || 0);
         const minQ = Math.max(0, Number(r.minStockQty) || 0);
         return (minQ > 0 && q <= minQ) || q === 0;
       }).length;
       if ($('tabReorderBadge')) $('tabReorderBadge').textContent = numVN(reorderCount);
       if ($('tabLedgerBadge')) $('tabLedgerBadge').textContent = numVN(ledgerTransactions.length);
-      if ($('tabLibraryBadge')) $('tabLibraryBadge').textContent = numVN(inventoryItems.length);
+      if ($('tabLibraryBadge')) $('tabLibraryBadge').textContent = numVN(activeItems.length);
 
-      if ($('grpCntAll')) $('grpCntAll').textContent = inventoryItems.length;
-      if ($('grpCntTube')) $('grpCntTube').textContent = inventoryItems.filter(r => (r.materialGroup || 'tube_1d') === 'tube_1d').length;
-      if ($('grpCntSheet')) $('grpCntSheet').textContent = inventoryItems.filter(r => r.materialGroup === 'sheet_2d').length;
-      if ($('grpCntSolid')) $('grpCntSolid').textContent = inventoryItems.filter(r => r.materialGroup === 'solid_cnc').length;
-      if ($('grpCntTooling')) $('grpCntTooling').textContent = inventoryItems.filter(r => r.materialGroup === 'tooling').length;
-      if ($('grpCntCons')) $('grpCntCons').textContent = inventoryItems.filter(r => r.materialGroup === 'consumable').length;
+      if ($('grpCntAll')) $('grpCntAll').textContent = activeItems.length;
+      if ($('grpCntTube')) $('grpCntTube').textContent = activeItems.filter(r => (r.materialGroup || 'tube_1d') === 'tube_1d').length;
+      if ($('grpCntSheet')) $('grpCntSheet').textContent = activeItems.filter(r => r.materialGroup === 'sheet_2d').length;
+      if ($('grpCntSolid')) $('grpCntSolid').textContent = activeItems.filter(r => r.materialGroup === 'solid_cnc').length;
+      if ($('grpCntTooling')) $('grpCntTooling').textContent = activeItems.filter(r => r.materialGroup === 'tooling').length;
+      if ($('grpCntCons')) $('grpCntCons').textContent = activeItems.filter(r => r.materialGroup === 'consumable').length;
     }
 
     function renderBarsSection() {
@@ -1671,8 +1703,10 @@
       const rackF = (rackSel && rackSel.value) || 'ALL';
       const subF = (subSel && subSel.value) || 'ALL';
       const brandF = (brandSel && brandSel.value) || 'ALL';
+      const showArchived = Boolean($('chkShowArchivedBars') && $('chkShowArchivedBars').checked);
 
       const filtered = inventoryItems.filter(r => {
+        if (!showArchived && r.isActive === false) return false;
         const grp = r.materialGroup || 'tube_1d';
         if (activeGroupBars !== 'ALL' && grp !== activeGroupBars) return false;
         if (subF !== 'ALL' && (r.subCategory || '').trim() !== subF) return false;
@@ -1695,6 +1729,13 @@
       const tbody = $('barsTableBody');
       if (!tbody) return;
       if ($('cntSelQrBars')) $('cntSelQrBars').textContent = `(${selectedQrBarIds.size})`;
+      const canDelInv = window.SharedUI && typeof window.SharedUI.canDeleteInventory === 'function'
+        ? window.SharedUI.canDeleteInventory(currentUser)
+        : false;
+      if ($('btnBulkDeleteBars')) {
+        $('btnBulkDeleteBars').style.display = (canDelInv && selectedQrBarIds.size > 0) ? 'inline-flex' : 'none';
+        if ($('cntBulkDelBars')) $('cntBulkDelBars').textContent = String(selectedQrBarIds.size);
+      }
       if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:26px; color:#64748B;">Không có vật tư nào khớp bộ lọc. Hãy dùng nút <b>"📦 Nhập tồn đầu kỳ"</b> để nhập tồn kho ban đầu cho cả 4 nhóm!</td></tr>`;
         return;
@@ -1724,19 +1765,35 @@
         const packHint = (r.packUnit && Number(r.packQty) > 1)
           ? `<div style="font-size:11px; color:#0369A1;">1 ${escapeHtml(r.packUnit)} = ${numVN(r.packQty)} ${escapeHtml(unit)}</div>`
           : '';
-        const specText = grp === 'tube_1d'
-          ? `${numVN(stdLen)} mm${totalMeters > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalMeters, 1)} m${wPerM > 0 ? ' · ' + numVN(totalKg, 1) + ' kg' : ''}</div>` : ''}`
-          : ((grp === 'tooling' || grp === 'consumable')
-            ? `${(r.specJson && (r.specJson.diameter || r.specJson.code_iso)) ? `<b>${escapeHtml(r.specJson.diameter || r.specJson.code_iso)}</b>` : '<span style="color:#94A3B8;">—</span>'}${packHint}`
-            : (stdLen > 0 ? `${numVN(stdLen)} mm${totalKg > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalKg, 1)} kg</div>` : ''}` : '<span style="color:#94A3B8;">—</span>'));
+        const sp = r.specJson || {};
+        let specText = '';
+        if (grp === 'tube_1d') {
+          specText = `${numVN(stdLen)} mm${totalMeters > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalMeters, 1)} m${wPerM > 0 ? ' · ' + numVN(totalKg, 1) + ' kg' : ''}</div>` : ''}`;
+        } else if (grp === 'sheet_2d') {
+          const sheetDim = (sp.thickness_mm && sp.width_mm && sp.length_mm) ? `T${sp.thickness_mm}×${sp.width_mm}×${sp.length_mm}` : `${numVN(stdLen)} mm`;
+          const sheetW = Number(sp.weight_kg || r.weightPerM) || 0;
+          specText = `<b>${escapeHtml(sheetDim)}</b>${sp.material_grade ? ' · ' + escapeHtml(sp.material_grade) : ''}${sheetW > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(sheetW, 2)} kg/tấm</div>` : ''}`;
+        } else if (grp === 'solid_cnc') {
+          const solidDim = sp.shape === 'round' && sp.diameter_mm
+            ? `Φ${sp.diameter_mm}×${sp.length_mm || stdLen}`
+            : ((sp.thickness_mm && sp.width_mm && sp.length_mm) ? `${sp.thickness_mm}×${sp.width_mm}×${sp.length_mm}` : `${numVN(stdLen)} mm`);
+          const solidW = Number(sp.weight_kg || r.weightPerM) || 0;
+          specText = `<b>${escapeHtml(solidDim)}</b>${sp.material_grade ? ' · ' + escapeHtml(sp.material_grade) : ''}${solidW > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(solidW, 2)} kg/phôi</div>` : ''}`;
+        } else if (grp === 'tooling' || grp === 'consumable') {
+          specText = `${(sp.diameter || sp.code_iso) ? `<b>${escapeHtml(sp.diameter || sp.code_iso)}</b>` : '<span style="color:#94A3B8;">—</span>'}${packHint}`;
+        } else {
+          specText = stdLen > 0 ? `${numVN(stdLen)} mm` : '<span style="color:#94A3B8;">—</span>';
+        }
         const isChecked = selectedQrBarIds.has(String(r.id));
         const subLbl = (r.subCategory && window.SharedUI && window.SharedUI.getSubCategoryLabel) ? window.SharedUI.getSubCategoryLabel(r.subCategory) : '';
+        const isArchived = r.isActive === false;
 
         return `
-          <tr>
+          <tr style="${isArchived ? 'opacity:0.62;background:#F8FAFC;' : ''}">
             <td style="text-align:center;"><input type="checkbox" class="chk-qr-bar" data-id="${escapeHtml(r.id)}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;"></td>
             <td>
               <strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong>
+              ${isArchived ? '<span class="pill pill-slate" style="margin-left:4px;font-size:10.5px;">🗄️ Đã ngừng dùng</span>' : ''}
               ${r.isReturnable ? '<span class="pill pill-blue" style="margin-left:4px;font-size:10.5px;">🔄 Mượn-trả</span>' : ''}
               ${r.sku ? `<div style="font-size:11px; font-family:monospace; color:#475569;">SKU: ${escapeHtml(r.sku)}${r.brand ? ' · Hãng: <b>' + escapeHtml(r.brand) + '</b>' : ''}</div>` : (r.brand ? `<div style="font-size:11px; color:#475569;">Hãng: <b>${escapeHtml(r.brand)}</b></div>` : '')}
               ${subLbl ? `<div style="font-size:11px; color:#64748B;">${escapeHtml(subLbl)}</div>` : ''}
@@ -1755,8 +1812,15 @@
             <td>${r.rackLocation ? `<span class="pill pill-slate">📍 ${escapeHtml(r.rackLocation)}</span>` : '<span style="color:#94A3B8;">—</span>'}</td>
             <td>${badgeHtml}</td>
             <td class="r eng-only" style="white-space:nowrap;">
-              <button type="button" class="btn btn-sm btn-p btn-quick-purchase" data-prof="${escapeHtml(r.profileName)}">+ Nhập</button>
-              <button type="button" class="btn btn-sm btn-soft btn-quick-stocktake" data-prof="${escapeHtml(r.profileName)}" style="margin-left:4px;">📋 Kiểm kê</button>
+              ${isArchived
+                ? (canDelInv ? `<button type="button" class="btn btn-sm btn-p btn-restore-bar" data-id="${escapeHtml(r.id)}">♻️ Khôi phục</button>` : '<span style="color:#94A3B8;font-size:11.5px;">Đã ẩn</span>')
+                : `
+                  <button type="button" class="btn btn-sm btn-p btn-quick-purchase" data-prof="${escapeHtml(r.profileName)}">+ Nhập</button>
+                  <button type="button" class="btn btn-sm btn-soft btn-quick-stocktake" data-prof="${escapeHtml(r.profileName)}" style="margin-left:3px;">📋 Kiểm kê</button>
+                  ${canDelInv ? `<button type="button" class="btn btn-sm btn-soft btn-edit-bar" data-id="${escapeHtml(r.id)}" title="Sửa quy cách" style="margin-left:3px;">✏️</button>` : ''}
+                  ${canDelInv ? `<button type="button" class="btn btn-sm btn-danger btn-del-bar" data-id="${escapeHtml(r.id)}" title="Xóa / Ẩn / Gộp quy cách" style="margin-left:3px;">🗑️</button>` : ''}
+                `
+              }
             </td>
           </tr>
         `;
@@ -1767,6 +1831,10 @@
           if (chk.checked) selectedQrBarIds.add(String(chk.dataset.id));
           else selectedQrBarIds.delete(String(chk.dataset.id));
           if ($('cntSelQrBars')) $('cntSelQrBars').textContent = `(${selectedQrBarIds.size})`;
+          if ($('btnBulkDeleteBars')) {
+            $('btnBulkDeleteBars').style.display = (canDelInv && selectedQrBarIds.size > 0) ? 'inline-flex' : 'none';
+            if ($('cntBulkDelBars')) $('cntBulkDelBars').textContent = String(selectedQrBarIds.size);
+          }
         };
       });
       if ($('chkAllBars')) {
@@ -1782,6 +1850,30 @@
       }
       tbody.querySelectorAll('.btn-quick-purchase').forEach(b => b.onclick = () => openPurchaseModal(b.dataset.prof));
       tbody.querySelectorAll('.btn-quick-stocktake').forEach(b => b.onclick = () => openStocktakeModal(b.dataset.prof));
+      tbody.querySelectorAll('.btn-edit-bar').forEach(b => b.onclick = () => {
+        const item = inventoryItems.find(x => String(x.id) === String(b.dataset.id));
+        if (item && window.InventorySmart) {
+          window.InventorySmart.openItemModal('edit', item, { inventoryItems, currentUser, onSaved: reloadSmartInventory });
+        }
+      });
+      tbody.querySelectorAll('.btn-del-bar').forEach(b => b.onclick = () => {
+        const item = inventoryItems.find(x => String(x.id) === String(b.dataset.id));
+        if (item && window.InventorySmart) {
+          window.InventorySmart.openSafeDeleteModal(item, { inventoryItems, onSaved: reloadSmartInventory });
+        }
+      });
+      tbody.querySelectorAll('.btn-restore-bar').forEach(b => b.onclick = async () => {
+        window.SupabaseDB.setLoading(true, 'Đang khôi phục quy cách...');
+        try {
+          await window.SupabaseDB.safeDeleteInventoryItem(b.dataset.id, 'restore', false);
+          await reloadSmartInventory();
+          showToast('♻️ Đã khôi phục quy cách về kho hoạt động!');
+        } catch (err) {
+          showToast('❌ ' + err.message);
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
+      });
     }
 
     function renderOffcutsSection() {
@@ -2097,7 +2189,7 @@
       const q = ($('inpSearchProf').value || '').trim().toLowerCase();
       const tbody = $('profilesTableBody');
       if (!tbody) return;
-      const filtered = inventoryItems.filter(r => {
+      const filtered = getActiveInventoryItems().filter(r => {
         const grp = r.materialGroup || 'tube_1d';
         if (activeGroupLib !== 'ALL' && grp !== activeGroupLib) return false;
         return !q || (r.profileName || '').toLowerCase().includes(q) || (r.sku || '').toLowerCase().includes(q);
@@ -2108,8 +2200,11 @@
         return;
       }
 
-      const unitOpts = ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
+      const unitOpts = (window.SharedUI && window.SharedUI.UNITS) || ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
       const locked = isCurrentProjectLocked();
+      const canDelInv = window.SharedUI && typeof window.SharedUI.canDeleteInventory === 'function'
+        ? window.SharedUI.canDeleteInventory(currentUser)
+        : false;
       tbody.innerHTML = filtered.map(r => {
         const grp = r.materialGroup || 'tube_1d';
         const gMeta = getGroupMeta(grp);
@@ -2132,6 +2227,7 @@
                 <option value="tube_1d" ${grp === 'tube_1d' ? 'selected' : ''}>🪵 Hộp/Ống 1D</option>
                 <option value="sheet_2d" ${grp === 'sheet_2d' ? 'selected' : ''}>📐 Thép tấm 2D</option>
                 <option value="solid_cnc" ${grp === 'solid_cnc' ? 'selected' : ''}>🔩 Phôi đặc CNC</option>
+                <option value="tooling" ${grp === 'tooling' ? 'selected' : ''}>🔧 Dao cụ CNC</option>
                 <option value="consumable" ${grp === 'consumable' ? 'selected' : ''}>🧰 Vật tư phụ</option>
               </select>
               <select class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="unit" style="min-height:28px; font-size:12px; width:72px;">
@@ -2145,7 +2241,8 @@
             <td><input type="text" class="stock-inp lib-inp" data-prof="${escapeHtml(r.profileName)}" data-f="rackLocation" value="${escapeHtml(r.rackLocation || '')}" placeholder="Kệ..." style="width:96px;"></td>
             <td class="r" style="white-space:nowrap;">
               ${grp === 'tube_1d' ? `<button type="button" class="btn btn-sm btn-p btn-use-prof eng-only" data-prof="${escapeHtml(r.profileName)}" ${locked ? 'disabled style="opacity:0.45;" title="Dự án đang khóa bảo vệ"' : ''}>+ Dự án</button>` : ''}
-              <button type="button" class="btn btn-sm btn-danger btn-del-prof eng-only" data-prof="${escapeHtml(r.profileName)}" style="margin-left:4px;">✕</button>
+              <button type="button" class="btn btn-sm btn-soft btn-edit-prof eng-only" data-id="${escapeHtml(r.id)}" title="Sửa chi tiết" style="margin-left:3px;">✏️</button>
+              ${canDelInv ? `<button type="button" class="btn btn-sm btn-danger btn-del-prof eng-only" data-id="${escapeHtml(r.id)}" data-prof="${escapeHtml(r.profileName)}" style="margin-left:3px;">✕</button>` : ''}
             </td>
           </tr>
         `;
@@ -2189,20 +2286,17 @@
         showToast(`✓ Đã đưa "${prof}" vào dự án hiện hành!`);
       });
 
-      tbody.querySelectorAll('.btn-del-prof').forEach(b => b.onclick = async () => {
-        const prof = b.dataset.prof;
-        if (!confirm(`Xóa quy cách "${prof}" khỏi thư viện Supabase?`)) return;
-        window.SupabaseDB.setLoading(true, 'Đang xóa quy cách...');
-        try {
-          await window.SupabaseDB.deleteProfile(prof);
-          inventoryItems = inventoryItems.filter(x => x.profileName !== prof);
-          savedProfiles = inventoryItems.map(r => r.profileName);
-          renderAll();
-          showToast(`🗑️ Đã xóa "${prof}" khỏi thư viện`);
-        } catch (err) {
-          showToast('❌ Lỗi xóa quy cách: ' + err.message);
-        } finally {
-          window.SupabaseDB.setLoading(false);
+      tbody.querySelectorAll('.btn-edit-prof').forEach(b => b.onclick = () => {
+        const item = inventoryItems.find(x => String(x.id) === String(b.dataset.id));
+        if (item && window.InventorySmart) {
+          window.InventorySmart.openItemModal('edit', item, { inventoryItems, currentUser, onSaved: reloadSmartInventory });
+        }
+      });
+
+      tbody.querySelectorAll('.btn-del-prof').forEach(b => b.onclick = () => {
+        const item = inventoryItems.find(x => String(x.id) === String(b.dataset.id) || x.profileName === b.dataset.prof);
+        if (item && window.InventorySmart) {
+          window.InventorySmart.openSafeDeleteModal(item, { inventoryItems, onSaved: reloadSmartInventory });
         }
       });
     }
@@ -2266,7 +2360,7 @@
     }
 
     function getReorderItems() {
-      return inventoryItems.filter(r => {
+      return getActiveInventoryItems().filter(r => {
         const q = Math.max(0, Number(r.stockQty) || 0);
         const minQ = Math.max(0, Number(r.minStockQty) || 0);
         return (minQ > 0 && q <= minQ) || q === 0;
@@ -2357,14 +2451,15 @@
     function renderOpeningBarsRows(rowsList) {
       const tbody = $('obBarsTableBody');
       if (!tbody) return;
-      const unitOpts = ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
+      const unitOpts = (window.SharedUI && window.SharedUI.UNITS) || ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
       tbody.innerHTML = rowsList.map((r, idx) => {
         const grp = r.materialGroup || 'tube_1d';
         const gMeta = getGroupMeta(grp);
         const unit = r.unit || gMeta.defaultUnit || 'cây';
         const avgCost = Number(r.avgCost != null ? r.avgCost : r.unitPrice) || 0;
+        const specJsonStr = escapeHtml(JSON.stringify(r.specJson || {}));
         return `
-        <tr data-idx="${idx}">
+        <tr data-idx="${idx}" data-spec="${specJsonStr}" data-subcat="${escapeHtml(r.subCategory || '')}">
           <td>
             <strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong>
             <input type="hidden" class="ob-b-prof" value="${escapeHtml(r.profileName)}">
@@ -2375,6 +2470,7 @@
               <option value="tube_1d" ${grp === 'tube_1d' ? 'selected' : ''}>🪵 Hộp/Ống 1D</option>
               <option value="sheet_2d" ${grp === 'sheet_2d' ? 'selected' : ''}>📐 Thép tấm 2D</option>
               <option value="solid_cnc" ${grp === 'solid_cnc' ? 'selected' : ''}>🔩 Phôi đặc CNC</option>
+              <option value="tooling" ${grp === 'tooling' ? 'selected' : ''}>🔧 Dao cụ CNC</option>
               <option value="consumable" ${grp === 'consumable' ? 'selected' : ''}>🧰 Vật tư phụ</option>
             </select>
           </td>
@@ -2389,9 +2485,16 @@
           <td><input type="text" class="ob-b-rack" value="${escapeHtml(r.rackLocation || '')}" placeholder="Kệ..." style="width:96px;"></td>
           <td class="r"><input type="number" class="ob-b-min" value="${Math.max(0, Number(r.minStockQty) || 0)}" min="0" style="width:74px; text-align:right;"></td>
           <td class="r"><input type="number" class="ob-b-kg" value="${Number(r.weightPerM) || estimateWeight(r.profileName)}" min="0" step="0.01" style="width:70px; text-align:right;"></td>
+          <td class="r"><button type="button" class="btn btn-sm btn-danger btn-ob-bar-del" title="Xóa dòng tạm này">✕</button></td>
         </tr>
       `;
       }).join('');
+      tbody.querySelectorAll('.btn-ob-bar-del').forEach(b => {
+        b.onclick = () => {
+          const tr = b.closest('tr');
+          if (tr) tr.remove();
+        };
+      });
     }
 
     function renderOpeningOffcutsRows() {
@@ -2441,8 +2544,9 @@
     }
 
     function openOpeningBalanceModal(subTab = 'bars') {
-      const baseRows = inventoryItems.length
-        ? inventoryItems.map(r => Object.assign({}, r))
+      const activeList = getActiveInventoryItems();
+      const baseRows = activeList.length
+        ? activeList.map(r => Object.assign({}, r))
         : savedProfiles.map(p => ({ profileName: p, standardLengthMm: 6000, stockQty: 0, rackLocation: '', minStockQty: 0, weightPerM: estimateWeight(p) }));
       renderOpeningBarsRows(baseRows);
       if (!obOffcutDraftRows.length) {
@@ -2462,11 +2566,12 @@
     // =========================================================================
     function openPurchaseModal(defaultProf) {
       const sel = $('selPurchaseProfile');
-      const profs = inventoryItems.map(r => r.profileName);
+      const activeList = getActiveInventoryItems();
+      const profs = activeList.map(r => r.profileName);
       sel.innerHTML = profs.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
       if (defaultProf && profs.includes(defaultProf)) sel.value = defaultProf;
       const syncHint = () => {
-        const cur = inventoryItems.find(x => x.profileName === sel.value);
+        const cur = activeList.find(x => x.profileName === sel.value);
         $('purchaseCurStockHint').textContent = cur ? `Hiện đang tồn: ${numVN(cur.stockQty)} cây (Dài chuẩn ${numVN(cur.standardLengthMm)} mm)` : '';
         if (cur) $('inpPurchaseLen').value = Number(cur.standardLengthMm) || 6000;
       };
@@ -2479,7 +2584,8 @@
 
     function openStocktakeModal(defaultProf) {
       const sel = $('selStocktakeProfile');
-      const profs = inventoryItems.map(r => r.profileName);
+      const activeList = getActiveInventoryItems();
+      const profs = activeList.map(r => r.profileName);
       sel.innerHTML = profs.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
       if (defaultProf && profs.includes(defaultProf)) sel.value = defaultProf;
 
@@ -2632,6 +2738,7 @@
       if ($('selFilterBarsBrand')) $('selFilterBarsBrand').onchange = renderBarsSection;
       if ($('selFilterBarsStatus')) $('selFilterBarsStatus').onchange = renderBarsSection;
       if ($('selFilterBarsRack')) $('selFilterBarsRack').onchange = renderBarsSection;
+      if ($('chkShowArchivedBars')) $('chkShowArchivedBars').onchange = renderBarsSection;
       if ($('btnResetBarsFilter')) {
         $('btnResetBarsFilter').onclick = () => {
           $('inpSearchBars').value = '';
@@ -2639,6 +2746,7 @@
           if ($('selFilterBarsBrand')) $('selFilterBarsBrand').value = 'ALL';
           $('selFilterBarsStatus').value = 'ALL';
           $('selFilterBarsRack').value = 'ALL';
+          if ($('chkShowArchivedBars')) $('chkShowArchivedBars').checked = false;
           renderBarsSection();
         };
       }
@@ -2837,8 +2945,8 @@
         window.SupabaseDB.setLoading(true, 'Đang khôi phục quy cách mặc định...');
         try {
           await window.SupabaseDB.addProfilesBulk(window.SupabaseDB.DEFAULT_PROFILES);
-          inventoryItems = await window.SupabaseDB.getInventory();
-          savedProfiles = inventoryItems.map(r => r.profileName).filter(Boolean);
+          inventoryItems = await window.SupabaseDB.getInventory({ includeInactive: true });
+          savedProfiles = getActiveInventoryItems().map(r => r.profileName).filter(Boolean);
           renderAll();
           showToast('🔄 Đã khôi phục danh sách quy cách mặc định!');
         } catch (err) {
@@ -2871,6 +2979,20 @@
       $('btnExportBomCsv').onclick = exportBomCsv;
 
       // Modal Triggers
+      const openAddSmartItem = () => {
+        if (window.InventorySmart) {
+          window.InventorySmart.openItemModal('create', null, { inventoryItems, currentUser, onSaved: reloadSmartInventory });
+        }
+      };
+      if ($('btnOpenAddSmartItem')) $('btnOpenAddSmartItem').onclick = openAddSmartItem;
+      if ($('btnBarsAddSmartItem')) $('btnBarsAddSmartItem').onclick = openAddSmartItem;
+      if ($('btnBulkDeleteBars')) {
+        $('btnBulkDeleteBars').onclick = () => {
+          if (window.InventorySmart) {
+            window.InventorySmart.handleBulkDelete(Array.from(selectedQrBarIds), { inventoryItems, onSaved: reloadSmartInventory });
+          }
+        };
+      }
       if ($('btnOpenOpeningBalance')) $('btnOpenOpeningBalance').onclick = () => openOpeningBalanceModal('bars');
       if ($('btnBarsOpening')) $('btnBarsOpening').onclick = () => openOpeningBalanceModal('bars');
       if ($('btnOpenOpeningOffcuts')) $('btnOpenOpeningOffcuts').onclick = () => openOpeningBalanceModal('offcuts');
@@ -2892,19 +3014,25 @@
         };
       }
 
-      const readObTableRows = () => Array.from($('obBarsTableBody').querySelectorAll('tr')).map(tr => ({
-        profileName: tr.querySelector('.ob-b-prof').value,
-        sku: tr.querySelector('.ob-b-sku') ? tr.querySelector('.ob-b-sku').value.trim() : '',
-        materialGroup: tr.querySelector('.ob-b-grp') ? tr.querySelector('.ob-b-grp').value : 'tube_1d',
-        unit: tr.querySelector('.ob-b-unit') ? tr.querySelector('.ob-b-unit').value : 'cây',
-        standardLengthMm: parseFloat(tr.querySelector('.ob-b-len').value) || 6000,
-        stockQty: Math.max(0, parseFloat(tr.querySelector('.ob-b-qty').value) || 0),
-        avgCost: tr.querySelector('.ob-b-cost') ? Math.max(0, parseFloat(tr.querySelector('.ob-b-cost').value) || 0) : 0,
-        unitPrice: tr.querySelector('.ob-b-cost') ? Math.max(0, parseFloat(tr.querySelector('.ob-b-cost').value) || 0) : 0,
-        rackLocation: tr.querySelector('.ob-b-rack').value.trim(),
-        minStockQty: Math.max(0, parseInt(tr.querySelector('.ob-b-min').value, 10) || 0),
-        weightPerM: parseFloat(tr.querySelector('.ob-b-kg').value) || 0
-      }));
+      const readObTableRows = () => Array.from($('obBarsTableBody').querySelectorAll('tr')).map(tr => {
+        let sp = {};
+        try { sp = JSON.parse(tr.getAttribute('data-spec') || '{}'); } catch (e) {}
+        return {
+          profileName: tr.querySelector('.ob-b-prof').value,
+          sku: tr.querySelector('.ob-b-sku') ? tr.querySelector('.ob-b-sku').value.trim() : '',
+          materialGroup: tr.querySelector('.ob-b-grp') ? tr.querySelector('.ob-b-grp').value : 'tube_1d',
+          subCategory: tr.getAttribute('data-subcat') || '',
+          specJson: sp,
+          unit: tr.querySelector('.ob-b-unit') ? tr.querySelector('.ob-b-unit').value : 'cây',
+          standardLengthMm: parseFloat(tr.querySelector('.ob-b-len').value) || 6000,
+          stockQty: Math.max(0, parseFloat(tr.querySelector('.ob-b-qty').value) || 0),
+          avgCost: tr.querySelector('.ob-b-cost') ? Math.max(0, parseFloat(tr.querySelector('.ob-b-cost').value) || 0) : 0,
+          unitPrice: tr.querySelector('.ob-b-cost') ? Math.max(0, parseFloat(tr.querySelector('.ob-b-cost').value) || 0) : 0,
+          rackLocation: tr.querySelector('.ob-b-rack').value.trim(),
+          minStockQty: Math.max(0, parseInt(tr.querySelector('.ob-b-min').value, 10) || 0),
+          weightPerM: parseFloat(tr.querySelector('.ob-b-kg').value) || 0
+        };
+      });
 
       const mergeParsedOpeningRows = (parsedRows) => {
         if (!parsedRows.length) return;
@@ -3015,6 +3143,19 @@
         };
       }
 
+      const runObQuickParse = () => {
+        if (!window.SharedUI || typeof window.SharedUI.parseSmartMaterialSpec !== 'function') return;
+        const name = ($('obQuickProfName').value || '').trim();
+        if (!name) return;
+        const parsed = window.SharedUI.parseSmartMaterialSpec(name);
+        obQuickParsedSpec = parsed;
+        if ($('obQuickGroup')) $('obQuickGroup').value = parsed.materialGroup;
+        if ($('obQuickUnit') && parsed.unit) $('obQuickUnit').value = parsed.unit;
+        if ($('obQuickProfLen') && parsed.standardLengthMm > 0) $('obQuickProfLen').value = String(parsed.standardLengthMm);
+      };
+      if ($('btnObQuickParse')) $('btnObQuickParse').onclick = runObQuickParse;
+      if ($('obQuickProfName')) $('obQuickProfName').addEventListener('blur', runObQuickParse);
+
       $('btnObQuickAddRow').onclick = () => {
         const name = ($('obQuickProfName').value || '').trim();
         if (!name) { showToast('⚠️ Vui lòng nhập tên vật tư cần thêm!'); return; }
@@ -3023,13 +3164,16 @@
           showToast(`Vật tư "${name}" đã có trong bảng!`);
           return;
         }
-        const grp = ($('obQuickGroup') && $('obQuickGroup').value) || 'tube_1d';
+        const parsed = obQuickParsedSpec || (window.SharedUI && window.SharedUI.parseSmartMaterialSpec ? window.SharedUI.parseSmartMaterialSpec(name) : null);
+        const grp = ($('obQuickGroup') && $('obQuickGroup').value) || (parsed && parsed.materialGroup) || 'tube_1d';
         const unit = ($('obQuickUnit') && $('obQuickUnit').value) || getGroupMeta(grp).defaultUnit;
         const avgCost = Math.max(0, parseFloat($('obQuickAvgCost') && $('obQuickAvgCost').value) || 0);
         currentRows.unshift({
           profileName: name,
           sku: ($('obQuickSku') && $('obQuickSku').value.trim()) || '',
           materialGroup: grp,
+          subCategory: (parsed && parsed.subCategory) || '',
+          specJson: (parsed && parsed.specJson) || {},
           unit: unit,
           standardLengthMm: parseFloat($('obQuickProfLen').value) || 6000,
           stockQty: Math.max(0, parseFloat($('obQuickProfQty').value) || 0),
@@ -3037,8 +3181,9 @@
           unitPrice: avgCost,
           rackLocation: ($('obQuickProfRack').value || '').trim(),
           minStockQty: Math.max(0, parseInt($('obQuickProfMin').value, 10) || 0),
-          weightPerM: estimateWeight(name)
+          weightPerM: (parsed && parsed.weightKg > 0) ? parsed.weightKg : estimateWeight(name)
         });
+        obQuickParsedSpec = null;
         renderOpeningBarsRows(currentRows);
         $('obQuickProfName').value = '';
         if ($('obQuickSku')) $('obQuickSku').value = '';
@@ -3052,11 +3197,11 @@
         try {
           const res = await window.SupabaseDB.saveOpeningBalanceBars(payload, currentUser ? currentUser.username : '');
           const [invRows, txs] = await Promise.all([
-            window.SupabaseDB.getInventory(),
+            window.SupabaseDB.getInventory({ includeInactive: true }),
             window.SupabaseDB.getInventoryTransactions({ limit: 500 }).catch(() => ledgerTransactions)
           ]);
           inventoryItems = invRows;
-          savedProfiles = invRows.map(r => r.profileName);
+          savedProfiles = getActiveInventoryItems().map(r => r.profileName);
           ledgerTransactions = txs;
           renderAll();
           closeOpeningBalanceModal();
@@ -3139,12 +3284,12 @@
         try {
           const res = await window.SupabaseDB.saveOpeningBalanceOffcuts(obOffcutDraftRows, currentUser ? currentUser.username : '');
           const [invRows, offs, txs] = await Promise.all([
-            window.SupabaseDB.getInventory(),
+            window.SupabaseDB.getInventory({ includeInactive: true }),
             window.SupabaseDB.getStockOffcuts(),
             window.SupabaseDB.getInventoryTransactions({ limit: 500 }).catch(() => ledgerTransactions)
           ]);
           inventoryItems = invRows;
-          savedProfiles = invRows.map(r => r.profileName);
+          savedProfiles = getActiveInventoryItems().map(r => r.profileName);
           stockOffcuts = offs;
           ledgerTransactions = txs;
           obOffcutDraftRows = [];
@@ -3549,8 +3694,8 @@
           window.SupabaseDB.setLoading(true, `Đang lưu ${toolingImportDraftRows.length} mã danh mục...`);
           try {
             await window.SupabaseDB.bulkImportToolingCatalog(toolingImportDraftRows, currentUser ? currentUser.username : '');
-            inventoryItems = await window.SupabaseDB.getInventory();
-            savedProfiles = inventoryItems.map(r => r.profileName);
+            inventoryItems = await window.SupabaseDB.getInventory({ includeInactive: true });
+            savedProfiles = getActiveInventoryItems().map(r => r.profileName);
             renderAll();
             $('modalToolingExcelImport').classList.remove('open');
             showToast(`✅ Đã nhập thành công ${toolingImportDraftRows.length} mã dao cụ & vật tư phụ!`);
