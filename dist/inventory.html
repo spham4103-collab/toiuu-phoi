@@ -150,16 +150,16 @@
     .inventory-sticky-toolbar {
       position: sticky;
       top: var(--top-nav-height, 102px);
-      z-index: 30;
+      z-index: 900;
       background: #FFFFFF;
-      margin: -20px -20px 12px;
-      padding: 18px 20px 10px;
+      margin: -20px -20px 0;
+      padding: 18px 20px 12px;
       border-radius: var(--r) var(--r) 0 0;
       transition: box-shadow 0.18s ease, padding 0.15s ease;
     }
     .inventory-sticky-toolbar.is-stuck {
       border-radius: 0;
-      padding: 10px 20px 8px;
+      padding: 10px 20px 10px;
       border-bottom: 1.5px solid #CBD5E1;
       box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     }
@@ -167,14 +167,19 @@
     .inventory-sticky-toolbar.is-stuck .card-head { margin-bottom: 6px; }
     .inventory-sticky-toolbar.is-stuck .wms-group-pills { margin-bottom: 6px; }
     .inventory-sticky-toolbar.is-stuck .filter-bar { margin-bottom: 0; }
-    .bars-table-wrap { overflow: visible; }
+    .bars-table-wrap { overflow: visible; margin-top: 0; }
     #sectionBars .inv-table { border-collapse: separate; border-spacing: 0; }
+    #sectionBars .inv-table tbody { position: relative; z-index: 1; }
     #sectionBars .inv-table thead th {
       position: sticky;
-      top: calc(var(--top-nav-height, 102px) + var(--inventory-toolbar-height, 148px));
-      z-index: 20;
-      background: #F8FAFC;
-      box-shadow: inset 0 -1.5px 0 #CBD5E1;
+      top: var(--inventory-thead-top, calc(var(--top-nav-height, 102px) + var(--inventory-toolbar-height, 148px) - 1px));
+      z-index: 850;
+      background: #E2E8F0;
+      color: #0F172A;
+      font-weight: 800;
+      font-size: 13px;
+      border-bottom: 2px solid #94A3B8;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
     }
     .mobile-filter-toggle { display: none; }
     .bars-search-row { display: flex; gap: 6px; align-items: center; flex: 1 1 240px; max-width: 280px; }
@@ -190,8 +195,8 @@
       .kpi-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       input[type=text], input[type=number], input[type=password], select { font-size: 16px !important; }
       .bars-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      .inventory-sticky-toolbar { margin: -14px -14px 10px; padding: 12px 14px 8px; }
-      .inventory-sticky-toolbar.is-stuck { padding: 8px 14px; }
+      .inventory-sticky-toolbar { margin: -14px -14px 0; padding: 12px 14px 10px; }
+      .inventory-sticky-toolbar.is-stuck { padding: 8px 14px 10px; }
       .inventory-sticky-toolbar .wms-group-pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
       .inventory-sticky-toolbar .mobile-filter-toggle { display: inline-flex; flex-shrink: 0; }
       .bars-search-row { max-width: 100%; width: 100%; }
@@ -422,7 +427,7 @@
 
     <!-- KHU VỰC 2: KHO PHÔI LẺ & ĐỀ-XÊ -->
     <section class="card" id="sectionOffcuts" style="display:none; border:1.5px solid #99F6E4; overflow:visible;">
-      <div class="xp-sticky-entry" id="offcutsStickyEntry" style="margin:-20px -20px 12px; padding:18px 20px 10px; border-radius:var(--r) var(--r) 0 0;">
+      <div class="xp-sticky-entry" id="offcutsStickyEntry" style="margin:-20px -20px 0; padding:18px 20px 12px; border-radius:var(--r) var(--r) 0 0;">
         <div class="card-head">
           <div>
             <h2>2. Kho Phôi Lẻ &amp; Đề-xê Tái Sử Dụng (Dùng chung toàn xưởng)</h2>
@@ -4003,35 +4008,55 @@
         const toggleBtn = $('btnToggleMobileBarsFilters');
         if (!toolbarEl || !sentinelEl) return;
 
-        let topNavH = headerEl ? Math.ceil(headerEl.getBoundingClientRect().height) : 102;
+        let topNavH = headerEl ? Math.max(0, Math.floor(headerEl.getBoundingClientRect().bottom)) : 102;
         const syncHeights = () => {
           if (headerEl) {
-            topNavH = Math.ceil(headerEl.getBoundingClientRect().height);
+            topNavH = Math.max(0, Math.floor(headerEl.getBoundingClientRect().bottom));
             document.documentElement.style.setProperty('--top-nav-height', `${topNavH}px`);
           }
-          const tbH = Math.ceil(toolbarEl.getBoundingClientRect().height);
+          const tbH = Math.floor(toolbarEl.getBoundingClientRect().height);
           document.documentElement.style.setProperty('--inventory-toolbar-height', `${tbH}px`);
+          const theadTop = toolbarEl.classList.contains('is-stuck')
+            ? Math.max(0, Math.floor(toolbarEl.getBoundingClientRect().bottom - 1))
+            : Math.max(0, topNavH + tbH - 1);
+          document.documentElement.style.setProperty('--inventory-thead-top', `${theadTop}px`);
         };
         syncHeights();
 
         let stickyObserver = null;
+        const updateStuck = (isIntersecting, rectTop) => {
+          const stuck = !isIntersecting && rectTop <= topNavH + 2;
+          const changed = toolbarEl.classList.contains('is-stuck') !== stuck;
+          toolbarEl.classList.toggle('is-stuck', stuck);
+          if (!stuck) {
+            toolbarEl.classList.remove('mobile-expanded');
+            if (toggleBtn) toggleBtn.textContent = 'Bộ lọc ▾';
+          }
+          if (changed || stuck) syncHeights();
+        };
+
         const bindStickyObserver = () => {
           if (stickyObserver) stickyObserver.disconnect();
           if (typeof IntersectionObserver !== 'undefined') {
             stickyObserver = new IntersectionObserver((entries) => {
               const entry = entries[0];
               if (!entry) return;
-              const stuck = !entry.isIntersecting && entry.boundingClientRect.top <= topNavH + 2;
-              toolbarEl.classList.toggle('is-stuck', stuck);
-              if (!stuck) {
-                toolbarEl.classList.remove('mobile-expanded');
-                if (toggleBtn) toggleBtn.textContent = 'Bộ lọc ▾';
-              }
+              updateStuck(entry.isIntersecting, entry.boundingClientRect.top);
             }, { rootMargin: `-${topNavH + 1}px 0px 0px 0px`, threshold: 0 });
             stickyObserver.observe(sentinelEl);
           }
         };
         bindStickyObserver();
+
+        let rafScroll = 0;
+        window.addEventListener('scroll', () => {
+          if (rafScroll) return;
+          rafScroll = requestAnimationFrame(() => {
+            rafScroll = 0;
+            const sTop = sentinelEl.getBoundingClientRect().top;
+            updateStuck(sTop > topNavH + 1, sTop);
+          });
+        }, { passive: true });
 
         if (typeof ResizeObserver !== 'undefined') {
           const ro = new ResizeObserver(() => {

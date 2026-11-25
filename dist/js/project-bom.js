@@ -448,7 +448,7 @@
     }).join('') : '<div style="font-size:12px;color:#64748B;">Chưa có bản vẽ hoặc file đính kèm nào.</div>';
 
     $('bomModalBody').innerHTML = [
-      '<div class="xp-sticky-entry" id="bomStickyEntry" style="padding:8px 0 6px;">',
+      '<div class="xp-sticky-entry" id="bomStickyEntry" style="padding:8px 0 10px; margin-bottom:0;">',
       '  <div class="bom-toolbar">',
       '    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
       '      <select id="bomStageFilter" style="padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;font-size:12.5px;">',

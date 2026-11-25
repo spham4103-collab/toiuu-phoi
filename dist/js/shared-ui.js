@@ -619,35 +619,51 @@
 
     var offsetTop = 0;
     function syncHeights() {
-      offsetTop = (isWindow && headerEl) ? Math.ceil(headerEl.getBoundingClientRect().height) : 0;
-      var entryH = Math.ceil(toolbarEl.getBoundingClientRect().height);
+      offsetTop = (isWindow && headerEl) ? Math.max(0, Math.floor(headerEl.getBoundingClientRect().bottom)) : 0;
+      var entryH = Math.floor(toolbarEl.getBoundingClientRect().height);
+      var theadTop = isWindow
+        ? (toolbarEl.classList.contains('is-stuck')
+            ? Math.max(0, Math.floor(toolbarEl.getBoundingClientRect().bottom - 1))
+            : Math.max(0, offsetTop + entryH - 1))
+        : Math.max(0, entryH - 1);
+
+      if (isWindow) {
+        document.documentElement.style.setProperty('--top-nav-height', offsetTop + 'px');
+      }
       if (parentEl) {
         parentEl.style.setProperty('--xp-sticky-offset', offsetTop + 'px');
         parentEl.style.setProperty('--sticky-entry-height', entryH + 'px');
+        parentEl.style.setProperty('--xp-sticky-thead-top', theadTop + 'px');
       }
       if (tableEl) {
         tableEl.style.setProperty('--xp-sticky-offset', offsetTop + 'px');
         tableEl.style.setProperty('--sticky-entry-height', entryH + 'px');
+        tableEl.style.setProperty('--xp-sticky-thead-top', theadTop + 'px');
       }
     }
     syncHeights();
 
     var io = null;
     var toggleBtn = toolbarEl.querySelector('[data-sticky-toggle]');
+    function updateStuckState(isIntersecting, rectTop) {
+      var rootTop = isWindow ? offsetTop : scrollContainer.getBoundingClientRect().top;
+      var stuck = !isIntersecting && rectTop <= rootTop + 2;
+      var changed = toolbarEl.classList.contains('is-stuck') !== stuck;
+      toolbarEl.classList.toggle('is-stuck', stuck);
+      if (!stuck) {
+        toolbarEl.classList.remove('mobile-expanded');
+        if (toggleBtn) toggleBtn.textContent = 'Mở rộng ô nhập ▾';
+      }
+      if (changed || stuck) syncHeights();
+    }
+
     function bindIO() {
       if (io) io.disconnect();
       if (typeof IntersectionObserver !== 'undefined') {
         io = new IntersectionObserver(function (entries) {
           var entry = entries[0];
           if (!entry) return;
-          var rootTop = isWindow ? offsetTop : scrollContainer.getBoundingClientRect().top;
-          var stuck = !entry.isIntersecting && entry.boundingClientRect.top <= rootTop + 2;
-          toolbarEl.classList.toggle('is-stuck', stuck);
-          if (!stuck) {
-            toolbarEl.classList.remove('mobile-expanded');
-            if (toggleBtn) toggleBtn.textContent = 'Mở rộng ô nhập ▾';
-          }
-          syncHeights();
+          updateStuckState(entry.isIntersecting, entry.boundingClientRect.top);
         }, {
           root: isWindow ? null : scrollContainer,
           rootMargin: '-' + (offsetTop + 1) + 'px 0px 0px 0px',
@@ -657,6 +673,21 @@
       }
     }
     bindIO();
+
+    var rafId = 0;
+    var scrollTarget = isWindow ? window : scrollContainer;
+    function onScroll() {
+      if (rafId) return;
+      rafId = requestAnimationFrame(function () {
+        rafId = 0;
+        var sTop = sentinel.getBoundingClientRect().top;
+        var rootTop = isWindow ? offsetTop : scrollContainer.getBoundingClientRect().top;
+        updateStuckState(sTop > rootTop + 1, sTop);
+      });
+    }
+    if (scrollTarget && scrollTarget.addEventListener) {
+      scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    }
 
     var ro = null;
     if (typeof ResizeObserver !== 'undefined') {
@@ -682,6 +713,10 @@
     function destroy() {
       if (io) io.disconnect();
       if (ro) ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+      if (scrollTarget && scrollTarget.removeEventListener) {
+        scrollTarget.removeEventListener('scroll', onScroll);
+      }
       if (toggleBtn && onToggleClick) toggleBtn.removeEventListener('click', onToggleClick);
       toolbarEl._xpStickyCleanup = null;
     }

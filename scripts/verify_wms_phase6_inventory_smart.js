@@ -119,7 +119,7 @@ function testSmartInventoryFiles() {
   assert(sbJs.includes('mergeInventoryItems'), 'supabaseClient.js must export mergeInventoryItems');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v26'), 'sw.js must be v26');
+  assert(sw.includes('toiuu-phoi-pwa-v27'), 'sw.js must be v27');
   assert(sw.includes('/js/inventory-smart.js'), 'sw.js must cache /js/inventory-smart.js');
 
   const sharedCss = read('css/shared.css');
