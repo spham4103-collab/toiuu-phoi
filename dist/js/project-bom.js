@@ -198,7 +198,6 @@
       '  </div>',
       '  <div class="bom-tabs">',
       '    <button type="button" class="bom-tab active" data-bom-tab="bom">📋 Đề nghị Vật tư (<span id="bomTabCntReq">0</span>)</button>',
-      '    <button type="button" class="bom-tab" data-bom-tab="tube">📏 Thép hình 1D &amp; Xếp phôi</button>',
       '    <button type="button" class="bom-tab" data-bom-tab="vouchers">🧾 Phiếu kho &amp; Chi phí (<span id="bomTabCntVouch">0</span>)</button>',
       '  </div>',
       '  <div class="bom-body" id="bomModalBody"></div>',
@@ -300,8 +299,6 @@
     if (bodyEl) bodyEl.classList.toggle('xp-modal-body-flex', STATE.activeTab === 'bom');
     if (STATE.activeTab === 'bom') {
       renderBomTab();
-    } else if (STATE.activeTab === 'tube') {
-      renderTubeTab();
     } else {
       renderVouchersTab();
     }

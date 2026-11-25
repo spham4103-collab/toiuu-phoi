@@ -85,8 +85,8 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 const STATIC_EXT_ALLOWLIST = new Set(['.html', '.js', '.css', '.json', '.jpg', '.jpeg', '.png', '.svg', '.ico', '.webp']);
 const PUBLIC_ROOT_FILES = new Set([
-  'index.html', 'projects.html', 'inventory.html', 'vouchers.html', 'reports.html', 'cnc.html', 'admin.html',
-  'toi-uu-engine.js', 'sw.js', 'manifest.json', 'logo_an_binh.jpg', 'workshop_config.json'
+  'index.html', 'projects.html', 'inventory.html', 'vouchers.html', 'reports.html', 'admin.html',
+  'sw.js', 'manifest.json', 'logo_an_binh.jpg', 'workshop_config.json'
 ]);
 const PUBLIC_ROOT_DIRS = new Set(['css', 'js']);
 const clientDefaults = readClientJsDefaults();
@@ -957,6 +957,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/cnc' || pathname === '/cnc/' || pathname === '/cnc.html' || pathname === '/nesting' || pathname === '/nesting/' || pathname === '/nesting.html') {
+    const q = parsedUrl.search || '';
+    const dest = (q && /[?&]project=/.test(q)) ? `/projects${q}` : '/';
+    res.writeHead(302, { Location: dest });
+    res.end();
+    return;
+  }
+
   let safePath = pathname === '/' ? '/index.html' : pathname;
   const cleanRouteMap = {
     '/admin': '/admin.html',
@@ -968,9 +976,7 @@ const server = http.createServer(async (req, res) => {
     '/vouchers': '/vouchers.html',
     '/vouchers/': '/vouchers.html',
     '/reports': '/reports.html',
-    '/reports/': '/reports.html',
-    '/cnc': '/cnc.html',
-    '/cnc/': '/cnc.html'
+    '/reports/': '/reports.html'
   };
   if (cleanRouteMap[safePath]) {
     safePath = cleanRouteMap[safePath];

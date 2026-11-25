@@ -11,782 +11,500 @@
       } else if (p.endsWith('.html')) {
         history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
       }
+      if (location.search && /[?&]project=/.test(location.search)) {
+        location.replace('/projects' + location.search + location.hash);
+      }
     }
   </script>
-  <title>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống · An Bình</title>
-  <meta name="description" content="Ứng dụng tối ưu xếp phôi cắt thép hộp, ống tròn, thanh nhôm 1D. Bộ nhớ lưu quy cách hộp, xếp riêng từng loại hộp và tính toán số cây cần dùng chính xác.">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#1E3A8A">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Quản Lý Kho Vật Tư — Cơ Khí An Bình</title>
+  <meta name="description" content="Hệ thống Quản lý Kho Vật tư (WMS), Chứng từ Nhập–Xuất–Tồn & Đề nghị Vật tư Dự án — Cơ Khí An Bình.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="toi-uu-engine.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/supabaseClient.js"></script>
-  <script src="js/shared-ui.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/workshopExport.js"></script>
-  <script id="embeddedFusionData" type="application/json"></script>
-  <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
-  <link rel="stylesheet" href="css/shared.css">
-  <link rel="stylesheet" href="css/index.css">
-  <link rel="stylesheet" href="css/print-a4.css" media="print">
+  <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
+  <script src="/js/qr-scanner.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+  <style>
+    :root {
+      --bg: #FFFFFF; --tint: #F0FDFA; --ink: #134E4A; --mut: #475569; --edge: #D5E9E5;
+      --p: #0F766E; --p-h: #0D635D; --p3: #CCFBF1; --cta: #C2410C; --cta-h: #9A3412;
+      --dark: #0B3B38; --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --r: 14px; --gut: 28px; --sh: 0 10px 25px -5px rgba(15, 118, 110, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F8FAFC; color: #1E293B; font: 400 15px/1.55 var(--font); min-height: 100vh; }
+    a { color: var(--p); text-decoration: none; }
+    h1, h2, h3 { margin: 0; line-height: 1.25; font-weight: 800; color: var(--dark); }
+    .wrap { max-width: 1320px; margin: 0 auto; padding: 0 var(--gut); width: 100%; }
+
+    .top { position: sticky; top: 0; z-index: 1000; background: rgba(255,255,255,0.98); backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--edge); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 10px 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--dark); flex-shrink: 0; white-space: nowrap; }
+    .brand-logo-img { height: 40px; max-width: 130px; object-fit: contain; border-radius: 4px; }
+    .brand-divider { width: 1.5px; height: 26px; background: var(--edge); }
+    .brand-text-col { display: flex; flex-direction: column; justify-content: center; }
+    .brand-main-title { font-weight: 800; font-size: 15.5px; color: var(--dark); line-height: 1.15; }
+    .brand-sub-title { font-weight: 600; color: var(--p); font-size: 11.5px; line-height: 1.15; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 7px 15px; border-radius: 999px; border: 1px solid transparent; font: 700 13px/1.2 var(--font); cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
+    .btn-p { background: var(--p); color: #fff; }
+    .btn-p:hover { background: var(--p-h); }
+    .btn-cta { background: var(--cta); color: #fff; }
+    .btn-cta:hover { background: var(--cta-h); }
+    .btn-soft { background: #fff; color: var(--ink); border: 1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color: var(--p); color: var(--p); background: var(--tint); }
+    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+    .btn-sm { min-height: 32px; padding: 5px 12px; font-size: 12.5px; }
+
+    .kpi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 16px 0; }
+    .kpi-card { background: #fff; border: 1.5px solid #E2E8F0; border-radius: var(--r); padding: 14px 16px; display: flex; align-items: center; gap: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+    .kpi-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .kpi-val { font-size: 22px; font-weight: 800; line-height: 1.15; color: #0F172A; }
+    .kpi-label { font-size: 12px; font-weight: 700; color: var(--mut); margin-top: 2px; }
+
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 18px; }
+    .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; }
+    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: var(--r); padding: 18px; box-shadow: var(--sh); margin-bottom: 18px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+
+    input[type=text], input[type=password] { width: 100%; min-height: 38px; padding: 7px 11px; border-radius: 9px; border: 1.5px solid #CBD5E1; font: 500 14px var(--font); color: #0F172A; background: #fff; }
+    input:focus { outline: none; border-color: var(--p); box-shadow: 0 0 0 3px var(--p3); }
+
+    .table-responsive { width: 100%; overflow-x: auto; border: 1px solid #E2E8F0; border-radius: 10px; }
+    .wms-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .wms-table th { background: #E2E8F0; color: #0F172A; font-weight: 800; text-align: left; padding: 9px 11px; border-bottom: 2px solid #94A3B8; white-space: nowrap; }
+    .wms-table td { padding: 8px 11px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+    .wms-table th.r, .wms-table td.r { text-align: right; }
+
+    .inv-modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.56); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 14px; }
+    .inv-modal-backdrop.open { display: flex; }
+    .inv-modal { background: #fff; border-radius: 16px; border: 1px solid #CBD5E1; width: min(520px, 100%); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.28); }
+    .inv-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #E2E8F0; background: #F8FAFC; }
+    .inv-modal-body { padding: 16px 18px; overflow-y: auto; }
+    .inv-modal-foot { padding: 12px 18px; border-top: 1px solid #E2E8F0; background: #F8FAFC; display: flex; justify-content: flex-end; gap: 8px; }
+
+    #toast { position: fixed; bottom: 24px; right: 24px; background: var(--dark); color: #fff; padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 14px; z-index: 3000; opacity: 0; transform: translateY(12px); transition: all 0.25s ease; pointer-events: none; }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 768px) {
+      :root { --gut: 12px; }
+      .brand-sub-title { display: none; }
+      .dash-grid { grid-template-columns: 1fr; }
+      .kpi-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    }
+  </style>
 </head>
 <body>
-
-  <!-- Top bar (2 tầng chống chồng chéo chữ + Điều hướng đa nhánh web con) -->
-  <header class="top no-print">
+  <header class="top">
     <div class="wrap">
-      <a class="brand" href="/" title="An Bình - Tối Ưu Xếp Phôi Thép Hộp">
-        <img src="logo_an_binh.jpg" alt="Logo An Bình" class="brand-logo-img">
+      <a class="brand" href="/" title="Tổng quan Hệ thống Quản lý Kho Vật tư">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
-          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
-          <div class="brand-sub-title">Cắt thép hộp &amp; bản vẽ đa quy cách</div>
+          <div class="brand-main-title">QUẢN LÝ KHO VẬT TƯ</div>
+          <div class="brand-sub-title">Cơ Khí An Bình · Hệ thống WMS</div>
         </div>
       </a>
       <div class="top-actions">
-        <!-- Trạng Thái Mạng (Online/Offline PWA) -->
-        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap; flex-shrink:0;" title="Trạng thái kết nối máy chủ">
-          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block; flex-shrink:0;" id="networkDot"></span>
-          <span id="networkStatusText">Trực tuyến 24/7</span>
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span>Trực tuyến</span>
         </div>
-
-        <!-- Trạng thái tự động đồng bộ 24/7 -->
-        <div style="font-size:12px; color:#15803D; background:#DCFCE7; border:1px solid #BBF7D0; padding:4px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; font-weight:600;" title="Toàn bộ dữ liệu được tự động đồng bộ 24/7 giữa mọi thiết bị">
-          <span class="cloud-status-dot dot-green" id="cloudStatusDot" style="width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
-          <span id="cloudStatusText">Tự động đồng bộ 24/7</span>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4;">
+          <span id="userIcon">🏠</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
         </div>
-
-        <!-- Nút Phân Quyền Thông Minh (Thợ CNC vs Kỹ Sư Thiết Kế) -->
-        <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Thông tin người dùng đang đăng nhập">
-          <span id="roleBadgeIcon">👷</span>
-          <span id="roleBadgeText">Thợ CNC [Khóa an toàn]</span>
-          <span id="roleLockStatus" style="font-size:12px;">🔒</span>
-        </button>
-
-        <button class="btn btn-sm" id="btnHeaderQuickLogout" style="background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-weight:700; padding:4px 9px; font-size:12px; display:inline-flex; align-items:center; gap:4px; border-radius:999px; cursor:pointer;" title="Đăng xuất khỏi tài khoản này">
-          🚪 Đăng xuất
-        </button>
-
-        <!-- Lưu Dự án -->
-        <button class="btn btn-soft btn-sm" id="btnOpenSaveModal" title="Lưu số liệu hiện tại thành dự án">
-          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Lưu
-        </button>
-
-        <!-- Menu Nhập Dữ Liệu -->
-        <div class="dropdown" id="dropdownImport">
-          <button class="btn btn-soft btn-sm" id="btnDropdownImportToggle" type="button" title="Nhập dữ liệu từ Fusion 360, file .IGS hoặc Excel">
-            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Nhập liệu ▾
-          </button>
-          <div class="dropdown-menu" id="menuImport">
-            <div class="dropdown-item" id="btnLoadFusion">
-              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-              <span>Từ Autodesk Fusion 360</span>
-            </div>
-            <div class="dropdown-item" id="btnOpenIgs">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span>File .IGS (Cắt laser ống)</span>
-            </div>
-            <div class="dropdown-item" id="btnOpenPaste">
-              <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              <span>Dán từ Excel / Bảng tính</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Menu Mẫu Thử -->
-        <div class="dropdown" id="dropdownSamples">
-          <button class="btn btn-soft btn-sm" id="btnDropdownSamplesToggle" type="button" title="Xem các bản vẽ mẫu có sẵn">
-            <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            Mẫu thử ▾
-          </button>
-          <div class="dropdown-menu" id="menuSamples">
-            <div class="dropdown-item" id="btnPresetMulti">
-              <span>🏗️ Mẫu khung đa loại hộp</span>
-            </div>
-            <div class="dropdown-item" id="btnPresetUser">
-              <span>📷 Mẫu 18 chi tiết ảnh gốc</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tạo mới -->
-        <button class="btn btn-soft btn-sm" id="btnReset" title="Xóa trắng để tạo bản vẽ mới">
-          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Tạo mới
-        </button>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
       </div>
     </div>
 
-    <!-- Tầng 2: Thanh Điều Hướng Các Nhánh Web Con -->
-    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+    <nav class="subnav-bar" aria-label="Điều hướng hệ thống WMS">
       <div class="subnav-inner">
-        <a href="/" class="subnav-link active" title="Trang tính toán &amp; xếp phôi chính">
-          📐 Bàn Xếp Phôi
-        </a>
-        <a href="/projects" class="subnav-link" title="Quản lý danh sách dự án, đơn hàng &amp; thùng rác">
-          📁 Quản Lý Dự Án <span id="badgeProjectCount" style="background:#0F766E;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
-        </a>
-        <a href="/inventory" class="subnav-link" title="Thư viện quy cách thép hộp, phôi tồn kho lẻ &amp; bảng vật tư BOM">
-          📦 Kho Phôi &amp; Quy Cách
-        </a>
-        <a href="/vouchers" class="subnav-link" title="Lập, duyệt &amp; in Phiếu Nhập kho (PNK), Xuất kho (PXK), Hoàn kho (PHK)">
-          🧾 Phiếu Nhập / Xuất
-        </a>
-        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;" title="Báo cáo Nhập - Xuất - Tồn &amp; Giá vốn dự án">
-          📊 Báo Cáo
-        </a>
-        <a href="/cnc" class="subnav-link" title="Sơ đồ cắt trực quan, tích tiến độ xưởng &amp; xuất file .IGS cho máy Laser CNC">
-          ⚡ Sơ Đồ &amp; Tiến Độ CNC
-        </a>
-        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;" title="Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Độc quyền Admin)">
-          ⚙️ Quản Trị &amp; Nhân Sự
-        </a>
+        <a href="/" class="subnav-link active">🏠 Tổng quan</a>
+        <a href="/inventory" class="subnav-link">📦 Kho vật tư</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu kho</a>
+        <a href="/projects" class="subnav-link">📁 Dự án</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
       </div>
     </nav>
   </header>
 
-  <main class="wrap">
-    <!-- Project Active Status Banner -->
-    <div class="project-active-bar no-print" id="projectActiveBar" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:10px 18px; margin: 14px 0 6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; box-shadow: 0 2px 6px rgba(16,185,129,0.06);">
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:#DCFCE7; color:#15803D;">
-          <svg viewBox="0 0 24 24" style="width:15px; height:15px; stroke:currentColor; stroke-width:2.2; fill:none;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        </span>
-        <div style="font-size:13.5px;">
-          <span style="color:#15803D; font-weight:700;">Đang mở dự án:</span>
-          <strong id="dispCurrentProjName" style="color:#0F172A; font-size:14.5px; margin-left:4px;">Dự án hiện hành</strong>
-          <span id="dispCurrentProjCustomer" style="color:#64748B; font-size:13px; margin-left:6px;"></span>
-        </div>
+  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">📦</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">HỆ THỐNG QUẢN LÝ KHO VẬT TƯ</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Cơ Khí An Bình · Đăng nhập để tiếp tục</p>
       </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <button class="btn btn-sm btn-soft" id="btnBannerToggleLock" title="Khóa bảo vệ dự án chống xóa hoặc chỉnh sửa nhầm">
-          <span id="bannerLockIcon">🔓</span> <span id="bannerLockText">Khóa bảo vệ</span>
-        </button>
-        <button class="btn btn-sm btn-soft" id="btnBannerSave" title="Lưu nhanh các thay đổi vào dự án này">
-          <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Lưu cập nhật
-        </button>
-        <button class="btn btn-sm btn-soft" id="btnBannerExportJson" title="Xuất file .json dự án này về máy">
-          <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Xuất file .json
-        </button>
-        <button class="btn btn-sm btn-p" id="btnBannerOpenManager" title="Mở nhanh danh sách các dự án">
-          Danh sách dự án
-        </button>
-        <a href="/projects" class="btn btn-sm btn-soft" style="border-color:var(--p); color:var(--p); text-decoration:none;" title="Mở nhánh web con Quản Lý Dự Án chuyên sâu">
-          Mở trang Dự án ↗
-        </a>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Tên đăng nhập *</label>
+        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản (admin, warehouse, kt1...)">
       </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Mật khẩu *</label>
+        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
+      </div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">🚀 ĐĂNG NHẬP</button>
     </div>
-    <!-- Hero / Features -->
-    <div class="hero no-print">
-      <div class="hero-top">
+  </div>
+
+  <main class="wrap" id="mainContent" style="display:none; padding-top:18px; padding-bottom:50px;">
+    <!-- GIAO DIỆN QUẢN LÝ / KHO / KỸ SƯ / KẾ TOÁN -->
+    <div id="managerDashboard" style="display:none;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
         <div>
-          <h1>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống Đa Quy Cách</h1>
-          <p class="hero-desc">
-            Xếp phôi độc lập và tính số cây cần dùng cho từng loại hộp trong bản vẽ. Tự động lưu bộ nhớ các quy cách hộp, vét cạn cây tồn kho và xếp xen kẽ ke 45° giảm hao phí tối đa.
-          </p>
-        </div>
-        <div>
-          <button class="btn btn-cta btn-lg" id="btnOptimizeHero">
-            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            TÍNH TOÁN XẾP PHÔI
-          </button>
+          <h1>Tổng Quan Kho Vật Tư (WMS)</h1>
+          <p style="color:var(--mut); font-size:13.5px; margin:4px 0 0;">Theo dõi tồn kho 5 nhóm vật tư, chứng từ Nhập–Xuất, dự án và cảnh báo đặt hàng.</p>
         </div>
       </div>
-    </div>
 
-    <!-- Banner Thông Báo Chế Độ Thợ CNC -->
-    <div id="operatorModeBanner" style="display:none; background:#FFF7ED; border:2px solid #F97316; border-radius:12px; padding:12px 18px; margin-bottom:16px; align-items:center; justify-content:space-between; gap:12px;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:24px;">👷</span>
-        <div>
-          <div style="font-size:15px; font-weight:800; color:#C2410C;">ĐANG BẬT CHẾ ĐỘ THỢ ĐỨNG MÁY CNC / CƯA</div>
-          <div style="font-size:13px; color:#9A3412;">Kích thước hiển thị to rõ, bảo vệ dữ liệu chống bấm nhầm xóa dự án. Bấm nút màu xanh lá ở từng cây để tải file .IGS về máy CNC.</div>
+      <div class="kpi-cards">
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">📦</div>
+          <div>
+            <div class="kpi-val" id="kpiActiveSkuCount">0</div>
+            <div class="kpi-label">Mã vật tư đang sử dụng</div>
+          </div>
+        </div>
+        <div class="kpi-card" style="border-color:#FECACA; background:linear-gradient(135deg,#FEF2F2,#FFF);">
+          <div class="kpi-icon" style="background:#FEE2E2; color:#B91C1C;">⚠️</div>
+          <div>
+            <div class="kpi-val" id="kpiLowStockCount">0</div>
+            <div class="kpi-label">Vật tư sắp hết / Hết hàng</div>
+          </div>
+        </div>
+        <div class="kpi-card" style="border-color:#FDE68A; background:linear-gradient(135deg,#FFFBEB,#FFF);">
+          <div class="kpi-icon" style="background:#FEF3C7; color:#B45309;">⏳</div>
+          <div>
+            <div class="kpi-val" id="kpiPendingVouchers">0</div>
+            <div class="kpi-label">Phiếu kho chờ duyệt</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">📁</div>
+          <div>
+            <div class="kpi-val" id="kpiActiveProjects">0</div>
+            <div class="kpi-label">Dự án đang triển khai</div>
+          </div>
         </div>
       </div>
-      <button class="btn btn-sm btn-soft" id="btnExitOperatorMode" style="background:#FFF; border:1px solid #EA580C; color:#EA580C; font-weight:700;">
-        ✕ Thoát chế độ thợ
-      </button>
-    </div>
 
-    <!-- Main Form Grid -->
-    <div class="grid-input no-print">
-      <!-- Left: Parts to cut organized per Profile -->
-      <section class="card" aria-label="Chi tiết cần cắt">
-        <div class="card-title">
-          <h2>Chi tiết cần cắt (Xếp riêng theo loại hộp)</h2>
-          <span style="font-size:13px;color:var(--mut);" id="lblPartCount">0 chi tiết</span>
-        </div>
-        <p class="card-subtitle">
-          Chọn loại hộp để nhập chi tiết và xem tính toán số cây cần dùng của riêng loại hộp đó.
-        </p>
+      <div class="quick-actions">
+        <a href="/vouchers" class="btn btn-p">➕ Lập Phiếu Nhập/Xuất</a>
+        <button type="button" class="btn btn-p" id="btnHomeScanQr" style="background:#0369A1;">📷 Quét QR Tra Kho</button>
+        <a href="/projects" class="btn btn-cta">📁 Tạo Dự Án / Đề Nghị VT</a>
+        <a href="/inventory?action=stocktake" class="btn btn-soft">📋 Tạo Phiên Kiểm Kê</a>
+        <a href="/reports" class="btn btn-soft reports-nav-link" id="btnHomeReports" style="display:none;">📊 Xem Báo Cáo NXT</a>
+      </div>
 
-        <!-- Box Profile Memory Library Section -->
-        <div class="memory-library-box">
-          <div class="memory-header-row">
-            <b>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              Bộ nhớ quy cách hộp (Đã lưu trong máy):
-            </b>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="inpCustomProfile" placeholder="Thêm quy cách mới (vd: Hộp 25x25x1, 40x10x1.2...)" style="max-width:250px;min-height:32px;padding:3px 10px;font-size:12.5px;">
-              <button class="btn btn-p btn-sm" id="btnAddCustomProfile" type="button">+ Lưu bộ nhớ</button>
-              <a href="/inventory" style="font-size:12px;font-weight:700;color:var(--p);white-space:nowrap;padding:4px 8px;background:#fff;border:1px solid #99F6E4;border-radius:6px;text-decoration:none;" title="Mở nhánh web con Quản lý Kho Phôi &amp; Quy Cách">📦 Quản lý kho ↗</a>
-            </div>
+      <div class="dash-grid">
+        <section class="card">
+          <div class="card-head">
+            <h2>🧾 Phiếu Kho Gần Đây / Chờ Duyệt</h2>
+            <a href="/vouchers" class="btn btn-soft btn-sm">Xem tất cả ↗</a>
           </div>
-          <div class="memory-chips-wrap" id="memoryChipsWrap">
-            <!-- Danh sách dự án sẽ được nạp tự động từ Supabase -->
-          </div>
-        </div>
-
-        <!-- Filter Profile Tabs Bar with Bars Needed Badge -->
-        <div class="profile-tabs-bar" id="profileTabsBar">
-          <!-- Populated dynamically -->
-        </div>
-
-        <!-- Active Box Banner & Mini KPI for Selected Box -->
-        <div id="activeProfileBannerWrap"></div>
-
-        <!-- Sticky Action Row for Parts Entry -->
-        <div class="xp-sticky-entry" id="indexPartsStickyEntry" style="padding:8px 0 10px; margin-bottom:0;">
-          <div class="action-row" style="margin-top:0;">
-            <button class="btn btn-p btn-sm" id="btnAddPart">
-              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Thêm chi tiết
-            </button>
-            <button class="btn btn-soft btn-sm" id="btnQuickIgs">Nhập file .IGS</button>
-            <button class="btn btn-soft btn-sm" id="btnQuickPaste">Dán từ Excel</button>
-            <button class="btn btn-soft btn-sm xp-sticky-collapsible" id="btnRemoveCurrentProfile" style="color:var(--bad);" title="Xóa loại hộp này khỏi bản vẽ">
-              Xóa loại hộp này
-            </button>
-            <button class="btn btn-soft btn-sm xp-sticky-collapsible" style="color:var(--bad);margin-left:auto;" id="btnClearAll">Xóa hết bản vẽ</button>
-            <button type="button" class="btn btn-soft btn-sm xp-sticky-mobile-toggle" data-sticky-toggle>Mở rộng ô nhập ▾</button>
-          </div>
-        </div>
-
-        <!-- Parts Table Responsive Wrapper -->
-        <div class="table-responsive parts-table-wrap xp-sticky-table-wrap">
-          <div class="parts-header xp-sticky-header-row">
-            <span></span>
-            <span>Tên / Vị trí chi tiết</span>
-            <span class="r">Dài (mm)</span>
-            <span class="r">SL</span>
-            <span style="text-align:center;">Đầu cắt</span>
-            <span class="r" title="Bề rộng cạnh bị vát mòi 45° (ví dụ hộp 25x25 thì là 25mm, không phải độ dày 1 ly)">Mặt vát (mm)</span>
-            <span></span>
-          </div>
-
-          <div id="partsList"></div>
-        </div>
-      </section>
-
-      <!-- Right: Stock Bars & Cutting Settings -->
-      <div>
-        <!-- Stock Bars Card organized for the Active Profile -->
-        <section class="card" aria-label="Cây vật tư">
-          <div class="card-title">
-            <h2 id="stockCardTitle">Cây vật tư</h2>
-          </div>
-          <p class="card-subtitle" id="stockCardSub">
-            Cây tồn kho nhập số lượng có sẵn (ưu tiên vét trước). Cây mua mới 6m luôn sẵn sàng.
-          </p>
-
-          <!-- Gợi ý tận dụng Kho Đề-xê tái sử dụng (Mục 3.1.1) -->
-          <div id="offcutSuggestionBox" class="no-print" style="display:none; margin-bottom:12px; padding:10px 12px; background:#F0FDFA; border:1.5px solid #5EEAD4; border-radius:10px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
-              <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-weight:800; font-size:13px; color:#0F766E;">
-                <input type="checkbox" id="chkUseWarehouseOffcuts" style="width:16px; height:16px; accent-color:#0F766E;">
-                <span>♻️ Ưu tiên cắt từ phôi đề-xê đang có trong kho</span>
-              </label>
-              <a href="/inventory#offcuts" style="font-size:11.5px; font-weight:700; color:#0F766E; text-decoration:underline;">Mở Kho đề-xê ↗</a>
-            </div>
-            <div id="offcutSuggestionDetail" style="font-size:12px; color:#134E4A; line-height:1.45;"></div>
-            <div id="offcutActionRow" style="display:none; margin-top:7px;"></div>
-          </div>
-
-          <!-- Stock Table Responsive Wrapper -->
-          <div class="table-responsive stock-table-wrap">
-            <div class="stock-header">
-              <span>Tên phôi</span>
-              <span class="r">Dài (mm)</span>
-              <span class="r">Số cây</span>
-              <span></span>
-            </div>
-
-            <div id="stockList"></div>
-          </div>
-
-          <div style="margin-top: 12px; display:flex; gap:8px;">
-            <button class="btn btn-soft btn-sm" id="btnAddStock">
-              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Thêm cây tồn kho
-            </button>
+          <div class="table-responsive">
+            <table class="wms-table">
+              <thead><tr><th>Mã phiếu</th><th>Loại</th><th>Trạng thái</th><th>Ngữ cảnh</th></tr></thead>
+              <tbody id="homeVouchersBody"></tbody>
+            </table>
           </div>
         </section>
 
-        <!-- Cut Settings Card -->
-        <section class="card" aria-label="Cách cắt">
-          <div class="card-title">
-            <h2>Cách cắt &amp; Máy cắt</h2>
+        <section class="card">
+          <div class="card-head">
+            <h2>🛒 Vật Tư Sắp Hết / Cần Đặt Hàng</h2>
+            <a href="/inventory#reorder" class="btn btn-soft btn-sm">Đặt hàng ↗</a>
           </div>
-
-          <div class="method-toggle">
-            <button type="button" id="btnMethodSaw">Cắt đá / Cưa đĩa</button>
-            <button type="button" id="btnMethodLaser" class="active">Laser CNC</button>
-          </div>
-
-          <div class="settings-grid">
-            <div>
-              <label class="setting-label" for="inpKerf">Hao mạch cắt (mm)</label>
-              <input type="text" id="inpKerf" class="so" value="0">
-            </div>
-            <div>
-              <label class="setting-label" for="inpClamp">Kẹp đuôi (mm)</label>
-              <input type="text" id="inpClamp" class="so" value="80">
-            </div>
-          </div>
-
-          <label class="checkbox-box">
-            <input type="checkbox" id="chkInterlock" checked>
-            <div class="checkbox-text">
-              <b>Xếp xen kẽ chi tiết cắt ke 45°</b>
-              <small>Hai miếng ke cùng mặt nằm liền nhau, lật 1 miếng thì chung 1 nhát cắt chéo, bớt đúng bề rộng mặt hộp.</small>
-            </div>
-          </label>
-
-          <div style="margin-top: 10px;" id="boxGap">
-            <label class="setting-label" for="inpGap">Hở mối xen kẽ an toàn (mm)</label>
-            <input type="text" id="inpGap" class="so" value="0" placeholder="0">
-          </div>
-
-          <div style="margin-top: 18px;">
-            <button class="btn btn-cta btn-lg" style="width: 100%;" id="btnCalculate">
-              <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              TÍNH TOÁN XẾP PHÔI
-            </button>
+          <div class="table-responsive">
+            <table class="wms-table">
+              <thead><tr><th>Vật tư / Quy cách</th><th class="r">Tồn</th><th class="r">Định mức</th><th>Kệ</th></tr></thead>
+              <tbody id="homeLowStockBody"></tbody>
+            </table>
           </div>
         </section>
       </div>
     </div>
 
-    <!-- Print Header -->
-    <div class="print-header">
-      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px;">
-        <img src="logo_an_binh.jpg" alt="Logo An Bình" style="height: 48px; object-fit: contain;">
-        <div style="text-align:left;">
-          <h1 style="font-size:20px;margin:0;color:#0B3B38;">CÔNG TY AN BÌNH</h1>
-          <div style="font-size:13.5px;font-weight:700;color:#0F766E;">BẢNG TỐI ƯU XẾP PHÔI CẮT THÉP HỘP ĐA QUY CÁCH</div>
-        </div>
-      </div>
-      <p style="color:#666;font-size:13px;" id="printDate"></p>
-    </div>
-
-    <!-- Results Section -->
-    <div class="results-area" id="resultsSection" style="display: none;">
-      <div class="results-header">
-        <h2>Kết quả tối ưu toàn bản vẽ</h2>
-        <div class="results-actions no-print">
-          <button class="btn btn-soft btn-sm" id="btnCopyZalo">
-            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Chép gửi Zalo
-          </button>
-          <button class="btn btn-soft btn-sm" id="btnPrintPDF">
-            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            In Phiếu A4 (QR)
-          </button>
-          <button class="btn btn-soft btn-sm" id="btnExportCSV">
-            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Xuất Excel (.xlsx)
-          </button>
+    <!-- GIAO DIỆN CÔNG NHÂN / TỔ TRƯỞNG (OPERATOR) -->
+    <div id="operatorDashboard" style="display:none;">
+      <div class="card" style="background:linear-gradient(135deg,#F0FDFA,#FFFFFF); border-color:#5EEAD4;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>📷 Tra Cứu Kho Nhanh Ngoài Xưởng</h2>
+            <p style="margin:4px 0 0; color:var(--mut); font-size:13.5px;">Quét tem QR trên kệ / hộp vật tư để xem vị trí và tồn kho thực tế.</p>
+          </div>
+          <button type="button" class="btn btn-p" id="btnOpScanQr" style="background:#0369A1; min-height:44px; font-size:14.5px;">📷 Quét QR Tra Vị Trí Kệ &amp; Tồn Kho</button>
         </div>
       </div>
 
-      <!-- KPI Summary Cards -->
-      <div class="kpi-cards" id="kpiContainer"></div>
-
-      <!-- Warnings container -->
-      <div id="warningsContainer"></div>
-
-      <!-- Materials Needed Card (Grouped by Profile) -->
-      <section class="card" style="margin-bottom: 22px;">
-        <div class="card-title" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-          <h2>Bảng vật tư &amp; Đối chiếu tồn kho (Theo loại hộp)</h2>
-          <div id="projectDispatchBar" class="no-print" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
+      <section class="card">
+        <div class="card-head">
+          <h2>🔍 Tra Cứu Danh Mục Vật Tư (Không hiển thị đơn giá)</h2>
+          <input type="text" id="inpOpSearchInv" placeholder="🔍 Gõ tên vật tư, mã SKU hoặc vị trí kệ..." style="max-width:300px;">
         </div>
-        <p class="card-subtitle">Tổng hợp số cây cần dùng cho bản vẽ, đối chiếu trực tiếp với tồn kho thực tế toàn xưởng để biết chính xác số lượng cần mua thêm.</p>
-        <div id="warehouseComparisonSummary" style="display:none; margin-bottom:12px; padding:11px 14px; background:#F0FDFA; border:1.5px solid #99F6E4; border-radius:10px; font-size:13px; line-height:1.65;"></div>
-        <div id="materialsContainer"></div>
-      </section>
-
-      
-      <!-- Card Tiến Độ Cắt Thực Tế Tại Xưởng (Realtime Live Tracking) -->
-      <section class="card" id="liveCuttingProgressCard" style="border: 2px solid #0F766E; background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); margin-bottom: 24px; box-shadow: 0 4px 14px rgba(15,118,110,0.08); padding: 18px 20px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:26px;">📊</span>
-            <div>
-              <h2 style="font-size:18px; color:#0F766E; margin:0;">Tiến Độ Cắt Thực Tế Tại Xưởng</h2>
-              <div style="font-size:12.5px; color:#475569;">Đồng bộ tức thì (Realtime) khi thợ bấm hoàn thành trên máy cắt Laser CNC</div>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span id="liveProgressPercentBadge" style="font-size:18px; font-weight:800; color:#0F766E; background:#CCFBF1; padding:4px 14px; border-radius:20px; border:1px solid #99F6E4;">0%</span>
-            <span id="liveProgressRatioText" style="font-size:13px; font-weight:700; color:#334155;">Đã cắt: 0/0 cây</span>
-          </div>
-        </div>
-
-        <!-- Thanh tiến độ lớn -->
-        <div style="width:100%; height:16px; background:#E2E8F0; border-radius:10px; overflow:hidden; position:relative; margin-bottom:14px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.1);">
-          <div id="liveProgressBarFill" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease; border-radius:10px;"></div>
-        </div>
-
-        <!-- Các thông số chi tiết -->
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:13px;">
-          <div style="display:flex; gap:14px; flex-wrap:wrap;">
-            <span style="display:inline-flex; align-items:center; gap:5px; color:#15803D; font-weight:700;">
-              <span style="width:9px; height:9px; border-radius:50%; background:#10B981;"></span>
-              Đã cắt xong: <b id="statCutCompleted">0</b> cây
-            </span>
-            <span style="display:inline-flex; align-items:center; gap:5px; color:#C2410C; font-weight:700;">
-              <span style="width:9px; height:9px; border-radius:50%; background:#F97316;"></span>
-              Đang cắt dở: <b id="statCutInProgress">0</b> cây
-            </span>
-            <span style="display:inline-flex; align-items:center; gap:5px; color:#475569; font-weight:600;">
-              <span style="width:9px; height:9px; border-radius:50%; background:#94A3B8;"></span>
-              Còn lại: <b id="statCutRemaining">0</b> cây
-            </span>
-          </div>
-          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-            <a href="/cnc" class="btn btn-p btn-sm" style="font-size:11.5px; padding:3px 10px; text-decoration:none;" title="Mở nhánh web con dành riêng cho máy cắt Laser CNC">
-              ⚡ Mở màn hình Xưởng CNC ↗
-            </a>
-            <button type="button" class="btn btn-soft btn-sm" id="btnResetCutProgress" style="font-size:11.5px; padding:3px 9px; color:#64748B;" title="Đặt lại toàn bộ tiến độ cắt về 0%">
-              🔄 Đặt lại tiến độ
-            </button>
-          </div>
+        <div class="table-responsive">
+          <table class="wms-table">
+            <thead><tr><th>Vật tư / SKU</th><th>Nhóm</th><th class="r">Tồn kho</th><th>ĐVT</th><th>Vị trí kệ</th></tr></thead>
+            <tbody id="opInvTableBody"></tbody>
+          </table>
         </div>
       </section>
 
-      <!-- Filter Cutting Layout by Profile -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
-        <h2>Sơ đồ cắt chi tiết theo từng loại hộp</h2>
-        <div class="profile-tabs-bar" id="resultFilterTabs" style="margin-bottom:0;border:0;padding-bottom:0;"></div>
-      </div>
-
-      <!-- Container for Profile-Grouped Patterns -->
-      <div id="patternsContainer"></div>
+      <section class="card">
+        <div class="card-head">
+          <h2>🔧 Dụng Cụ Đang Mượn Chưa Trả</h2>
+          <a href="/vouchers" class="btn btn-soft btn-sm">Xem phiếu ↗</a>
+        </div>
+        <div class="table-responsive">
+          <table class="wms-table">
+            <thead><tr><th>Dụng cụ</th><th>Máy / Người mượn</th><th>Mã phiếu</th><th class="r">SL đang mượn</th></tr></thead>
+            <tbody id="opBorrowedBody"></tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </main>
 
-  <!-- Modal Paste from Excel -->
-  <div class="modal-backdrop" id="modalPaste" style="display: none;">
-    <div class="modal-box">
-      <div class="modal-head">
-        <h3>Dán danh sách chi tiết từ Excel</h3>
-        <button class="modal-close" id="btnClosePaste">&times;</button>
+  <div class="inv-modal-backdrop" id="modalHomeQrResult" aria-hidden="true">
+    <div class="inv-modal">
+      <div class="inv-modal-head">
+        <h3 id="homeQrTitle" style="font-size:16px;">📦 Thông Tin Vật Tư Qua QR</h3>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseHomeQr">✕ Đóng</button>
       </div>
-      <p style="font-size:13.5px;color:var(--mut);margin-bottom:12px;">
-        Dán trực tiếp các dòng từ Excel (Tên, Chiều dài, Số lượng, Đầu cắt, Mặt vát) hoặc gõ nhanh:
-      </p>
-      <textarea id="txtPaste" rows="8" placeholder="Ví dụ dán:&#10;Thanh giằng	835	4	ke1	30&#10;Thanh xà	1100	2	ke	30&#10;Thanh đứng	640	8&#10;1040x3&#10;453x1"></textarea>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
-        <button class="btn btn-soft btn-sm" id="btnCancelPaste">Đóng</button>
-        <button class="btn btn-p btn-sm" id="btnApplyPaste">Nhận dữ liệu</button>
+      <div class="inv-modal-body" id="homeQrBody"></div>
+      <div class="inv-modal-foot">
+        <button type="button" class="btn btn-soft btn-sm" id="btnHomeQrAnother">📷 Quét mã khác</button>
+        <button type="button" class="btn btn-p btn-sm" id="btnHomeQrDone">Đóng</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal Nhập file .IGS Cắt Ống -->
-  <div class="modal-backdrop" id="modalIgs" style="display: none;">
-    <div class="modal-box" style="max-width: 680px;">
-      <div class="modal-head">
-        <h3>Nhập file .IGS (Máy cắt ống Laser CNC &amp; Fusion 360)</h3>
-        <button class="modal-close" id="btnCloseIgs">&times;</button>
-      </div>
-      <p style="font-size:13px;color:var(--mut);margin-bottom:12px;">
-        Hệ thống tự động đọc hình học 3D từ file <b>.igs</b>: nhận diện quy cách hộp, độ dày, chiều dài và góc vát mòi 45°.
-      </p>
+  <div id="toast"></div>
 
-      <div id="igsDropZone" class="dropzone">
-        <svg style="width: 44px; height: 44px; stroke: var(--p); fill: none; stroke-width: 1.8; margin: 0 auto 8px; display:block;" viewBox="0 0 24 24">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        <div style="font-weight: 700; font-size: 14.5px; color: var(--dark); margin-bottom: 4px;">
-          Kéo thả các file .IGS vào đây
-        </div>
-        <div style="font-size: 12.5px; color: var(--mut);">
-          hoặc <span style="color: var(--p); text-decoration: underline; font-weight: 600;">bấm vào đây để chọn nhiều file .IGS cùng lúc</span>
-        </div>
-        <input type="file" id="inpIgsFiles" multiple accept=".igs,.iges" style="display: none;">
-      </div>
+  <script>
+    const $ = id => document.getElementById(id);
+    let currentUser = null;
+    let invList = [];
+    let vouchersList = [];
 
-      <!-- Preview list of parsed IGS parts -->
-      <div id="igsPreviewWrap" style="display: none; margin-top: 14px;">
-        <div style="font-weight: 700; font-size: 13px; color: var(--dark); margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center;">
-          <span>Chi tiết đã nhận diện từ file .IGS:</span>
-          <span id="igsCountBadge" style="color:var(--p); font-size:12px; font-weight:700;">0 chi tiết</span>
-        </div>
-        <div style="display:grid; grid-template-columns: 1fr 130px 85px 75px 65px; gap:8px; padding:6px 12px; background:#F1F5F9; border-radius:6px 6px 0 0; font-size:11.5px; font-weight:700; color:var(--mut);">
-          <span>Tên file / Chi tiết</span>
-          <span>Loại hộp</span>
-          <span style="text-align:right;">Dài (mm)</span>
-          <span style="text-align:center;">Đầu cắt</span>
-          <span style="text-align:right;">SL</span>
-        </div>
-        <div id="igsPreviewList" style="max-height: 220px; overflow-y: auto; border: 1px solid var(--edge); border-top:none; border-radius: 0 0 8px 8px; background: #FFFFFF; font-size: 12.5px;"></div>
-      </div>
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function numVN(n) {
+      const x = Number(n || 0);
+      return isFinite(x) ? x.toLocaleString('vi-VN', { maximumFractionDigits: 2 }) : '0';
+    }
+    function showToast(msg) {
+      const t = $('toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
 
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
-        <button class="btn btn-soft btn-sm" id="btnCancelIgs">Đóng</button>
-        <button class="btn btn-p btn-sm" id="btnApplyIgs" disabled style="opacity: 0.5;">+ Nạp vào bản vẽ tối ưu</button>
-      </div>
-    </div>
-  </div>
+    function applyUserUI(user) {
+      currentUser = user;
+      const isOp = !user || user.role === 'operator';
+      const isAdmin = Boolean(user && user.role === 'admin');
+      const rMeta = window.SharedUI ? window.SharedUI.getRoleMeta(user && user.role) : { icon: '👤', shortLabel: 'User' };
+      $('userIcon').textContent = rMeta.icon;
+      $('userNameDisp').textContent = `${user.fullName || user.username} [${rMeta.shortLabel}]`;
+      if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isAdmin ? 'inline-flex' : 'none';
+      $('loginGateWrap').style.display = 'none';
+      $('mainContent').style.display = 'block';
+      $('managerDashboard').style.display = isOp ? 'none' : 'block';
+      $('operatorDashboard').style.display = isOp ? 'block' : 'none';
+      if (window.SharedUI && typeof window.SharedUI.applyPriceVisibilityUI === 'function') {
+        window.SharedUI.applyPriceVisibilityUI(user);
+      }
+    }
 
-  <!-- Modal Nạp từ Fusion 360 -->
-  <div class="modal-backdrop" id="modalFusion" style="display: none;">
-    <div class="modal-box" style="max-width: 600px;">
-      <div class="modal-head">
-        <h3>Nạp bản vẽ bóc tách từ Fusion 360</h3>
-        <button class="modal-close" id="btnCloseFusion">&times;</button>
-      </div>
-      <p style="font-size:13px;color:var(--mut);margin-bottom:12px;">
-        Chọn file <b>fusion_exported_project.json</b> vừa xuất từ script Fusion 360:
-      </p>
-      <div id="fusionDropZone" class="dropzone" style="padding: 24px 16px;">
-        <svg style="width: 38px; height: 38px; stroke: var(--p); fill: none; stroke-width: 1.8; margin: 0 auto 8px; display:block;" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
-        </svg>
-        <div style="font-weight: 700; font-size: 14px; color: var(--dark); margin-bottom: 4px;">
-          Bấm để chọn file fusion_exported_project.json
-        </div>
-        <div style="font-size: 12px; color: var(--mut);">
-          (Tự động nhận diện toàn bộ các loại hộp, số lượng và mòi cắt)
-        </div>
-        <input type="file" id="inpFusionFile" accept=".json" style="display: none;">
-      </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
-        <button class="btn btn-soft btn-sm" id="btnCancelFusion">Đóng</button>
-      </div>
-    </div>
-  </div>
+    function showLoginGate(msg) {
+      currentUser = null;
+      $('loginGateWrap').style.display = 'block';
+      $('mainContent').style.display = 'none';
+      if (msg && $('loginErr')) {
+        $('loginErr').textContent = msg;
+        $('loginErr').style.display = 'block';
+      }
+    }
 
-  <!-- Modal Quản Lý Danh Sách Dự Án -->
-  <div class="modal-backdrop" id="modalProjects" style="display: none;">
-    <div class="modal-box modal-box-lg">
-      <div class="modal-head">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <svg style="width:24px; height:24px; stroke:var(--p); fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <h3 style="margin:0; font-size:18px;">Quản lý Danh sách Dự án &amp; Đơn hàng</h3>
-        </div>
-        <button class="modal-close" id="btnCloseProjects">&times;</button>
-      </div>
-      
-      <div class="projects-toolbar">
-        <button class="btn btn-p btn-sm" id="btnProjModalSaveCurrent" title="Lưu số liệu hiện tại thành dự án mới">
-          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Lưu dự án hiện tại
-        </button>
-        <button class="btn btn-soft btn-sm" id="btnProjModalNewBlank" title="Tạo dự án mới hoàn toàn">
-          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Tạo dự án mới
-        </button>
-        <button class="btn btn-soft btn-sm" id="btnProjModalImport" title="Nhập file dự án JSON hoặc file Fusion 360">
-          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Nhập file .json
-        </button>
-        <input type="file" id="inpImportProjFile" accept=".json" style="display: none;">
-        <button class="btn btn-soft btn-sm" id="btnProjModalBackupAll" title="Tải file sao lưu toàn bộ danh sách dự án">
-          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Sao lưu tất cả
-        </button>
+    async function loadDashboard() {
+      const [inv, vouches, projs] = await Promise.all([
+        window.SupabaseDB.getInventory().catch(() => []),
+        window.SupabaseDB.getWarehouseVouchers({ limit: 80 }).catch(() => []),
+        window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => [])
+      ]);
+      invList = inv || [];
+      vouchersList = vouches || [];
 
-        <div style="display:flex; align-items:center; gap:6px; margin: 0 4px;">
-          <button class="btn btn-sm btn-p btn-tab-proj" id="btnTabActiveProjects" type="button" style="font-weight:700;">
-            📁 Danh mục (<span id="countActiveProjects">0</span>)
-          </button>
-          <button class="btn btn-sm btn-soft btn-tab-proj" id="btnTabTrashProjects" type="button" style="color:#DC2626;" title="Thùng rác chứa các dự án đã xóa (có thể khôi phục lại)">
-            🗑️ Thùng rác (<span id="countTrashProjects">0</span>)
-          </button>
-        </div>
-        
-        <div class="projects-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="inpSearchProjects" placeholder="Tìm theo tên dự án, khách hàng, ngày...">
-        </div>
-      </div>
+      if (currentUser && currentUser.role !== 'operator') {
+        const lowItems = invList.filter(r => {
+          const q = Number(r.stockQty || 0);
+          const m = Number(r.minStockQty || 0);
+          return q === 0 || (m > 0 && q <= m);
+        });
+        const pendingV = vouchersList.filter(v => v.status === 'pending');
 
-      <div class="projects-list-container" id="projectsListWrap">
-        <!-- Rendered dynamically -->
-      </div>
-    </div>
-  </div>
+        $('kpiActiveSkuCount').textContent = numVN(invList.length);
+        $('kpiLowStockCount').textContent = numVN(lowItems.length);
+        $('kpiPendingVouchers').textContent = numVN(pendingV.length);
+        $('kpiActiveProjects').textContent = numVN((projs || []).length);
 
-  <!-- Modal Lưu / Đổi Tên Dự Án -->
-  <div class="modal-backdrop" id="modalSaveProjectForm" style="display: none;">
-    <div class="modal-box" style="max-width: 520px;">
-      <div class="modal-head">
-        <h3 id="saveProjModalTitle" style="margin:0; font-size:17px;">Lưu Dự Án Vào Bộ Nhớ</h3>
-        <button class="modal-close" id="btnCloseSaveProjForm">&times;</button>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
-        <div>
-          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
-            Tên dự án <span style="color:#DC2626;">*</span>
-          </label>
-          <input type="text" id="inpSaveProjName" class="input" style="width:100%; font-size:14px; font-weight:600;" placeholder="Ví dụ: Bàn thao tác 1500x600x770">
-        </div>
-        <div>
-          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
-            Khách hàng / Công trình
-          </label>
-          <input type="text" id="inpSaveProjCustomer" class="input" style="width:100%;" placeholder="Ví dụ: Công ty Cơ khí An Bình">
-        </div>
-        <div>
-          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
-            Ghi chú
-          </label>
-          <textarea id="inpSaveProjNotes" class="input" rows="3" style="width:100%; resize:vertical;" placeholder="Ghi chú thêm về đơn hàng, thời gian giao hàng..."></textarea>
-        </div>
-      </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap;">
-        <button class="btn btn-soft btn-sm" id="btnCancelSaveProjForm">Hủy</button>
-        <button class="btn btn-soft btn-sm" id="btnSaveAsNewProjForm" style="display:none; border-color:var(--p); color:var(--p); font-weight:700;">+ Lưu thành dự án mới</button>
-        <button class="btn btn-p btn-sm" id="btnConfirmSaveProjForm">Lưu vào bộ nhớ</button>
-      </div>
-    </div>
-  </div>
+        const recentV = vouchersList.slice(0, 8);
+        $('homeVouchersBody').innerHTML = recentV.length ? recentV.map(v => `
+          <tr>
+            <td><a href="/vouchers?id=${encodeURIComponent(v.id)}" style="font-family:monospace;font-weight:700;">${escapeHtml(v.voucherCode)}</a></td>
+            <td>${escapeHtml(v.voucherType)}</td>
+            <td>${escapeHtml(v.status)}</td>
+            <td>${escapeHtml(v.projectName || v.supplierName || v.department || '—')}</td>
+          </tr>
+        `).join('') : '<tr><td colspan="4" style="text-align:center;color:#64748B;padding:18px;">Chưa có phiếu kho nào.</td></tr>';
 
-  <!-- Đã kích hoạt cơ chế Tự động đồng bộ 24/7 (Không cần cửa sổ thủ công) -->
+        $('homeLowStockBody').innerHTML = lowItems.length ? lowItems.slice(0, 8).map(r => `
+          <tr>
+            <td><b>${escapeHtml(r.profileName)}</b>${r.sku ? ` <span style="font-size:11px;color:#64748B;">[${escapeHtml(r.sku)}]</span>` : ''}</td>
+            <td class="r" style="font-weight:800;color:${Number(r.stockQty) === 0 ? '#B91C1C' : '#C2410C'};">${numVN(r.stockQty)} ${escapeHtml(r.unit || '')}</td>
+            <td class="r">${numVN(r.minStockQty)}</td>
+            <td>${escapeHtml(r.rackLocation || '—')}</td>
+          </tr>
+        `).join('') : '<tr><td colspan="4" style="text-align:center;color:#15803D;padding:18px;">✅ Tất cả vật tư đều đủ tồn kho.</td></tr>';
+      } else {
+        renderOperatorCatalog();
+        renderOperatorBorrowed();
+      }
+    }
 
-  <!-- Modal Quản Lý Tài Khoản & Phân Quyền Hệ Thống (ĐỘC QUYỀN CHO ADMIN) -->
-  <div class="modal-backdrop" id="modalRoleSwitch" style="display: none;">
-    <div class="modal-box" style="max-width: 640px;">
-      <div class="modal-head">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">👑</span>
-          <h3 style="margin:0; font-size:18px;">Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Admin)</h3>
-        </div>
-        <button class="modal-close" id="btnCloseRoleModal">&times;</button>
-      </div>
+    function renderOperatorCatalog() {
+      const q = ($('inpOpSearchInv') ? $('inpOpSearchInv').value : '').trim().toLowerCase();
+      const rows = invList.filter(r => !q || `${r.profileName} ${r.sku || ''} ${r.rackLocation || ''}`.toLowerCase().includes(q)).slice(0, 60);
+      $('opInvTableBody').innerHTML = rows.length ? rows.map(r => {
+        const gm = window.SharedUI ? window.SharedUI.getMaterialGroupMeta(r.materialGroup) : { shortLabel: r.materialGroup || '' };
+        return `<tr>
+          <td><b>${escapeHtml(r.profileName)}</b>${r.sku ? ` <span style="font-size:11px;color:#64748B;">[${escapeHtml(r.sku)}]</span>` : ''}</td>
+          <td>${escapeHtml(gm.shortLabel)}</td>
+          <td class="r"><b>${numVN(r.stockQty)}</b></td>
+          <td>${escapeHtml(r.unit || 'cây')}</td>
+          <td>${r.rackLocation ? `<span class="vouch-status" style="background:#F1F5F9;color:#334155;">📍 ${escapeHtml(r.rackLocation)}</span>` : '—'}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="5" style="text-align:center;color:#64748B;padding:18px;">Không tìm thấy vật tư phù hợp.</td></tr>';
+    }
 
-      <div style="margin: 14px 0;">
-        <!-- Khối 1: Thông tin Tài khoản đang đăng nhập -->
-        <div id="currentAccountCard" style="border:2px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; margin-bottom:16px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-            <div>
-              <div style="font-size:12px; color:#475569; font-weight:600; margin-bottom:2px;">TÀI KHOẢN ĐANG ĐĂNG NHẬP:</div>
-              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                <span id="accModalUserIcon" style="font-size:22px;">👑</span>
-                <strong id="accModalFullName" style="font-size:16px; color:#0B3B38;">Quản Trị Viên (Admin)</strong>
-                <span id="accModalUsername" style="font-size:13px; color:#0F766E; font-family:monospace; background:#CCFBF1; padding:2px 8px; border-radius:6px; font-weight:700;">@admin</span>
-                <span id="accModalRoleBadge" style="font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:12px; background:#0F766E; color:#FFF;">QUẢN TRỊ VIÊN TỐI CAO</span>
-              </div>
-            </div>
-            <button type="button" class="btn btn-sm" id="btnLogoutAccount" style="background:#B4232C; color:#FFF; font-weight:700; padding:7px 14px;">
-              🚪 Đăng xuất
-            </button>
-          </div>
+    function renderOperatorBorrowed() {
+      const retIds = new Set(invList.filter(r => r.isReturnable).map(r => r.id));
+      const map = {};
+      vouchersList.filter(v => v.status === 'approved').forEach(v => {
+        const recKey = (v.recipientName || v.machineName || 'Chưa rõ').trim();
+        (v.items || []).forEach(it => {
+          const isBor = it.issueReason === 'borrow' || retIds.has(it.inventoryId);
+          const isRet = it.issueReason === 'return_tool' || v.voucherType === 'RETURN';
+          const k = `${it.profile}__${recKey}`;
+          if (v.voucherType === 'OUT' && isBor) {
+            if (!map[k]) map[k] = { profile: it.profile, unit: it.unit, who: `${v.machineName || ''} ${v.recipientName || ''}`.trim() || '—', code: v.voucherCode, qty: 0 };
+            map[k].qty += Number(it.qty || 0);
+          } else if (v.voucherType === 'RETURN' && isRet && map[k]) {
+            map[k].qty -= Number(it.qty || 0);
+          }
+        });
+      });
+      const active = Object.values(map).filter(x => x.qty > 0.001);
+      $('opBorrowedBody').innerHTML = active.length ? active.map(b => `
+        <tr><td><b>${escapeHtml(b.profile)}</b></td><td>${escapeHtml(b.who)}</td><td style="font-family:monospace;">${escapeHtml(b.code)}</td><td class="r"><b>${numVN(b.qty)} ${escapeHtml(b.unit || '')}</b></td></tr>
+      `).join('') : '<tr><td colspan="4" style="text-align:center;color:#64748B;padding:18px;">Không có dụng cụ đang mượn.</td></tr>';
+    }
 
-          <div id="accModalRoleDesc" style="font-size:12.5px; color:#134E4A; margin-top:10px; line-height:1.45; border-top:1px dashed #99F6E4; padding-top:8px;">
-            Toàn quyền tối cao: quản lý danh sách tài khoản, đặt lại mật khẩu cho nhân sự và cấp tài khoản mới.
-          </div>
+    function startHomeQrScan() {
+      if (!window.QrScanner || typeof window.QrScanner.open !== 'function') {
+        showToast('⚠️ Chưa tải được bộ quét QR.');
+        return;
+      }
+      window.QrScanner.open(raw => {
+        const parsed = window.QrScanner.parsePayload ? window.QrScanner.parsePayload(raw) : { kind: 'RAW', raw };
+        let bodyHtml = `<div style="font-family:monospace;font-size:12px;color:#475569;margin-bottom:8px;">Mã QR: ${escapeHtml(raw)}</div>`;
+        if (parsed.kind === 'INV') {
+          const item = invList.find(x => String(x.id) === String(parsed.id) || (parsed.sku && x.sku === parsed.sku));
+          bodyHtml += item
+            ? `<div><b>${escapeHtml(item.profileName)}</b></div><div>Tồn kho: <b>${numVN(item.stockQty)} ${escapeHtml(item.unit || '')}</b></div><div>Vị trí kệ: <b>${escapeHtml(item.rackLocation || 'Chưa gán kệ')}</b></div>`
+            : '<div>Không tìm thấy vật tư khớp mã QR trong kho.</div>';
+        } else if (parsed.kind === 'RACK') {
+          const atRack = invList.filter(x => (x.rackLocation || '').toLowerCase() === String(parsed.rack || '').toLowerCase());
+          bodyHtml += `<div><b>📍 Kệ: ${escapeHtml(parsed.rack)}</b> (${atRack.length} mã vật tư)</div>` +
+            atRack.slice(0, 10).map(x => `<div style="margin-top:4px;">• ${escapeHtml(x.profileName)}: <b>${numVN(x.stockQty)} ${escapeHtml(x.unit || '')}</b></div>`).join('');
+        } else {
+          const matched = invList.filter(x => `${x.profileName} ${x.sku || ''}`.toLowerCase().includes(String(raw).toLowerCase())).slice(0, 5);
+          bodyHtml += matched.length ? matched.map(x => `<div>• <b>${escapeHtml(x.profileName)}</b> — Tồn: ${numVN(x.stockQty)} (${escapeHtml(x.rackLocation || '—')})</div>`).join('') : '<div>Không nhận diện được mã QR kho.</div>';
+        }
+        $('homeQrBody').innerHTML = bodyHtml;
+        $('modalHomeQrResult').classList.add('open');
+      });
+    }
 
-          <!-- Đổi mật khẩu của tôi -->
-          <details id="boxChangeSelfPassword" style="margin-top:10px; font-size:12.5px; color:#0F766E;">
-            <summary style="cursor:pointer; font-weight:700;">🔑 Đổi mật khẩu tài khoản của tôi</summary>
-            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              <input type="password" id="inpNewSelfPassword" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)..." style="flex:1; min-width:200px; padding:7px 12px; border:1.5px solid #CBD5E1; border-radius:8px; font-size:13px;">
-              <button type="button" class="btn btn-p btn-sm" id="btnSaveSelfPassword" style="font-weight:700;">Lưu mật khẩu mới</button>
-            </div>
-          </details>
-        </div>
+    async function checkAuth() {
+      if (!window.SupabaseDB || !window.SupabaseDB.isConfigured()) { showLoginGate(); return; }
+      window.SupabaseDB.setLoading(true, 'Đang kiểm tra đăng nhập...');
+      try {
+        const user = await window.SupabaseDB.getCurrentAuthUser();
+        if (user) {
+          applyUserUI(user);
+          if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+            await window.SharedUI.loadWmsSettings();
+            window.SharedUI.applyPriceVisibilityUI(user);
+          }
+          await loadDashboard();
+          if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
+            window.SharedUI.initPendingVouchersBadge();
+          }
+        } else {
+          showLoginGate();
+        }
+      } catch (e) {
+        showLoginGate('❌ ' + e.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
 
-        <!-- Nút Trỏ Tới Nhánh Web Con Quản Trị Hệ Thống Toàn Diện -->
-        <div id="btnGoAdminSubpageWrap" style="display:none; margin-bottom:14px;">
-          <a href="/admin" class="btn btn-p" style="width:100%; text-decoration:none; justify-content:center; padding:10px 16px; font-size:14px; font-weight:800; border-radius:10px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">
-            🚀 MỞ TRANG QUẢN TRỊ NHÂN SỰ &amp; PHÂN QUYỀN (/admin) ↗
-          </a>
-        </div>
-
-        <!-- Khối 2: Thông báo quản lý nhân sự an toàn qua Supabase Auth -->
-        <div id="adminUsersManagerBox" style="display: none; border:1.5px solid #99F6E4; background:#F0FDFA; border-radius:12px; padding:14px 16px; font-size:13px; color:#134E4A; line-height:1.55;">
-          <strong style="font-size:14px; color:#0B3B38; display:block; margin-bottom:4px;">🛡️ Bảo mật Supabase Auth Đợt 2 đã bật</strong>
-          Mật khẩu được mã hóa trên <b>Supabase Auth</b> (không lưu dạng chữ rõ). Để cấp tài khoản mới, đổi mật khẩu nhân sự hoặc phân quyền <b>Admin / Kỹ sư / Thợ CNC</b>, vui lòng bấm nút mở trang <b>/admin</b> ở trên.
-        </div>
-      </div>
-
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
-        <button class="btn btn-soft btn-sm" id="btnCloseRoleSwitchModal">Đóng</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Màn Hình Đăng Nhập Toàn Màn Hình Bảo Mật (Login Gate) -->
-  <div id="loginOverlayGate" style="display: none; position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg, #072725 0%, #0F766E 55%, #134E4A 100%); align-items: center; justify-content: center; padding: 16px; overflow-y: auto;">
-    <div style="background: #FFFFFF; width: 100%; max-width: 420px; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden; border: 1px solid rgba(255,255,255,0.2); margin: auto;">
-      <!-- Header Đăng Nhập -->
-      <div style="background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); padding: 24px 24px 16px; text-align: center; border-bottom: 1px solid #E2E8F0;">
-        <img src="logo_an_binh.jpg" alt="An Bình" style="height: 52px; object-fit: contain; border-radius: 6px; margin-bottom: 8px;" onerror="this.style.display='none'">
-        <h2 style="font-size: 20px; font-weight: 800; color: #0B3B38; margin: 0 0 4px; letter-spacing: -0.3px;">HỆ THỐNG TỐI ƯU XẾP PHÔI</h2>
-        <div style="font-size: 13px; color: #0F766E; font-weight: 600;">Xưởng Cơ Khí An Bình · Đăng Nhập Hệ Thống</div>
-      </div>
-
-      <!-- FORM ĐĂNG NHẬP DUY NHẤT -->
-      <div id="paneGateLogin" style="padding: 22px 24px 24px;">
-        <div style="margin-bottom: 14px;">
-          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 6px;">Tên tài khoản đăng nhập</label>
-          <input type="text" id="inpLoginUsername" placeholder="Nhập tên tài khoản..." autocomplete="username" autofocus style="width: 100%; padding: 11px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600; outline: none;">
-        </div>
-
-        <div style="margin-bottom: 14px;">
-          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 6px;">Mật khẩu</label>
-          <div style="position: relative; display: flex; align-items: center;">
-            <input type="password" id="inpLoginPassword" placeholder="Nhập mật khẩu..." autocomplete="current-password" style="width: 100%; padding: 11px 44px 11px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600; outline: none;">
-            <button type="button" id="btnToggleLoginPassVis" title="Hiện/Ẩn mật khẩu" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px; opacity: 0.65;">👁️</button>
-          </div>
-        </div>
-
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 13px;">
-          <label style="display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: #475569; font-weight: 600;">
-            <input type="checkbox" id="chkRememberLogin" checked style="width: 16px; height: 16px; accent-color: #0F766E;">
-            Ghi nhớ đăng nhập trên thiết bị này
-          </label>
-        </div>
-
-        <div id="loginErrorAlert" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 14px; line-height: 1.4;"></div>
-
-        <button type="button" id="btnSubmitGateLogin" class="btn btn-p" style="width: 100%; justify-content: center; padding: 12px; font-size: 15px; font-weight: 800; border-radius: 10px; letter-spacing: 0.3px;">
-          🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
-        </button>
-
-        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #F1F5F9; text-align: center;">
-          <div style="font-size: 12px; color: #64748B; font-weight: 500; line-height: 1.5;">
-            🔒 Hệ thống nội bộ Xưởng Cơ Khí An Bình.<br>
-            Vui lòng liên hệ <b>Quản lý xưởng</b> nếu chưa có tài khoản hoặc quên mật khẩu.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- Toast Notification -->
-  <div id="toast">Thông báo</div>
-
-  <script src="js/index/state.js"></script>
-  <script src="js/index/profile-memory.js"></script>
-  <script src="js/index/warehouse-dispatch.js"></script>
-  <script src="js/index/project-manager.js"></script>
-  <script src="js/index/project-modals.js"></script>
-  <script src="js/index/cloud-sync.js"></script>
-  <script src="js/index/nesting-ui.js"></script>
-  <script src="js/index/export-import.js"></script>
-  <script src="js/index/auth-roles.js"></script>
-  <script src="js/index/igs-fusion-loader.js"></script>
-  <script src="js/index/init.js"></script>
+    document.addEventListener('DOMContentLoaded', () => {
+      $('btnSubmitLogin').onclick = async () => {
+        const u = ($('inpLoginUser').value || '').trim();
+        const p = ($('inpLoginPass').value || '').trim();
+        if (!u || !p) return;
+        window.SupabaseDB.setLoading(true, 'Đang đăng nhập...');
+        try {
+          const user = await window.SupabaseDB.signInWithUsername(u, p);
+          $('inpLoginPass').value = '';
+          applyUserUI(user);
+          if (window.SharedUI && typeof window.SharedUI.loadWmsSettings === 'function') {
+            await window.SharedUI.loadWmsSettings();
+            window.SharedUI.applyPriceVisibilityUI(user);
+          }
+          await loadDashboard();
+          showToast(`✓ Xin chào ${user.fullName || user.username}`);
+        } catch (err) {
+          $('loginErr').textContent = '❌ ' + err.message;
+          $('loginErr').style.display = 'block';
+        } finally {
+          window.SupabaseDB.setLoading(false);
+        }
+      };
+      $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSubmitLogin').click(); });
+      $('btnLogout').onclick = async () => { await window.SupabaseDB.signOut(); showLoginGate(); };
+      if ($('btnHomeScanQr')) $('btnHomeScanQr').onclick = startHomeQrScan;
+      if ($('btnOpScanQr')) $('btnOpScanQr').onclick = startHomeQrScan;
+      if ($('inpOpSearchInv')) $('inpOpSearchInv').oninput = renderOperatorCatalog;
+      if ($('btnCloseHomeQr')) $('btnCloseHomeQr').onclick = () => $('modalHomeQrResult').classList.remove('open');
+      if ($('btnHomeQrDone')) $('btnHomeQrDone').onclick = () => $('modalHomeQrResult').classList.remove('open');
+      if ($('btnHomeQrAnother')) $('btnHomeQrAnother').onclick = () => { $('modalHomeQrResult').classList.remove('open'); startHomeQrScan(); };
+      checkAuth();
+    });
+  </script>
 </body>
 </html>

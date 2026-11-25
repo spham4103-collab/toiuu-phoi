@@ -9,7 +9,9 @@ dist_dir = os.path.join(toiuu_phoi_dir, 'dist')
 src_py = os.path.join(toiuu_phoi_dir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')
 src_html = os.path.join(toiuu_phoi_dir, 'index.html')
 sub_branches = ['admin', 'projects', 'inventory', 'vouchers', 'reports', 'cnc']
+wms_branches = ['admin', 'projects', 'inventory', 'vouchers', 'reports']
 branch_htmls = [os.path.join(toiuu_phoi_dir, b + '.html') for b in sub_branches]
+wms_branch_htmls = [os.path.join(toiuu_phoi_dir, b + '.html') for b in wms_branches]
 src_engine = os.path.join(toiuu_phoi_dir, 'toi-uu-engine.js')
 src_helper = os.path.join(toiuu_phoi_dir, 'run_engine_helper.cjs')
 src_logo = os.path.join(toiuu_phoi_dir, 'logo_an_binh.jpg')
@@ -54,17 +56,40 @@ def copy_db_files(target_dir, include_json=False):
     elif os.path.exists(dst_db_dir) and not os.listdir(dst_db_dir):
         os.rmdir(dst_db_dir)
 
-def copy_js_files(target_dir):
+def copy_js_files(target_dir, exclude_index=False):
     src_js_dir = os.path.join(toiuu_phoi_dir, 'js')
     dst_js_dir = os.path.join(target_dir, 'js')
     if os.path.exists(src_js_dir):
-        shutil.copytree(src_js_dir, dst_js_dir, dirs_exist_ok=True)
+        if exclude_index:
+            shutil.copytree(
+                src_js_dir,
+                dst_js_dir,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns('index', 'index.*')
+            )
+            stale_idx = os.path.join(dst_js_dir, 'index')
+            if os.path.isdir(stale_idx):
+                shutil.rmtree(stale_idx, ignore_errors=True)
+        else:
+            shutil.copytree(src_js_dir, dst_js_dir, dirs_exist_ok=True)
 
-def copy_css_files(target_dir):
+def copy_css_files(target_dir, wms_only=False):
     src_css_dir = os.path.join(toiuu_phoi_dir, 'css')
     dst_css_dir = os.path.join(target_dir, 'css')
     if os.path.exists(src_css_dir):
-        shutil.copytree(src_css_dir, dst_css_dir, dirs_exist_ok=True)
+        if wms_only:
+            shutil.copytree(
+                src_css_dir,
+                dst_css_dir,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns('index.css', 'print-a4.css')
+            )
+            for stale_css in ('index.css', 'print-a4.css'):
+                p = os.path.join(dst_css_dir, stale_css)
+                if os.path.exists(p):
+                    os.remove(p)
+        else:
+            shutil.copytree(src_css_dir, dst_css_dir, dirs_exist_ok=True)
 
 def sync_fusion_appdata():
     os.makedirs(fusion_script_dir, exist_ok=True)
@@ -141,36 +166,40 @@ if '--fusion-only' in sys.argv[1:]:
     print('Fusion 360 AppData synchronization completed!')
     sys.exit(0)
 
-# 0 & 1-2. Dọn thư mục con trùng lặp (tận dụng extensionless URL GitHub Pages) & Đồng bộ Fusion Script AppData
+# 0. Dọn thư mục con trùng lặp (tận dụng extensionless URL GitHub Pages)
 removed_root = remove_stale_clean_subdirs(toiuu_phoi_dir)
 if removed_root:
     print('Removed duplicate clean-URL sub-directories:', ', '.join(removed_root))
-sync_fusion_appdata()
 
-# 3. Copy web assets to Fusion360/toiuu-phoi
-os.makedirs(fusion_workspace_dir, exist_ok=True)
-for f in all_web_assets + [src_py]:
-    if os.path.exists(f):
-        shutil.copy2(f, os.path.join(fusion_workspace_dir, os.path.basename(f)))
-remove_stale_clean_subdirs(fusion_workspace_dir)
-copy_db_files(fusion_workspace_dir, include_json=True)
-copy_js_files(fusion_workspace_dir)
-copy_css_files(fusion_workspace_dir)
-print('Copied web assets to Fusion360/toiuu-phoi')
-
-# 4. Copy web assets to dist directory for GitHub Pages deploy (tuyệt đối không copy workshop_db.json / .netlify)
+# 1. Build bản WMS sạch sang thư mục dist/ cho GitHub Pages deploy (không copy code xếp phôi/Fusion/workshop_db.json/.netlify)
 os.makedirs(dist_dir, exist_ok=True)
-stale_dist_netlify = os.path.join(dist_dir, '.netlify')
-if os.path.exists(stale_dist_netlify):
-    shutil.rmtree(stale_dist_netlify, ignore_errors=True)
-for f in [src_html] + branch_htmls + [src_engine, src_logo, src_cfg, src_manifest, src_sw]:
+for stale_dir in ('.netlify', 'js/index'):
+    p = os.path.join(dist_dir, stale_dir)
+    if os.path.exists(p):
+        shutil.rmtree(p, ignore_errors=True)
+for stale_file in ('toi-uu-engine.js', 'run_engine_helper.cjs', 'Xuat_IGS_Va_Toi_Uu_Phoi.py'):
+    p = os.path.join(dist_dir, stale_file)
+    if os.path.exists(p):
+        os.remove(p)
+
+for f in [src_html] + wms_branch_htmls + [src_logo, src_cfg, src_manifest, src_sw]:
     if os.path.exists(f):
         shutil.copy2(f, os.path.join(dist_dir, os.path.basename(f)))
+
+# Trang redirect cho bookmark cũ /cnc và /nesting
+redirect_html = """<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Đang chuyển hướng...</title><script>
+var target = (location.search && /[?&]project=/.test(location.search)) ? ('/projects' + location.search + location.hash) : '/';
+location.replace(target);
+</script></head><body></body></html>"""
+for legacy_name in ('cnc.html', 'nesting.html'):
+    with open(os.path.join(dist_dir, legacy_name), 'w', encoding='utf-8') as rf:
+        rf.write(redirect_html)
+
 remove_stale_clean_subdirs(dist_dir)
 copy_db_files(dist_dir, include_json=False)
-copy_js_files(dist_dir)
-copy_css_files(dist_dir)
-print('Copied web assets to dist dir')
+copy_js_files(dist_dir, exclude_index=True)
+copy_css_files(dist_dir, wms_only=True)
+print('Copied WMS web assets to dist dir (archived Fusion/Nesting excluded)')
 
 # 5. Dọn dẹp các thư mục xuất trên Desktop: đảm bảo chỉ lưu lại đúng các file .igs
 desktop_roots = [

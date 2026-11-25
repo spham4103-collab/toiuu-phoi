@@ -119,8 +119,9 @@ function testSmartInventoryFiles() {
   assert(sbJs.includes('mergeInventoryItems'), 'supabaseClient.js must export mergeInventoryItems');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v28'), 'sw.js must be v28');
+  assert(sw.includes('toiuu-phoi-pwa-v29'), 'sw.js must be v29');
   assert(sw.includes('/js/inventory-smart.js'), 'sw.js must cache /js/inventory-smart.js');
+  assert(!sw.includes('/toi-uu-engine.js') && !sw.includes('/cnc'), 'sw.js must not cache nesting/cnc assets');
 
   const sharedCss = read('css/shared.css');
   assert(sharedCss.includes('.xp-sticky-entry'), 'shared.css must define .xp-sticky-entry');
@@ -128,14 +129,17 @@ function testSmartInventoryFiles() {
   assert(sharedCss.includes('.xp-modal-table-scroll'), 'shared.css must define .xp-modal-table-scroll');
   const sharedUi = read('js/shared-ui.js');
   assert(sharedUi.includes('initStickySection'), 'shared-ui.js must export initStickySection');
+  assert(!sharedUi.includes("href: '/cnc'"), 'shared-ui.js NAV_ITEMS must not include /cnc');
   assert(invHtml.includes('offcutsStickyEntry'), 'inventory.html must have offcutsStickyEntry');
   assert(invHtml.includes('obBarsStickyEntry'), 'inventory.html must have obBarsStickyEntry');
   assert(read('vouchers.html').includes('voucherFormStickyEntry'), 'vouchers.html must have voucherFormStickyEntry');
   assert(read('js/project-bom.js').includes('bomStickyEntry'), 'project-bom.js must have bomStickyEntry');
-  assert(read('index.html').includes('indexPartsStickyEntry'), 'index.html must have indexPartsStickyEntry');
-
+  assert(read('index.html').includes('Quản Lý Kho Vật Tư'), 'index.html must be pure WMS dashboard');
   const distDir = path.join(ROOT, 'dist');
   if (fs.existsSync(distDir)) {
+    assert(!fs.existsSync(path.join(distDir, 'toi-uu-engine.js')), 'dist/ must not contain toi-uu-engine.js');
+    assert(!fs.existsSync(path.join(distDir, 'js', 'index')), 'dist/ must not contain js/index/');
+    assert(!fs.existsSync(path.join(distDir, 'Xuat_IGS_Va_Toi_Uu_Phoi.py')), 'dist/ must not contain Fusion script');
     for (const f of ['.env', 'workshop_db.json']) {
       assert(!fs.existsSync(path.join(distDir, f)), `dist/ must not contain ${f}`);
     }

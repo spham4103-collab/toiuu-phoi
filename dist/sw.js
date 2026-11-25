@@ -1,26 +1,22 @@
 /**
- * Service Worker - PWA for Xếp Phôi CNC An Bình
- * Cache Version 19 - Hỗ trợ WMS (4 nhóm vật tư, /vouchers, /css/shared.css, /js/shared-ui.js) & URL sạch,
+ * Service Worker - PWA cho Hệ Thống Quản Lý Kho Vật Tư (WMS) An Bình
  * Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
- * Network-First cho HTML, /toi-uu-engine.js, /css/ và toàn bộ /js/ với fallback đúng từng nhánh URL
+ * Network-First cho HTML, /css/ và toàn bộ /js/ với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v28';
+const CACHE_NAME = 'toiuu-phoi-pwa-v29';
 const STATIC_ASSETS = [
   '/',
   '/projects',
   '/inventory',
   '/vouchers',
   '/reports',
-  '/cnc',
   '/admin',
   '/index.html',
   '/projects.html',
   '/inventory.html',
   '/vouchers.html',
   '/reports.html',
-  '/cnc.html',
   '/admin.html',
-  '/toi-uu-engine.js',
   '/js/supabaseClient.js',
   '/js/shared-ui.js',
   '/js/project-bom.js',
@@ -28,19 +24,6 @@ const STATIC_ASSETS = [
   '/js/workshopExport.js',
   '/js/qr-scanner.js',
   '/css/shared.css',
-  '/css/index.css',
-  '/css/print-a4.css',
-  '/js/index/state.js',
-  '/js/index/profile-memory.js',
-  '/js/index/warehouse-dispatch.js',
-  '/js/index/project-manager.js',
-  '/js/index/project-modals.js',
-  '/js/index/cloud-sync.js',
-  '/js/index/nesting-ui.js',
-  '/js/index/export-import.js',
-  '/js/index/auth-roles.js',
-  '/js/index/igs-fusion-loader.js',
-  '/js/index/init.js',
   '/logo_an_binh.jpg',
   '/workshop_config.json',
   '/manifest.json'
@@ -70,7 +53,7 @@ function pickRouteFallbackUrl(pathname) {
   if (p.startsWith('/projects')) return '/projects';
   if (p.startsWith('/inventory')) return '/inventory';
   if (p.startsWith('/vouchers')) return '/vouchers';
-  if (p.startsWith('/cnc')) return '/cnc';
+  if (p.startsWith('/reports')) return '/reports';
   if (p.startsWith('/admin')) return '/admin';
   return '/';
 }
@@ -89,11 +72,10 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Network-First cho trang HTML chính, /toi-uu-engine.js, /css/ và toàn bộ /js/ để luôn nhận code mới nhất
+  // Network-First cho trang HTML chính, /css/ và toàn bộ /js/ để luôn nhận code mới nhất
   if (
     req.mode === 'navigate' ||
     req.destination === 'document' ||
-    url.pathname === '/toi-uu-engine.js' ||
     url.pathname.startsWith('/css/') ||
     url.pathname.startsWith('/js/')
   ) {

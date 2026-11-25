@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p === '/index.html' || p.endsWith('/index.html')) {
+        history.replaceState(null, '', (p.slice(0, -10) || '/') + location.search + location.hash);
+      } else if (p.endsWith('.html')) {
+        history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+      }
+    }
+  </script>
+  <title>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống · An Bình</title>
+  <meta name="description" content="Ứng dụng tối ưu xếp phôi cắt thép hộp, ống tròn, thanh nhôm 1D. Bộ nhớ lưu quy cách hộp, xếp riêng từng loại hộp và tính toán số cây cần dùng chính xác.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1E3A8A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="toi-uu-engine.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabaseClient.js"></script>
+  <script src="js/shared-ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/workshopExport.js"></script>
+  <script id="embeddedFusionData" type="application/json"></script>
+  <script id="embeddedWorkshopConfig" type="application/json">{"workspaceId": "ANBINH"}</script>
+  <link rel="stylesheet" href="css/shared.css">
+  <link rel="stylesheet" href="css/index.css">
+  <link rel="stylesheet" href="css/print-a4.css" media="print">
+</head>
+<body>
+
+  <!-- Top bar (2 tầng chống chồng chéo chữ + Điều hướng đa nhánh web con) -->
+  <header class="top no-print">
+    <div class="wrap">
+      <a class="brand" href="/" title="An Bình - Tối Ưu Xếp Phôi Thép Hộp">
+        <img src="logo_an_binh.jpg" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
+          <div class="brand-sub-title">Cắt thép hộp &amp; bản vẽ đa quy cách</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <!-- Trạng Thái Mạng (Online/Offline PWA) -->
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; white-space:nowrap; flex-shrink:0;" title="Trạng thái kết nối máy chủ">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block; flex-shrink:0;" id="networkDot"></span>
+          <span id="networkStatusText">Trực tuyến 24/7</span>
+        </div>
+
+        <!-- Trạng thái tự động đồng bộ 24/7 -->
+        <div style="font-size:12px; color:#15803D; background:#DCFCE7; border:1px solid #BBF7D0; padding:4px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; font-weight:600;" title="Toàn bộ dữ liệu được tự động đồng bộ 24/7 giữa mọi thiết bị">
+          <span class="cloud-status-dot dot-green" id="cloudStatusDot" style="width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
+          <span id="cloudStatusText">Tự động đồng bộ 24/7</span>
+        </div>
+
+        <!-- Nút Phân Quyền Thông Minh (Thợ CNC vs Kỹ Sư Thiết Kế) -->
+        <button class="btn btn-sm btn-role-badge" id="btnRoleSelector" style="background:#FFF7ED; color:#C2410C; border:1.5px solid #FDBA74; font-weight:700; display:inline-flex; align-items:center; gap:5px;" title="Thông tin người dùng đang đăng nhập">
+          <span id="roleBadgeIcon">👷</span>
+          <span id="roleBadgeText">Thợ CNC [Khóa an toàn]</span>
+          <span id="roleLockStatus" style="font-size:12px;">🔒</span>
+        </button>
+
+        <button class="btn btn-sm" id="btnHeaderQuickLogout" style="background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-weight:700; padding:4px 9px; font-size:12px; display:inline-flex; align-items:center; gap:4px; border-radius:999px; cursor:pointer;" title="Đăng xuất khỏi tài khoản này">
+          🚪 Đăng xuất
+        </button>
+
+        <!-- Lưu Dự án -->
+        <button class="btn btn-soft btn-sm" id="btnOpenSaveModal" title="Lưu số liệu hiện tại thành dự án">
+          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Lưu
+        </button>
+
+        <!-- Menu Nhập Dữ Liệu -->
+        <div class="dropdown" id="dropdownImport">
+          <button class="btn btn-soft btn-sm" id="btnDropdownImportToggle" type="button" title="Nhập dữ liệu từ Fusion 360, file .IGS hoặc Excel">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Nhập liệu ▾
+          </button>
+          <div class="dropdown-menu" id="menuImport">
+            <div class="dropdown-item" id="btnLoadFusion">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+              <span>Từ Autodesk Fusion 360</span>
+            </div>
+            <div class="dropdown-item" id="btnOpenIgs">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>File .IGS (Cắt laser ống)</span>
+            </div>
+            <div class="dropdown-item" id="btnOpenPaste">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Dán từ Excel / Bảng tính</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Menu Mẫu Thử -->
+        <div class="dropdown" id="dropdownSamples">
+          <button class="btn btn-soft btn-sm" id="btnDropdownSamplesToggle" type="button" title="Xem các bản vẽ mẫu có sẵn">
+            <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Mẫu thử ▾
+          </button>
+          <div class="dropdown-menu" id="menuSamples">
+            <div class="dropdown-item" id="btnPresetMulti">
+              <span>🏗️ Mẫu khung đa loại hộp</span>
+            </div>
+            <div class="dropdown-item" id="btnPresetUser">
+              <span>📷 Mẫu 18 chi tiết ảnh gốc</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tạo mới -->
+        <button class="btn btn-soft btn-sm" id="btnReset" title="Xóa trắng để tạo bản vẽ mới">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Tạo mới
+        </button>
+      </div>
+    </div>
+
+    <!-- Tầng 2: Thanh Điều Hướng Các Nhánh Web Con -->
+    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+      <div class="subnav-inner">
+        <a href="/" class="subnav-link active" title="Trang tính toán &amp; xếp phôi chính">
+          📐 Bàn Xếp Phôi
+        </a>
+        <a href="/projects" class="subnav-link" title="Quản lý danh sách dự án, đơn hàng &amp; thùng rác">
+          📁 Quản Lý Dự Án <span id="badgeProjectCount" style="background:#0F766E;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
+        </a>
+        <a href="/inventory" class="subnav-link" title="Thư viện quy cách thép hộp, phôi tồn kho lẻ &amp; bảng vật tư BOM">
+          📦 Kho Phôi &amp; Quy Cách
+        </a>
+        <a href="/vouchers" class="subnav-link" title="Lập, duyệt &amp; in Phiếu Nhập kho (PNK), Xuất kho (PXK), Hoàn kho (PHK)">
+          🧾 Phiếu Nhập / Xuất
+        </a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;" title="Báo cáo Nhập - Xuất - Tồn &amp; Giá vốn dự án">
+          📊 Báo Cáo
+        </a>
+        <a href="/cnc" class="subnav-link" title="Sơ đồ cắt trực quan, tích tiến độ xưởng &amp; xuất file .IGS cho máy Laser CNC">
+          ⚡ Sơ Đồ &amp; Tiến Độ CNC
+        </a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;" title="Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Độc quyền Admin)">
+          ⚙️ Quản Trị &amp; Nhân Sự
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <!-- Project Active Status Banner -->
+    <div class="project-active-bar no-print" id="projectActiveBar" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:10px 18px; margin: 14px 0 6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; box-shadow: 0 2px 6px rgba(16,185,129,0.06);">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:#DCFCE7; color:#15803D;">
+          <svg viewBox="0 0 24 24" style="width:15px; height:15px; stroke:currentColor; stroke-width:2.2; fill:none;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </span>
+        <div style="font-size:13.5px;">
+          <span style="color:#15803D; font-weight:700;">Đang mở dự án:</span>
+          <strong id="dispCurrentProjName" style="color:#0F172A; font-size:14.5px; margin-left:4px;">Dự án hiện hành</strong>
+          <span id="dispCurrentProjCustomer" style="color:#64748B; font-size:13px; margin-left:6px;"></span>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn btn-sm btn-soft" id="btnBannerToggleLock" title="Khóa bảo vệ dự án chống xóa hoặc chỉnh sửa nhầm">
+          <span id="bannerLockIcon">🔓</span> <span id="bannerLockText">Khóa bảo vệ</span>
+        </button>
+        <button class="btn btn-sm btn-soft" id="btnBannerSave" title="Lưu nhanh các thay đổi vào dự án này">
+          <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Lưu cập nhật
+        </button>
+        <button class="btn btn-sm btn-soft" id="btnBannerExportJson" title="Xuất file .json dự án này về máy">
+          <svg viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Xuất file .json
+        </button>
+        <button class="btn btn-sm btn-p" id="btnBannerOpenManager" title="Mở nhanh danh sách các dự án">
+          Danh sách dự án
+        </button>
+        <a href="/projects" class="btn btn-sm btn-soft" style="border-color:var(--p); color:var(--p); text-decoration:none;" title="Mở nhánh web con Quản Lý Dự Án chuyên sâu">
+          Mở trang Dự án ↗
+        </a>
+      </div>
+    </div>
+    <!-- Hero / Features -->
+    <div class="hero no-print">
+      <div class="hero-top">
+        <div>
+          <h1>Tối Ưu Xếp Phôi Thép Hộp &amp; Cắt Ống Đa Quy Cách</h1>
+          <p class="hero-desc">
+            Xếp phôi độc lập và tính số cây cần dùng cho từng loại hộp trong bản vẽ. Tự động lưu bộ nhớ các quy cách hộp, vét cạn cây tồn kho và xếp xen kẽ ke 45° giảm hao phí tối đa.
+          </p>
+        </div>
+        <div>
+          <button class="btn btn-cta btn-lg" id="btnOptimizeHero">
+            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            TÍNH TOÁN XẾP PHÔI
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banner Thông Báo Chế Độ Thợ CNC -->
+    <div id="operatorModeBanner" style="display:none; background:#FFF7ED; border:2px solid #F97316; border-radius:12px; padding:12px 18px; margin-bottom:16px; align-items:center; justify-content:space-between; gap:12px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:24px;">👷</span>
+        <div>
+          <div style="font-size:15px; font-weight:800; color:#C2410C;">ĐANG BẬT CHẾ ĐỘ THỢ ĐỨNG MÁY CNC / CƯA</div>
+          <div style="font-size:13px; color:#9A3412;">Kích thước hiển thị to rõ, bảo vệ dữ liệu chống bấm nhầm xóa dự án. Bấm nút màu xanh lá ở từng cây để tải file .IGS về máy CNC.</div>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-soft" id="btnExitOperatorMode" style="background:#FFF; border:1px solid #EA580C; color:#EA580C; font-weight:700;">
+        ✕ Thoát chế độ thợ
+      </button>
+    </div>
+
+    <!-- Main Form Grid -->
+    <div class="grid-input no-print">
+      <!-- Left: Parts to cut organized per Profile -->
+      <section class="card" aria-label="Chi tiết cần cắt">
+        <div class="card-title">
+          <h2>Chi tiết cần cắt (Xếp riêng theo loại hộp)</h2>
+          <span style="font-size:13px;color:var(--mut);" id="lblPartCount">0 chi tiết</span>
+        </div>
+        <p class="card-subtitle">
+          Chọn loại hộp để nhập chi tiết và xem tính toán số cây cần dùng của riêng loại hộp đó.
+        </p>
+
+        <!-- Box Profile Memory Library Section -->
+        <div class="memory-library-box">
+          <div class="memory-header-row">
+            <b>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Bộ nhớ quy cách hộp (Đã lưu trong máy):
+            </b>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="inpCustomProfile" placeholder="Thêm quy cách mới (vd: Hộp 25x25x1, 40x10x1.2...)" style="max-width:250px;min-height:32px;padding:3px 10px;font-size:12.5px;">
+              <button class="btn btn-p btn-sm" id="btnAddCustomProfile" type="button">+ Lưu bộ nhớ</button>
+              <a href="/inventory" style="font-size:12px;font-weight:700;color:var(--p);white-space:nowrap;padding:4px 8px;background:#fff;border:1px solid #99F6E4;border-radius:6px;text-decoration:none;" title="Mở nhánh web con Quản lý Kho Phôi &amp; Quy Cách">📦 Quản lý kho ↗</a>
+            </div>
+          </div>
+          <div class="memory-chips-wrap" id="memoryChipsWrap">
+            <!-- Danh sách dự án sẽ được nạp tự động từ Supabase -->
+          </div>
+        </div>
+
+        <!-- Filter Profile Tabs Bar with Bars Needed Badge -->
+        <div class="profile-tabs-bar" id="profileTabsBar">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Active Box Banner & Mini KPI for Selected Box -->
+        <div id="activeProfileBannerWrap"></div>
+
+        <!-- Sticky Action Row for Parts Entry -->
+        <div class="xp-sticky-entry" id="indexPartsStickyEntry" style="padding:8px 0 10px; margin-bottom:0;">
+          <div class="action-row" style="margin-top:0;">
+            <button class="btn btn-p btn-sm" id="btnAddPart">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Thêm chi tiết
+            </button>
+            <button class="btn btn-soft btn-sm" id="btnQuickIgs">Nhập file .IGS</button>
+            <button class="btn btn-soft btn-sm" id="btnQuickPaste">Dán từ Excel</button>
+            <button class="btn btn-soft btn-sm xp-sticky-collapsible" id="btnRemoveCurrentProfile" style="color:var(--bad);" title="Xóa loại hộp này khỏi bản vẽ">
+              Xóa loại hộp này
+            </button>
+            <button class="btn btn-soft btn-sm xp-sticky-collapsible" style="color:var(--bad);margin-left:auto;" id="btnClearAll">Xóa hết bản vẽ</button>
+            <button type="button" class="btn btn-soft btn-sm xp-sticky-mobile-toggle" data-sticky-toggle>Mở rộng ô nhập ▾</button>
+          </div>
+        </div>
+
+        <!-- Parts Table Responsive Wrapper -->
+        <div class="table-responsive parts-table-wrap xp-sticky-table-wrap">
+          <div class="parts-header xp-sticky-header-row">
+            <span></span>
+            <span>Tên / Vị trí chi tiết</span>
+            <span class="r">Dài (mm)</span>
+            <span class="r">SL</span>
+            <span style="text-align:center;">Đầu cắt</span>
+            <span class="r" title="Bề rộng cạnh bị vát mòi 45° (ví dụ hộp 25x25 thì là 25mm, không phải độ dày 1 ly)">Mặt vát (mm)</span>
+            <span></span>
+          </div>
+
+          <div id="partsList"></div>
+        </div>
+      </section>
+
+      <!-- Right: Stock Bars & Cutting Settings -->
+      <div>
+        <!-- Stock Bars Card organized for the Active Profile -->
+        <section class="card" aria-label="Cây vật tư">
+          <div class="card-title">
+            <h2 id="stockCardTitle">Cây vật tư</h2>
+          </div>
+          <p class="card-subtitle" id="stockCardSub">
+            Cây tồn kho nhập số lượng có sẵn (ưu tiên vét trước). Cây mua mới 6m luôn sẵn sàng.
+          </p>
+
+          <!-- Gợi ý tận dụng Kho Đề-xê tái sử dụng (Mục 3.1.1) -->
+          <div id="offcutSuggestionBox" class="no-print" style="display:none; margin-bottom:12px; padding:10px 12px; background:#F0FDFA; border:1.5px solid #5EEAD4; border-radius:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+              <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-weight:800; font-size:13px; color:#0F766E;">
+                <input type="checkbox" id="chkUseWarehouseOffcuts" style="width:16px; height:16px; accent-color:#0F766E;">
+                <span>♻️ Ưu tiên cắt từ phôi đề-xê đang có trong kho</span>
+              </label>
+              <a href="/inventory#offcuts" style="font-size:11.5px; font-weight:700; color:#0F766E; text-decoration:underline;">Mở Kho đề-xê ↗</a>
+            </div>
+            <div id="offcutSuggestionDetail" style="font-size:12px; color:#134E4A; line-height:1.45;"></div>
+            <div id="offcutActionRow" style="display:none; margin-top:7px;"></div>
+          </div>
+
+          <!-- Stock Table Responsive Wrapper -->
+          <div class="table-responsive stock-table-wrap">
+            <div class="stock-header">
+              <span>Tên phôi</span>
+              <span class="r">Dài (mm)</span>
+              <span class="r">Số cây</span>
+              <span></span>
+            </div>
+
+            <div id="stockList"></div>
+          </div>
+
+          <div style="margin-top: 12px; display:flex; gap:8px;">
+            <button class="btn btn-soft btn-sm" id="btnAddStock">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Thêm cây tồn kho
+            </button>
+          </div>
+        </section>
+
+        <!-- Cut Settings Card -->
+        <section class="card" aria-label="Cách cắt">
+          <div class="card-title">
+            <h2>Cách cắt &amp; Máy cắt</h2>
+          </div>
+
+          <div class="method-toggle">
+            <button type="button" id="btnMethodSaw">Cắt đá / Cưa đĩa</button>
+            <button type="button" id="btnMethodLaser" class="active">Laser CNC</button>
+          </div>
+
+          <div class="settings-grid">
+            <div>
+              <label class="setting-label" for="inpKerf">Hao mạch cắt (mm)</label>
+              <input type="text" id="inpKerf" class="so" value="0">
+            </div>
+            <div>
+              <label class="setting-label" for="inpClamp">Kẹp đuôi (mm)</label>
+              <input type="text" id="inpClamp" class="so" value="80">
+            </div>
+          </div>
+
+          <label class="checkbox-box">
+            <input type="checkbox" id="chkInterlock" checked>
+            <div class="checkbox-text">
+              <b>Xếp xen kẽ chi tiết cắt ke 45°</b>
+              <small>Hai miếng ke cùng mặt nằm liền nhau, lật 1 miếng thì chung 1 nhát cắt chéo, bớt đúng bề rộng mặt hộp.</small>
+            </div>
+          </label>
+
+          <div style="margin-top: 10px;" id="boxGap">
+            <label class="setting-label" for="inpGap">Hở mối xen kẽ an toàn (mm)</label>
+            <input type="text" id="inpGap" class="so" value="0" placeholder="0">
+          </div>
+
+          <div style="margin-top: 18px;">
+            <button class="btn btn-cta btn-lg" style="width: 100%;" id="btnCalculate">
+              <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              TÍNH TOÁN XẾP PHÔI
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Print Header -->
+    <div class="print-header">
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px;">
+        <img src="logo_an_binh.jpg" alt="Logo An Bình" style="height: 48px; object-fit: contain;">
+        <div style="text-align:left;">
+          <h1 style="font-size:20px;margin:0;color:#0B3B38;">CÔNG TY AN BÌNH</h1>
+          <div style="font-size:13.5px;font-weight:700;color:#0F766E;">BẢNG TỐI ƯU XẾP PHÔI CẮT THÉP HỘP ĐA QUY CÁCH</div>
+        </div>
+      </div>
+      <p style="color:#666;font-size:13px;" id="printDate"></p>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results-area" id="resultsSection" style="display: none;">
+      <div class="results-header">
+        <h2>Kết quả tối ưu toàn bản vẽ</h2>
+        <div class="results-actions no-print">
+          <button class="btn btn-soft btn-sm" id="btnCopyZalo">
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Chép gửi Zalo
+          </button>
+          <button class="btn btn-soft btn-sm" id="btnPrintPDF">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            In Phiếu A4 (QR)
+          </button>
+          <button class="btn btn-soft btn-sm" id="btnExportCSV">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Xuất Excel (.xlsx)
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="kpi-cards" id="kpiContainer"></div>
+
+      <!-- Warnings container -->
+      <div id="warningsContainer"></div>
+
+      <!-- Materials Needed Card (Grouped by Profile) -->
+      <section class="card" style="margin-bottom: 22px;">
+        <div class="card-title" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+          <h2>Bảng vật tư &amp; Đối chiếu tồn kho (Theo loại hộp)</h2>
+          <div id="projectDispatchBar" class="no-print" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+        <p class="card-subtitle">Tổng hợp số cây cần dùng cho bản vẽ, đối chiếu trực tiếp với tồn kho thực tế toàn xưởng để biết chính xác số lượng cần mua thêm.</p>
+        <div id="warehouseComparisonSummary" style="display:none; margin-bottom:12px; padding:11px 14px; background:#F0FDFA; border:1.5px solid #99F6E4; border-radius:10px; font-size:13px; line-height:1.65;"></div>
+        <div id="materialsContainer"></div>
+      </section>
+
+      
+      <!-- Card Tiến Độ Cắt Thực Tế Tại Xưởng (Realtime Live Tracking) -->
+      <section class="card" id="liveCuttingProgressCard" style="border: 2px solid #0F766E; background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); margin-bottom: 24px; box-shadow: 0 4px 14px rgba(15,118,110,0.08); padding: 18px 20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:26px;">📊</span>
+            <div>
+              <h2 style="font-size:18px; color:#0F766E; margin:0;">Tiến Độ Cắt Thực Tế Tại Xưởng</h2>
+              <div style="font-size:12.5px; color:#475569;">Đồng bộ tức thì (Realtime) khi thợ bấm hoàn thành trên máy cắt Laser CNC</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span id="liveProgressPercentBadge" style="font-size:18px; font-weight:800; color:#0F766E; background:#CCFBF1; padding:4px 14px; border-radius:20px; border:1px solid #99F6E4;">0%</span>
+            <span id="liveProgressRatioText" style="font-size:13px; font-weight:700; color:#334155;">Đã cắt: 0/0 cây</span>
+          </div>
+        </div>
+
+        <!-- Thanh tiến độ lớn -->
+        <div style="width:100%; height:16px; background:#E2E8F0; border-radius:10px; overflow:hidden; position:relative; margin-bottom:14px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.1);">
+          <div id="liveProgressBarFill" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease; border-radius:10px;"></div>
+        </div>
+
+        <!-- Các thông số chi tiết -->
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:13px;">
+          <div style="display:flex; gap:14px; flex-wrap:wrap;">
+            <span style="display:inline-flex; align-items:center; gap:5px; color:#15803D; font-weight:700;">
+              <span style="width:9px; height:9px; border-radius:50%; background:#10B981;"></span>
+              Đã cắt xong: <b id="statCutCompleted">0</b> cây
+            </span>
+            <span style="display:inline-flex; align-items:center; gap:5px; color:#C2410C; font-weight:700;">
+              <span style="width:9px; height:9px; border-radius:50%; background:#F97316;"></span>
+              Đang cắt dở: <b id="statCutInProgress">0</b> cây
+            </span>
+            <span style="display:inline-flex; align-items:center; gap:5px; color:#475569; font-weight:600;">
+              <span style="width:9px; height:9px; border-radius:50%; background:#94A3B8;"></span>
+              Còn lại: <b id="statCutRemaining">0</b> cây
+            </span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <a href="/cnc" class="btn btn-p btn-sm" style="font-size:11.5px; padding:3px 10px; text-decoration:none;" title="Mở nhánh web con dành riêng cho máy cắt Laser CNC">
+              ⚡ Mở màn hình Xưởng CNC ↗
+            </a>
+            <button type="button" class="btn btn-soft btn-sm" id="btnResetCutProgress" style="font-size:11.5px; padding:3px 9px; color:#64748B;" title="Đặt lại toàn bộ tiến độ cắt về 0%">
+              🔄 Đặt lại tiến độ
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Filter Cutting Layout by Profile -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+        <h2>Sơ đồ cắt chi tiết theo từng loại hộp</h2>
+        <div class="profile-tabs-bar" id="resultFilterTabs" style="margin-bottom:0;border:0;padding-bottom:0;"></div>
+      </div>
+
+      <!-- Container for Profile-Grouped Patterns -->
+      <div id="patternsContainer"></div>
+    </div>
+  </main>
+
+  <!-- Modal Paste from Excel -->
+  <div class="modal-backdrop" id="modalPaste" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>Dán danh sách chi tiết từ Excel</h3>
+        <button class="modal-close" id="btnClosePaste">&times;</button>
+      </div>
+      <p style="font-size:13.5px;color:var(--mut);margin-bottom:12px;">
+        Dán trực tiếp các dòng từ Excel (Tên, Chiều dài, Số lượng, Đầu cắt, Mặt vát) hoặc gõ nhanh:
+      </p>
+      <textarea id="txtPaste" rows="8" placeholder="Ví dụ dán:&#10;Thanh giằng	835	4	ke1	30&#10;Thanh xà	1100	2	ke	30&#10;Thanh đứng	640	8&#10;1040x3&#10;453x1"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+        <button class="btn btn-soft btn-sm" id="btnCancelPaste">Đóng</button>
+        <button class="btn btn-p btn-sm" id="btnApplyPaste">Nhận dữ liệu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nhập file .IGS Cắt Ống -->
+  <div class="modal-backdrop" id="modalIgs" style="display: none;">
+    <div class="modal-box" style="max-width: 680px;">
+      <div class="modal-head">
+        <h3>Nhập file .IGS (Máy cắt ống Laser CNC &amp; Fusion 360)</h3>
+        <button class="modal-close" id="btnCloseIgs">&times;</button>
+      </div>
+      <p style="font-size:13px;color:var(--mut);margin-bottom:12px;">
+        Hệ thống tự động đọc hình học 3D từ file <b>.igs</b>: nhận diện quy cách hộp, độ dày, chiều dài và góc vát mòi 45°.
+      </p>
+
+      <div id="igsDropZone" class="dropzone">
+        <svg style="width: 44px; height: 44px; stroke: var(--p); fill: none; stroke-width: 1.8; margin: 0 auto 8px; display:block;" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <div style="font-weight: 700; font-size: 14.5px; color: var(--dark); margin-bottom: 4px;">
+          Kéo thả các file .IGS vào đây
+        </div>
+        <div style="font-size: 12.5px; color: var(--mut);">
+          hoặc <span style="color: var(--p); text-decoration: underline; font-weight: 600;">bấm vào đây để chọn nhiều file .IGS cùng lúc</span>
+        </div>
+        <input type="file" id="inpIgsFiles" multiple accept=".igs,.iges" style="display: none;">
+      </div>
+
+      <!-- Preview list of parsed IGS parts -->
+      <div id="igsPreviewWrap" style="display: none; margin-top: 14px;">
+        <div style="font-weight: 700; font-size: 13px; color: var(--dark); margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center;">
+          <span>Chi tiết đã nhận diện từ file .IGS:</span>
+          <span id="igsCountBadge" style="color:var(--p); font-size:12px; font-weight:700;">0 chi tiết</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 130px 85px 75px 65px; gap:8px; padding:6px 12px; background:#F1F5F9; border-radius:6px 6px 0 0; font-size:11.5px; font-weight:700; color:var(--mut);">
+          <span>Tên file / Chi tiết</span>
+          <span>Loại hộp</span>
+          <span style="text-align:right;">Dài (mm)</span>
+          <span style="text-align:center;">Đầu cắt</span>
+          <span style="text-align:right;">SL</span>
+        </div>
+        <div id="igsPreviewList" style="max-height: 220px; overflow-y: auto; border: 1px solid var(--edge); border-top:none; border-radius: 0 0 8px 8px; background: #FFFFFF; font-size: 12.5px;"></div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="btn btn-soft btn-sm" id="btnCancelIgs">Đóng</button>
+        <button class="btn btn-p btn-sm" id="btnApplyIgs" disabled style="opacity: 0.5;">+ Nạp vào bản vẽ tối ưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nạp từ Fusion 360 -->
+  <div class="modal-backdrop" id="modalFusion" style="display: none;">
+    <div class="modal-box" style="max-width: 600px;">
+      <div class="modal-head">
+        <h3>Nạp bản vẽ bóc tách từ Fusion 360</h3>
+        <button class="modal-close" id="btnCloseFusion">&times;</button>
+      </div>
+      <p style="font-size:13px;color:var(--mut);margin-bottom:12px;">
+        Chọn file <b>fusion_exported_project.json</b> vừa xuất từ script Fusion 360:
+      </p>
+      <div id="fusionDropZone" class="dropzone" style="padding: 24px 16px;">
+        <svg style="width: 38px; height: 38px; stroke: var(--p); fill: none; stroke-width: 1.8; margin: 0 auto 8px; display:block;" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+        </svg>
+        <div style="font-weight: 700; font-size: 14px; color: var(--dark); margin-bottom: 4px;">
+          Bấm để chọn file fusion_exported_project.json
+        </div>
+        <div style="font-size: 12px; color: var(--mut);">
+          (Tự động nhận diện toàn bộ các loại hộp, số lượng và mòi cắt)
+        </div>
+        <input type="file" id="inpFusionFile" accept=".json" style="display: none;">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="btn btn-soft btn-sm" id="btnCancelFusion">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Quản Lý Danh Sách Dự Án -->
+  <div class="modal-backdrop" id="modalProjects" style="display: none;">
+    <div class="modal-box modal-box-lg">
+      <div class="modal-head">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <svg style="width:24px; height:24px; stroke:var(--p); fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <h3 style="margin:0; font-size:18px;">Quản lý Danh sách Dự án &amp; Đơn hàng</h3>
+        </div>
+        <button class="modal-close" id="btnCloseProjects">&times;</button>
+      </div>
+      
+      <div class="projects-toolbar">
+        <button class="btn btn-p btn-sm" id="btnProjModalSaveCurrent" title="Lưu số liệu hiện tại thành dự án mới">
+          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Lưu dự án hiện tại
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnProjModalNewBlank" title="Tạo dự án mới hoàn toàn">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Tạo dự án mới
+        </button>
+        <button class="btn btn-soft btn-sm" id="btnProjModalImport" title="Nhập file dự án JSON hoặc file Fusion 360">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Nhập file .json
+        </button>
+        <input type="file" id="inpImportProjFile" accept=".json" style="display: none;">
+        <button class="btn btn-soft btn-sm" id="btnProjModalBackupAll" title="Tải file sao lưu toàn bộ danh sách dự án">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Sao lưu tất cả
+        </button>
+
+        <div style="display:flex; align-items:center; gap:6px; margin: 0 4px;">
+          <button class="btn btn-sm btn-p btn-tab-proj" id="btnTabActiveProjects" type="button" style="font-weight:700;">
+            📁 Danh mục (<span id="countActiveProjects">0</span>)
+          </button>
+          <button class="btn btn-sm btn-soft btn-tab-proj" id="btnTabTrashProjects" type="button" style="color:#DC2626;" title="Thùng rác chứa các dự án đã xóa (có thể khôi phục lại)">
+            🗑️ Thùng rác (<span id="countTrashProjects">0</span>)
+          </button>
+        </div>
+        
+        <div class="projects-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="inpSearchProjects" placeholder="Tìm theo tên dự án, khách hàng, ngày...">
+        </div>
+      </div>
+
+      <div class="projects-list-container" id="projectsListWrap">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Lưu / Đổi Tên Dự Án -->
+  <div class="modal-backdrop" id="modalSaveProjectForm" style="display: none;">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-head">
+        <h3 id="saveProjModalTitle" style="margin:0; font-size:17px;">Lưu Dự Án Vào Bộ Nhớ</h3>
+        <button class="modal-close" id="btnCloseSaveProjForm">&times;</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
+            Tên dự án <span style="color:#DC2626;">*</span>
+          </label>
+          <input type="text" id="inpSaveProjName" class="input" style="width:100%; font-size:14px; font-weight:600;" placeholder="Ví dụ: Bàn thao tác 1500x600x770">
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
+            Khách hàng / Công trình
+          </label>
+          <input type="text" id="inpSaveProjCustomer" class="input" style="width:100%;" placeholder="Ví dụ: Công ty Cơ khí An Bình">
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--dark); margin-bottom:5px;">
+            Ghi chú
+          </label>
+          <textarea id="inpSaveProjNotes" class="input" rows="3" style="width:100%; resize:vertical;" placeholder="Ghi chú thêm về đơn hàng, thời gian giao hàng..."></textarea>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap;">
+        <button class="btn btn-soft btn-sm" id="btnCancelSaveProjForm">Hủy</button>
+        <button class="btn btn-soft btn-sm" id="btnSaveAsNewProjForm" style="display:none; border-color:var(--p); color:var(--p); font-weight:700;">+ Lưu thành dự án mới</button>
+        <button class="btn btn-p btn-sm" id="btnConfirmSaveProjForm">Lưu vào bộ nhớ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Đã kích hoạt cơ chế Tự động đồng bộ 24/7 (Không cần cửa sổ thủ công) -->
+
+  <!-- Modal Quản Lý Tài Khoản & Phân Quyền Hệ Thống (ĐỘC QUYỀN CHO ADMIN) -->
+  <div class="modal-backdrop" id="modalRoleSwitch" style="display: none;">
+    <div class="modal-box" style="max-width: 640px;">
+      <div class="modal-head">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">👑</span>
+          <h3 style="margin:0; font-size:18px;">Bảng Quản Trị Hệ Thống &amp; Nhân Sự Xưởng (Admin)</h3>
+        </div>
+        <button class="modal-close" id="btnCloseRoleModal">&times;</button>
+      </div>
+
+      <div style="margin: 14px 0;">
+        <!-- Khối 1: Thông tin Tài khoản đang đăng nhập -->
+        <div id="currentAccountCard" style="border:2px solid #0F766E; background:#F0FDFA; border-radius:12px; padding:14px 16px; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div>
+              <div style="font-size:12px; color:#475569; font-weight:600; margin-bottom:2px;">TÀI KHOẢN ĐANG ĐĂNG NHẬP:</div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span id="accModalUserIcon" style="font-size:22px;">👑</span>
+                <strong id="accModalFullName" style="font-size:16px; color:#0B3B38;">Quản Trị Viên (Admin)</strong>
+                <span id="accModalUsername" style="font-size:13px; color:#0F766E; font-family:monospace; background:#CCFBF1; padding:2px 8px; border-radius:6px; font-weight:700;">@admin</span>
+                <span id="accModalRoleBadge" style="font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:12px; background:#0F766E; color:#FFF;">QUẢN TRỊ VIÊN TỐI CAO</span>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm" id="btnLogoutAccount" style="background:#B4232C; color:#FFF; font-weight:700; padding:7px 14px;">
+              🚪 Đăng xuất
+            </button>
+          </div>
+
+          <div id="accModalRoleDesc" style="font-size:12.5px; color:#134E4A; margin-top:10px; line-height:1.45; border-top:1px dashed #99F6E4; padding-top:8px;">
+            Toàn quyền tối cao: quản lý danh sách tài khoản, đặt lại mật khẩu cho nhân sự và cấp tài khoản mới.
+          </div>
+
+          <!-- Đổi mật khẩu của tôi -->
+          <details id="boxChangeSelfPassword" style="margin-top:10px; font-size:12.5px; color:#0F766E;">
+            <summary style="cursor:pointer; font-weight:700;">🔑 Đổi mật khẩu tài khoản của tôi</summary>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+              <input type="password" id="inpNewSelfPassword" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)..." style="flex:1; min-width:200px; padding:7px 12px; border:1.5px solid #CBD5E1; border-radius:8px; font-size:13px;">
+              <button type="button" class="btn btn-p btn-sm" id="btnSaveSelfPassword" style="font-weight:700;">Lưu mật khẩu mới</button>
+            </div>
+          </details>
+        </div>
+
+        <!-- Nút Trỏ Tới Nhánh Web Con Quản Trị Hệ Thống Toàn Diện -->
+        <div id="btnGoAdminSubpageWrap" style="display:none; margin-bottom:14px;">
+          <a href="/admin" class="btn btn-p" style="width:100%; text-decoration:none; justify-content:center; padding:10px 16px; font-size:14px; font-weight:800; border-radius:10px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">
+            🚀 MỞ TRANG QUẢN TRỊ NHÂN SỰ &amp; PHÂN QUYỀN (/admin) ↗
+          </a>
+        </div>
+
+        <!-- Khối 2: Thông báo quản lý nhân sự an toàn qua Supabase Auth -->
+        <div id="adminUsersManagerBox" style="display: none; border:1.5px solid #99F6E4; background:#F0FDFA; border-radius:12px; padding:14px 16px; font-size:13px; color:#134E4A; line-height:1.55;">
+          <strong style="font-size:14px; color:#0B3B38; display:block; margin-bottom:4px;">🛡️ Bảo mật Supabase Auth Đợt 2 đã bật</strong>
+          Mật khẩu được mã hóa trên <b>Supabase Auth</b> (không lưu dạng chữ rõ). Để cấp tài khoản mới, đổi mật khẩu nhân sự hoặc phân quyền <b>Admin / Kỹ sư / Thợ CNC</b>, vui lòng bấm nút mở trang <b>/admin</b> ở trên.
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+        <button class="btn btn-soft btn-sm" id="btnCloseRoleSwitchModal">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Màn Hình Đăng Nhập Toàn Màn Hình Bảo Mật (Login Gate) -->
+  <div id="loginOverlayGate" style="display: none; position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg, #072725 0%, #0F766E 55%, #134E4A 100%); align-items: center; justify-content: center; padding: 16px; overflow-y: auto;">
+    <div style="background: #FFFFFF; width: 100%; max-width: 420px; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden; border: 1px solid rgba(255,255,255,0.2); margin: auto;">
+      <!-- Header Đăng Nhập -->
+      <div style="background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%); padding: 24px 24px 16px; text-align: center; border-bottom: 1px solid #E2E8F0;">
+        <img src="logo_an_binh.jpg" alt="An Bình" style="height: 52px; object-fit: contain; border-radius: 6px; margin-bottom: 8px;" onerror="this.style.display='none'">
+        <h2 style="font-size: 20px; font-weight: 800; color: #0B3B38; margin: 0 0 4px; letter-spacing: -0.3px;">HỆ THỐNG TỐI ƯU XẾP PHÔI</h2>
+        <div style="font-size: 13px; color: #0F766E; font-weight: 600;">Xưởng Cơ Khí An Bình · Đăng Nhập Hệ Thống</div>
+      </div>
+
+      <!-- FORM ĐĂNG NHẬP DUY NHẤT -->
+      <div id="paneGateLogin" style="padding: 22px 24px 24px;">
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 6px;">Tên tài khoản đăng nhập</label>
+          <input type="text" id="inpLoginUsername" placeholder="Nhập tên tài khoản..." autocomplete="username" autofocus style="width: 100%; padding: 11px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600; outline: none;">
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 6px;">Mật khẩu</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="inpLoginPassword" placeholder="Nhập mật khẩu..." autocomplete="current-password" style="width: 100%; padding: 11px 44px 11px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-size: 14.5px; font-weight: 600; outline: none;">
+            <button type="button" id="btnToggleLoginPassVis" title="Hiện/Ẩn mật khẩu" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px; opacity: 0.65;">👁️</button>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 13px;">
+          <label style="display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: #475569; font-weight: 600;">
+            <input type="checkbox" id="chkRememberLogin" checked style="width: 16px; height: 16px; accent-color: #0F766E;">
+            Ghi nhớ đăng nhập trên thiết bị này
+          </label>
+        </div>
+
+        <div id="loginErrorAlert" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 14px; line-height: 1.4;"></div>
+
+        <button type="button" id="btnSubmitGateLogin" class="btn btn-p" style="width: 100%; justify-content: center; padding: 12px; font-size: 15px; font-weight: 800; border-radius: 10px; letter-spacing: 0.3px;">
+          🚀 ĐĂNG NHẬP VÀO HỆ THỐNG
+        </button>
+
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #F1F5F9; text-align: center;">
+          <div style="font-size: 12px; color: #64748B; font-weight: 500; line-height: 1.5;">
+            🔒 Hệ thống nội bộ Xưởng Cơ Khí An Bình.<br>
+            Vui lòng liên hệ <b>Quản lý xưởng</b> nếu chưa có tài khoản hoặc quên mật khẩu.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Toast Notification -->
+  <div id="toast">Thông báo</div>
+
+  <script src="js/index/state.js"></script>
+  <script src="js/index/profile-memory.js"></script>
+  <script src="js/index/warehouse-dispatch.js"></script>
+  <script src="js/index/project-manager.js"></script>
+  <script src="js/index/project-modals.js"></script>
+  <script src="js/index/cloud-sync.js"></script>
+  <script src="js/index/nesting-ui.js"></script>
+  <script src="js/index/export-import.js"></script>
+  <script src="js/index/auth-roles.js"></script>
+  <script src="js/index/igs-fusion-loader.js"></script>
+  <script src="js/index/init.js"></script>
+</body>
+</html>

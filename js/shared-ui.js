@@ -161,13 +161,12 @@
   var UNITS = ['cây', 'tấm', 'kg', 'cái', 'mũi', 'viên', 'bộ', 'hộp', 'vỉ', 'cuộn', 'can', 'lít', 'm', 'đoạn'];
 
   var NAV_ITEMS = [
-    { key: 'index', href: '/', label: '📐 Bàn Xếp Phôi', badgeId: '' },
-    { key: 'projects', href: '/projects', label: '📁 Quản Lý Dự Án', badgeId: 'subnavProjBadge' },
-    { key: 'inventory', href: '/inventory', label: '📦 Kho Phôi & Quy Cách', badgeId: '' },
-    { key: 'vouchers', href: '/vouchers', label: '🧾 Phiếu Nhập / Xuất', badgeId: 'subnavVouchersBadge' },
-    { key: 'reports', href: '/reports', label: '📊 Báo Cáo', cls: 'reports-nav-link', id: 'navLinkReports', priceOnly: true },
-    { key: 'cnc', href: '/cnc', label: '⚡ Sơ Đồ & Tiến Độ CNC', badgeId: '' },
-    { key: 'admin', href: '/admin', label: '⚙️ Quản Trị & Nhân Sự', adminOnly: true, cls: 'subnav-admin', id: 'navLinkAdmin' }
+    { key: 'index', href: '/', label: '🏠 Tổng quan', badgeId: '' },
+    { key: 'inventory', href: '/inventory', label: '📦 Kho vật tư', badgeId: '' },
+    { key: 'vouchers', href: '/vouchers', label: '🧾 Phiếu kho', badgeId: 'subnavVouchersBadge' },
+    { key: 'projects', href: '/projects', label: '📁 Dự án', badgeId: 'subnavProjBadge' },
+    { key: 'reports', href: '/reports', label: '📊 Báo cáo', cls: 'reports-nav-link', id: 'navLinkReports', priceOnly: true },
+    { key: 'admin', href: '/admin', label: '🛡️ Quản trị', adminOnly: true, cls: 'subnav-admin', id: 'navLinkAdmin' }
   ];
 
   function getRoleMeta(role) {

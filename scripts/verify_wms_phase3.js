@@ -46,7 +46,7 @@ function verifyHtmlAndJsSyntax() {
     execFileSync(process.execPath, ['--check', path.join(ROOT, rel)], { stdio: 'pipe' });
   }
 
-  for (const htmlFile of ['index.html', 'projects.html', 'inventory.html', 'vouchers.html', 'reports.html', 'cnc.html', 'admin.html']) {
+  for (const htmlFile of ['index.html', 'projects.html', 'inventory.html', 'vouchers.html', 'reports.html', 'admin.html']) {
     const html = fs.readFileSync(path.join(ROOT, htmlFile), 'utf8');
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
       .filter(m => !/\bsrc\s*=|\btype\s*=\s*["']application\/json["']/i.test(m[1]))
@@ -58,7 +58,7 @@ function verifyHtmlAndJsSyntax() {
   }
 
   const swText = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-  assert(swText.includes('toiuu-phoi-pwa-v28'), 'sw.js must be bumped to v28');
+  assert(swText.includes('toiuu-phoi-pwa-v29'), 'sw.js must be bumped to v29');
   assert(swText.includes("'/reports'") && swText.includes("'/reports.html'"), 'sw.js must cache /reports');
 
   console.log('[OK] Syntax check passed for all JS & HTML files including reports.html + sw.js v21');

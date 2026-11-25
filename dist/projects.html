@@ -13,15 +13,13 @@
       }
     }
   </script>
-  <title>Quản Lý Dự Án &amp; Đơn Hàng · Xếp Phôi An Bình</title>
-  <meta name="description" content="Nhánh quản lý toàn bộ dự án, đơn hàng cắt thép hộp, thùng rác khôi phục và đồng bộ dữ liệu xưởng cơ khí An Bình.">
+  <title>Quản Lý Dự Án &amp; Đề Nghị Vật Tư · Cơ Khí An Bình</title>
+  <meta name="description" content="Quản lý dự án, đề nghị vật tư đa công đoạn và chi phí vật tư dự án — Cơ Khí An Bình.">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0F766E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="/toi-uu-engine.js"></script>
-  <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
   <script src="/js/shared-ui.js"></script>
@@ -311,12 +309,12 @@
 
   <header class="top">
     <div class="wrap">
-      <a class="brand" href="/" title="Quay về Bàn Xếp Phôi Chính">
+      <a class="brand" href="/" title="Quay về Tổng quan Kho Vật tư">
         <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
-          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
-          <div class="brand-sub-title">Quản lý Dự án &amp; Đơn hàng Xưởng</div>
+          <div class="brand-main-title">QUẢN LÝ KHO VẬT TƯ</div>
+          <div class="brand-sub-title">Quản lý Dự án &amp; Đề nghị Vật tư (WMS)</div>
         </div>
       </a>
       <div class="top-actions">
@@ -332,17 +330,16 @@
       </div>
     </div>
 
-    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+    <nav class="subnav-bar" aria-label="Điều hướng hệ thống WMS">
       <div class="subnav-inner">
-        <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
+        <a href="/" class="subnav-link">🏠 Tổng quan</a>
+        <a href="/inventory" class="subnav-link">📦 Kho vật tư</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu kho</a>
         <a href="/projects" class="subnav-link active">
-          📁 Quản Lý Dự Án <span id="subnavProjBadge" style="background:#fff;color:var(--dark);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
+          📁 Dự án <span id="subnavProjBadge" style="background:#fff;color:var(--dark);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;">0</span>
         </a>
-        <a href="/inventory" class="subnav-link">📦 Kho Phôi &amp; Quy Cách</a>
-        <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
-        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo Cáo</a>
-        <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
-        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
       </div>
     </nav>
   </header>
@@ -800,9 +797,7 @@
               ${p.notes ? `<div style="font-size:12px; color:#64748B; font-style:italic; margin-bottom:6px;">${escapeHtml(p.notes)}</div>` : ''}
               ${stageBadgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">${stageBadgesHtml}</div>` : ''}
               <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;">
-                <span class="pill pill-slate">📏 ${profs.length} loại hộp</span>
-                <span class="pill pill-slate">🧩 ${totalPcs} chi tiết</span>
-                ${reqStat && reqStat.total > 0 ? `<span class="pill ${reqStat.fulfilled >= reqStat.total ? 'pill-green' : 'pill-amber'}">📋 Vật tư: ${reqStat.fulfilled}/${reqStat.total} dòng đã xuất</span>` : ''}
+                ${reqStat && reqStat.total > 0 ? `<span class="pill ${reqStat.fulfilled >= reqStat.total ? 'pill-green' : 'pill-amber'}">📋 Vật tư: ${reqStat.fulfilled}/${reqStat.total} dòng đã xuất</span>` : '<span class="pill pill-slate">📋 Chưa có đề nghị VT</span>'}
                 <span class="pill pill-slate">🕒 ${dateStr}</span>
               </div>
             </div>
@@ -813,10 +808,6 @@
                 <button type="button" class="btn btn-sm btn-danger btn-perm-del eng-only" data-id="${p.id}">❌ Xóa vĩnh viễn</button>
               ` : `
                 <button type="button" class="btn btn-sm btn-p btn-open-bom" data-id="${p.id}">📋 Đề nghị Vật tư &amp; Chi tiết</button>
-                <button type="button" class="btn btn-sm btn-soft btn-open-main" data-id="${p.id}">🚀 Mở xếp phôi</button>
-                <button type="button" class="btn btn-sm btn-cta btn-open-cnc" data-id="${p.id}">⚡ Sơ đồ CNC</button>
-                <button type="button" class="btn btn-sm btn-soft btn-print-a4" data-id="${p.id}">🖨️ Phiếu A4</button>
-                <button type="button" class="btn btn-sm btn-soft btn-exp-xlsx" data-id="${p.id}">📊 .xlsx</button>
                 <button type="button" class="btn btn-sm btn-soft btn-lock eng-only" data-id="${p.id}">${p.isLocked ? '🔓 Mở khóa' : '🔒 Khóa'}</button>
                 <button type="button" class="btn btn-sm btn-soft btn-edit eng-only" data-id="${p.id}" ${p.isLocked ? 'disabled style="opacity:0.45;"' : ''}>✏️ Sửa</button>
                 <button type="button" class="btn btn-sm btn-soft btn-dup eng-only" data-id="${p.id}">📋 Nhân bản</button>

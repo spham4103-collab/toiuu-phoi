@@ -1,11 +1,11 @@
 {
-  "name": "Tối Ưu Xếp Phôi & Cắt CNC An Bình",
-  "short_name": "Xếp Phôi CNC",
-  "description": "Hệ thống tối ưu hóa cắt thép hộp, ống và quản lý sản xuất xưởng cơ khí An Bình",
+  "name": "Quản Lý Kho Vật Tư — Cơ Khí An Bình",
+  "short_name": "Kho Vật Tư AB",
+  "description": "Hệ thống Quản lý Kho Vật tư (WMS), Chứng từ Nhập–Xuất–Tồn & Đề nghị Vật tư Dự án — Cơ Khí An Bình",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F8FAFC",
-  "theme_color": "#1E3A8A",
+  "theme_color": "#0F766E",
   "orientation": "any",
   "icons": [
     {

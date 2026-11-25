@@ -270,7 +270,7 @@ function makeMockSupabaseSdk(dbState, options = {}) {
 }
 
 function checkInlineScripts() {
-  const htmlFiles = ['index.html', 'inventory.html', 'vouchers.html', 'cnc.html', 'projects.html', 'admin.html'];
+  const htmlFiles = ['index.html', 'inventory.html', 'vouchers.html', 'projects.html', 'reports.html', 'admin.html'];
   for (const rel of htmlFiles) {
     const html = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     const regex = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
@@ -303,13 +303,7 @@ function checkInlineScripts() {
     }
   }
 
-  const jsFiles = ['js/supabaseClient.js', 'js/shared-ui.js', 'js/workshopExport.js', 'toi-uu-engine.js', 'sw.js'];
-  const indexJsDir = path.join(ROOT, 'js/index');
-  if (fs.existsSync(indexJsDir)) {
-    for (const f of fs.readdirSync(indexJsDir)) {
-      if (f.endsWith('.js')) jsFiles.push('js/index/' + f);
-    }
-  }
+  const jsFiles = ['js/supabaseClient.js', 'js/shared-ui.js', 'js/project-bom.js', 'js/inventory-smart.js', 'js/workshopExport.js', 'sw.js'];
 
   for (const jsRel of jsFiles) {
     execSync(`node --check "${path.join(ROOT, jsRel)}"`, { stdio: 'pipe' });

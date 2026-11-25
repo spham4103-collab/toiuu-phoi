@@ -13,15 +13,13 @@
       }
     }
   </script>
-  <title>Quản Lý Kho Phôi Vật Tư &amp; Sổ Cái · An Bình</title>
-  <meta name="description" content="Hệ thống quản lý tồn kho cây nguyên, kho phôi lẻ đề-xê, sổ cái xuất nhập và BOM đối chiếu kho xưởng Cơ Khí An Bình.">
+  <title>Quản Lý Kho Vật Tư · Cơ Khí An Bình</title>
+  <meta name="description" content="Hệ thống quản lý tồn kho 5 nhóm vật tư, kho phôi lẻ, sổ cái xuất nhập và kiểm kê — Cơ Khí An Bình.">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0F766E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="/toi-uu-engine.js"></script>
-  <script>if (typeof RC === 'undefined') { document.write('<script src="toi-uu-engine.js"><\/script>'); }</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabaseClient.js"></script>
   <script src="/js/shared-ui.js"></script>
@@ -210,12 +208,12 @@
 
   <header class="top">
     <div class="wrap">
-      <a class="brand" href="/" title="Quay về Bàn Xếp Phôi Chính">
+      <a class="brand" href="/" title="Quay về Tổng quan Kho Vật tư">
         <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
         <div class="brand-divider"></div>
         <div class="brand-text-col">
-          <div class="brand-main-title">TỐI ƯU XẾP PHÔI</div>
-          <div class="brand-sub-title">Quản Lý Kho Phôi Vật Tư &amp; Sổ Cái Xuất-Nhập</div>
+          <div class="brand-main-title">QUẢN LÝ KHO VẬT TƯ</div>
+          <div class="brand-sub-title">Cơ Khí An Bình · Kho &amp; Sổ Cái WMS</div>
         </div>
       </a>
       <div class="top-actions">
@@ -231,15 +229,14 @@
       </div>
     </div>
 
-    <nav class="subnav-bar" aria-label="Điều hướng các nhánh hệ thống">
+    <nav class="subnav-bar" aria-label="Điều hướng hệ thống WMS">
       <div class="subnav-inner">
-        <a href="/" class="subnav-link">📐 Bàn Xếp Phôi</a>
-        <a href="/projects" class="subnav-link">📁 Quản Lý Dự Án</a>
-        <a href="/inventory" class="subnav-link active">📦 Kho Phôi &amp; Quy Cách</a>
-        <a href="/vouchers" class="subnav-link">🧾 Phiếu Nhập / Xuất</a>
-        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo Cáo</a>
-        <a href="/cnc" class="subnav-link">⚡ Sơ Đồ &amp; Tiến Độ CNC</a>
-        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">⚙️ Quản Trị &amp; Nhân Sự</a>
+        <a href="/" class="subnav-link">🏠 Tổng quan</a>
+        <a href="/inventory" class="subnav-link active">📦 Kho vật tư</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu kho</a>
+        <a href="/projects" class="subnav-link">📁 Dự án</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
       </div>
     </nav>
   </header>
@@ -283,7 +280,6 @@
         <button type="button" class="btn btn-cta btn-sm eng-only" id="btnOpenOpeningBalance">📦 Nhập tồn đầu kỳ (Phôi cũ)</button>
         <button type="button" class="btn btn-soft btn-sm eng-only" id="btnOpenPurchaseIn">+ Nhập mua mới</button>
         <button type="button" class="btn btn-soft btn-sm eng-only" id="btnOpenStocktake">📋 Kiểm kê</button>
-        <a href="/" class="btn btn-soft btn-sm">📐 Bàn Xếp Phôi</a>
       </div>
     </div>
 
@@ -339,7 +335,6 @@
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="offcuts">♻️ Kho Phôi lẻ &amp; Đề-xê (<span id="tabOffcutsBadge">0</span>)</button>
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="reorder" style="border-color:#FDBA74; color:#C2410C;">🛒 Cần đặt hàng (<span id="tabReorderBadge">0</span>)</button>
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="ledger">📒 Sổ cái Xuất – Nhập (<span id="tabLedgerBadge">0</span>)</button>
-      <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="bom">📊 BOM Dự án đang mở</button>
       <button type="button" class="btn btn-sm btn-soft inv-tab-btn" data-tab="library">📏 Thư viện Quy cách (<span id="tabLibraryBadge">0</span>)</button>
     </div>
 
@@ -1180,7 +1175,7 @@
       return VALID_TABS.includes(h) ? h : 'bars';
     }
     let activeInvTab = resolveInitialTab();
-    let activeGroupBars = 'ALL';
+    let activeGroupBars = localStorage.getItem('xp_inv_group_filter_v1') || 'ALL';
     let activeGroupLib = 'ALL';
     let openingSubTab = 'bars';
     let obOffcutDraftRows = [];
@@ -1485,6 +1480,9 @@
         switchInvTab(activeInvTab);
         renderAll();
         initRealtime();
+        if (new URLSearchParams(window.location.search).get('action') === 'stocktake') {
+          openStocktakeModal();
+        }
       } catch (err) {
         console.error('Lỗi tải inventory:', err);
         window.SupabaseDB.showConnectionError('❌ Mất kết nối Supabase khi tải kho phôi: ' + err.message, () => loadInventoryData());
@@ -2775,8 +2773,10 @@
       // 4-group WMS pills (Tab 1 & Tab 5)
       if ($('wmsGroupPillsBars')) {
         $('wmsGroupPillsBars').querySelectorAll('.wms-group-pill').forEach(btn => {
+          btn.classList.toggle('active', (btn.dataset.grp || 'ALL') === activeGroupBars);
           btn.onclick = () => {
             activeGroupBars = btn.dataset.grp || 'ALL';
+            localStorage.setItem('xp_inv_group_filter_v1', activeGroupBars);
             $('wmsGroupPillsBars').querySelectorAll('.wms-group-pill').forEach(b => b.classList.toggle('active', b === btn));
             renderBarsSection();
           };
