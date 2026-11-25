@@ -119,8 +119,18 @@ function testSmartInventoryFiles() {
   assert(sbJs.includes('mergeInventoryItems'), 'supabaseClient.js must export mergeInventoryItems');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v25'), 'sw.js must be v25');
+  assert(sw.includes('toiuu-phoi-pwa-v26'), 'sw.js must be v26');
   assert(sw.includes('/js/inventory-smart.js'), 'sw.js must cache /js/inventory-smart.js');
+
+  const sharedCss = read('css/shared.css');
+  assert(sharedCss.includes('.xp-sticky-entry'), 'shared.css must define .xp-sticky-entry');
+  const sharedUi = read('js/shared-ui.js');
+  assert(sharedUi.includes('initStickySection'), 'shared-ui.js must export initStickySection');
+  assert(invHtml.includes('offcutsStickyEntry'), 'inventory.html must have offcutsStickyEntry');
+  assert(invHtml.includes('obBarsStickyEntry'), 'inventory.html must have obBarsStickyEntry');
+  assert(read('vouchers.html').includes('voucherFormStickyEntry'), 'vouchers.html must have voucherFormStickyEntry');
+  assert(read('js/project-bom.js').includes('bomStickyEntry'), 'project-bom.js must have bomStickyEntry');
+  assert(read('index.html').includes('indexPartsStickyEntry'), 'index.html must have indexPartsStickyEntry');
 
   const distDir = path.join(ROOT, 'dist');
   if (fs.existsSync(distDir)) {

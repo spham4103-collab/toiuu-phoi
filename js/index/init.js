@@ -55,6 +55,9 @@
     // Attach Event Listeners & Khởi động xác thực Supabase Auth
     window.addEventListener('DOMContentLoaded', async () => {
       initNetworkAndPWA();
+      if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
+        window.SharedUI.initStickySection($('indexPartsStickyEntry'), document.querySelector('.parts-table-wrap'), null);
+      }
 
       // Gắn sự kiện Hệ thống Tài khoản Supabase Auth (lắng nghe ngay cả khi chưa đăng nhập)
       if ($('btnRoleSelector')) {

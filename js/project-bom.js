@@ -394,10 +394,13 @@
     }
 
     var addFormHtml = editable ? (
-      '<div class="bom-card">' +
-      '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">' +
+      '<div class="bom-card" style="margin-bottom:6px;">' +
+      '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">' +
       '    <strong style="font-size:13.5px;color:#0B3B38;">➕ Thêm dòng Đề nghị Vật tư</strong>' +
-      '    <button type="button" class="btn btn-sm btn-soft" id="btnToggleWeightCalc">🧮 Máy tính Khối lượng Phôi</button>' +
+      '    <div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+      '      <button type="button" class="btn btn-sm btn-soft xp-sticky-mobile-toggle" data-sticky-toggle>Mở rộng ô nhập ▾</button>' +
+      '      <button type="button" class="btn btn-sm btn-soft" id="btnToggleWeightCalc">🧮 Máy tính Khối lượng Phôi</button>' +
+      '    </div>' +
       '  </div>' +
       '  <div id="bomWeightCalcBox" style="display:none;background:#fff;border:1px dashed #0F766E;border-radius:10px;padding:10px 12px;margin-bottom:10px;">' +
       '    <div style="font-size:12px;font-weight:700;color:#0F766E;margin-bottom:8px;">🧮 Tính nhanh Khối lượng Phôi theo Kích thước &amp; Mác vật liệu</div>' +
@@ -415,7 +418,7 @@
       '      <button type="button" class="btn btn-sm btn-p" id="btnApplyWeightCalc">✓ Áp dụng vào dòng vật tư</button>' +
       '    </div>' +
       '  </div>' +
-      '  <div class="bom-grid">' +
+      '  <div class="bom-grid xp-sticky-collapsible">' +
       '    <div><label>Công đoạn *</label><select id="bomAddStage">' + stages.map(function (s) { return '<option value="' + s.key + '">' + s.icon + ' ' + escapeHtml(s.label) + '</option>'; }).join('') + '</select></div>' +
       '    <div><label>Liên kết vật tư kho</label><select id="bomAddInvId">' + invOpts + '</select></div>' +
       '    <div><label>Tên vật tư / Quy cách *</label><input type="text" id="bomAddName" placeholder="VD: Thép tấm SS400 T10"></div>' +
@@ -445,23 +448,26 @@
     }).join('') : '<div style="font-size:12px;color:#64748B;">Chưa có bản vẽ hoặc file đính kèm nào.</div>';
 
     $('bomModalBody').innerHTML = [
-      '<div class="bom-toolbar">',
-      '  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
-      '    <select id="bomStageFilter" style="padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;font-size:12.5px;">',
-      '      <option value="all">Tất cả công đoạn (' + STATE.requests.length + ')</option>' + stageOpts,
-      '    </select>',
+      '<div class="xp-sticky-entry" id="bomStickyEntry" style="padding:8px 0 6px;">',
+      '  <div class="bom-toolbar">',
+      '    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
+      '      <select id="bomStageFilter" style="padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;font-size:12.5px;">',
+      '        <option value="all">Tất cả công đoạn (' + STATE.requests.length + ')</option>' + stageOpts,
+      '      </select>',
       editable ? '<button type="button" class="btn btn-sm btn-soft" id="btnBomDlTemplate">📥 File mẫu Excel</button>' : '',
       editable ? '<label class="btn btn-sm btn-soft" style="cursor:pointer;margin:0;">📤 Nhập Excel<input type="file" id="inpBomImportExcel" accept=".xlsx,.xls,.csv" style="display:none;"></label>' : '',
-      '  </div>',
-      '  <div style="display:flex;gap:6px;flex-wrap:wrap;">',
+      '    </div>',
+      '    <div style="display:flex;gap:6px;flex-wrap:wrap;">',
       canPxk ? '<button type="button" class="btn btn-sm btn-p" id="btnBomCreatePxk">📤 Tạo Phiếu Xuất Kho (PXK)</button>' : '',
       '<button type="button" class="btn btn-sm btn-cta" id="btnBomPurchaseReq">🛒 Xuất Đề nghị Mua hàng</button>',
       '<button type="button" class="btn btn-sm btn-soft" id="btnBomPrintReqA4">🖨️ In Đề nghị Vật tư (A4)</button>',
+      '    </div>',
       '  </div>',
+      addFormHtml,
       '</div>',
       importPreviewHtml,
-      '<div class="table-responsive" style="border:1px solid #E2E8F0;border-radius:10px;margin-bottom:14px;">',
-      '  <table class="bom-table">',
+      '<div class="table-responsive xp-sticky-table-wrap" style="border:1px solid #E2E8F0;border-radius:10px;margin-bottom:14px;">',
+      '  <table class="bom-table xp-sticky-table" id="bomRequestsTable">',
       '    <thead><tr>',
       '      <th style="width:28px;"><input type="checkbox" id="bomChkAll"></th>',
       '      <th>Công đoạn</th>',
@@ -477,7 +483,6 @@
       '    <tbody>' + tableRowsHtml + '</tbody>',
       '  </table>',
       '</div>',
-      addFormHtml,
       '<div class="bom-card">',
       '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">',
       '    <strong style="font-size:13.5px;color:#0B3B38;">📁 Bản vẽ &amp; Hồ sơ đính kèm (' + STATE.attachments.length + ')</strong>',
@@ -723,6 +728,10 @@
 
     var btnPrt = $('btnBomPrintReqA4');
     if (btnPrt) btnPrt.addEventListener('click', printBomRequestA4);
+
+    if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
+      window.SharedUI.initStickySection($('bomStickyEntry'), $('bomRequestsTable'), $('bomModalBody'));
+    }
   }
 
   function downloadExcelTemplate() {

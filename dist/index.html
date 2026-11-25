@@ -252,9 +252,26 @@
         <!-- Active Box Banner & Mini KPI for Selected Box -->
         <div id="activeProfileBannerWrap"></div>
 
+        <!-- Sticky Action Row for Parts Entry -->
+        <div class="xp-sticky-entry" id="indexPartsStickyEntry" style="padding:8px 0;">
+          <div class="action-row" style="margin-top:0;">
+            <button class="btn btn-p btn-sm" id="btnAddPart">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Thêm chi tiết
+            </button>
+            <button class="btn btn-soft btn-sm" id="btnQuickIgs">Nhập file .IGS</button>
+            <button class="btn btn-soft btn-sm" id="btnQuickPaste">Dán từ Excel</button>
+            <button class="btn btn-soft btn-sm xp-sticky-collapsible" id="btnRemoveCurrentProfile" style="color:var(--bad);" title="Xóa loại hộp này khỏi bản vẽ">
+              Xóa loại hộp này
+            </button>
+            <button class="btn btn-soft btn-sm xp-sticky-collapsible" style="color:var(--bad);margin-left:auto;" id="btnClearAll">Xóa hết bản vẽ</button>
+            <button type="button" class="btn btn-soft btn-sm xp-sticky-mobile-toggle" data-sticky-toggle>Mở rộng ô nhập ▾</button>
+          </div>
+        </div>
+
         <!-- Parts Table Responsive Wrapper -->
-        <div class="table-responsive parts-table-wrap">
-          <div class="parts-header">
+        <div class="table-responsive parts-table-wrap xp-sticky-table-wrap">
+          <div class="parts-header xp-sticky-header-row">
             <span></span>
             <span>Tên / Vị trí chi tiết</span>
             <span class="r">Dài (mm)</span>
@@ -265,19 +282,6 @@
           </div>
 
           <div id="partsList"></div>
-        </div>
-
-        <div class="action-row">
-          <button class="btn btn-p btn-sm" id="btnAddPart">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Thêm chi tiết
-          </button>
-          <button class="btn btn-soft btn-sm" id="btnQuickIgs">Nhập file .IGS</button>
-          <button class="btn btn-soft btn-sm" id="btnQuickPaste">Dán từ Excel</button>
-          <button class="btn btn-soft btn-sm" id="btnRemoveCurrentProfile" style="color:var(--bad);" title="Xóa loại hộp này khỏi bản vẽ">
-            Xóa loại hộp này
-          </button>
-          <button class="btn btn-soft btn-sm" style="color:var(--bad);margin-left:auto;" id="btnClearAll">Xóa hết bản vẽ</button>
         </div>
       </section>
 

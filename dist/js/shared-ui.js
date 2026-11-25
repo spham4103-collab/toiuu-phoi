@@ -596,6 +596,100 @@
     } catch (e) {}
   }
 
+  function initStickySection(toolbarEl, tableEl, scrollContainer, opts) {
+    if (!toolbarEl) return { refresh: function () {}, destroy: function () {} };
+    if (typeof toolbarEl._xpStickyCleanup === 'function') {
+      try { toolbarEl._xpStickyCleanup(); } catch (e) {}
+    }
+
+    var isWindow = !scrollContainer || scrollContainer === window || scrollContainer === document.documentElement;
+    var headerEl = isWindow ? document.querySelector('header.top') : null;
+    var parentEl = toolbarEl.parentElement;
+    if (parentEl && getComputedStyle(parentEl).overflow === 'hidden') {
+      parentEl.style.overflow = 'visible';
+    }
+
+    var sentinel = toolbarEl.previousElementSibling;
+    if (!sentinel || !sentinel.classList || !sentinel.classList.contains('xp-sticky-sentinel')) {
+      sentinel = document.createElement('div');
+      sentinel.className = 'xp-sticky-sentinel';
+      sentinel.setAttribute('aria-hidden', 'true');
+      toolbarEl.parentNode.insertBefore(sentinel, toolbarEl);
+    }
+
+    var offsetTop = 0;
+    function syncHeights() {
+      offsetTop = (isWindow && headerEl) ? Math.ceil(headerEl.getBoundingClientRect().height) : 0;
+      var entryH = Math.ceil(toolbarEl.getBoundingClientRect().height);
+      if (parentEl) {
+        parentEl.style.setProperty('--xp-sticky-offset', offsetTop + 'px');
+        parentEl.style.setProperty('--sticky-entry-height', entryH + 'px');
+      }
+      if (tableEl) {
+        tableEl.style.setProperty('--xp-sticky-offset', offsetTop + 'px');
+        tableEl.style.setProperty('--sticky-entry-height', entryH + 'px');
+      }
+    }
+    syncHeights();
+
+    var io = null;
+    var toggleBtn = toolbarEl.querySelector('[data-sticky-toggle]');
+    function bindIO() {
+      if (io) io.disconnect();
+      if (typeof IntersectionObserver !== 'undefined') {
+        io = new IntersectionObserver(function (entries) {
+          var entry = entries[0];
+          if (!entry) return;
+          var rootTop = isWindow ? offsetTop : scrollContainer.getBoundingClientRect().top;
+          var stuck = !entry.isIntersecting && entry.boundingClientRect.top <= rootTop + 2;
+          toolbarEl.classList.toggle('is-stuck', stuck);
+          if (!stuck) {
+            toolbarEl.classList.remove('mobile-expanded');
+            if (toggleBtn) toggleBtn.textContent = 'Mở rộng ô nhập ▾';
+          }
+          syncHeights();
+        }, {
+          root: isWindow ? null : scrollContainer,
+          rootMargin: '-' + (offsetTop + 1) + 'px 0px 0px 0px',
+          threshold: 0
+        });
+        io.observe(sentinel);
+      }
+    }
+    bindIO();
+
+    var ro = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(function () {
+        var prevOffset = offsetTop;
+        syncHeights();
+        if (prevOffset !== offsetTop) bindIO();
+      });
+      ro.observe(toolbarEl);
+      if (headerEl) ro.observe(headerEl);
+    }
+
+    var onToggleClick = null;
+    if (toggleBtn) {
+      onToggleClick = function () {
+        var expanded = toolbarEl.classList.toggle('mobile-expanded');
+        toggleBtn.textContent = expanded ? 'Thu gọn ▴' : 'Mở rộng ô nhập ▾';
+        syncHeights();
+      };
+      toggleBtn.addEventListener('click', onToggleClick);
+    }
+
+    function destroy() {
+      if (io) io.disconnect();
+      if (ro) ro.disconnect();
+      if (toggleBtn && onToggleClick) toggleBtn.removeEventListener('click', onToggleClick);
+      toolbarEl._xpStickyCleanup = null;
+    }
+
+    toolbarEl._xpStickyCleanup = destroy;
+    return { refresh: syncHeights, destroy: destroy };
+  }
+
   global.SharedUI = {
     ROLES: ROLES,
     VALID_ROLES: VALID_ROLES,
@@ -628,6 +722,7 @@
     compressImageFile: compressImageFile,
     formatMoneyVN: formatMoneyVN,
     refreshPendingVouchersBadge: refreshPendingVouchersBadge,
-    initPendingVouchersBadge: initPendingVouchersBadge
+    initPendingVouchersBadge: initPendingVouchersBadge,
+    initStickySection: initStickySection
   };
 })(typeof window !== 'undefined' ? window : globalThis);

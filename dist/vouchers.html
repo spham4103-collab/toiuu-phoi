@@ -323,9 +323,10 @@
         </div>
         <button type="button" class="btn btn-soft btn-sm" id="btnCloseVoucherModal">✕ Đóng</button>
       </div>
-      <div class="inv-modal-body">
-        <input type="hidden" id="hidEditVoucherId">
-        <div class="form-grid-3">
+      <div class="inv-modal-body" id="voucherFormModalBody" style="padding-top:0;">
+        <div class="xp-sticky-entry" id="voucherFormStickyEntry" style="padding:12px 0 8px;">
+          <input type="hidden" id="hidEditVoucherId">
+          <div class="form-grid-3 xp-sticky-collapsible">
           <div>
             <label class="lbl">Loại chứng từ *</label>
             <select id="selVoucherType">
@@ -389,7 +390,7 @@
           </div>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:end; margin-bottom:12px;">
+        <div style="display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:end; margin-bottom:10px;" class="xp-sticky-collapsible">
           <div>
             <label class="lbl">Ghi chú chứng từ</label>
             <input type="text" id="inpVoucherNote" placeholder="Diễn giải chi tiết phiếu nhập / xuất...">
@@ -411,16 +412,21 @@
           </label>
         </div>
 
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:10px 0 8px;">
-          <strong style="color:var(--dark); font-size:14px;">Danh sách vật tư trên phiếu:</strong>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:6px 0 4px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <strong style="color:var(--dark); font-size:14px;">Danh sách vật tư trên phiếu:</strong>
+            <span class="price-only" style="font-size:12.5px; font-weight:800; color:var(--p);">Tổng: <span id="lblVoucherStickyTotal">0 đ</span></span>
+          </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-soft btn-sm xp-sticky-mobile-toggle" data-sticky-toggle>Mở rộng ô nhập ▾</button>
             <button type="button" class="btn btn-soft btn-sm" id="btnScanAddVoucherItem" style="border-color:#0369A1; color:#0369A1;">📷 Quét thêm vật tư</button>
             <button type="button" class="btn btn-p btn-sm" id="btnAddVoucherItemRow">+ Thêm dòng vật tư</button>
           </div>
         </div>
+        </div>
 
-        <div class="table-responsive">
-          <table class="v-table" style="min-width:860px;">
+        <div class="table-responsive xp-sticky-table-wrap">
+          <table class="v-table xp-sticky-table" id="voucherItemsMainTable" style="min-width:860px;">
             <thead>
               <tr>
                 <th style="width:240px;">Vật tư trong kho *</th>
@@ -956,7 +962,9 @@
     function updateVoucherTotalDisp() {
       const vType = ($('selVoucherType') && $('selVoucherType').value) || 'IN';
       const total = draftItems.reduce((a, it) => a + getEffectiveLineCalc(it, vType).totalAmount, 0);
-      $('lblVoucherTotalAmount').textContent = numVN(total, 0) + ' đ';
+      const formatted = numVN(total, 0) + ' đ';
+      $('lblVoucherTotalAmount').textContent = formatted;
+      if ($('lblVoucherStickyTotal')) $('lblVoucherStickyTotal').textContent = formatted;
     }
 
     function renderVoucherItemsRows() {
@@ -1115,6 +1123,9 @@
       draftItems = [createEmptyDraftItem()];
       syncVoucherTypeUI();
       $('modalVoucherForm').classList.add('open');
+      if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
+        window.SharedUI.initStickySection($('voucherFormStickyEntry'), $('voucherItemsMainTable'), $('voucherFormModalBody'));
+      }
     }
 
     function openEditVoucherModal(id) {
@@ -1138,6 +1149,9 @@
       if (!draftItems.length) draftItems = [createEmptyDraftItem()];
       syncVoucherTypeUI();
       $('modalVoucherForm').classList.add('open');
+      if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
+        window.SharedUI.initStickySection($('voucherFormStickyEntry'), $('voucherItemsMainTable'), $('voucherFormModalBody'));
+      }
     }
 
     async function handleSaveVoucher() {
