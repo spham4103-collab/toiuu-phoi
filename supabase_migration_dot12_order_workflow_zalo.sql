@@ -81,7 +81,8 @@ ALTER TABLE public.inventory
 ALTER TABLE public.project_material_requests
   ADD COLUMN IF NOT EXISTS allocated_qty NUMERIC NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS expected_date DATE,
-  ADD COLUMN IF NOT EXISTS ready_notified_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS ready_notified_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_pmr_allocated_qty ON public.project_material_requests (allocated_qty) WHERE allocated_qty > 0;
 
