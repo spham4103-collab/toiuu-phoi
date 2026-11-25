@@ -4,7 +4,7 @@
  * Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
  * Network-First cho HTML, /toi-uu-engine.js, /css/ và toàn bộ /js/ với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v27';
+const CACHE_NAME = 'toiuu-phoi-pwa-v28';
 const STATIC_ASSETS = [
   '/',
   '/projects',

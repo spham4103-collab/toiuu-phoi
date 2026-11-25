@@ -598,6 +598,12 @@
 
   function initStickySection(toolbarEl, tableEl, scrollContainer, opts) {
     if (!toolbarEl) return { refresh: function () {}, destroy: function () {} };
+    if (
+      (toolbarEl.closest && toolbarEl.closest('.inv-modal, .bom-dialog, .xp-modal-3tier')) ||
+      (tableEl && tableEl.closest && tableEl.closest('.xp-modal-table-scroll'))
+    ) {
+      return { refresh: function () {}, destroy: function () {} };
+    }
     if (typeof toolbarEl._xpStickyCleanup === 'function') {
       try { toolbarEl._xpStickyCleanup(); } catch (e) {}
     }

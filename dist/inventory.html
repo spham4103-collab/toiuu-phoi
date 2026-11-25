@@ -789,7 +789,7 @@
 
   <!-- MODAL 1: NHẬP TỒN KHO ĐẦU KỲ (PHÔI CŨ) -->
   <div class="inv-modal-backdrop" id="modalOpeningBalance" aria-hidden="true">
-    <div class="inv-modal">
+    <div class="inv-modal xp-modal-3tier">
       <div class="inv-modal-head">
         <div>
           <h3 style="font-size:17px;">📦 Nhập Tồn Kho Đầu Kỳ (Phôi cũ còn tồn trước khi dùng web)</h3>
@@ -797,36 +797,35 @@
         </div>
         <button type="button" class="btn btn-soft btn-sm" id="btnCloseOpeningModal">✕ Đóng</button>
       </div>
-      <div class="inv-modal-body" id="obModalBody" style="padding-top:0;">
-        <div class="xp-sticky-entry" id="obBarsStickyEntry" style="padding:14px 0 8px;">
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; justify-content:space-between;">
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="btn btn-sm btn-p ob-subtab-btn" data-subtab="bars">🪵 Chế độ 1: Nhập cây nguyên cũ còn tồn</button>
-              <button type="button" class="btn btn-sm btn-soft ob-subtab-btn" data-subtab="offcuts">♻️ Chế độ 2: Nhập hàng loạt / Excel phôi lẻ cũ</button>
-            </div>
-            <button type="button" class="btn btn-soft btn-sm xp-sticky-mobile-toggle" data-sticky-toggle>Mở rộng ô nhập ▾</button>
+      <div class="inv-modal-body xp-modal-body-flex" id="obModalBody">
+        <div style="flex-shrink:0; display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:8px 18px; background:#F8FAFC; border-bottom:1px solid #E2E8F0;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm btn-p ob-subtab-btn" data-subtab="bars">🪵 Chế độ 1: Nhập cây nguyên cũ còn tồn</button>
+            <button type="button" class="btn btn-sm btn-soft ob-subtab-btn" data-subtab="offcuts">♻️ Chế độ 2: Nhập hàng loạt / Excel phôi lẻ cũ</button>
           </div>
+        </div>
 
-          <!-- Chế độ 1: Tồn đầu kỳ 5 nhóm vật tư -->
-          <div id="obPaneBars">
-            <div class="xp-sticky-collapsible" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+        <!-- Chế độ 1: Tồn đầu kỳ 5 nhóm vật tư -->
+        <div id="obPaneBars" class="xp-modal-pane-flex">
+          <div class="xp-modal-fixed-top" id="obBarsStickyEntry">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; align-items:center;">
               <button type="button" class="btn btn-soft btn-sm" id="btnObBarsTogglePaste">📋 Dán từ Excel (5 nhóm vật tư)</button>
               <button type="button" class="btn btn-p btn-sm" id="btnObBarsUploadExcel">📂 Nhập từ Excel (.xlsx / .csv)</button>
               <input type="file" id="inpObBarsExcelFile" accept=".xlsx,.xls,.csv" style="display:none;">
             </div>
 
-            <div id="obBarsPasteBox" style="display:none; padding:12px; background:#F8FAFC; border:1.5px dashed #94A3B8; border-radius:10px; margin-bottom:10px;">
-              <div style="font-size:12px; font-weight:700; color:#0F172A; margin-bottom:5px;">
+            <div id="obBarsPasteBox" style="display:none; padding:10px; background:#F8FAFC; border:1.5px dashed #94A3B8; border-radius:10px; margin-bottom:8px;">
+              <div style="font-size:12px; font-weight:700; color:#0F172A; margin-bottom:4px;">
                 Dán vùng Excel (<code>Tên vật tư | Nhóm (1D/2D/CNC/Phu) | ĐVT | Số lượng tồn | Giá vốn | Kệ | SKU | Dài/Khổ mm</code>):
               </div>
-              <textarea id="txtObBarsPasteArea" rows="4" placeholder="Tấm SS400 1500x3000x5&#9;sheet_2d&#9;tấm&#9;12&#9;2450000&#9;Kệ T1&#9;TAM-5&#9;3000&#10;Trục đặc S45C Ø40&#9;solid_cnc&#9;kg&#9;85.5&#9;32000&#9;Kệ C1&#9;PHOI-40&#9;1000"></textarea>
+              <textarea id="txtObBarsPasteArea" rows="3" placeholder="Tấm SS400 1500x3000x5&#9;sheet_2d&#9;tấm&#9;12&#9;2450000&#9;Kệ T1&#9;TAM-5&#9;3000"></textarea>
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px;">
                 <span style="font-size:11.5px; color:#475569;">Hoặc dán 3 cột tối thiểu: <code>Tên vật tư | ĐVT | Số lượng</code>.</span>
                 <button type="button" class="btn btn-p btn-sm" id="btnObBarsApplyPaste">📥 Nạp vào bảng đầu kỳ</button>
               </div>
             </div>
 
-            <div class="xp-sticky-collapsible" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:8px; padding:10px 12px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; margin-bottom:4px; align-items:end;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap:6px; padding:8px 10px; background:#F0FDFA; border:1px solid #99F6E4; border-radius:10px; align-items:end;">
             <div>
               <label style="font-size:11px; font-weight:700; display:block; margin-bottom:2px;">Nhóm vật tư</label>
               <select id="obQuickGroup">
@@ -883,8 +882,8 @@
             <button type="button" class="btn btn-soft btn-sm" id="btnObQuickAddRow">+ Thêm dòng</button>
           </div>
           </div>
-          <div class="table-responsive xp-sticky-table-wrap">
-            <table class="inv-table xp-sticky-table" id="obBarsMainTable" style="min-width:860px;">
+          <div class="xp-modal-table-scroll">
+            <table class="inv-table" id="obBarsMainTable" style="min-width:860px;">
               <thead>
                 <tr>
                   <th>Tên vật tư / Quy cách &amp; SKU</th>
@@ -905,29 +904,31 @@
         </div>
 
         <!-- Chế độ 2: Phôi lẻ cũ hàng loạt / Excel / Paste -->
-        <div id="obPaneOffcuts" style="display:none;">
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-            <button type="button" class="btn btn-soft btn-sm" id="btnObAddOffcutRow">+ Thêm 1 dòng</button>
-            <button type="button" class="btn btn-soft btn-sm" id="btnObDownloadTemplate">⬇️ Tải file Excel mẫu (.xlsx)</button>
-            <button type="button" class="btn btn-p btn-sm" id="btnObUploadExcel">📂 Nhập từ Excel (.xlsx / .csv)</button>
-            <input type="file" id="inpObExcelFile" accept=".xlsx,.xls,.csv" style="display:none;">
-            <button type="button" class="btn btn-soft btn-sm" id="btnObTogglePaste">📋 Dán trực tiếp từ Excel (Copy-Paste)</button>
-          </div>
-
-          <div id="obPasteBox" style="display:none; padding:12px; background:#F8FAFC; border:1.5px dashed #94A3B8; border-radius:10px; margin-bottom:12px;">
-            <div style="font-size:12.5px; font-weight:700; color:#0F172A; margin-bottom:5px;">
-              Copy vùng 5 cột trong Excel (<code>Quy cách | Chiều dài mm | Số lượng | Vị trí kệ | Ghi chú</code>) rồi Ctrl+V dán vào đây:
+        <div id="obPaneOffcuts" class="xp-modal-pane-flex" style="display:none;">
+          <div class="xp-modal-fixed-top">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <button type="button" class="btn btn-soft btn-sm" id="btnObAddOffcutRow">+ Thêm 1 dòng</button>
+              <button type="button" class="btn btn-soft btn-sm" id="btnObDownloadTemplate">⬇️ Tải file Excel mẫu (.xlsx)</button>
+              <button type="button" class="btn btn-p btn-sm" id="btnObUploadExcel">📂 Nhập từ Excel (.xlsx / .csv)</button>
+              <input type="file" id="inpObExcelFile" accept=".xlsx,.xls,.csv" style="display:none;">
+              <button type="button" class="btn btn-soft btn-sm" id="btnObTogglePaste">📋 Dán trực tiếp từ Excel (Copy-Paste)</button>
             </div>
-            <textarea id="txtObPasteArea" rows="5" placeholder="Hộp 30x30x1.8&#9;2450&#9;3&#9;Kệ B1&#9;Phôi lẻ cũ&#10;Hộp 40x80x2.0&#9;1850&#9;2&#9;Kệ A2&#9;Dư khung cửa"></textarea>
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              <span id="obPasteHint" style="font-size:12px; color:#475569;">Hỗ trợ dữ liệu phân tách bằng Tab (Excel), dấu chấm phẩy hoặc dấu phẩy.</span>
-              <button type="button" class="btn btn-p btn-sm" id="btnObApplyPaste">📥 Đọc dữ liệu vừa dán</button>
+
+            <div id="obPasteBox" style="display:none; padding:10px; background:#F8FAFC; border:1.5px dashed #94A3B8; border-radius:10px; margin-top:8px;">
+              <div style="font-size:12.5px; font-weight:700; color:#0F172A; margin-bottom:4px;">
+                Copy vùng 5 cột trong Excel (<code>Quy cách | Chiều dài mm | Số lượng | Vị trí kệ | Ghi chú</code>) rồi Ctrl+V dán vào đây:
+              </div>
+              <textarea id="txtObPasteArea" rows="4" placeholder="Hộp 30x30x1.8&#9;2450&#9;3&#9;Kệ B1&#9;Phôi lẻ cũ&#10;Hộp 40x80x2.0&#9;1850&#9;2&#9;Kệ A2&#9;Dư khung cửa"></textarea>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
+                <span id="obPasteHint" style="font-size:12px; color:#475569;">Hỗ trợ dữ liệu phân tách bằng Tab (Excel), dấu chấm phẩy hoặc dấu phẩy.</span>
+                <button type="button" class="btn btn-p btn-sm" id="btnObApplyPaste">📥 Đọc dữ liệu vừa dán</button>
+              </div>
             </div>
           </div>
 
           <datalist id="obProfileDatalist"></datalist>
-          <div class="table-responsive">
-            <table class="inv-table" style="min-width:640px;">
+          <div class="xp-modal-table-scroll">
+            <table class="inv-table" id="obOffcutsMainTable" style="min-width:640px;">
               <thead>
                 <tr>
                   <th>Quy cách thép *</th>
@@ -2507,8 +2508,8 @@
     // =========================================================================
     function switchOpeningSubtab(sub) {
       openingSubTab = sub === 'offcuts' ? 'offcuts' : 'bars';
-      $('obPaneBars').style.display = openingSubTab === 'bars' ? 'block' : 'none';
-      $('obPaneOffcuts').style.display = openingSubTab === 'offcuts' ? 'block' : 'none';
+      $('obPaneBars').style.display = openingSubTab === 'bars' ? 'flex' : 'none';
+      $('obPaneOffcuts').style.display = openingSubTab === 'offcuts' ? 'flex' : 'none';
       $('btnSaveOpeningBars').style.display = openingSubTab === 'bars' ? 'inline-flex' : 'none';
       $('btnSaveOpeningOffcuts').style.display = openingSubTab === 'offcuts' ? 'inline-flex' : 'none';
       document.querySelectorAll('.ob-subtab-btn').forEach(b => {
@@ -2623,9 +2624,6 @@
       renderOpeningOffcutsRows();
       switchOpeningSubtab(subTab);
       $('modalOpeningBalance').classList.add('open');
-      if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
-        window.SharedUI.initStickySection($('obBarsStickyEntry'), $('obBarsMainTable'), $('obModalBody'));
-      }
     }
 
     function closeOpeningBalanceModal() {

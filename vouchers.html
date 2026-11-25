@@ -315,7 +315,7 @@
 
   <!-- MODAL LẬP / SỬA CHỨNG TỪ NHIỀU DÒNG -->
   <div class="inv-modal-backdrop no-print" id="modalVoucherForm" aria-hidden="true">
-    <div class="inv-modal">
+    <div class="inv-modal xp-modal-3tier">
       <div class="inv-modal-head">
         <div>
           <h3 id="voucherModalTitle" style="font-size:17px;">🧾 Lập Phiếu Kho Mới</h3>
@@ -323,10 +323,10 @@
         </div>
         <button type="button" class="btn btn-soft btn-sm" id="btnCloseVoucherModal">✕ Đóng</button>
       </div>
-      <div class="inv-modal-body" id="voucherFormModalBody" style="padding-top:0;">
-        <div class="xp-sticky-entry" id="voucherFormStickyEntry" style="padding:12px 0 10px; margin-bottom:0;">
+      <div class="inv-modal-body xp-modal-body-flex" id="voucherFormModalBody">
+        <div class="xp-modal-fixed-top" id="voucherFormStickyEntry">
           <input type="hidden" id="hidEditVoucherId">
-          <div class="form-grid-3 xp-sticky-collapsible">
+          <div class="form-grid-3">
           <div>
             <label class="lbl">Loại chứng từ *</label>
             <select id="selVoucherType">
@@ -412,21 +412,20 @@
           </label>
         </div>
 
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:6px 0 4px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:6px 0 2px;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <strong style="color:var(--dark); font-size:14px;">Danh sách vật tư trên phiếu:</strong>
             <span class="price-only" style="font-size:12.5px; font-weight:800; color:var(--p);">Tổng: <span id="lblVoucherStickyTotal">0 đ</span></span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" class="btn btn-soft btn-sm xp-sticky-mobile-toggle" data-sticky-toggle>Mở rộng ô nhập ▾</button>
             <button type="button" class="btn btn-soft btn-sm" id="btnScanAddVoucherItem" style="border-color:#0369A1; color:#0369A1;">📷 Quét thêm vật tư</button>
             <button type="button" class="btn btn-p btn-sm" id="btnAddVoucherItemRow">+ Thêm dòng vật tư</button>
           </div>
         </div>
         </div>
 
-        <div class="table-responsive xp-sticky-table-wrap">
-          <table class="v-table xp-sticky-table" id="voucherItemsMainTable" style="min-width:860px;">
+        <div class="xp-modal-table-scroll">
+          <table class="v-table" id="voucherItemsMainTable" style="min-width:860px;">
             <thead>
               <tr>
                 <th style="width:240px;">Vật tư trong kho *</th>
@@ -1123,9 +1122,6 @@
       draftItems = [createEmptyDraftItem()];
       syncVoucherTypeUI();
       $('modalVoucherForm').classList.add('open');
-      if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
-        window.SharedUI.initStickySection($('voucherFormStickyEntry'), $('voucherItemsMainTable'), $('voucherFormModalBody'));
-      }
     }
 
     function openEditVoucherModal(id) {
@@ -1149,9 +1145,6 @@
       if (!draftItems.length) draftItems = [createEmptyDraftItem()];
       syncVoucherTypeUI();
       $('modalVoucherForm').classList.add('open');
-      if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
-        window.SharedUI.initStickySection($('voucherFormStickyEntry'), $('voucherItemsMainTable'), $('voucherFormModalBody'));
-      }
     }
 
     async function handleSaveVoucher() {

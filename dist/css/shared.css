@@ -294,6 +294,77 @@ header.top {
   z-index: 20;
 }
 
+/* ============================================================================
+ * 3-TIER FLEXBOX MODAL LAYOUT (KHÔNG DÙNG JS TÍNH TOP TRONG MODAL)
+ * Tầng 1: Đầu modal + form nhập cố định (flex-shrink: 0)
+ * Tầng 2: Vùng cuộn bảng dữ liệu (flex: 1; min-height: 0; overflow: auto) + thead sticky top: 0
+ * Tầng 3: Chân modal cố định (flex-shrink: 0)
+ * ============================================================================ */
+.xp-modal-3tier {
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: 90vh !important;
+  overflow: hidden !important;
+}
+
+.xp-modal-3tier .inv-modal-head,
+.xp-modal-3tier .inv-modal-foot,
+.xp-modal-3tier .bom-head,
+.xp-modal-3tier .bom-tabs {
+  flex-shrink: 0;
+}
+
+.xp-modal-body-flex {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.xp-modal-pane-flex {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.xp-modal-fixed-top {
+  flex-shrink: 0;
+  padding: 10px 18px 8px;
+  background: #FFFFFF;
+  border-bottom: 1.5px solid #CBD5E1;
+  max-height: 44vh;
+  overflow-y: auto;
+}
+
+.xp-modal-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 18px 12px;
+}
+
+.xp-modal-table-scroll table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.xp-modal-table-scroll thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  background: #E2E8F0 !important;
+  color: #0F172A !important;
+  font-weight: 800;
+  font-size: 12.5px;
+  border-bottom: 2px solid #94A3B8 !important;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+}
+
 .xp-sticky-mobile-toggle {
   display: none;
 }

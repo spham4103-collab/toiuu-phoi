@@ -119,11 +119,13 @@ function testSmartInventoryFiles() {
   assert(sbJs.includes('mergeInventoryItems'), 'supabaseClient.js must export mergeInventoryItems');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v27'), 'sw.js must be v27');
+  assert(sw.includes('toiuu-phoi-pwa-v28'), 'sw.js must be v28');
   assert(sw.includes('/js/inventory-smart.js'), 'sw.js must cache /js/inventory-smart.js');
 
   const sharedCss = read('css/shared.css');
   assert(sharedCss.includes('.xp-sticky-entry'), 'shared.css must define .xp-sticky-entry');
+  assert(sharedCss.includes('.xp-modal-3tier'), 'shared.css must define .xp-modal-3tier');
+  assert(sharedCss.includes('.xp-modal-table-scroll'), 'shared.css must define .xp-modal-table-scroll');
   const sharedUi = read('js/shared-ui.js');
   assert(sharedUi.includes('initStickySection'), 'shared-ui.js must export initStickySection');
   assert(invHtml.includes('offcutsStickyEntry'), 'inventory.html must have offcutsStickyEntry');

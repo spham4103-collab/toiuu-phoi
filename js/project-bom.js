@@ -184,7 +184,7 @@
     var wrap = document.createElement('div');
     wrap.id = 'modalProjectBomDetail';
     wrap.innerHTML = [
-      '<div class="bom-dialog" role="dialog" aria-modal="true">',
+      '<div class="bom-dialog xp-modal-3tier" role="dialog" aria-modal="true">',
       '  <div class="bom-head">',
       '    <div>',
       '      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">',
@@ -296,6 +296,8 @@
 
   function renderModal() {
     renderHeader();
+    var bodyEl = $('bomModalBody');
+    if (bodyEl) bodyEl.classList.toggle('xp-modal-body-flex', STATE.activeTab === 'bom');
     if (STATE.activeTab === 'bom') {
       renderBomTab();
     } else if (STATE.activeTab === 'tube') {
@@ -448,8 +450,8 @@
     }).join('') : '<div style="font-size:12px;color:#64748B;">Chưa có bản vẽ hoặc file đính kèm nào.</div>';
 
     $('bomModalBody').innerHTML = [
-      '<div class="xp-sticky-entry" id="bomStickyEntry" style="padding:8px 0 10px; margin-bottom:0;">',
-      '  <div class="bom-toolbar">',
+      '<div class="xp-modal-fixed-top" id="bomStickyEntry">',
+      '  <div class="bom-toolbar" style="margin-bottom:8px;">',
       '    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
       '      <select id="bomStageFilter" style="padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;font-size:12.5px;">',
       '        <option value="all">Tất cả công đoạn (' + STATE.requests.length + ')</option>' + stageOpts,
@@ -464,31 +466,33 @@
       '    </div>',
       '  </div>',
       addFormHtml,
-      '</div>',
       importPreviewHtml,
-      '<div class="table-responsive xp-sticky-table-wrap" style="border:1px solid #E2E8F0;border-radius:10px;margin-bottom:14px;">',
-      '  <table class="bom-table xp-sticky-table" id="bomRequestsTable">',
-      '    <thead><tr>',
-      '      <th style="width:28px;"><input type="checkbox" id="bomChkAll"></th>',
-      '      <th>Công đoạn</th>',
-      '      <th>Tên vật tư / Quy cách</th>',
-      '      <th>Mác</th>',
-      '      <th>Liên kết Kho</th>',
-      '      <th style="text-align:right;">Cần</th>',
-      '      <th style="text-align:right;">Đã xuất</th>',
-      '      <th style="text-align:right;">Thiếu</th>',
-      '      <th>Trạng thái</th>',
-      '      <th></th>',
-      '    </tr></thead>',
-      '    <tbody>' + tableRowsHtml + '</tbody>',
-      '  </table>',
       '</div>',
-      '<div class="bom-card">',
+      '<div class="xp-modal-table-scroll">',
+      '  <div style="border:1px solid #E2E8F0;border-radius:10px;margin:10px 0 14px;">',
+      '    <table class="bom-table" id="bomRequestsTable">',
+      '      <thead><tr>',
+      '        <th style="width:28px;"><input type="checkbox" id="bomChkAll"></th>',
+      '        <th>Công đoạn</th>',
+      '        <th>Tên vật tư / Quy cách</th>',
+      '        <th>Mác</th>',
+      '        <th>Liên kết Kho</th>',
+      '        <th style="text-align:right;">Cần</th>',
+      '        <th style="text-align:right;">Đã xuất</th>',
+      '        <th style="text-align:right;">Thiếu</th>',
+      '        <th>Trạng thái</th>',
+      '        <th></th>',
+      '      </tr></thead>',
+      '      <tbody>' + tableRowsHtml + '</tbody>',
+      '    </table>',
+      '  </div>',
+      '  <div class="bom-card">',
       '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">',
       '    <strong style="font-size:13.5px;color:#0B3B38;">📁 Bản vẽ &amp; Hồ sơ đính kèm (' + STATE.attachments.length + ')</strong>',
       editable ? '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><input type="text" id="bomAttNote" placeholder="Ghi chú file..." style="padding:5px 8px;border:1px solid #CBD5E1;border-radius:7px;font-size:12px;"><label class="btn btn-sm btn-p" style="cursor:pointer;margin:0;">⬆️ Tải file lên (<=10MB)<input type="file" id="inpBomAttFile" accept=".pdf,.dxf,.dwg,.step,.stp,.igs,.iges,.xlsx,.xls,.png,.jpg,.jpeg" style="display:none;"></label></div>' : '',
       '  </div>',
       '  <div style="display:flex;flex-direction:column;gap:6px;">' + attListHtml + '</div>',
+      '  </div>',
       '</div>'
     ].join('');
 
@@ -728,10 +732,6 @@
 
     var btnPrt = $('btnBomPrintReqA4');
     if (btnPrt) btnPrt.addEventListener('click', printBomRequestA4);
-
-    if (window.SharedUI && typeof window.SharedUI.initStickySection === 'function') {
-      window.SharedUI.initStickySection($('bomStickyEntry'), $('bomRequestsTable'), $('bomModalBody'));
-    }
   }
 
   function downloadExcelTemplate() {
