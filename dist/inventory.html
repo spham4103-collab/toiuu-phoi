@@ -234,6 +234,8 @@
         <a href="/" class="subnav-link">🏠 Tổng quan</a>
         <a href="/inventory" class="subnav-link active">📦 Kho vật tư</a>
         <a href="/vouchers" class="subnav-link">🧾 Phiếu kho</a>
+        <a href="/purchasing" class="subnav-link">🛒 Mua hàng</a>
+        <a href="/delivery" class="subnav-link">🚚 Giao hàng</a>
         <a href="/projects" class="subnav-link">📁 Dự án</a>
         <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
@@ -758,6 +760,7 @@
           <div class="card-sub" style="margin-bottom:0;">Tự động tổng hợp toàn bộ vật tư cả 4 nhóm có tồn thực tế &le; định mức tối thiểu để kịp thời bổ sung kho.</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-p btn-sm eng-only" id="btnReorderCreatePr">📨 Gửi thành Đề nghị mua hàng (PR)</button>
           <button type="button" class="btn btn-cta btn-sm eng-only" id="btnReorderCreatePnk">🧾 Tạo bản nháp PNK</button>
           <button type="button" class="btn btn-p btn-sm" id="btnReorderCopyZalo">💬 Copy tin nhắn Zalo đặt hàng</button>
           <button type="button" class="btn btn-soft btn-sm" id="btnReorderExportXlsx">📊 Xuất Excel (.xlsx)</button>
@@ -3913,6 +3916,25 @@
       }
 
       if ($('btnScanQrLookup')) $('btnScanQrLookup').onclick = startInventoryQrScan;
+      if ($('btnReorderCreatePr')) {
+        $('btnReorderCreatePr').onclick = () => {
+          const picked = getSelectedReorderDraftRows();
+          if (!picked.length) {
+            showToast('⚠️ Vui lòng tích chọn ít nhất 1 vật tư cần đề nghị mua!');
+            return;
+          }
+          const payload = picked.map(({ item, orderQty }) => ({
+            inventoryId: item.id,
+            itemName: item.profileName,
+            unit: item.unit || 'cây',
+            requestedQty: orderQty,
+            estimatedUnitPrice: Number(item.avgCost || item.unitPrice || 0),
+            note: `Bổ sung tồn kho (Tồn: ${item.stockQty}/${item.minStockQty})`
+          }));
+          localStorage.setItem('xp_pr_draft_items', JSON.stringify(payload));
+          window.location.href = '/purchasing?new=PR&from=reorder';
+        };
+      }
       if ($('btnReorderCreatePnk')) {
         $('btnReorderCreatePnk').onclick = () => {
           const picked = getSelectedReorderDraftRows();

@@ -128,6 +128,8 @@
         <a href="/" class="subnav-link active">🏠 Tổng quan</a>
         <a href="/inventory" class="subnav-link">📦 Kho vật tư</a>
         <a href="/vouchers" class="subnav-link">🧾 Phiếu kho</a>
+        <a href="/purchasing" class="subnav-link">🛒 Mua hàng</a>
+        <a href="/delivery" class="subnav-link">🚚 Giao hàng</a>
         <a href="/projects" class="subnav-link">📁 Dự án</a>
         <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
@@ -194,6 +196,27 @@
             <div class="kpi-label">Dự án đang triển khai</div>
           </div>
         </div>
+        <a href="/purchasing" class="kpi-card" style="text-decoration:none; border-color:#FDE68A;">
+          <div class="kpi-icon" style="background:#FEF3C7; color:#B45309;">📨</div>
+          <div>
+            <div class="kpi-val" id="kpiPendingPr">0</div>
+            <div class="kpi-label">PR chờ duyệt</div>
+          </div>
+        </a>
+        <a href="/purchasing?tab=po" class="kpi-card" style="text-decoration:none; border-color:#BAE6FD;">
+          <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">🛒</div>
+          <div>
+            <div class="kpi-val" id="kpiOpenOverduePo">0 / 0</div>
+            <div class="kpi-label">PO đang chờ / trễ hẹn</div>
+          </div>
+        </a>
+        <a href="/delivery" class="kpi-card" style="text-decoration:none; border-color:#A7F3D0;">
+          <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">🚚</div>
+          <div>
+            <div class="kpi-val" id="kpiFgReadyDebt">0 / 0</div>
+            <div class="kpi-label">Thành phẩm sẵn sàng / còn nợ giao</div>
+          </div>
+        </a>
       </div>
 
       <div class="quick-actions">
@@ -338,10 +361,11 @@
     }
 
     async function loadDashboard() {
-      const [inv, vouches, projs] = await Promise.all([
+      const [inv, vouches, projs, summary] = await Promise.all([
         window.SupabaseDB.getInventory().catch(() => []),
         window.SupabaseDB.getWarehouseVouchers({ limit: 80 }).catch(() => []),
-        window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => [])
+        window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => []),
+        (window.SupabaseDB.getCompanyDashboardSummary ? window.SupabaseDB.getCompanyDashboardSummary().catch(() => null) : Promise.resolve(null))
       ]);
       invList = inv || [];
       vouchersList = vouches || [];
@@ -358,6 +382,11 @@
         $('kpiLowStockCount').textContent = numVN(lowItems.length);
         $('kpiPendingVouchers').textContent = numVN(pendingV.length);
         $('kpiActiveProjects').textContent = numVN((projs || []).length);
+        if (summary) {
+          if ($('kpiPendingPr')) $('kpiPendingPr').textContent = numVN(summary.pendingPrCount || 0);
+          if ($('kpiOpenOverduePo')) $('kpiOpenOverduePo').textContent = `${numVN(summary.openPoCount || 0)} / ${numVN(summary.overduePoCount || 0)}`;
+          if ($('kpiFgReadyDebt')) $('kpiFgReadyDebt').textContent = `${numVN(summary.fgReadyQty || 0)} / ${numVN(summary.fgDebtQty || 0)}`;
+        }
 
         const recentV = vouchersList.slice(0, 8);
         $('homeVouchersBody').innerHTML = recentV.length ? recentV.map(v => `

@@ -164,6 +164,8 @@
     { key: 'index', href: '/', label: '🏠 Tổng quan', badgeId: '' },
     { key: 'inventory', href: '/inventory', label: '📦 Kho vật tư', badgeId: '' },
     { key: 'vouchers', href: '/vouchers', label: '🧾 Phiếu kho', badgeId: 'subnavVouchersBadge' },
+    { key: 'purchasing', href: '/purchasing', label: '🛒 Mua hàng', badgeId: 'subnavPrBadge' },
+    { key: 'delivery', href: '/delivery', label: '🚚 Giao hàng', badgeId: '' },
     { key: 'projects', href: '/projects', label: '📁 Dự án', badgeId: 'subnavProjBadge' },
     { key: 'reports', href: '/reports', label: '📊 Báo cáo', cls: 'reports-nav-link', id: 'navLinkReports', priceOnly: true },
     { key: 'admin', href: '/admin', label: '🛡️ Quản trị', adminOnly: true, cls: 'subnav-admin', id: 'navLinkAdmin' }
@@ -202,6 +204,21 @@
   function canDeleteInventory(user) {
     var r = user && user.role;
     return r === 'admin' || r === 'warehouse';
+  }
+
+  function canApprovePR(user) {
+    var r = user && user.role;
+    return r === 'admin' || r === 'accountant';
+  }
+
+  function canAccessPurchasing(user) {
+    var r = user && user.role;
+    return r === 'admin' || r === 'accountant' || r === 'warehouse' || r === 'engineer';
+  }
+
+  function canAccessDelivery(user) {
+    var r = user && user.role;
+    return r === 'admin' || r === 'accountant' || r === 'warehouse' || r === 'engineer';
   }
 
   var _wmsSettingsCache = { allow_engineer_view_price: false };
@@ -584,6 +601,7 @@
 
   function initPendingVouchersBadge() {
     refreshPendingVouchersBadge();
+    refreshPendingPrBadge();
     if (_pendingVouchersUnsub || !global.SupabaseDB || !global.SupabaseDB.isConfigured()) return;
     try {
       _pendingVouchersUnsub = global.SupabaseDB.subscribeTables({
@@ -593,6 +611,32 @@
         }
       });
     } catch (e) {}
+  }
+
+  async function refreshPendingPrBadge() {
+    if (!global.SupabaseDB || typeof global.SupabaseDB.getPendingPrCount !== 'function') return 0;
+    try {
+      var cnt = await global.SupabaseDB.getPendingPrCount();
+      var links = document.querySelectorAll('a[href="/purchasing"]');
+      links.forEach(function (link) {
+        var badge = link.querySelector('#subnavPrBadge, .pr-pending-badge');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'pr-pending-badge';
+          badge.style.cssText = 'background:#D97706;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;font-weight:800;margin-left:4px;display:none;';
+          link.appendChild(badge);
+        }
+        badge.textContent = String(cnt);
+        badge.style.display = cnt > 0 ? 'inline-block' : 'none';
+      });
+      return cnt;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function initPendingPrBadge() {
+    refreshPendingPrBadge();
   }
 
   function initStickySection(toolbarEl, tableEl, scrollContainer, opts) {
@@ -751,6 +795,9 @@
     convertPackToBase: convertPackToBase,
     canManageInventory: canManageInventory,
     canDeleteInventory: canDeleteInventory,
+    canApprovePR: canApprovePR,
+    canAccessPurchasing: canAccessPurchasing,
+    canAccessDelivery: canAccessDelivery,
     canCreateVouchers: canCreateVouchers,
     canApproveVouchers: canApproveVouchers,
     canManageSuppliers: canManageSuppliers,
@@ -763,6 +810,8 @@
     formatMoneyVN: formatMoneyVN,
     refreshPendingVouchersBadge: refreshPendingVouchersBadge,
     initPendingVouchersBadge: initPendingVouchersBadge,
+    refreshPendingPrBadge: refreshPendingPrBadge,
+    initPendingPrBadge: initPendingPrBadge,
     initStickySection: initStickySection
   };
 })(typeof window !== 'undefined' ? window : globalThis);

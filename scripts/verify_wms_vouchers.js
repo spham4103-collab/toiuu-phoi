@@ -503,7 +503,7 @@ function verifyPhase2Features() {
     execFileSync(process.execPath, ['--check', path.join(ROOT, rel)], { stdio: 'pipe' });
   }
   const swText = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-  assert(swText.includes('toiuu-phoi-pwa-v29'), 'sw.js must be bumped to v29');
+  assert(swText.includes('toiuu-phoi-pwa-v30'), 'sw.js must be bumped to v30');
   assert(swText.includes('/js/qr-scanner.js'), 'sw.js must cache /js/qr-scanner.js');
 
   const invHtml = fs.readFileSync(path.join(ROOT, 'inventory.html'), 'utf8');

@@ -3,18 +3,22 @@
  * Bỏ qua cache cho Supabase API/Realtime/Storage & API cục bộ,
  * Network-First cho HTML, /css/ và toàn bộ /js/ với fallback đúng từng nhánh URL
  */
-const CACHE_NAME = 'toiuu-phoi-pwa-v29';
+const CACHE_NAME = 'toiuu-phoi-pwa-v30';
 const STATIC_ASSETS = [
   '/',
   '/projects',
   '/inventory',
   '/vouchers',
+  '/purchasing',
+  '/delivery',
   '/reports',
   '/admin',
   '/index.html',
   '/projects.html',
   '/inventory.html',
   '/vouchers.html',
+  '/purchasing.html',
+  '/delivery.html',
   '/reports.html',
   '/admin.html',
   '/js/supabaseClient.js',
@@ -53,6 +57,8 @@ function pickRouteFallbackUrl(pathname) {
   if (p.startsWith('/projects')) return '/projects';
   if (p.startsWith('/inventory')) return '/inventory';
   if (p.startsWith('/vouchers')) return '/vouchers';
+  if (p.startsWith('/purchasing')) return '/purchasing';
+  if (p.startsWith('/delivery')) return '/delivery';
   if (p.startsWith('/reports')) return '/reports';
   if (p.startsWith('/admin')) return '/admin';
   return '/';

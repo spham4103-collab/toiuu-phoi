@@ -1,0 +1,1044 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p.endsWith('.html')) history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+    }
+  </script>
+  <title>Quản Lý Mua Hàng (PR &rarr; PO) · An Bình</title>
+  <meta name="description" content="Quản lý Đề nghị mua hàng (PR), Đơn đặt hàng (PO), theo dõi tiến độ giao hàng và liên kết Nhập kho theo PO.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+  <style>
+    :root {
+      --bg:#FFFFFF; --tint:#F0FDFA; --ink:#134E4A; --mut:#475569; --edge:#D5E9E5;
+      --p:#0F766E; --p-h:#0D635D; --p3:#CCFBF1; --cta:#C2410C; --cta-h:#9A3412; --dark:#0B3B38;
+      --font:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif; --r:14px; --gut:28px;
+      --sh:0 10px 25px -5px rgba(15,118,110,0.08);
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#F8FAFC; color:#1E293B; font:400 15px/1.55 var(--font); min-height:100vh; }
+    a { color:var(--p); text-decoration:none; }
+    h1,h2,h3 { margin:0; line-height:1.25; font-weight:800; color:var(--dark); }
+    .wrap { max-width:1320px; margin:0 auto; padding:0 var(--gut); width:100%; }
+
+    .top { position:sticky; top:0; z-index:40; background:rgba(255,255,255,0.98); backdrop-filter:blur(8px); border-bottom:1.5px solid var(--edge); box-shadow:0 2px 10px rgba(0,0,0,0.03); }
+    .top .wrap { display:flex; align-items:center; justify-content:space-between; min-height:58px; padding-top:8px; padding-bottom:8px; flex-wrap:wrap; gap:10px 16px; }
+    .brand { display:flex; align-items:center; gap:10px; color:var(--dark); flex-shrink:0; white-space:nowrap; }
+    .brand-logo-img { height:40px; max-width:130px; object-fit:contain; border-radius:4px; }
+    .brand-divider { width:1.5px; height:26px; background:var(--edge); }
+    .brand-text-col { display:flex; flex-direction:column; justify-content:center; }
+    .brand-main-title { font-weight:800; font-size:15.5px; color:var(--dark); line-height:1.15; }
+    .brand-sub-title { font-weight:600; color:var(--p); font-size:11.5px; line-height:1.15; margin-top:2px; }
+    .top-actions { display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; }
+
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:6px 14px; border-radius:999px; border:1px solid transparent; font:700 13px/1.2 var(--font); cursor:pointer; white-space:nowrap; transition:all 0.15s ease; }
+    .btn-p { background:var(--p); color:#fff; }
+    .btn-p:hover { background:var(--p-h); }
+    .btn-cta { background:var(--cta); color:#fff; }
+    .btn-cta:hover { background:var(--cta-h); }
+    .btn-soft { background:#fff; color:var(--ink); border:1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color:var(--p); color:var(--p); background:var(--tint); }
+    .btn-ok { background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; }
+    .btn-danger { background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; }
+    .btn-sm { min-height:30px; padding:4px 10px; font-size:12px; }
+
+    .kpi-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:16px 0 18px; }
+    .kpi-card { background:#fff; border:1.5px solid #E2E8F0; border-radius:var(--r); padding:14px 16px; display:flex; align-items:center; gap:13px; box-shadow:0 2px 6px rgba(0,0,0,0.02); }
+    .kpi-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .kpi-val { font-size:21px; font-weight:800; line-height:1.15; color:#0F172A; }
+    .kpi-label { font-size:12px; font-weight:700; color:var(--mut); margin-top:2px; }
+
+    .card { background:#fff; border:1px solid #E2E8F0; border-radius:var(--r); padding:20px; box-shadow:var(--sh); margin-bottom:20px; }
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; border-bottom:1.5px solid #E2E8F0; padding-bottom:10px; }
+    .tab-btn { padding:8px 16px; border-radius:10px; border:1.5px solid #E2E8F0; background:#F8FAFC; color:#475569; font:700 13.5px var(--font); cursor:pointer; }
+    .tab-btn.active { background:var(--p); color:#fff; border-color:var(--p); }
+
+    .filter-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+    input[type=text], input[type=number], input[type=password], input[type=date], select, textarea {
+      width:100%; min-height:36px; padding:6px 10px; border-radius:8px; border:1.5px solid #CBD5E1; font:500 13.5px var(--font); color:#0F172A; background:#fff;
+    }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--p); box-shadow:0 0 0 3px var(--p3); }
+
+    .table-responsive { width:100%; overflow-x:auto; border:1px solid #E2E8F0; border-radius:10px; }
+    .v-table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:820px; }
+    .v-table th { background:#F8FAFC; color:#475569; font-weight:700; text-align:left; padding:10px 12px; border-bottom:1.5px solid #E2E8F0; white-space:nowrap; }
+    .v-table td { padding:9px 12px; border-bottom:1px solid #F1F5F9; vertical-align:middle; }
+    .v-table th.r, .v-table td.r { text-align:right; }
+    .v-table tr:hover { background:#F8FAFC; }
+
+    .pill { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:700; white-space:nowrap; }
+    .pill-pending { background:#FEF3C7; color:#B45309; }
+    .pill-approved { background:#DCFCE7; color:#15803D; }
+    .pill-ordered { background:#E0F2FE; color:#0369A1; }
+    .pill-partial { background:#EDE9FE; color:#6D28D9; }
+    .pill-completed { background:#D1FAE5; color:#065F46; }
+    .pill-rejected, .pill-cancelled { background:#FEE2E2; color:#B91C1C; }
+    .pill-draft { background:#F1F5F9; color:#475569; }
+    .pill-urgent { background:#FEE2E2; color:#B91C1C; border:1px solid #FCA5A5; }
+
+    .prog-wrap { width:110px; height:8px; background:#E2E8F0; border-radius:999px; overflow:hidden; display:inline-block; vertical-align:middle; }
+    .prog-fill { height:100%; background:#10B981; transition:width 0.2s; }
+
+    .inv-modal-backdrop { position:fixed; inset:0; background:rgba(15,23,42,0.56); backdrop-filter:blur(3px); z-index:200; display:none; align-items:center; justify-content:center; padding:14px; }
+    .inv-modal-backdrop.open { display:flex; }
+    .inv-modal { background:#fff; border-radius:16px; border:1px solid #CBD5E1; width:min(1040px,100%); max-height:92vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.28); overflow:hidden; }
+    .inv-modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #E2E8F0; background:#F8FAFC; flex-shrink:0; }
+    .inv-modal-body { padding:16px 18px; overflow-y:auto; flex:1 1 auto; }
+    .inv-modal-foot { padding:12px 18px; border-top:1px solid #E2E8F0; background:#F8FAFC; display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; flex-shrink:0; }
+
+    .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin-bottom:14px; }
+    .fg label { display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:4px; }
+
+    #toast { position:fixed; bottom:24px; right:24px; background:var(--dark); color:#fff; padding:12px 20px; border-radius:12px; font-weight:600; font-size:14px; z-index:3000; opacity:0; transform:translateY(12px); transition:all 0.25s ease; pointer-events:none; }
+    #toast.show { opacity:1; transform:translateY(0); }
+
+    .print-only { display:none; }
+    @media print {
+      body > *:not(#printArea) { display:none !important; }
+      #printArea { display:block !important; padding:18px; font-family:'Times New Roman',serif; color:#000; }
+      @page { size:A4 portrait; margin:12mm; }
+    }
+    @media (max-width: 768px) {
+      :root { --gut:12px; }
+      .brand-sub-title { display:none; }
+      .kpi-cards { grid-template-columns:repeat(2,1fr); gap:8px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/" title="Tổng quan Hệ thống Quản lý Kho Vật tư">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">QUẢN LÝ MUA HÀNG (PR &rarr; PO)</div>
+          <div class="brand-sub-title">Cơ Khí An Bình · Hệ thống WMS</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span>Trực tuyến</span>
+        </div>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4;">
+          <span id="userIcon">🛒</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </div>
+    <nav class="subnav-bar" aria-label="Điều hướng hệ thống WMS">
+      <div class="subnav-inner">
+        <a href="/" class="subnav-link">🏠 Tổng quan</a>
+        <a href="/inventory" class="subnav-link">📦 Kho vật tư</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu kho</a>
+        <a href="/purchasing" class="subnav-link active">🛒 Mua hàng</a>
+        <a href="/delivery" class="subnav-link">🚚 Giao hàng</a>
+        <a href="/projects" class="subnav-link">📁 Dự án</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
+      </div>
+    </nav>
+  </header>
+
+  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">🛒</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">PHÂN HỆ MUA HÀNG (PR &rarr; PO)</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Cơ Khí An Bình · Đăng nhập để tiếp tục</p>
+      </div>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Tên đăng nhập *</label>
+        <input type="text" id="inpLoginUser" placeholder="Nhập tài khoản...">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Mật khẩu *</label>
+        <input type="password" id="inpLoginPass" placeholder="Nhập mật khẩu...">
+      </div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">🚀 ĐĂNG NHẬP</button>
+    </div>
+  </div>
+
+  <main class="wrap" id="mainContent" style="display:none; padding-top:18px; padding-bottom:50px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <div>
+        <h1>Quản Lý Mua Hàng (PR &rarr; PO &rarr; Nhập Kho)</h1>
+        <p style="color:var(--mut); font-size:13.5px; margin:4px 0 0;">Quy trình đề nghị mua vật tư, duyệt đặt hàng NCC, theo dõi tiến độ giao và nhập kho theo PO.</p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-p" id="btnNewPr">➕ Tạo Đề nghị mua (PR)</button>
+        <button type="button" class="btn btn-cta" id="btnNewPoDirect">📝 Tạo Đơn đặt hàng (PO)</button>
+      </div>
+    </div>
+
+    <div class="kpi-cards">
+      <div class="kpi-card" style="border-color:#FDE68A; background:linear-gradient(135deg,#FFFBEB,#FFF);">
+        <div class="kpi-icon" style="background:#FEF3C7; color:#B45309;">📨</div>
+        <div>
+          <div class="kpi-val" id="kpiPendingPr">0</div>
+          <div class="kpi-label">PR chờ duyệt</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">📦</div>
+        <div>
+          <div class="kpi-val" id="kpiOpenPo">0</div>
+          <div class="kpi-label">PO đang chờ giao hàng</div>
+        </div>
+      </div>
+      <div class="kpi-card" style="border-color:#FECACA; background:linear-gradient(135deg,#FEF2F2,#FFF);">
+        <div class="kpi-icon" style="background:#FEE2E2; color:#B91C1C;">⏰</div>
+        <div>
+          <div class="kpi-val" id="kpiOverduePo">0</div>
+          <div class="kpi-label">PO trễ hẹn giao</div>
+        </div>
+      </div>
+      <div class="kpi-card price-col">
+        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">💰</div>
+        <div>
+          <div class="kpi-val" id="kpiOpenPoValue">0 đ</div>
+          <div class="kpi-label">Giá trị PO đang mở</div>
+        </div>
+      </div>
+    </div>
+
+    <section class="card">
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-tab="pr">📨 Đề nghị mua hàng (PR)</button>
+        <button type="button" class="tab-btn" data-tab="po">🛒 Đơn đặt hàng (PO)</button>
+      </div>
+
+      <!-- TAB PR -->
+      <div id="tabPrPanel">
+        <div class="filter-bar">
+          <input type="text" id="inpSearchPr" placeholder="🔍 Tìm mã PR, tiêu đề, bộ phận, dự án..." style="max-width:280px;">
+          <select id="selPrStatus" style="max-width:170px;">
+            <option value="">Tất cả trạng thái</option>
+            <option value="pending">Chờ duyệt</option>
+            <option value="approved">Đã duyệt (Chưa đặt PO)</option>
+            <option value="ordered">Đã lên PO</option>
+            <option value="rejected">Từ chối</option>
+            <option value="draft">Nháp</option>
+          </select>
+          <select id="selPrPriority" style="max-width:150px;">
+            <option value="">Tất cả mức độ</option>
+            <option value="urgent">🔥 Khẩn cấp</option>
+            <option value="normal">Bình thường</option>
+          </select>
+          <button type="button" class="btn btn-soft btn-sm" id="btnReloadPr">🔄 Làm mới</button>
+        </div>
+        <div class="table-responsive">
+          <table class="v-table" id="prTable">
+            <thead>
+              <tr>
+                <th>Mã PR</th>
+                <th>Tiêu đề / Nội dung</th>
+                <th>Dự án</th>
+                <th>Bộ phận</th>
+                <th>Ngày cần</th>
+                <th>Mức độ</th>
+                <th>Trạng thái</th>
+                <th class="r">Số dòng</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="prTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB PO -->
+      <div id="tabPoPanel" style="display:none;">
+        <div class="filter-bar">
+          <input type="text" id="inpSearchPo" placeholder="🔍 Tìm mã PO, nhà cung cấp, dự án..." style="max-width:280px;">
+          <select id="selPoStatus" style="max-width:190px;">
+            <option value="">Tất cả trạng thái</option>
+            <option value="ordered">Đã đặt (Chờ giao)</option>
+            <option value="partial">Đang giao dở dang</option>
+            <option value="completed">Đã nhận đủ</option>
+            <option value="cancelled">Đã hủy</option>
+          </select>
+          <button type="button" class="btn btn-soft btn-sm" id="btnReloadPo">🔄 Làm mới</button>
+        </div>
+        <div class="table-responsive">
+          <table class="v-table" id="poTable">
+            <thead>
+              <tr>
+                <th>Mã PO</th>
+                <th>Nhà cung cấp</th>
+                <th>PR gốc</th>
+                <th>Dự án</th>
+                <th>Ngày đặt / Hẹn giao</th>
+                <th>Tiến độ nhận</th>
+                <th class="r price-col">Tổng tiền</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="poTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL TẠO PR MỚI -->
+  <div class="inv-modal-backdrop" id="modalCreatePr">
+    <div class="inv-modal xp-modal-3tier">
+      <div class="inv-modal-head">
+        <h3>📨 Lập Đề Nghị Mua Hàng (PR)</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalCreatePr')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body xp-modal-body-flex">
+        <div class="xp-modal-fixed-top">
+          <div class="form-grid">
+            <div class="fg"><label>Tiêu đề đề nghị *</label><input type="text" id="prTitle" placeholder="VD: Mua thép hộp &amp; dao phay cho DA-2026..."></div>
+            <div class="fg"><label>Dự án liên quan</label><select id="prProjectId"><option value="">-- Dùng chung / Tồn kho --</option></select></div>
+            <div class="fg"><label>Bộ phận yêu cầu</label><input type="text" id="prDepartment" value="Xưởng cơ khí"></div>
+            <div class="fg"><label>Mức độ ưu tiên</label><select id="prPriority"><option value="normal">Bình thường</option><option value="urgent">🔥 Khẩn cấp</option></select></div>
+            <div class="fg"><label>Ngày cần hàng</label><input type="date" id="prNeededDate"></div>
+            <div class="fg"><label>Ghi chú</label><input type="text" id="prNote" placeholder="Ghi chú thêm..."></div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-top:6px; border-top:1px dashed #CBD5E1;">
+            <select id="prAddInvSelect" style="max-width:340px;"><option value="">-- Chọn vật tư từ kho WMS --</option></select>
+            <button type="button" class="btn btn-p btn-sm" id="btnPrAddInvRow">➕ Thêm từ kho</button>
+            <button type="button" class="btn btn-soft btn-sm" id="btnPrAddManualRow">✏️ Thêm dòng tự do (ngoài danh mục)</button>
+          </div>
+        </div>
+        <div class="xp-modal-table-scroll table-responsive">
+          <table class="v-table" style="min-width:680px;">
+            <thead>
+              <tr>
+                <th>Vật tư / Quy cách</th>
+                <th style="width:90px;">ĐVT</th>
+                <th class="r" style="width:110px;">SL cần mua *</th>
+                <th class="r price-col" style="width:130px;">Đơn giá dự kiến</th>
+                <th>Ghi chú dòng</th>
+                <th style="width:55px;">Xóa</th>
+              </tr>
+            </thead>
+            <tbody id="prDraftItemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot">
+        <button type="button" class="btn btn-soft" onclick="closeModal('modalCreatePr')">Hủy</button>
+        <button type="button" class="btn btn-p" id="btnSavePr">🚀 Gửi Đề Nghị (Chờ duyệt)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CHI TIẾT PR + TẠO PO TỪ PR -->
+  <div class="inv-modal-backdrop" id="modalPrDetail">
+    <div class="inv-modal xp-modal-3tier">
+      <div class="inv-modal-head">
+        <h3 id="prDetailTitle">Chi tiết Đề nghị mua hàng</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalPrDetail')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body xp-modal-body-flex">
+        <div class="xp-modal-fixed-top" id="prDetailMeta"></div>
+        <div class="xp-modal-table-scroll table-responsive">
+          <table class="v-table" style="min-width:650px;">
+            <thead>
+              <tr>
+                <th>Vật tư / Quy cách</th>
+                <th>ĐVT</th>
+                <th class="r">SL đề nghị</th>
+                <th class="r price-col">Đơn giá dự kiến</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody id="prDetailItemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot" id="prDetailActions"></div>
+    </div>
+  </div>
+
+  <!-- MODAL TẠO PO (TỪ PR HOẶC TRỰC TIẾP) -->
+  <div class="inv-modal-backdrop" id="modalCreatePo">
+    <div class="inv-modal xp-modal-3tier">
+      <div class="inv-modal-head">
+        <h3 id="poModalTitle">📝 Tạo Đơn Đặt Hàng (PO)</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalCreatePo')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body xp-modal-body-flex">
+        <div class="xp-modal-fixed-top">
+          <div class="form-grid">
+            <div class="fg"><label>Nhà cung cấp *</label><select id="poSupplierId"><option value="">-- Chọn Nhà cung cấp --</option></select></div>
+            <div class="fg"><label>Dự án liên quan</label><select id="poProjectId"><option value="">-- Dùng chung / Tồn kho --</option></select></div>
+            <div class="fg"><label>Ngày đặt hàng</label><input type="date" id="poOrderDate"></div>
+            <div class="fg"><label>Ngày hẹn giao</label><input type="date" id="poExpectedDate"></div>
+            <div class="fg"><label>Điều khoản thanh toán</label><input type="text" id="poPaymentTerms" placeholder="VD: Công nợ 30 ngày / CK trước 50%"></div>
+            <div class="fg"><label>Ghi chú PO</label><input type="text" id="poNote" placeholder="Địa chỉ giao hàng, người nhận..."></div>
+          </div>
+          <div id="poDirectAddBar" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-top:6px; border-top:1px dashed #CBD5E1;">
+            <select id="poAddInvSelect" style="max-width:340px;"><option value="">-- Chọn vật tư từ kho WMS --</option></select>
+            <button type="button" class="btn btn-p btn-sm" id="btnPoAddInvRow">➕ Thêm vật tư</button>
+            <button type="button" class="btn btn-soft btn-sm" id="btnPoAddManualRow">✏️ Thêm dòng ngoài danh mục</button>
+          </div>
+        </div>
+        <div class="xp-modal-table-scroll table-responsive">
+          <table class="v-table" style="min-width:720px;">
+            <thead>
+              <tr>
+                <th>Vật tư / Quy cách</th>
+                <th style="width:85px;">ĐVT</th>
+                <th class="r" style="width:105px;">SL đặt *</th>
+                <th class="r price-col" style="width:130px;">Đơn giá (đ)</th>
+                <th class="r price-col" style="width:130px;">Thành tiền</th>
+                <th style="width:55px;">Xóa</th>
+              </tr>
+            </thead>
+            <tbody id="poDraftItemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot" style="justify-content:space-between;">
+        <div class="price-col" style="font-weight:800; font-size:15px;">Tổng cộng PO: <span id="poTotalPreview" style="color:var(--p);">0 đ</span></div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-soft" onclick="closeModal('modalCreatePo')">Hủy</button>
+          <button type="button" class="btn btn-cta" id="btnSavePo">✅ Phát hành Đơn đặt hàng (PO)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CHI TIẾT PO -->
+  <div class="inv-modal-backdrop" id="modalPoDetail">
+    <div class="inv-modal xp-modal-3tier">
+      <div class="inv-modal-head">
+        <h3 id="poDetailTitle">Chi tiết Đơn đặt hàng (PO)</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalPoDetail')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body xp-modal-body-flex">
+        <div class="xp-modal-fixed-top" id="poDetailMeta"></div>
+        <div class="xp-modal-table-scroll table-responsive">
+          <table class="v-table" style="min-width:700px;">
+            <thead>
+              <tr>
+                <th>Vật tư / Quy cách</th>
+                <th>ĐVT</th>
+                <th class="r">SL đặt</th>
+                <th class="r">Đã nhận kho</th>
+                <th class="r">Còn thiếu</th>
+                <th class="r price-col">Đơn giá</th>
+                <th class="r price-col">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody id="poDetailItemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot" id="poDetailActions"></div>
+    </div>
+  </div>
+
+  <div id="printArea" class="print-only"></div>
+  <div id="toast"></div>
+
+  <script>
+    let currentUser = null;
+    let allPrs = [];
+    let allPos = [];
+    let allInventory = [];
+    let allSuppliers = [];
+    let allProjects = [];
+    let prDraftItems = [];
+    let poDraftItems = [];
+    let activePoFromPrId = null;
+
+    const $ = id => document.getElementById(id);
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function fmtMoney(n) { return Number(n || 0).toLocaleString('vi-VN') + ' đ'; }
+    function fmtNum(n) { const x = Number(n || 0); return Number.isInteger(x) ? x.toLocaleString('vi-VN') : x.toLocaleString('vi-VN', { maximumFractionDigits: 3 }); }
+    function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3200); }
+    function openModal(id) { $(id).classList.add('open'); }
+    function closeModal(id) { $(id).classList.remove('open'); }
+
+    const PR_STATUS_MAP = {
+      draft: ['pill-draft', 'Nháp'],
+      pending: ['pill-pending', '⏳ Chờ duyệt'],
+      approved: ['pill-approved', '✅ Đã duyệt'],
+      ordered: ['pill-ordered', '🛒 Đã lên PO'],
+      rejected: ['pill-rejected', '❌ Từ chối'],
+      cancelled: ['pill-cancelled', '✕ Đã hủy']
+    };
+    const PO_STATUS_MAP = {
+      draft: ['pill-draft', 'Nháp'],
+      ordered: ['pill-ordered', '📦 Đã đặt'],
+      partial: ['pill-partial', '🚚 Đang giao dở'],
+      completed: ['pill-completed', '✅ Đã nhận đủ'],
+      cancelled: ['pill-cancelled', '✕ Đã hủy']
+    };
+
+    async function boot() {
+      SharedUI.initNetworkBadge();
+      const user = await SupabaseDB.getCurrentSession();
+      if (!user) {
+        $('loginGateWrap').style.display = 'block';
+        $('mainContent').style.display = 'none';
+        return;
+      }
+      currentUser = user;
+      $('loginGateWrap').style.display = 'none';
+      $('mainContent').style.display = 'block';
+      SharedUI.initHeaderUser(user);
+      SharedUI.applyPriceVisibilityUI(user);
+      SharedUI.initPendingVouchersBadge();
+      SharedUI.initPendingPrBadge();
+      await loadMasterData();
+      await refreshAllData();
+      handleInitialQuery();
+      SharedUI.initStickySection(null, $('prTable'));
+      SharedUI.initStickySection(null, $('poTable'));
+    }
+
+    async function loadMasterData() {
+      const [inv, sups, projs] = await Promise.all([
+        SupabaseDB.getInventoryItems({ includeInactive: false }).catch(() => []),
+        SupabaseDB.getSuppliers().catch(() => []),
+        SupabaseDB.getProjectsList().catch(() => [])
+      ]);
+      allInventory = inv || [];
+      allSuppliers = sups || [];
+      allProjects = projs || [];
+
+      const projOpts = '<option value="">-- Dùng chung / Tồn kho --</option>' +
+        allProjects.map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.name || '')}</option>`).join('');
+      $('prProjectId').innerHTML = projOpts;
+      $('poProjectId').innerHTML = projOpts;
+
+      const supOpts = '<option value="">-- Chọn Nhà cung cấp --</option>' +
+        allSuppliers.map(s => `<option value="${esc(s.id)}">${esc(s.name)} ${s.phone ? '('+esc(s.phone)+')' : ''}</option>`).join('');
+      $('poSupplierId').innerHTML = supOpts;
+
+      const invOpts = '<option value="">-- Chọn vật tư từ kho WMS --</option>' +
+        allInventory.map(i => `<option value="${esc(i.id)}">[${esc(i.sku || i.materialGroup)}] ${esc(i.name)} (${esc(i.unit || 'Cái')} · Tồn: ${fmtNum(i.qty)})</option>`).join('');
+      $('prAddInvSelect').innerHTML = invOpts;
+      $('poAddInvSelect').innerHTML = invOpts;
+    }
+
+    async function refreshAllData() {
+      const [prs, pos] = await Promise.all([
+        SupabaseDB.getPurchaseRequests().catch(() => []),
+        SupabaseDB.getPurchaseOrders().catch(() => [])
+      ]);
+      allPrs = prs || [];
+      allPos = pos || [];
+      renderKpis();
+      renderPrTable();
+      renderPoTable();
+      SharedUI.refreshPendingPrBadge();
+    }
+
+    function renderKpis() {
+      const today = new Date().toISOString().slice(0, 10);
+      const pendingPr = allPrs.filter(x => x.status === 'pending').length;
+      const openPos = allPos.filter(x => x.status === 'ordered' || x.status === 'partial');
+      const overduePos = openPos.filter(x => x.expectedDate && x.expectedDate < today);
+      const openVal = openPos.reduce((s, x) => s + Number(x.totalAmount || 0), 0);
+      $('kpiPendingPr').textContent = pendingPr;
+      $('kpiOpenPo').textContent = openPos.length;
+      $('kpiOverduePo').textContent = overduePos.length;
+      $('kpiOpenPoValue').textContent = fmtMoney(openVal);
+    }
+
+    function renderPrTable() {
+      const q = ($('inpSearchPr').value || '').trim().toLowerCase();
+      const st = $('selPrStatus').value;
+      const pri = $('selPrPriority').value;
+      const list = allPrs.filter(r => {
+        if (st && r.status !== st) return false;
+        if (pri && r.priority !== pri) return false;
+        if (q) {
+          const hay = `${r.prCode} ${r.title} ${r.department} ${r.projectId}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      const tb = $('prTableBody');
+      if (!list.length) {
+        tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#64748B;padding:24px;">Chưa có Đề nghị mua hàng nào khớp bộ lọc.</td></tr>';
+        return;
+      }
+      tb.innerHTML = list.map(r => {
+        const [cls, label] = PR_STATUS_MAP[r.status] || ['pill-draft', r.status];
+        const priBadge = r.priority === 'urgent' ? '<span class="pill pill-urgent">🔥 Khẩn</span>' : '<span class="pill pill-draft">Thường</span>';
+        const canApprove = SharedUI.canApprovePR(currentUser) && r.status === 'pending';
+        const canToPo = (r.status === 'approved') && SharedUI.canAccessPurchasing(currentUser);
+        return `<tr>
+          <td><strong>${esc(r.prCode)}</strong><div style="font-size:11px;color:#64748B;">${esc((r.createdAt || '').slice(0, 10))}</div></td>
+          <td><strong>${esc(r.title)}</strong>${r.note ? `<div style="font-size:11.5px;color:#64748B;">${esc(r.note)}</div>` : ''}</td>
+          <td>${esc(r.projectId || 'Dùng chung')}</td>
+          <td>${esc(r.department || '-')}</td>
+          <td>${esc(r.neededDate || '-')}</td>
+          <td>${priBadge}</td>
+          <td><span class="pill ${cls}">${label}</span></td>
+          <td class="r"><strong>${(r.items || []).length}</strong></td>
+          <td style="white-space:nowrap;">
+            <button type="button" class="btn btn-soft btn-sm" onclick="viewPrDetail('${esc(r.id)}')">👁️ Chi tiết</button>
+            ${canApprove ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePrQuick('${esc(r.id)}')">✅ Duyệt</button>` : ''}
+            ${canToPo ? `<button type="button" class="btn btn-cta btn-sm" onclick="openCreatePoFromPr('${esc(r.id)}')">📝 Tạo PO</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderPoTable() {
+      const q = ($('inpSearchPo').value || '').trim().toLowerCase();
+      const st = $('selPoStatus').value;
+      const today = new Date().toISOString().slice(0, 10);
+      const list = allPos.filter(o => {
+        if (st && o.status !== st) return false;
+        if (q) {
+          const hay = `${o.poCode} ${o.supplierName} ${o.prCode} ${o.projectId}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      const tb = $('poTableBody');
+      if (!list.length) {
+        tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#64748B;padding:24px;">Chưa có Đơn đặt hàng (PO) nào.</td></tr>';
+        return;
+      }
+      tb.innerHTML = list.map(o => {
+        const [cls, label] = PO_STATUS_MAP[o.status] || ['pill-draft', o.status];
+        const items = o.items || [];
+        const totalOrd = items.reduce((s, it) => s + Number(it.orderedQty || 0), 0);
+        const totalRec = items.reduce((s, it) => s + Number(it.receivedQty || 0), 0);
+        const pct = totalOrd > 0 ? Math.min(100, Math.round((totalRec / totalOrd) * 100)) : 0;
+        const isOverdue = o.expectedDate && o.expectedDate < today && !['completed', 'cancelled'].includes(o.status);
+        const canReceive = ['ordered', 'partial'].includes(o.status);
+        return `<tr>
+          <td><strong>${esc(o.poCode)}</strong></td>
+          <td><strong>${esc(o.supplierName || '-')}</strong></td>
+          <td>${esc(o.prCode || '-')}</td>
+          <td>${esc(o.projectId || 'Dùng chung')}</td>
+          <td>
+            <div>Đặt: ${esc(o.orderDate || '-')}</div>
+            <div style="font-size:11.5px;${isOverdue ? 'color:#B91C1C;font-weight:800;' : 'color:#64748B;'}">
+              Hẹn: ${esc(o.expectedDate || '-')} ${isOverdue ? '⏰ TRỄ HẸN' : ''}
+            </div>
+          </td>
+          <td>
+            <div style="font-size:12px;font-weight:700;">${fmtNum(totalRec)} / ${fmtNum(totalOrd)} (${pct}%)</div>
+            <div class="prog-wrap"><div class="prog-fill" style="width:${pct}%;"></div></div>
+          </td>
+          <td class="r price-col"><strong>${fmtMoney(o.totalAmount)}</strong></td>
+          <td><span class="pill ${cls}">${label}</span></td>
+          <td style="white-space:nowrap;">
+            <button type="button" class="btn btn-soft btn-sm" onclick="viewPoDetail('${esc(o.id)}')">👁️ Chi tiết</button>
+            ${canReceive ? `<a class="btn btn-p btn-sm" href="/vouchers?new=IN&po=${encodeURIComponent(o.id)}">📦 Nhập kho</a>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+      SharedUI.applyPriceVisibilityUI(currentUser);
+    }
+
+    function openCreatePrModal(prefillItems) {
+      $('prTitle').value = prefillItems && prefillItems.length ? 'Đề nghị mua vật tư thiếu / theo dự án' : '';
+      $('prProjectId').value = (prefillItems && prefillItems[0] && prefillItems[0].projectId) || '';
+      $('prDepartment').value = 'Xưởng cơ khí';
+      $('prPriority').value = 'normal';
+      $('prNeededDate').value = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+      $('prNote').value = '';
+      prDraftItems = Array.isArray(prefillItems) ? prefillItems.map(it => ({
+        inventoryId: it.inventoryId || null,
+        projectRequestId: it.projectRequestId || null,
+        itemName: it.itemName || it.name || '',
+        unit: it.unit || 'Cái',
+        requestedQty: Number(it.requestedQty || it.qty || 1),
+        estimatedUnitPrice: Number(it.estimatedUnitPrice || it.unitPrice || 0),
+        note: it.note || ''
+      })) : [];
+      renderPrDraftItems();
+      openModal('modalCreatePr');
+    }
+
+    function renderPrDraftItems() {
+      const tb = $('prDraftItemsBody');
+      if (!prDraftItems.length) {
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748B;padding:18px;">Hãy chọn vật tư từ kho hoặc thêm dòng tự do ở trên.</td></tr>';
+        return;
+      }
+      tb.innerHTML = prDraftItems.map((it, idx) => `<tr>
+        <td><input type="text" value="${esc(it.itemName)}" onchange="prDraftItems[${idx}].itemName=this.value"></td>
+        <td><input type="text" value="${esc(it.unit)}" onchange="prDraftItems[${idx}].unit=this.value"></td>
+        <td><input type="number" step="any" min="0.001" value="${it.requestedQty}" onchange="prDraftItems[${idx}].requestedQty=Number(this.value||0)"></td>
+        <td class="price-col"><input type="number" step="any" min="0" value="${it.estimatedUnitPrice}" onchange="prDraftItems[${idx}].estimatedUnitPrice=Number(this.value||0)"></td>
+        <td><input type="text" value="${esc(it.note)}" onchange="prDraftItems[${idx}].note=this.value"></td>
+        <td><button type="button" class="btn btn-danger btn-sm" onclick="prDraftItems.splice(${idx},1);renderPrDraftItems();">✕</button></td>
+      </tr>`).join('');
+      SharedUI.applyPriceVisibilityUI(currentUser);
+    }
+
+    async function handleSavePr() {
+      const title = $('prTitle').value.trim();
+      if (!title) return alert('Vui lòng nhập tiêu đề Đề nghị mua hàng!');
+      const validItems = prDraftItems.filter(it => (it.itemName || '').trim() && Number(it.requestedQty) > 0);
+      if (!validItems.length) return alert('Vui lòng thêm ít nhất 1 vật tư với số lượng > 0!');
+      try {
+        await SupabaseDB.createPurchaseRequest({
+          title,
+          projectId: $('prProjectId').value || null,
+          department: $('prDepartment').value.trim() || 'Xưởng cơ khí',
+          priority: $('prPriority').value,
+          neededDate: $('prNeededDate').value || null,
+          note: $('prNote').value.trim() || null,
+          status: 'pending'
+        }, validItems);
+        closeModal('modalCreatePr');
+        showToast('✅ Đã gửi Đề nghị mua hàng (PR) thành công!');
+        await refreshAllData();
+      } catch (e) {
+        alert('Lỗi tạo PR: ' + (e.message || e));
+      }
+    }
+
+    async function approvePrQuick(prId) {
+      if (!confirm('Xác nhận duyệt Đề nghị mua hàng này để chuyển sang bộ phận Mua hàng lên PO?')) return;
+      try {
+        await SupabaseDB.updatePurchaseRequestStatus(prId, 'approved');
+        showToast('✅ Đã duyệt PR!');
+        await refreshAllData();
+      } catch (e) {
+        alert('Lỗi duyệt PR: ' + (e.message || e));
+      }
+    }
+
+    function viewPrDetail(prId) {
+      const r = allPrs.find(x => x.id === prId);
+      if (!r) return;
+      const [cls, label] = PR_STATUS_MAP[r.status] || ['pill-draft', r.status];
+      $('prDetailTitle').textContent = `PR: ${r.prCode} — ${r.title}`;
+      $('prDetailMeta').innerHTML = `
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;">
+          <span><strong>Trạng thái:</strong> <span class="pill ${cls}">${label}</span></span>
+          <span><strong>Dự án:</strong> ${esc(r.projectId || 'Dùng chung')}</span>
+          <span><strong>Bộ phận:</strong> ${esc(r.department || '-')}</span>
+          <span><strong>Ngày cần:</strong> ${esc(r.neededDate || '-')}</span>
+          <span><strong>Người tạo:</strong> ${esc(r.createdBy || '-')}</span>
+          ${r.rejectReason ? `<span style="color:#B91C1C;"><strong>Lý do từ chối:</strong> ${esc(r.rejectReason)}</span>` : ''}
+        </div>`;
+      $('prDetailItemsBody').innerHTML = (r.items || []).map(it => `<tr>
+        <td><strong>${esc(it.itemName)}</strong></td>
+        <td>${esc(it.unit)}</td>
+        <td class="r"><strong>${fmtNum(it.requestedQty)}</strong></td>
+        <td class="r price-col">${fmtMoney(it.estimatedUnitPrice)}</td>
+        <td>${esc(it.note || '-')}</td>
+      </tr>`).join('');
+
+      let btns = `<button type="button" class="btn btn-soft" onclick="closeModal('modalPrDetail')">Đóng</button>`;
+      if (SharedUI.canApprovePR(currentUser) && r.status === 'pending') {
+        btns = `
+          <button type="button" class="btn btn-danger" onclick="rejectPrPrompt('${esc(r.id)}')">❌ Từ chối</button>
+          <button type="button" class="btn btn-ok" onclick="approvePrQuick('${esc(r.id)}');closeModal('modalPrDetail');">✅ Duyệt PR</button>
+        ` + btns;
+      }
+      if (r.status === 'approved') {
+        btns = `<button type="button" class="btn btn-cta" onclick="closeModal('modalPrDetail');openCreatePoFromPr('${esc(r.id)}')">📝 Tạo PO từ PR này</button>` + btns;
+      }
+      $('prDetailActions').innerHTML = btns;
+      SharedUI.applyPriceVisibilityUI(currentUser);
+      openModal('modalPrDetail');
+    }
+
+    async function rejectPrPrompt(prId) {
+      const reason = prompt('Nhập lý do từ chối Đề nghị mua hàng:');
+      if (!reason) return;
+      try {
+        await SupabaseDB.updatePurchaseRequestStatus(prId, 'rejected', { rejectReason: reason });
+        closeModal('modalPrDetail');
+        showToast('❌ Đã từ chối PR.');
+        await refreshAllData();
+      } catch (e) {
+        alert('Lỗi từ chối PR: ' + (e.message || e));
+      }
+    }
+
+    function openCreatePoFromPr(prId) {
+      const pr = allPrs.find(x => x.id === prId);
+      if (!pr) return;
+      activePoFromPrId = pr.id;
+      $('poModalTitle').textContent = `📝 Tạo PO từ PR ${pr.prCode}`;
+      $('poDirectAddBar').style.display = 'none';
+      $('poSupplierId').value = '';
+      $('poProjectId').value = pr.projectId || '';
+      $('poOrderDate').value = new Date().toISOString().slice(0, 10);
+      $('poExpectedDate').value = pr.neededDate || new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+      $('poPaymentTerms').value = 'Công nợ 30 ngày';
+      $('poNote').value = pr.title || '';
+      poDraftItems = (pr.items || []).map(it => ({
+        inventoryId: it.inventoryId || null,
+        prItemId: it.id,
+        itemName: it.itemName,
+        unit: it.unit || 'Cái',
+        orderedQty: Number(it.requestedQty || 0),
+        unitPrice: Number(it.estimatedUnitPrice || 0),
+        note: it.note || ''
+      }));
+      renderPoDraftItems();
+      openModal('modalCreatePo');
+    }
+
+    function openCreatePoDirect() {
+      activePoFromPrId = null;
+      $('poModalTitle').textContent = '📝 Tạo Đơn Đặt Hàng (PO) Trực Tiếp';
+      $('poDirectAddBar').style.display = 'flex';
+      $('poSupplierId').value = '';
+      $('poProjectId').value = '';
+      $('poOrderDate').value = new Date().toISOString().slice(0, 10);
+      $('poExpectedDate').value = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+      $('poPaymentTerms').value = 'Công nợ 30 ngày';
+      $('poNote').value = '';
+      poDraftItems = [];
+      renderPoDraftItems();
+      openModal('modalCreatePo');
+    }
+
+    function renderPoDraftItems() {
+      const tb = $('poDraftItemsBody');
+      if (!poDraftItems.length) {
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748B;padding:18px;">Chưa có dòng hàng hóa nào trong PO.</td></tr>';
+        $('poTotalPreview').textContent = '0 đ';
+        return;
+      }
+      let total = 0;
+      tb.innerHTML = poDraftItems.map((it, idx) => {
+        const line = Number(it.orderedQty || 0) * Number(it.unitPrice || 0);
+        total += line;
+        return `<tr>
+          <td><input type="text" value="${esc(it.itemName)}" onchange="poDraftItems[${idx}].itemName=this.value"></td>
+          <td><input type="text" value="${esc(it.unit)}" onchange="poDraftItems[${idx}].unit=this.value"></td>
+          <td><input type="number" step="any" min="0.001" value="${it.orderedQty}" onchange="poDraftItems[${idx}].orderedQty=Number(this.value||0);renderPoDraftItems();"></td>
+          <td class="price-col"><input type="number" step="any" min="0" value="${it.unitPrice}" onchange="poDraftItems[${idx}].unitPrice=Number(this.value||0);renderPoDraftItems();"></td>
+          <td class="r price-col"><strong>${fmtMoney(line)}</strong></td>
+          <td><button type="button" class="btn btn-danger btn-sm" onclick="poDraftItems.splice(${idx},1);renderPoDraftItems();">✕</button></td>
+        </tr>`;
+      }).join('');
+      $('poTotalPreview').textContent = fmtMoney(total);
+      SharedUI.applyPriceVisibilityUI(currentUser);
+    }
+
+    async function handleSavePo() {
+      const supplierId = $('poSupplierId').value;
+      if (!supplierId) return alert('Vui lòng chọn Nhà cung cấp!');
+      const valid = poDraftItems.filter(it => (it.itemName || '').trim() && Number(it.orderedQty) > 0);
+      if (!valid.length) return alert('Vui lòng thêm ít nhất 1 dòng hàng đặt mua!');
+      const extra = {
+        projectId: $('poProjectId').value || null,
+        orderDate: $('poOrderDate').value || new Date().toISOString().slice(0, 10),
+        expectedDate: $('poExpectedDate').value || null,
+        paymentTerms: $('poPaymentTerms').value.trim() || null,
+        note: $('poNote').value.trim() || null
+      };
+      try {
+        if (activePoFromPrId) {
+          await SupabaseDB.createPurchaseOrderFromPr(activePoFromPrId, supplierId, extra, valid);
+        } else {
+          await SupabaseDB.createPurchaseOrder({ supplierId, ...extra }, valid);
+        }
+        closeModal('modalCreatePo');
+        showToast('✅ Đã phát hành Đơn đặt hàng (PO) thành công!');
+        await refreshAllData();
+        switchTab('po');
+      } catch (e) {
+        alert('Lỗi tạo PO: ' + (e.message || e));
+      }
+    }
+
+    function viewPoDetail(poId) {
+      const o = allPos.find(x => x.id === poId);
+      if (!o) return;
+      const [cls, label] = PO_STATUS_MAP[o.status] || ['pill-draft', o.status];
+      $('poDetailTitle').textContent = `PO: ${o.poCode} — ${o.supplierName || ''}`;
+      $('poDetailMeta').innerHTML = `
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;">
+          <span><strong>Trạng thái:</strong> <span class="pill ${cls}">${label}</span></span>
+          <span><strong>NCC:</strong> ${esc(o.supplierName || '-')}</span>
+          <span><strong>PR gốc:</strong> ${esc(o.prCode || '-')}</span>
+          <span><strong>Ngày đặt:</strong> ${esc(o.orderDate || '-')}</span>
+          <span><strong>Hẹn giao:</strong> ${esc(o.expectedDate || '-')}</span>
+          <span><strong>Thanh toán:</strong> ${esc(o.paymentTerms || '-')}</span>
+          <span class="price-col"><strong>Tổng tiền:</strong> <strong style="color:var(--p);">${fmtMoney(o.totalAmount)}</strong></span>
+        </div>`;
+      $('poDetailItemsBody').innerHTML = (o.items || []).map(it => {
+        const rem = Math.max(0, Number(it.orderedQty || 0) - Number(it.receivedQty || 0));
+        return `<tr>
+          <td><strong>${esc(it.itemName)}</strong></td>
+          <td>${esc(it.unit)}</td>
+          <td class="r">${fmtNum(it.orderedQty)}</td>
+          <td class="r" style="color:#15803D;font-weight:700;">${fmtNum(it.receivedQty)}</td>
+          <td class="r" style="color:${rem > 0 ? '#B45309' : '#64748B'};font-weight:700;">${fmtNum(rem)}</td>
+          <td class="r price-col">${fmtMoney(it.unitPrice)}</td>
+          <td class="r price-col"><strong>${fmtMoney(it.lineTotal)}</strong></td>
+        </tr>`;
+      }).join('');
+
+      let btns = `<button type="button" class="btn btn-soft" onclick="printPoA4('${esc(o.id)}')">🖨️ In Đơn Đặt Hàng (A4)</button>`;
+      if (['ordered', 'partial'].includes(o.status)) {
+        btns += `<a class="btn btn-p" href="/vouchers?new=IN&po=${encodeURIComponent(o.id)}">📦 Nhập kho từ PO này</a>`;
+      }
+      if (SharedUI.canApprovePR(currentUser) && o.status === 'ordered') {
+        btns += `<button type="button" class="btn btn-danger" onclick="cancelPoAction('${esc(o.id)}')">✕ Hủy PO</button>`;
+      }
+      btns += `<button type="button" class="btn btn-soft" onclick="closeModal('modalPoDetail')">Đóng</button>`;
+      $('poDetailActions').innerHTML = btns;
+      SharedUI.applyPriceVisibilityUI(currentUser);
+      openModal('modalPoDetail');
+    }
+
+    async function cancelPoAction(poId) {
+      if (!confirm('Xác nhận hủy Đơn đặt hàng (PO) này?')) return;
+      try {
+        await SupabaseDB.updatePurchaseOrderStatus(poId, 'cancelled');
+        closeModal('modalPoDetail');
+        showToast('Đã hủy PO.');
+        await refreshAllData();
+      } catch (e) {
+        alert('Lỗi hủy PO: ' + (e.message || e));
+      }
+    }
+
+    function printPoA4(poId) {
+      const o = allPos.find(x => x.id === poId);
+      if (!o) return;
+      const showPrice = SharedUI.canViewPrices(currentUser);
+      const rows = (o.items || []).map((it, i) => `
+        <tr>
+          <td style="border:1px solid #333;padding:6px;text-align:center;">${i + 1}</td>
+          <td style="border:1px solid #333;padding:6px;">${esc(it.itemName)}</td>
+          <td style="border:1px solid #333;padding:6px;text-align:center;">${esc(it.unit)}</td>
+          <td style="border:1px solid #333;padding:6px;text-align:right;">${fmtNum(it.orderedQty)}</td>
+          ${showPrice ? `<td style="border:1px solid #333;padding:6px;text-align:right;">${fmtMoney(it.unitPrice)}</td><td style="border:1px solid #333;padding:6px;text-align:right;">${fmtMoney(it.lineTotal)}</td>` : ''}
+        </tr>`).join('');
+      $('printArea').innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:16px;">
+          <div>
+            <div style="font-size:16px;font-weight:bold;">CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH</div>
+            <div style="font-size:12.5px;">Hệ thống Quản lý Kho &amp; Mua hàng (WMS)</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:12px;">Số PO: <strong>${esc(o.poCode)}</strong></div>
+            <div style="font-size:12px;">Ngày đặt: ${esc(o.orderDate || '-')}</div>
+          </div>
+        </div>
+        <h2 style="text-align:center;margin:8px 0 14px;font-size:20px;">ĐƠN ĐẶT HÀNG (PURCHASE ORDER)</h2>
+        <div style="font-size:13.5px;line-height:1.7;margin-bottom:14px;">
+          <div><strong>Nhà cung cấp:</strong> ${esc(o.supplierName || '-')}</div>
+          <div><strong>Dự án / Tham chiếu:</strong> ${esc(o.projectId || 'Dùng chung')} &nbsp;|&nbsp; <strong>PR gốc:</strong> ${esc(o.prCode || '-')}</div>
+          <div><strong>Ngày hẹn giao:</strong> ${esc(o.expectedDate || '-')} &nbsp;|&nbsp; <strong>Điều khoản TT:</strong> ${esc(o.paymentTerms || '-')}</div>
+          ${o.note ? `<div><strong>Ghi chú:</strong> ${esc(o.note)}</div>` : ''}
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#f1f5f9;">
+              <th style="border:1px solid #333;padding:6px;">STT</th>
+              <th style="border:1px solid #333;padding:6px;">Tên hàng hóa / Quy cách</th>
+              <th style="border:1px solid #333;padding:6px;">ĐVT</th>
+              <th style="border:1px solid #333;padding:6px;">Số lượng</th>
+              ${showPrice ? '<th style="border:1px solid #333;padding:6px;">Đơn giá</th><th style="border:1px solid #333;padding:6px;">Thành tiền</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          ${showPrice ? `<tfoot><tr><td colspan="5" style="border:1px solid #333;padding:7px;text-align:right;font-weight:bold;">TỔNG CỘNG:</td><td style="border:1px solid #333;padding:7px;text-align:right;font-weight:bold;">${fmtMoney(o.totalAmount)}</td></tr></tfoot>` : ''}
+        </table>
+        <div style="display:flex;justify-content:space-between;margin-top:34px;text-align:center;font-size:13px;">
+          <div style="width:32%;"><strong>Người lập đơn</strong><br><br><br>${esc(o.createdBy || '')}</div>
+          <div style="width:32%;"><strong>Giám đốc / Duyệt</strong></div>
+          <div style="width:32%;"><strong>Xác nhận Nhà cung cấp</strong></div>
+        </div>`;
+      window.print();
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      $('tabPrPanel').style.display = tab === 'pr' ? 'block' : 'none';
+      $('tabPoPanel').style.display = tab === 'po' ? 'block' : 'none';
+    }
+
+    function handleInitialQuery() {
+      const sp = new URLSearchParams(location.search);
+      if (sp.get('tab') === 'po') switchTab('po');
+      if (sp.get('new') === 'PR') {
+        let draft = [];
+        try {
+          const raw = localStorage.getItem('xp_pr_draft_items');
+          if (raw) {
+            draft = JSON.parse(raw);
+            localStorage.removeItem('xp_pr_draft_items');
+          }
+        } catch (_) {}
+        openCreatePrModal(draft);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('btnSubmitLogin').addEventListener('click', async () => {
+        try {
+          await SupabaseDB.signInWithUsername($('inpLoginUser').value, $('inpLoginPass').value);
+          location.reload();
+        } catch (e) {
+          $('loginErr').style.display = 'block';
+          $('loginErr').textContent = e.message || 'Đăng nhập thất bại';
+        }
+      });
+      $('btnLogout').addEventListener('click', async () => { await SupabaseDB.signOut(); location.reload(); });
+      document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+      $('inpSearchPr').addEventListener('input', renderPrTable);
+      $('selPrStatus').addEventListener('change', renderPrTable);
+      $('selPrPriority').addEventListener('change', renderPrTable);
+      $('btnReloadPr').addEventListener('click', refreshAllData);
+      $('inpSearchPo').addEventListener('input', renderPoTable);
+      $('selPoStatus').addEventListener('change', renderPoTable);
+      $('btnReloadPo').addEventListener('click', refreshAllData);
+      $('btnNewPr').addEventListener('click', () => openCreatePrModal([]));
+      $('btnNewPoDirect').addEventListener('click', openCreatePoDirect);
+      $('btnSavePr').addEventListener('click', handleSavePr);
+      $('btnSavePo').addEventListener('click', handleSavePo);
+
+      $('btnPrAddInvRow').addEventListener('click', () => {
+        const id = $('prAddInvSelect').value;
+        const inv = allInventory.find(x => x.id === id);
+        if (!inv) return;
+        prDraftItems.push({ inventoryId: inv.id, itemName: inv.name, unit: inv.unit || 'Cái', requestedQty: Math.max(1, Number(inv.minStock || 1)), estimatedUnitPrice: Number(inv.unitPrice || 0), note: '' });
+        renderPrDraftItems();
+      });
+      $('btnPrAddManualRow').addEventListener('click', () => {
+        prDraftItems.push({ inventoryId: null, itemName: '', unit: 'Cái', requestedQty: 1, estimatedUnitPrice: 0, note: '' });
+        renderPrDraftItems();
+      });
+      $('btnPoAddInvRow').addEventListener('click', () => {
+        const id = $('poAddInvSelect').value;
+        const inv = allInventory.find(x => x.id === id);
+        if (!inv) return;
+        poDraftItems.push({ inventoryId: inv.id, itemName: inv.name, unit: inv.unit || 'Cái', orderedQty: 1, unitPrice: Number(inv.unitPrice || 0) });
+        renderPoDraftItems();
+      });
+      $('btnPoAddManualRow').addEventListener('click', () => {
+        poDraftItems.push({ inventoryId: null, itemName: '', unit: 'Cái', orderedQty: 1, unitPrice: 0 });
+        renderPoDraftItems();
+      });
+
+      boot();
+    });
+  </script>
+</body>
+</html>

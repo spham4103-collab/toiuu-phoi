@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.protocol !== 'file:') {
+      var p = location.pathname;
+      if (p.endsWith('.html')) history.replaceState(null, '', p.slice(0, -5) + location.search + location.hash);
+    }
+  </script>
+  <title>Kho Thành Phẩm &amp; Xuất Giao Hàng · An Bình</title>
+  <meta name="description" content="Quản lý Thành phẩm theo dự án, Phiếu Nhập Thành Phẩm (PNTP), Phiếu Xuất Giao Hàng (PXGH) &amp; In Biên bản Bàn giao A4.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F766E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="/js/supabaseClient.js"></script>
+  <script src="/js/shared-ui.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+  <style>
+    :root {
+      --bg:#FFFFFF; --tint:#F0FDFA; --ink:#134E4A; --mut:#475569; --edge:#D5E9E5;
+      --p:#0F766E; --p-h:#0D635D; --p3:#CCFBF1; --cta:#C2410C; --cta-h:#9A3412; --dark:#0B3B38;
+      --font:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif; --r:14px; --gut:28px;
+      --sh:0 10px 25px -5px rgba(15,118,110,0.08);
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#F8FAFC; color:#1E293B; font:400 15px/1.55 var(--font); min-height:100vh; }
+    a { color:var(--p); text-decoration:none; }
+    h1,h2,h3 { margin:0; line-height:1.25; font-weight:800; color:var(--dark); }
+    .wrap { max-width:1320px; margin:0 auto; padding:0 var(--gut); width:100%; }
+
+    .top { position:sticky; top:0; z-index:40; background:rgba(255,255,255,0.98); backdrop-filter:blur(8px); border-bottom:1.5px solid var(--edge); box-shadow:0 2px 10px rgba(0,0,0,0.03); }
+    .top .wrap { display:flex; align-items:center; justify-content:space-between; min-height:58px; padding-top:8px; padding-bottom:8px; flex-wrap:wrap; gap:10px 16px; }
+    .brand { display:flex; align-items:center; gap:10px; color:var(--dark); flex-shrink:0; white-space:nowrap; }
+    .brand-logo-img { height:40px; max-width:130px; object-fit:contain; border-radius:4px; }
+    .brand-divider { width:1.5px; height:26px; background:var(--edge); }
+    .brand-text-col { display:flex; flex-direction:column; justify-content:center; }
+    .brand-main-title { font-weight:800; font-size:15.5px; color:var(--dark); line-height:1.15; }
+    .brand-sub-title { font-weight:600; color:var(--p); font-size:11.5px; line-height:1.15; margin-top:2px; }
+    .top-actions { display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; }
+
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:6px 14px; border-radius:999px; border:1px solid transparent; font:700 13px/1.2 var(--font); cursor:pointer; white-space:nowrap; transition:all 0.15s ease; }
+    .btn-p { background:var(--p); color:#fff; }
+    .btn-p:hover { background:var(--p-h); }
+    .btn-cta { background:var(--cta); color:#fff; }
+    .btn-cta:hover { background:var(--cta-h); }
+    .btn-soft { background:#fff; color:var(--ink); border:1.5px solid #CBD5E1; }
+    .btn-soft:hover { border-color:var(--p); color:var(--p); background:var(--tint); }
+    .btn-ok { background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; }
+    .btn-danger { background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; }
+    .btn-sm { min-height:30px; padding:4px 10px; font-size:12px; }
+
+    .kpi-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:16px 0 18px; }
+    .kpi-card { background:#fff; border:1.5px solid #E2E8F0; border-radius:var(--r); padding:14px 16px; display:flex; align-items:center; gap:13px; box-shadow:0 2px 6px rgba(0,0,0,0.02); }
+    .kpi-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .kpi-val { font-size:21px; font-weight:800; line-height:1.15; color:#0F172A; }
+    .kpi-label { font-size:12px; font-weight:700; color:var(--mut); margin-top:2px; }
+
+    .card { background:#fff; border:1px solid #E2E8F0; border-radius:var(--r); padding:20px; box-shadow:var(--sh); margin-bottom:20px; }
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; border-bottom:1.5px solid #E2E8F0; padding-bottom:10px; }
+    .tab-btn { padding:8px 16px; border-radius:10px; border:1.5px solid #E2E8F0; background:#F8FAFC; color:#475569; font:700 13.5px var(--font); cursor:pointer; }
+    .tab-btn.active { background:var(--p); color:#fff; border-color:var(--p); }
+
+    .filter-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+    input[type=text], input[type=number], input[type=password], input[type=date], select, textarea {
+      width:100%; min-height:36px; padding:6px 10px; border-radius:8px; border:1.5px solid #CBD5E1; font:500 13.5px var(--font); color:#0F172A; background:#fff;
+    }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--p); box-shadow:0 0 0 3px var(--p3); }
+
+    .table-responsive { width:100%; overflow-x:auto; border:1px solid #E2E8F0; border-radius:10px; }
+    .v-table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:820px; }
+    .v-table th { background:#F8FAFC; color:#475569; font-weight:700; text-align:left; padding:10px 12px; border-bottom:1.5px solid #E2E8F0; white-space:nowrap; }
+    .v-table td { padding:9px 12px; border-bottom:1px solid #F1F5F9; vertical-align:middle; }
+    .v-table th.r, .v-table td.r { text-align:right; }
+    .v-table tr:hover { background:#F8FAFC; }
+
+    .pill { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:700; white-space:nowrap; }
+    .pill-pending { background:#FEF3C7; color:#B45309; }
+    .pill-approved { background:#E0F2FE; color:#0369A1; }
+    .pill-delivered { background:#DCFCE7; color:#15803D; }
+    .pill-cancelled { background:#FEE2E2; color:#B91C1C; }
+
+    .inv-modal-backdrop { position:fixed; inset:0; background:rgba(15,23,42,0.56); backdrop-filter:blur(3px); z-index:200; display:none; align-items:center; justify-content:center; padding:14px; }
+    .inv-modal-backdrop.open { display:flex; }
+    .inv-modal { background:#fff; border-radius:16px; border:1px solid #CBD5E1; width:min(1040px,100%); max-height:92vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.28); overflow:hidden; }
+    .inv-modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #E2E8F0; background:#F8FAFC; flex-shrink:0; }
+    .inv-modal-body { padding:16px 18px; overflow-y:auto; flex:1 1 auto; }
+    .inv-modal-foot { padding:12px 18px; border-top:1px solid #E2E8F0; background:#F8FAFC; display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; flex-shrink:0; }
+
+    .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(205px,1fr)); gap:12px; margin-bottom:14px; }
+    .fg label { display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:4px; }
+
+    #toast { position:fixed; bottom:24px; right:24px; background:var(--dark); color:#fff; padding:12px 20px; border-radius:12px; font-weight:600; font-size:14px; z-index:3000; opacity:0; transform:translateY(12px); transition:all 0.25s ease; pointer-events:none; }
+    #toast.show { opacity:1; transform:translateY(0); }
+
+    .print-only { display:none; }
+    @media print {
+      body > *:not(#printArea) { display:none !important; }
+      #printArea { display:block !important; padding:18px; font-family:'Times New Roman',serif; color:#000; }
+      @page { size:A4 portrait; margin:12mm; }
+    }
+    @media (max-width: 768px) {
+      :root { --gut:12px; }
+      .brand-sub-title { display:none; }
+      .kpi-cards { grid-template-columns:repeat(2,1fr); gap:8px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/" title="Tổng quan Hệ thống Quản lý Kho Vật tư">
+        <img src="/logo_an_binh.jpg" onerror="this.src='logo_an_binh.jpg';" alt="Logo An Bình" class="brand-logo-img">
+        <div class="brand-divider"></div>
+        <div class="brand-text-col">
+          <div class="brand-main-title">KHO THÀNH PHẨM &amp; GIAO HÀNG</div>
+          <div class="brand-sub-title">Cơ Khí An Bình · Hệ thống WMS</div>
+        </div>
+      </a>
+      <div class="top-actions">
+        <div id="networkStatusBadge" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:12px; background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block;"></span>
+          <span>Trực tuyến</span>
+        </div>
+        <div id="userBadgePill" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:#F0FDFA; color:#0F766E; border:1.5px solid #99F6E4;">
+          <span id="userIcon">🚚</span>
+          <span id="userNameDisp">Chưa đăng nhập</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </div>
+    <nav class="subnav-bar" aria-label="Điều hướng hệ thống WMS">
+      <div class="subnav-inner">
+        <a href="/" class="subnav-link">🏠 Tổng quan</a>
+        <a href="/inventory" class="subnav-link">📦 Kho vật tư</a>
+        <a href="/vouchers" class="subnav-link">🧾 Phiếu kho</a>
+        <a href="/purchasing" class="subnav-link">🛒 Mua hàng</a>
+        <a href="/delivery" class="subnav-link active">🚚 Giao hàng</a>
+        <a href="/projects" class="subnav-link">📁 Dự án</a>
+        <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
+        <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
+      </div>
+    </nav>
+  </header>
+
+  <div id="loginGateWrap" style="display:none; padding:40px 14px;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:18px; border:1.5px solid #CBD5E1; box-shadow:0 20px 40px -10px rgba(0,0,0,0.14); padding:28px 24px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:36px;">🚚</div>
+        <h2 style="font-size:20px; margin:6px 0 4px;">KHO THÀNH PHẨM &amp; XUẤT GIAO HÀNG</h2>
+        <p style="font-size:13px; color:var(--mut); margin:0;">Cơ Khí An Bình · Đăng nhập để tiếp tục</p>
+      </div>
+      <div id="loginErr" style="display:none; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:12px;"></div>
+      <div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px;">Tên đăng nhập *</label><input type="text" id="inpLoginUser"></div>
+      <div style="margin-bottom:16px;"><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px;">Mật khẩu *</label><input type="password" id="inpLoginPass"></div>
+      <button type="button" id="btnSubmitLogin" class="btn btn-p" style="width:100%; min-height:42px; font-size:14.5px; border-radius:10px;">🚀 ĐĂNG NHẬP</button>
+    </div>
+  </div>
+
+  <main class="wrap" id="mainContent" style="display:none; padding-top:18px; padding-bottom:50px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <div>
+        <h1>Kho Thành Phẩm &amp; Xuất Giao Hàng</h1>
+        <p style="color:var(--mut); font-size:13.5px; margin:4px 0 0;">Theo dõi sản lượng hoàn thiện từ xưởng, nhập kho thành phẩm (PNTP), xuất giao khách hàng (PXGH) và biên bản bàn giao.</p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-soft" id="btnAddFgItem">➕ Khai báo Thành phẩm</button>
+        <button type="button" class="btn btn-p" id="btnNewFgReceipt">📥 Nhập Thành Phẩm (PNTP)</button>
+        <button type="button" class="btn btn-cta" id="btnNewDeliveryNote">🚚 Lập Phiếu Giao Hàng (PXGH)</button>
+      </div>
+    </div>
+
+    <div class="kpi-cards">
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#ECFDF5; color:#059669;">🏭</div>
+        <div>
+          <div class="kpi-val" id="kpiFgStockQty">0</div>
+          <div class="kpi-label">Thành phẩm sẵn sàng giao</div>
+        </div>
+      </div>
+      <div class="kpi-card" style="border-color:#FDE68A; background:linear-gradient(135deg,#FFFBEB,#FFF);">
+        <div class="kpi-icon" style="background:#FEF3C7; color:#B45309;">📋</div>
+        <div>
+          <div class="kpi-val" id="kpiFgDebtQty">0</div>
+          <div class="kpi-label">Tổng SL còn nợ giao khách</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#E0F2FE; color:#0369A1;">📥</div>
+        <div>
+          <div class="kpi-val" id="kpiPendingPntp">0</div>
+          <div class="kpi-label">Phiếu nhập TP chờ duyệt</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#FFEDD5; color:#C2410C;">🚚</div>
+        <div>
+          <div class="kpi-val" id="kpiPendingPxgh">0</div>
+          <div class="kpi-label">Phiếu giao hàng chờ xuất/bàn giao</div>
+        </div>
+      </div>
+    </div>
+
+    <section class="card">
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-tab="fg">🏭 Tồn kho Thành phẩm</button>
+        <button type="button" class="tab-btn" data-tab="pntp">📥 Phiếu Nhập Thành Phẩm (PNTP)</button>
+        <button type="button" class="tab-btn" data-tab="pxgh">🚚 Phiếu Xuất Giao Hàng (PXGH)</button>
+      </div>
+
+      <!-- TAB 1: TỒN KHO THÀNH PHẨM -->
+      <div id="tabFgPanel">
+        <div class="filter-bar">
+          <input type="text" id="inpSearchFg" placeholder="🔍 Tìm mã TP, tên cấu kiện, vị trí bãi..." style="max-width:280px;">
+          <select id="selFgProject" style="max-width:240px;"><option value="">Tất cả dự án</option></select>
+          <button type="button" class="btn btn-soft btn-sm" id="btnPrintFgQr">🏷️ In tem QR kiện hàng (A4)</button>
+          <button type="button" class="btn btn-soft btn-sm" onclick="refreshAllData()">🔄 Làm mới</button>
+        </div>
+        <div class="table-responsive">
+          <table class="v-table" id="fgTable">
+            <thead>
+              <tr>
+                <th>Mã / Tên Thành phẩm</th>
+                <th>Dự án</th>
+                <th>ĐVT</th>
+                <th class="r">Kế hoạch</th>
+                <th class="r">Đã nhập TP</th>
+                <th class="r">Đã giao khách</th>
+                <th class="r">Tồn sẵn sàng giao</th>
+                <th class="r">Còn nợ giao</th>
+                <th>Vị trí bãi/kệ</th>
+              </tr>
+            </thead>
+            <tbody id="fgTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 2: PNTP -->
+      <div id="tabPntpPanel" style="display:none;">
+        <div class="table-responsive">
+          <table class="v-table" id="pntpTable">
+            <thead>
+              <tr>
+                <th>Mã PNTP</th>
+                <th>Dự án</th>
+                <th>Người giao (Xưởng)</th>
+                <th>Ngày lập</th>
+                <th class="r">Số dòng</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="pntpTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 3: PXGH -->
+      <div id="tabPxghPanel" style="display:none;">
+        <div class="table-responsive">
+          <table class="v-table" id="pxghTable">
+            <thead>
+              <tr>
+                <th>Mã PXGH</th>
+                <th>Khách hàng</th>
+                <th>Dự án</th>
+                <th>Biển số xe / Tài xế</th>
+                <th>Ngày giao</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="pxghTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL KHAI BÁO THÀNH PHẨM -->
+  <div class="inv-modal-backdrop" id="modalFgItem">
+    <div class="inv-modal" style="width:min(560px,100%);">
+      <div class="inv-modal-head">
+        <h3>🏭 Khai Báo Thành Phẩm Theo Dự Án</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalFgItem')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body">
+        <div class="form-grid">
+          <div class="fg"><label>Dự án *</label><select id="fgItemProject"></select></div>
+          <div class="fg"><label>Mã cấu kiện / Kiện hàng</label><input type="text" id="fgItemCode" placeholder="VD: KH-01, COT-C1..."></div>
+          <div class="fg" style="grid-column:1/-1;"><label>Tên thành phẩm *</label><input type="text" id="fgItemName" placeholder="VD: Khung kèo thép I250 hoàn thiện sơn..."></div>
+          <div class="fg"><label>Đơn vị tính</label><input type="text" id="fgItemUnit" value="Bộ"></div>
+          <div class="fg"><label>SL Kế hoạch giao</label><input type="number" step="any" min="0" id="fgItemPlanned" value="1"></div>
+          <div class="fg"><label>Vị trí bãi / kệ</label><input type="text" id="fgItemLocation" placeholder="Bãi TP-A1"></div>
+        </div>
+      </div>
+      <div class="inv-modal-foot">
+        <button type="button" class="btn btn-soft" onclick="closeModal('modalFgItem')">Hủy</button>
+        <button type="button" class="btn btn-p" id="btnSaveFgItem">💾 Lưu Thành Phẩm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL LẬP PNTP -->
+  <div class="inv-modal-backdrop" id="modalPntp">
+    <div class="inv-modal xp-modal-3tier">
+      <div class="inv-modal-head">
+        <h3>📥 Lập Phiếu Nhập Thành Phẩm (PNTP)</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalPntp')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body xp-modal-body-flex">
+        <div class="xp-modal-fixed-top">
+          <div class="form-grid">
+            <div class="fg"><label>Dự án *</label><select id="pntpProject"></select></div>
+            <div class="fg"><label>Tổ / Người giao từ xưởng</label><input type="text" id="pntpDeliveredBy" placeholder="Tổ hàn / Tổ sơn..."></div>
+            <div class="fg"><label>Ghi chú</label><input type="text" id="pntpNote" placeholder="Đợt nhập kho..."></div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; border-top:1px dashed #CBD5E1; padding-top:6px;">
+            <select id="pntpSelectFg" style="max-width:360px;"><option value="">-- Chọn Thành phẩm --</option></select>
+            <button type="button" class="btn btn-p btn-sm" id="btnPntpAddRow">➕ Thêm dòng</button>
+          </div>
+        </div>
+        <div class="xp-modal-table-scroll table-responsive">
+          <table class="v-table" style="min-width:600px;">
+            <thead><tr><th>Thành phẩm</th><th>ĐVT</th><th class="r" style="width:120px;">SL nhập kho *</th><th>Ghi chú</th><th style="width:55px;">Xóa</th></tr></thead>
+            <tbody id="pntpDraftBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot">
+        <button type="button" class="btn btn-soft" onclick="closeModal('modalPntp')">Hủy</button>
+        <button type="button" class="btn btn-p" id="btnSavePntp">💾 Lưu PNTP (Chờ duyệt)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL LẬP PXGH -->
+  <div class="inv-modal-backdrop" id="modalPxgh">
+    <div class="inv-modal xp-modal-3tier">
+      <div class="inv-modal-head">
+        <h3>🚚 Lập Phiếu Xuất Giao Hàng (PXGH)</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalPxgh')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body xp-modal-body-flex">
+        <div class="xp-modal-fixed-top">
+          <div class="form-grid">
+            <div class="fg"><label>Dự án *</label><select id="pxghProject"></select></div>
+            <div class="fg"><label>Khách hàng / Công trình *</label><input type="text" id="pxghCustomer" placeholder="Tên khách hàng / Địa chỉ giao..."></div>
+            <div class="fg"><label>Biển số xe</label><input type="text" id="pxghVehicle" placeholder="VD: 29C-123.45"></div>
+            <div class="fg"><label>Tài xế</label><input type="text" id="pxghDriver" placeholder="Họ tên tài xế"></div>
+            <div class="fg"><label>Ngày giao dự kiến</label><input type="date" id="pxghDate"></div>
+            <div class="fg"><label>Ghi chú</label><input type="text" id="pxghNote"></div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; border-top:1px dashed #CBD5E1; padding-top:6px;">
+            <select id="pxghSelectFg" style="max-width:380px;"><option value="">-- Chọn Thành phẩm đang có tồn --</option></select>
+            <button type="button" class="btn btn-p btn-sm" id="btnPxghAddRow">➕ Thêm dòng giao</button>
+          </div>
+        </div>
+        <div class="xp-modal-table-scroll table-responsive">
+          <table class="v-table" style="min-width:640px;">
+            <thead><tr><th>Thành phẩm</th><th>ĐVT</th><th class="r">Tồn sẵn sàng</th><th class="r" style="width:120px;">SL xuất giao *</th><th style="width:55px;">Xóa</th></tr></thead>
+            <tbody id="pxghDraftBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot">
+        <button type="button" class="btn btn-soft" onclick="closeModal('modalPxgh')">Hủy</button>
+        <button type="button" class="btn btn-cta" id="btnSavePxgh">💾 Lưu PXGH (Chờ duyệt)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL XÁC NHẬN ĐÃ GIAO + UPLOAD ẢNH -->
+  <div class="inv-modal-backdrop" id="modalDeliverConfirm">
+    <div class="inv-modal" style="width:min(480px,100%);">
+      <div class="inv-modal-head">
+        <h3>📸 Xác nhận Đã Bàn Giao Khách Hàng</h3>
+        <button type="button" class="btn btn-soft btn-sm" onclick="closeModal('modalDeliverConfirm')">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body">
+        <input type="hidden" id="deliverDnId">
+        <input type="hidden" id="deliverDnCode">
+        <p style="font-size:13.5px;color:#475569;margin-top:0;">Chụp/tải lên ảnh Biên bản giao nhận có chữ ký khách hàng (tự động nén &lt;300KB):</p>
+        <input type="file" id="deliverFileInput" accept="image/*" style="margin-bottom:12px;">
+        <div id="deliverPreview" style="font-size:12px;color:#0F766E;font-weight:700;"></div>
+      </div>
+      <div class="inv-modal-foot">
+        <button type="button" class="btn btn-soft" onclick="closeModal('modalDeliverConfirm')">Hủy</button>
+        <button type="button" class="btn btn-ok" id="btnConfirmDelivered">✅ Hoàn tất Giao hàng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="printArea" class="print-only"></div>
+  <div id="toast"></div>
+
+  <script>
+    let currentUser = null;
+    let allFgItems = [];
+    let allPntp = [];
+    let allPxgh = [];
+    let allProjects = [];
+    let pntpDraft = [];
+    let pxghDraft = [];
+
+    const $ = id => document.getElementById(id);
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function fmtNum(n) { const x = Number(n || 0); return Number.isInteger(x) ? x.toLocaleString('vi-VN') : x.toLocaleString('vi-VN', { maximumFractionDigits: 3 }); }
+    function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3200); }
+    function openModal(id) { $(id).classList.add('open'); }
+    function closeModal(id) { $(id).classList.remove('open'); }
+
+    async function boot() {
+      SharedUI.initNetworkBadge();
+      const user = await SupabaseDB.getCurrentSession();
+      if (!user) {
+        $('loginGateWrap').style.display = 'block';
+        $('mainContent').style.display = 'none';
+        return;
+      }
+      currentUser = user;
+      $('loginGateWrap').style.display = 'none';
+      $('mainContent').style.display = 'block';
+      SharedUI.initHeaderUser(user);
+      SharedUI.applyPriceVisibilityUI(user);
+      SharedUI.initPendingVouchersBadge();
+      SharedUI.initPendingPrBadge();
+      allProjects = await SupabaseDB.getProjectsList().catch(() => []);
+      const projOpts = allProjects.map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.name || '')}</option>`).join('');
+      $('selFgProject').innerHTML = '<option value="">Tất cả dự án</option>' + projOpts;
+      $('fgItemProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
+      $('pntpProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
+      $('pxghProject').innerHTML = '<option value="">-- Chọn Dự án --</option>' + projOpts;
+      await refreshAllData();
+      SharedUI.initStickySection(null, $('fgTable'));
+    }
+
+    async function refreshAllData() {
+      const [fgs, pntps, pxghs] = await Promise.all([
+        SupabaseDB.getFinishedGoodsItems().catch(() => []),
+        SupabaseDB.getFgReceipts().catch(() => []),
+        SupabaseDB.getDeliveryNotes().catch(() => [])
+      ]);
+      allFgItems = fgs || [];
+      allPntp = pntps || [];
+      allPxgh = pxghs || [];
+      renderKpis();
+      renderFgTable();
+      renderPntpTable();
+      renderPxghTable();
+      refreshFgDropdowns();
+    }
+
+    function renderKpis() {
+      const stock = allFgItems.reduce((s, x) => s + Number(x.stockQty || 0), 0);
+      const debt = allFgItems.reduce((s, x) => s + Math.max(0, Number(x.plannedQty || 0) - Number(x.deliveredQty || 0)), 0);
+      const pntpPend = allPntp.filter(x => x.status === 'pending').length;
+      const pxghPend = allPxgh.filter(x => x.status === 'pending' || x.status === 'approved').length;
+      $('kpiFgStockQty').textContent = fmtNum(stock);
+      $('kpiFgDebtQty').textContent = fmtNum(debt);
+      $('kpiPendingPntp').textContent = pntpPend;
+      $('kpiPendingPxgh').textContent = pxghPend;
+    }
+
+    function refreshFgDropdowns() {
+      const pId1 = $('pntpProject').value;
+      const list1 = pId1 ? allFgItems.filter(x => x.projectId === pId1) : allFgItems;
+      $('pntpSelectFg').innerHTML = '<option value="">-- Chọn Thành phẩm --</option>' +
+        list1.map(x => `<option value="${esc(x.id)}">[${esc(x.projectId)}] ${esc(x.itemCode ? x.itemCode + ' - ' : '')}${esc(x.itemName)} (${esc(x.unit)})</option>`).join('');
+
+      const pId2 = $('pxghProject').value;
+      const list2 = (pId2 ? allFgItems.filter(x => x.projectId === pId2) : allFgItems).filter(x => Number(x.stockQty || 0) > 0);
+      $('pxghSelectFg').innerHTML = '<option value="">-- Chọn Thành phẩm đang có tồn --</option>' +
+        list2.map(x => `<option value="${esc(x.id)}">[${esc(x.projectId)}] ${esc(x.itemName)} (Tồn: ${fmtNum(x.stockQty)} ${esc(x.unit)})</option>`).join('');
+    }
+
+    function renderFgTable() {
+      const q = ($('inpSearchFg').value || '').trim().toLowerCase();
+      const pid = $('selFgProject').value;
+      const list = allFgItems.filter(x => {
+        if (pid && x.projectId !== pid) return false;
+        if (q) {
+          const hay = `${x.itemCode} ${x.itemName} ${x.projectId} ${x.location}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      const tb = $('fgTableBody');
+      if (!list.length) {
+        tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#64748B;padding:24px;">Chưa có thành phẩm nào được khai báo.</td></tr>';
+        return;
+      }
+      tb.innerHTML = list.map(x => {
+        const debt = Math.max(0, Number(x.plannedQty || 0) - Number(x.deliveredQty || 0));
+        return `<tr>
+          <td><strong>${esc(x.itemName)}</strong>${x.itemCode ? `<div style="font-size:11.5px;color:#64748B;">Mã: ${esc(x.itemCode)}</div>` : ''}</td>
+          <td>${esc(x.projectId)}</td>
+          <td>${esc(x.unit)}</td>
+          <td class="r">${fmtNum(x.plannedQty)}</td>
+          <td class="r" style="color:#0369A1;font-weight:700;">${fmtNum(x.producedQty)}</td>
+          <td class="r" style="color:#15803D;font-weight:700;">${fmtNum(x.deliveredQty)}</td>
+          <td class="r"><strong style="color:var(--p);">${fmtNum(x.stockQty)}</strong></td>
+          <td class="r" style="color:${debt > 0 ? '#C2410C' : '#64748B'};font-weight:700;">${fmtNum(debt)}</td>
+          <td>${esc(x.location || '-')}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderPntpTable() {
+      const tb = $('pntpTableBody');
+      if (!allPntp.length) {
+        tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748B;padding:24px;">Chưa có Phiếu Nhập Thành Phẩm (PNTP).</td></tr>';
+        return;
+      }
+      tb.innerHTML = allPntp.map(r => {
+        const pill = r.status === 'approved' ? '<span class="pill pill-delivered">✅ Đã nhập kho TP</span>'
+          : r.status === 'cancelled' ? '<span class="pill pill-cancelled">✕ Đã hủy</span>'
+          : '<span class="pill pill-pending">⏳ Chờ duyệt</span>';
+        return `<tr>
+          <td><strong>${esc(r.receiptCode)}</strong></td>
+          <td>${esc(r.projectId)}</td>
+          <td>${esc(r.deliveredBy || '-')}</td>
+          <td>${esc((r.createdAt || '').slice(0, 10))}</td>
+          <td class="r"><strong>${(r.items || []).length}</strong></td>
+          <td>${pill}</td>
+          <td style="white-space:nowrap;">
+            ${r.status === 'pending' ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePntpAction('${esc(r.id)}')">✅ Duyệt nhập kho</button>` : ''}
+            ${r.status !== 'cancelled' && SharedUI.canApprovePR(currentUser) ? `<button type="button" class="btn btn-danger btn-sm" onclick="cancelPntpAction('${esc(r.id)}')">✕ Hủy</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderPxghTable() {
+      const tb = $('pxghTableBody');
+      if (!allPxgh.length) {
+        tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748B;padding:24px;">Chưa có Phiếu Xuất Giao Hàng (PXGH).</td></tr>';
+        return;
+      }
+      tb.innerHTML = allPxgh.map(d => {
+        const pill = d.status === 'delivered' ? '<span class="pill pill-delivered">✅ Đã bàn giao</span>'
+          : d.status === 'approved' ? '<span class="pill pill-approved">🚚 Đã xuất kho (Đang giao)</span>'
+          : d.status === 'cancelled' ? '<span class="pill pill-cancelled">✕ Đã hủy</span>'
+          : '<span class="pill pill-pending">⏳ Chờ duyệt xuất</span>';
+        return `<tr>
+          <td><strong>${esc(d.dnCode)}</strong></td>
+          <td><strong>${esc(d.customerName || '-')}</strong></td>
+          <td>${esc(d.projectId)}</td>
+          <td>${esc(d.vehicleNo || '-')} ${d.driverName ? '· ' + esc(d.driverName) : ''}</td>
+          <td>${esc(d.deliveryDate || '-')}</td>
+          <td>${pill}</td>
+          <td style="white-space:nowrap;">
+            <button type="button" class="btn btn-soft btn-sm" onclick="printDeliveryNoteA4('${esc(d.id)}')">🖨️ In PXGH</button>
+            ${d.status === 'pending' ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePxghAction('${esc(d.id)}')">✅ Duyệt xuất</button>` : ''}
+            ${d.status === 'approved' ? `<button type="button" class="btn btn-p btn-sm" onclick="openDeliverConfirm('${esc(d.id)}','${esc(d.dnCode)}')">📸 Xác nhận đã giao</button>` : ''}
+            ${d.status !== 'cancelled' && SharedUI.canApprovePR(currentUser) ? `<button type="button" class="btn btn-danger btn-sm" onclick="cancelPxghAction('${esc(d.id)}')">✕ Hủy</button>` : ''}
+            ${d.attachmentUrl ? `<a class="btn btn-soft btn-sm" href="${esc(d.attachmentUrl)}" target="_blank">📎 Ảnh BB</a>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function approvePntpAction(id) {
+      if (!confirm('Duyệt nhập kho thành phẩm (tăng tồn sẵn sàng giao)?')) return;
+      try {
+        await SupabaseDB.approveFgReceipt(id);
+        showToast('✅ Đã duyệt nhập kho Thành phẩm!');
+        await refreshAllData();
+      } catch (e) { alert('Lỗi duyệt PNTP: ' + (e.message || e)); }
+    }
+
+    async function cancelPntpAction(id) {
+      const reason = prompt('Lý do hủy phiếu PNTP:');
+      if (!reason) return;
+      try {
+        await SupabaseDB.cancelFgReceipt(id, reason);
+        showToast('Đã hủy PNTP.');
+        await refreshAllData();
+      } catch (e) { alert('Lỗi hủy PNTP: ' + (e.message || e)); }
+    }
+
+    async function approvePxghAction(id) {
+      if (!confirm('Duyệt xuất giao hàng (trừ tồn kho thành phẩm & tăng số đã giao)?')) return;
+      try {
+        await SupabaseDB.approveDeliveryNote(id);
+        showToast('✅ Đã duyệt xuất giao hàng!');
+        await refreshAllData();
+      } catch (e) { alert('Lỗi duyệt PXGH: ' + (e.message || e)); }
+    }
+
+    async function cancelPxghAction(id) {
+      const reason = prompt('Lý do hủy phiếu PXGH:');
+      if (!reason) return;
+      try {
+        await SupabaseDB.cancelDeliveryNote(id, reason);
+        showToast('Đã hủy PXGH & hoàn tồn thành phẩm.');
+        await refreshAllData();
+      } catch (e) { alert('Lỗi hủy PXGH: ' + (e.message || e)); }
+    }
+
+    function openDeliverConfirm(id, code) {
+      $('deliverDnId').value = id;
+      $('deliverDnCode').value = code;
+      $('deliverFileInput').value = '';
+      $('deliverPreview').textContent = '';
+      openModal('modalDeliverConfirm');
+    }
+
+    function printDeliveryNoteA4(dnId) {
+      const d = allPxgh.find(x => x.id === dnId);
+      if (!d) return;
+      const rows = (d.items || []).map((it, i) => `
+        <tr>
+          <td style="border:1px solid #333;padding:6px;text-align:center;">${i + 1}</td>
+          <td style="border:1px solid #333;padding:6px;">${esc(it.itemName)}</td>
+          <td style="border:1px solid #333;padding:6px;text-align:center;">${esc(it.unit)}</td>
+          <td style="border:1px solid #333;padding:6px;text-align:right;">${fmtNum(it.qty)}</td>
+          <td style="border:1px solid #333;padding:6px;">${esc(it.note || '')}</td>
+        </tr>`).join('');
+      $('printArea').innerHTML = `
+        <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:16px;">
+          <div>
+            <div style="font-size:16px;font-weight:bold;">CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH</div>
+            <div style="font-size:12.5px;">Kho Thành Phẩm &amp; Điều Vận Giao Hàng</div>
+          </div>
+          <div style="text-align:right;font-size:12.5px;">
+            <div>Số phiếu: <strong>${esc(d.dnCode)}</strong></div>
+            <div>Ngày giao: ${esc(d.deliveryDate || '-')}</div>
+          </div>
+        </div>
+        <h2 style="text-align:center;margin:8px 0 14px;font-size:19px;">PHIẾU XUẤT GIAO HÀNG / BIÊN BẢN BÀN GIAO</h2>
+        <div style="font-size:13.5px;line-height:1.7;margin-bottom:14px;">
+          <div><strong>Khách hàng / Công trình:</strong> ${esc(d.customerName || '-')}</div>
+          <div><strong>Dự án:</strong> ${esc(d.projectId)} &nbsp;|&nbsp; <strong>Xe vận chuyển:</strong> ${esc(d.vehicleNo || '-')} &nbsp;|&nbsp; <strong>Tài xế:</strong> ${esc(d.driverName || '-')}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#f1f5f9;">
+              <th style="border:1px solid #333;padding:6px;">STT</th>
+              <th style="border:1px solid #333;padding:6px;">Tên thành phẩm / Kiện hàng</th>
+              <th style="border:1px solid #333;padding:6px;">ĐVT</th>
+              <th style="border:1px solid #333;padding:6px;">Số lượng giao</th>
+              <th style="border:1px solid #333;padding:6px;">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="display:flex;justify-content:space-between;margin-top:38px;text-align:center;font-size:13px;">
+          <div style="width:32%;"><strong>Thủ kho xuất</strong><br>(Ký, ghi rõ họ tên)</div>
+          <div style="width:32%;"><strong>Người vận chuyển</strong><br>(Ký, ghi rõ họ tên)<br><br><br>${esc(d.driverName || '')}</div>
+          <div style="width:32%;"><strong>Đại diện Khách hàng</strong><br>(Ký nhận đủ hàng)</div>
+        </div>`;
+      window.print();
+    }
+
+    function printFgQrLabels() {
+      const pid = $('selFgProject').value;
+      const list = pid ? allFgItems.filter(x => x.projectId === pid) : allFgItems;
+      if (!list.length) return alert('Không có thành phẩm nào để in tem QR!');
+      const cards = list.map(item => {
+        let qrHtml = '';
+        if (typeof qrcode === 'function') {
+          const qr = qrcode(0, 'M');
+          qr.addData('XP:FG:' + item.id);
+          qr.make();
+          qrHtml = qr.createImgTag(3, 4);
+        }
+        return `<div style="border:1.5px solid #000;border-radius:6px;padding:8px;width:47%;display:inline-flex;gap:10px;align-items:center;margin:4px;vertical-align:top;page-break-inside:avoid;">
+          <div>${qrHtml}</div>
+          <div style="font-size:11.5px;line-height:1.35;">
+            <div style="font-weight:bold;font-size:13px;">${esc(item.itemName)}</div>
+            <div>Mã: ${esc(item.itemCode || '-')} · DA: ${esc(item.projectId)}</div>
+            <div>Tồn TP: <strong>${fmtNum(item.stockQty)} ${esc(item.unit)}</strong> · Kệ: ${esc(item.location || '-')}</div>
+          </div>
+        </div>`;
+      }).join('');
+      $('printArea').innerHTML = `<h3 style="text-align:center;margin-bottom:10px;">TEM QR KIỆN HÀNG THÀNH PHẨM — CƠ KHÍ AN BÌNH</h3><div>${cards}</div>`;
+      window.print();
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      $('tabFgPanel').style.display = tab === 'fg' ? 'block' : 'none';
+      $('tabPntpPanel').style.display = tab === 'pntp' ? 'block' : 'none';
+      $('tabPxghPanel').style.display = tab === 'pxgh' ? 'block' : 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('btnSubmitLogin').addEventListener('click', async () => {
+        try {
+          await SupabaseDB.signInWithUsername($('inpLoginUser').value, $('inpLoginPass').value);
+          location.reload();
+        } catch (e) {
+          $('loginErr').style.display = 'block';
+          $('loginErr').textContent = e.message || 'Đăng nhập thất bại';
+        }
+      });
+      $('btnLogout').addEventListener('click', async () => { await SupabaseDB.signOut(); location.reload(); });
+      document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+      $('inpSearchFg').addEventListener('input', renderFgTable);
+      $('selFgProject').addEventListener('change', renderFgTable);
+      $('pntpProject').addEventListener('change', refreshFgDropdowns);
+      $('pxghProject').addEventListener('change', refreshFgDropdowns);
+      $('btnPrintFgQr').addEventListener('click', printFgQrLabels);
+
+      $('btnAddFgItem').addEventListener('click', () => openModal('modalFgItem'));
+      $('btnSaveFgItem').addEventListener('click', async () => {
+        const projectId = $('fgItemProject').value;
+        const itemName = $('fgItemName').value.trim();
+        if (!projectId || !itemName) return alert('Vui lòng chọn Dự án và nhập Tên thành phẩm!');
+        try {
+          await SupabaseDB.saveFinishedGoodsItem({
+            projectId,
+            itemCode: $('fgItemCode').value.trim(),
+            itemName,
+            unit: $('fgItemUnit').value.trim() || 'Bộ',
+            plannedQty: Number($('fgItemPlanned').value || 0),
+            location: $('fgItemLocation').value.trim()
+          });
+          closeModal('modalFgItem');
+          showToast('✅ Đã lưu thành phẩm!');
+          await refreshAllData();
+        } catch (e) { alert('Lỗi lưu thành phẩm: ' + (e.message || e)); }
+      });
+
+      $('btnNewFgReceipt').addEventListener('click', () => { pntpDraft = []; $('pntpDraftBody').innerHTML = ''; openModal('modalPntp'); refreshFgDropdowns(); });
+      $('btnPntpAddRow').addEventListener('click', () => {
+        const id = $('pntpSelectFg').value;
+        const fg = allFgItems.find(x => x.id === id);
+        if (!fg) return;
+        pntpDraft.push({ fgItemId: fg.id, itemName: fg.itemName, unit: fg.unit || 'Bộ', qty: 1, note: '' });
+        $('pntpDraftBody').innerHTML = pntpDraft.map((it, idx) => `<tr>
+          <td><strong>${esc(it.itemName)}</strong></td><td>${esc(it.unit)}</td>
+          <td><input type="number" step="any" min="0.001" value="${it.qty}" onchange="pntpDraft[${idx}].qty=Number(this.value||0)"></td>
+          <td><input type="text" value="${esc(it.note)}" onchange="pntpDraft[${idx}].note=this.value"></td>
+          <td><button type="button" class="btn btn-danger btn-sm" onclick="pntpDraft.splice(${idx},1);this.closest('tr').remove();">✕</button></td>
+        </tr>`).join('');
+      });
+      $('btnSavePntp').addEventListener('click', async () => {
+        const projectId = $('pntpProject').value;
+        if (!projectId || !pntpDraft.length) return alert('Chọn Dự án và ít nhất 1 thành phẩm!');
+        try {
+          await SupabaseDB.createFgReceipt({ projectId, deliveredBy: $('pntpDeliveredBy').value.trim(), note: $('pntpNote').value.trim() }, pntpDraft);
+          closeModal('modalPntp');
+          showToast('✅ Đã lập Phiếu Nhập Thành Phẩm (PNTP)!');
+          await refreshAllData();
+          switchTab('pntp');
+        } catch (e) { alert('Lỗi lưu PNTP: ' + (e.message || e)); }
+      });
+
+      $('btnNewDeliveryNote').addEventListener('click', () => {
+        pxghDraft = [];
+        $('pxghDraftBody').innerHTML = '';
+        $('pxghDate').value = new Date().toISOString().slice(0, 10);
+        openModal('modalPxgh');
+        refreshFgDropdowns();
+      });
+      $('btnPxghAddRow').addEventListener('click', () => {
+        const id = $('pxghSelectFg').value;
+        const fg = allFgItems.find(x => x.id === id);
+        if (!fg) return;
+        pxghDraft.push({ fgItemId: fg.id, itemName: fg.itemName, unit: fg.unit || 'Bộ', stockQty: fg.stockQty, qty: Math.min(1, fg.stockQty) });
+        $('pxghDraftBody').innerHTML = pxghDraft.map((it, idx) => `<tr>
+          <td><strong>${esc(it.itemName)}</strong></td><td>${esc(it.unit)}</td>
+          <td class="r">${fmtNum(it.stockQty)}</td>
+          <td><input type="number" step="any" min="0.001" max="${it.stockQty}" value="${it.qty}" onchange="pxghDraft[${idx}].qty=Number(this.value||0)"></td>
+          <td><button type="button" class="btn btn-danger btn-sm" onclick="pxghDraft.splice(${idx},1);this.closest('tr').remove();">✕</button></td>
+        </tr>`).join('');
+      });
+      $('btnSavePxgh').addEventListener('click', async () => {
+        const projectId = $('pxghProject').value;
+        const customerName = $('pxghCustomer').value.trim();
+        if (!projectId || !customerName || !pxghDraft.length) return alert('Chọn Dự án, nhập Khách hàng và thêm thành phẩm!');
+        try {
+          await SupabaseDB.createDeliveryNote({
+            projectId,
+            customerName,
+            vehicleNo: $('pxghVehicle').value.trim(),
+            driverName: $('pxghDriver').value.trim(),
+            deliveryDate: $('pxghDate').value || null,
+            note: $('pxghNote').value.trim()
+          }, pxghDraft);
+          closeModal('modalPxgh');
+          showToast('✅ Đã lập Phiếu Xuất Giao Hàng (PXGH)!');
+          await refreshAllData();
+          switchTab('pxgh');
+        } catch (e) { alert('Lỗi lưu PXGH: ' + (e.message || e)); }
+      });
+
+      $('btnConfirmDelivered').addEventListener('click', async () => {
+        const id = $('deliverDnId').value;
+        const code = $('deliverDnCode').value;
+        const file = $('deliverFileInput').files[0];
+        try {
+          let url = null;
+          if (file) {
+            $('deliverPreview').textContent = 'Đang nén & tải ảnh biên bản...';
+            const blob = await SharedUI.compressImageFile(file, 1400, 290 * 1024);
+            url = await SupabaseDB.uploadDeliveryAttachment(blob, code);
+          }
+          await SupabaseDB.markDeliveryNoteDelivered(id, url);
+          closeModal('modalDeliverConfirm');
+          showToast('✅ Đã xác nhận giao hàng thành công!');
+          await refreshAllData();
+        } catch (e) { alert('Lỗi xác nhận giao hàng: ' + (e.message || e)); }
+      });
+
+      boot();
+    });
+  </script>
+</body>
+</html>

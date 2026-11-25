@@ -544,6 +544,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       issueReason: String(row.issue_reason || 'new'),
       returnedOldQty: Number(row.returned_old_qty) || 0,
       projectRequestId: row.project_request_id || null,
+      poItemId: row.po_item_id || null,
       note: String(row.note || ''),
       createdAt: row.created_at || null
     };
@@ -559,6 +560,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       status: String(row.status || 'pending'),
       projectId: row.project_id || null,
       supplierId: row.supplier_id || null,
+      poId: row.po_id || null,
       supplierName: row.supplier && row.supplier.name ? String(row.supplier.name) : String(row.supplier_name || ''),
       projectName: row.project && row.project.name ? String(row.project.name) : String(row.project_name || ''),
       department: String(row.department || ''),
@@ -2535,6 +2537,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           issue_reason: String(it.issueReason || it.issue_reason || 'new'),
           returned_old_qty: Math.max(0, Number(it.returnedOldQty != null ? it.returnedOldQty : it.returned_old_qty) || 0),
           project_request_id: it.projectRequestId || it.project_request_id || null,
+          po_item_id: it.poItemId || it.po_item_id || null,
           note: String(it.note || '').trim()
         };
       })
@@ -2545,6 +2548,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var copy = Object.assign({}, obj);
     delete copy.machine_name;
     delete copy.recipient_name;
+    delete copy.po_id;
     return copy;
   }
 
@@ -2553,6 +2557,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     delete copy.issue_reason;
     delete copy.returned_old_qty;
     delete copy.project_request_id;
+    delete copy.po_item_id;
     return copy;
   }
 
@@ -2568,6 +2573,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       status: p.status === 'draft' ? 'draft' : 'pending',
       project_id: p.projectId || null,
       supplier_id: p.supplierId || null,
+      po_id: p.poId || null,
       department: String(p.department || '').trim(),
       machine_name: String(p.machineName || '').trim(),
       recipient_name: String(p.recipientName || '').trim(),
@@ -2579,7 +2585,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     };
 
     var vRes = await client.from('warehouse_vouchers').insert(headerRow).select().single();
-    if (vRes && vRes.error && _isMissingColumnError(vRes.error, /machine_name|recipient_name/i)) {
+    if (vRes && vRes.error && _isMissingColumnError(vRes.error, /machine_name|recipient_name|po_id/i)) {
       vRes = await client.from('warehouse_vouchers').insert(_stripToolingVoucherCols(headerRow)).select().single();
     }
     if (vRes && vRes.error && _isMissingTableError(vRes.error, 'warehouse_vouchers')) {
@@ -2592,7 +2598,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       return Object.assign({ voucher_id: created.id }, it);
     });
     var iRes = await client.from('warehouse_voucher_items').insert(itemsRows).select();
-    if (iRes && iRes.error && _isMissingColumnError(iRes.error, /issue_reason|returned_old_qty/i)) {
+    if (iRes && iRes.error && _isMissingColumnError(iRes.error, /issue_reason|returned_old_qty|project_request_id|po_item_id/i)) {
       iRes = await client.from('warehouse_voucher_items').insert(itemsRows.map(_stripToolingVoucherItemCols)).select();
     }
     if (iRes && iRes.error) {
@@ -3244,6 +3250,510 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
   // =========================================================================
   // REALTIME (POSTGRES CHANGES) + VÒNG ĐỜI TỰ PHỤC HỒI KẾT NỐI
   // =========================================================================
+  // =========================================================================
+  // ĐỢT 11: MUA HÀNG (PR -> PO -> PNK) & KHO THÀNH PHẨM / GIAO HÀNG
+  // =========================================================================
+  function _genDocCode(prefix) {
+    var d = new Date();
+    var ymd = d.getFullYear().toString() +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      String(d.getDate()).padStart(2, '0');
+    var rnd = Math.floor(100 + Math.random() * 900);
+    return prefix + '-' + ymd + '-' + rnd;
+  }
+
+  function mapPurchaseRequestFromDb(row) {
+    if (!row) return null;
+    var items = Array.isArray(row.purchase_request_items) ? row.purchase_request_items : [];
+    return {
+      id: row.id,
+      prCode: String(row.pr_code || ''),
+      title: String(row.title || ''),
+      projectId: row.project_id || null,
+      projectName: row.project && row.project.name ? String(row.project.name) : '',
+      department: String(row.department || ''),
+      priority: String(row.priority || 'normal'),
+      neededDate: row.needed_date || null,
+      status: String(row.status || 'pending'),
+      rejectReason: String(row.reject_reason || ''),
+      note: String(row.note || ''),
+      createdBy: String(row.created_by || ''),
+      approvedBy: String(row.approved_by || ''),
+      approvedAt: row.approved_at || null,
+      createdAt: row.created_at || new Date().toISOString(),
+      items: items.map(function (it) {
+        return {
+          id: it.id,
+          prId: it.pr_id,
+          inventoryId: it.inventory_id || null,
+          projectRequestId: it.project_request_id || null,
+          itemName: String(it.item_name || ''),
+          specText: String(it.spec_text || ''),
+          unit: String(it.unit || 'cái'),
+          requestedQty: Number(it.requested_qty) || 0,
+          orderedQty: Number(it.ordered_qty) || 0,
+          estimatedPrice: Number(it.estimated_price) || 0,
+          note: String(it.note || '')
+        };
+      })
+    };
+  }
+
+  function mapPurchaseOrderFromDb(row) {
+    if (!row) return null;
+    var items = Array.isArray(row.purchase_order_items) ? row.purchase_order_items : [];
+    return {
+      id: row.id,
+      poCode: String(row.po_code || ''),
+      supplierId: row.supplier_id || null,
+      supplierName: row.supplier && row.supplier.name ? String(row.supplier.name) : '',
+      supplierPhone: row.supplier && row.supplier.phone ? String(row.supplier.phone) : '',
+      supplierAddress: row.supplier && row.supplier.address ? String(row.supplier.address) : '',
+      prId: row.pr_id || null,
+      projectId: row.project_id || null,
+      projectName: row.project && row.project.name ? String(row.project.name) : '',
+      orderDate: row.order_date || null,
+      expectedDate: row.expected_date || null,
+      status: String(row.status || 'sent'),
+      totalAmount: Number(row.total_amount) || 0,
+      paymentTerms: String(row.payment_terms || ''),
+      deliveryTerms: String(row.delivery_terms || ''),
+      note: String(row.note || ''),
+      createdBy: String(row.created_by || ''),
+      approvedBy: String(row.approved_by || ''),
+      createdAt: row.created_at || new Date().toISOString(),
+      items: items.map(function (it) {
+        return {
+          id: it.id,
+          poId: it.po_id,
+          prItemId: it.pr_item_id || null,
+          inventoryId: it.inventory_id || null,
+          itemName: String(it.item_name || ''),
+          unit: String(it.unit || 'cái'),
+          orderedQty: Number(it.ordered_qty) || 0,
+          receivedQty: Number(it.received_qty) || 0,
+          unitPrice: Number(it.unit_price) || 0,
+          totalAmount: Number(it.total_amount) || 0,
+          note: String(it.note || '')
+        };
+      })
+    };
+  }
+
+  async function getPurchaseRequests(filters) {
+    var f = filters || {};
+    var client = getClient();
+    var q = client.from('purchase_requests')
+      .select('*, project:projects(name), purchase_request_items(*)')
+      .order('created_at', { ascending: false });
+    if (f.status && f.status !== 'ALL') q = q.eq('status', f.status);
+    if (f.priority && f.priority !== 'ALL') q = q.eq('priority', f.priority);
+    if (f.projectId) q = q.eq('project_id', f.projectId);
+    var res = await q;
+    if (res && res.error && _isMissingTableError(res.error, 'purchase_requests')) return [];
+    var rows = throwIfError(res, 'Không tải được danh sách Đề nghị mua hàng') || [];
+    return rows.map(mapPurchaseRequestFromDb);
+  }
+
+  async function getPendingPrCount() {
+    var client = getClient();
+    var res = await client.from('purchase_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+    if (res && res.error) return 0;
+    return res && res.count ? res.count : 0;
+  }
+
+  async function createPurchaseRequest(payload, items) {
+    var p = payload || {};
+    var list = (Array.isArray(items) ? items : []).filter(function (it) {
+      return it && String(it.itemName || '').trim() && Number(it.requestedQty || 0) > 0;
+    });
+    if (!list.length) throw new Error('PR phải có ít nhất 1 dòng vật tư với số lượng > 0');
+    var client = getClient();
+    var header = {
+      pr_code: String(p.prCode || _genDocCode('PR')),
+      title: String(p.title || 'Đề nghị mua hàng').trim(),
+      project_id: p.projectId || null,
+      department: String(p.department || '').trim(),
+      priority: p.priority === 'urgent' ? 'urgent' : 'normal',
+      needed_date: p.neededDate || null,
+      status: p.status === 'draft' ? 'draft' : 'pending',
+      note: String(p.note || '').trim(),
+      created_by: String(p.createdBy || '').trim()
+    };
+    var res = await client.from('purchase_requests').insert(header).select().single();
+    var created = throwIfError(res, 'Không tạo được Đề nghị mua hàng');
+    var itemRows = list.map(function (it) {
+      return {
+        pr_id: created.id,
+        inventory_id: it.inventoryId || null,
+        project_request_id: it.projectRequestId || null,
+        item_name: String(it.itemName).trim(),
+        spec_text: String(it.specText || '').trim(),
+        unit: String(it.unit || 'cái').trim(),
+        requested_qty: Number(it.requestedQty),
+        estimated_price: Math.max(0, Number(it.estimatedPrice || 0)),
+        note: String(it.note || '').trim()
+      };
+    });
+    var iRes = await client.from('purchase_request_items').insert(itemRows).select();
+    if (iRes && iRes.error) {
+      try { await client.from('purchase_requests').delete().eq('id', created.id); } catch (e) {}
+      throwIfError(iRes, 'Không lưu được chi tiết PR');
+    }
+    return created;
+  }
+
+  async function updatePurchaseRequestStatus(prId, status, extra) {
+    var client = getClient();
+    var e = extra || {};
+    var patch = { status: status, updated_at: new Date().toISOString() };
+    if (status === 'approved') {
+      patch.approved_by = e.approvedBy || '';
+      patch.approved_at = new Date().toISOString();
+    }
+    if (status === 'rejected') {
+      patch.reject_reason = String(e.rejectReason || '').trim();
+    }
+    var res = await client.from('purchase_requests').update(patch).eq('id', prId).select().single();
+    return throwIfError(res, 'Không cập nhật được trạng thái PR');
+  }
+
+  async function getPurchaseOrders(filters) {
+    var f = filters || {};
+    var client = getClient();
+    var q = client.from('purchase_orders')
+      .select('*, supplier:suppliers(name,phone,address), project:projects(name), purchase_order_items(*)')
+      .order('created_at', { ascending: false });
+    if (f.status && f.status !== 'ALL') q = q.eq('status', f.status);
+    if (f.supplierId) q = q.eq('supplier_id', f.supplierId);
+    var res = await q;
+    if (res && res.error && _isMissingTableError(res.error, 'purchase_orders')) return [];
+    var rows = throwIfError(res, 'Không tải được danh sách Đơn đặt hàng (PO)') || [];
+    return rows.map(mapPurchaseOrderFromDb);
+  }
+
+  async function getPurchaseOrderById(poId) {
+    var client = getClient();
+    var res = await client.from('purchase_orders')
+      .select('*, supplier:suppliers(name,phone,address), project:projects(name), purchase_order_items(*)')
+      .eq('id', poId)
+      .maybeSingle();
+    if (res && res.error && _isMissingTableError(res.error, 'purchase_orders')) return null;
+    var row = throwIfError(res, 'Không tải được Đơn đặt hàng');
+    return mapPurchaseOrderFromDb(row);
+  }
+
+  async function createPurchaseOrder(payload, items) {
+    var p = payload || {};
+    var list = (Array.isArray(items) ? items : []).filter(function (it) {
+      return it && String(it.itemName || '').trim() && Number(it.orderedQty || 0) > 0;
+    });
+    if (!list.length) throw new Error('PO phải có ít nhất 1 dòng hàng hóa với số lượng > 0');
+    var client = getClient();
+    var totalAmt = list.reduce(function (s, it) {
+      return s + Math.round(Number(it.orderedQty) * Math.max(0, Number(it.unitPrice || 0)));
+    }, 0);
+    var header = {
+      po_code: String(p.poCode || _genDocCode('PO')),
+      supplier_id: p.supplierId || null,
+      pr_id: p.prId || null,
+      project_id: p.projectId || null,
+      order_date: p.orderDate || new Date().toISOString().slice(0, 10),
+      expected_date: p.expectedDate || null,
+      status: 'sent',
+      total_amount: totalAmt,
+      payment_terms: String(p.paymentTerms || '').trim(),
+      delivery_terms: String(p.deliveryTerms || '').trim(),
+      note: String(p.note || '').trim(),
+      created_by: String(p.createdBy || '').trim(),
+      approved_by: String(p.approvedBy || p.createdBy || '').trim()
+    };
+    var res = await client.from('purchase_orders').insert(header).select().single();
+    var created = throwIfError(res, 'Không tạo được Đơn đặt hàng (PO)');
+    var itemRows = list.map(function (it) {
+      var qty = Number(it.orderedQty);
+      var price = Math.max(0, Number(it.unitPrice || 0));
+      return {
+        po_id: created.id,
+        pr_item_id: it.prItemId || null,
+        inventory_id: it.inventoryId || null,
+        item_name: String(it.itemName).trim(),
+        unit: String(it.unit || 'cái').trim(),
+        ordered_qty: qty,
+        unit_price: price,
+        total_amount: Math.round(qty * price),
+        note: String(it.note || '').trim()
+      };
+    });
+    var iRes = await client.from('purchase_order_items').insert(itemRows).select();
+    if (iRes && iRes.error) {
+      try { await client.from('purchase_orders').delete().eq('id', created.id); } catch (e) {}
+      throwIfError(iRes, 'Không lưu được chi tiết PO');
+    }
+
+    // Cộng dồn ordered_qty trên purchase_request_items nếu tạo từ PR
+    for (var i = 0; i < list.length; i++) {
+      var srcIt = list[i];
+      if (srcIt.prItemId) {
+        var curPri = await client.from('purchase_request_items').select('ordered_qty').eq('id', srcIt.prItemId).maybeSingle();
+        var prevOrd = (curPri && curPri.data && Number(curPri.data.ordered_qty)) || 0;
+        await client.from('purchase_request_items').update({ ordered_qty: prevOrd + Number(srcIt.orderedQty) }).eq('id', srcIt.prItemId);
+      }
+    }
+    if (p.prId) {
+      await client.from('purchase_requests').update({ status: 'ordered', updated_at: new Date().toISOString() }).eq('id', p.prId);
+    }
+    return getPurchaseOrderById(created.id);
+  }
+
+  async function createPurchaseOrderFromPr(prId, supplierId, extra, selectedItems) {
+    var e = extra || {};
+    var payload = Object.assign({}, e, { prId: prId, supplierId: supplierId });
+    return createPurchaseOrder(payload, selectedItems);
+  }
+
+  async function updatePurchaseOrderStatus(poId, status) {
+    var client = getClient();
+    var res = await client.from('purchase_orders').update({ status: status, updated_at: new Date().toISOString() }).eq('id', poId).select().single();
+    return throwIfError(res, 'Không cập nhật được trạng thái PO');
+  }
+
+  // Kho Thành phẩm & Giao hàng
+  async function getFinishedGoodsItems(projectId) {
+    var client = getClient();
+    var q = client.from('finished_goods_items').select('*, project:projects(name)').order('created_at', { ascending: false });
+    if (projectId && projectId !== 'ALL') q = q.eq('project_id', projectId);
+    var res = await q;
+    if (res && res.error && _isMissingTableError(res.error, 'finished_goods_items')) return [];
+    var rows = throwIfError(res, 'Không tải được danh mục Thành phẩm') || [];
+    return rows.map(function (r) {
+      return {
+        id: r.id,
+        projectId: r.project_id || null,
+        projectName: r.project && r.project.name ? String(r.project.name) : '',
+        fgCode: String(r.fg_code || ''),
+        name: String(r.name || ''),
+        drawingNo: String(r.drawing_no || ''),
+        specText: String(r.spec_text || ''),
+        unit: String(r.unit || 'bộ'),
+        plannedQty: Number(r.planned_qty) || 0,
+        producedQty: Number(r.produced_qty) || 0,
+        deliveredQty: Number(r.delivered_qty) || 0,
+        stockQty: Number(r.stock_qty) || 0,
+        rackLocation: String(r.rack_location || ''),
+        note: String(r.note || ''),
+        createdAt: r.created_at || null
+      };
+    });
+  }
+
+  async function saveFinishedGoodsItem(payload) {
+    var p = payload || {};
+    var client = getClient();
+    var row = {
+      project_id: p.projectId || null,
+      fg_code: String(p.fgCode || '').trim(),
+      name: String(p.name || '').trim(),
+      drawing_no: String(p.drawingNo || '').trim(),
+      spec_text: String(p.specText || '').trim(),
+      unit: String(p.unit || 'bộ').trim(),
+      planned_qty: Math.max(0, Number(p.plannedQty) || 0),
+      rack_location: String(p.rackLocation || '').trim(),
+      note: String(p.note || '').trim(),
+      updated_at: new Date().toISOString()
+    };
+    if (!row.fg_code || !row.name) throw new Error('Vui lòng nhập Mã TP và Tên Thành phẩm');
+    var res = p.id
+      ? await client.from('finished_goods_items').update(row).eq('id', p.id).select().single()
+      : await client.from('finished_goods_items').insert(row).select().single();
+    return throwIfError(res, 'Không lưu được Thành phẩm');
+  }
+
+  async function getFgReceipts() {
+    var client = getClient();
+    var res = await client.from('fg_receipts')
+      .select('*, project:projects(name), fg_receipt_items(*, fg_item:finished_goods_items(fg_code,name,unit))')
+      .order('created_at', { ascending: false });
+    if (res && res.error && _isMissingTableError(res.error, 'fg_receipts')) return [];
+    var rows = throwIfError(res, 'Không tải được Phiếu nhập Thành phẩm') || [];
+    return rows.map(function (r) {
+      return {
+        id: r.id,
+        receiptCode: String(r.receipt_code || ''),
+        projectId: r.project_id || null,
+        projectName: r.project && r.project.name ? String(r.project.name) : '',
+        department: String(r.department || ''),
+        qcBy: String(r.qc_by || ''),
+        status: String(r.status || 'draft'),
+        note: String(r.note || ''),
+        createdBy: String(r.created_by || ''),
+        approvedBy: String(r.approved_by || ''),
+        approvedAt: r.approved_at || null,
+        createdAt: r.created_at || null,
+        items: (r.fg_receipt_items || []).map(function (it) {
+          return {
+            id: it.id,
+            fgItemId: it.fg_item_id,
+            fgCode: it.fg_item ? it.fg_item.fg_code : '',
+            name: it.fg_item ? it.fg_item.name : '',
+            unit: it.fg_item ? it.fg_item.unit : 'bộ',
+            qty: Number(it.qty) || 0,
+            note: String(it.note || '')
+          };
+        })
+      };
+    });
+  }
+
+  async function createFgReceipt(payload, items) {
+    var p = payload || {};
+    var list = (Array.isArray(items) ? items : []).filter(function (it) { return it && it.fgItemId && Number(it.qty) > 0; });
+    if (!list.length) throw new Error('Phiếu nhập TP phải có ít nhất 1 dòng');
+    var client = getClient();
+    var header = {
+      receipt_code: String(p.receiptCode || _genDocCode('PNTP')),
+      project_id: p.projectId || null,
+      department: String(p.department || '').trim(),
+      qc_by: String(p.qcBy || '').trim(),
+      status: 'draft',
+      note: String(p.note || '').trim(),
+      created_by: String(p.createdBy || '').trim()
+    };
+    var res = await client.from('fg_receipts').insert(header).select().single();
+    var created = throwIfError(res, 'Không tạo được phiếu nhập Thành phẩm');
+    var rows = list.map(function (it) {
+      return { receipt_id: created.id, fg_item_id: it.fgItemId, qty: Number(it.qty), note: String(it.note || '') };
+    });
+    var iRes = await client.from('fg_receipt_items').insert(rows).select();
+    if (iRes && iRes.error) {
+      try { await client.from('fg_receipts').delete().eq('id', created.id); } catch (e) {}
+      throwIfError(iRes, 'Không lưu được chi tiết PNTP');
+    }
+    return created;
+  }
+
+  async function approveFgReceipt(receiptId) {
+    var res = await getClient().rpc('approve_fg_receipt', { p_receipt_id: receiptId });
+    return throwIfError(res, 'Không duyệt được phiếu nhập Thành phẩm');
+  }
+
+  async function cancelFgReceipt(receiptId, reason) {
+    var res = await getClient().rpc('cancel_fg_receipt', { p_receipt_id: receiptId, p_reason: reason || '' });
+    return throwIfError(res, 'Không hủy được phiếu nhập Thành phẩm');
+  }
+
+  async function getDeliveryNotes() {
+    var client = getClient();
+    var res = await client.from('delivery_notes')
+      .select('*, project:projects(name), delivery_note_items(*)')
+      .order('created_at', { ascending: false });
+    if (res && res.error && _isMissingTableError(res.error, 'delivery_notes')) return [];
+    var rows = throwIfError(res, 'Không tải được Phiếu xuất giao hàng') || [];
+    return rows.map(function (r) {
+      return {
+        id: r.id,
+        dnCode: String(r.dn_code || ''),
+        projectId: r.project_id || null,
+        projectName: r.project && r.project.name ? String(r.project.name) : '',
+        customerName: String(r.customer_name || ''),
+        customerPhone: String(r.customer_phone || ''),
+        deliveryAddress: String(r.delivery_address || ''),
+        vehicleNo: String(r.vehicle_no || ''),
+        driverName: String(r.driver_name || ''),
+        deliveryDate: r.delivery_date || null,
+        status: String(r.status || 'draft'),
+        attachmentUrl: String(r.attachment_url || ''),
+        note: String(r.note || ''),
+        createdBy: String(r.created_by || ''),
+        approvedBy: String(r.approved_by || ''),
+        approvedAt: r.approved_at || null,
+        createdAt: r.created_at || null,
+        items: (r.delivery_note_items || []).map(function (it) {
+          return {
+            id: it.id,
+            fgItemId: it.fg_item_id,
+            fgCode: String(it.fg_code || ''),
+            name: String(it.name || ''),
+            unit: String(it.unit || 'bộ'),
+            qty: Number(it.qty) || 0,
+            note: String(it.note || '')
+          };
+        })
+      };
+    });
+  }
+
+  async function createDeliveryNote(payload, items) {
+    var p = payload || {};
+    var list = (Array.isArray(items) ? items : []).filter(function (it) { return it && it.fgItemId && Number(it.qty) > 0; });
+    if (!list.length) throw new Error('Phiếu xuất giao hàng phải có ít nhất 1 dòng');
+    var client = getClient();
+    var header = {
+      dn_code: String(p.dnCode || _genDocCode('PXGH')),
+      project_id: p.projectId || null,
+      customer_name: String(p.customerName || '').trim(),
+      customer_phone: String(p.customerPhone || '').trim(),
+      delivery_address: String(p.deliveryAddress || '').trim(),
+      vehicle_no: String(p.vehicleNo || '').trim(),
+      driver_name: String(p.driverName || '').trim(),
+      delivery_date: p.deliveryDate || new Date().toISOString().slice(0, 10),
+      status: 'draft',
+      attachment_url: String(p.attachmentUrl || '').trim(),
+      note: String(p.note || '').trim(),
+      created_by: String(p.createdBy || '').trim()
+    };
+    var res = await client.from('delivery_notes').insert(header).select().single();
+    var created = throwIfError(res, 'Không tạo được Phiếu xuất giao hàng');
+    var rows = list.map(function (it) {
+      return {
+        dn_id: created.id,
+        fg_item_id: it.fgItemId,
+        fg_code: String(it.fgCode || ''),
+        name: String(it.name || ''),
+        unit: String(it.unit || 'bộ'),
+        qty: Number(it.qty),
+        note: String(it.note || '')
+      };
+    });
+    var iRes = await client.from('delivery_note_items').insert(rows).select();
+    if (iRes && iRes.error) {
+      try { await client.from('delivery_notes').delete().eq('id', created.id); } catch (e) {}
+      throwIfError(iRes, 'Không lưu được chi tiết PXGH');
+    }
+    return created;
+  }
+
+  async function approveDeliveryNote(dnId) {
+    var res = await getClient().rpc('approve_delivery_note', { p_dn_id: dnId });
+    return throwIfError(res, 'Không duyệt được Phiếu xuất giao hàng');
+  }
+
+  async function markDeliveryNoteDelivered(dnId, attachmentUrl) {
+    var client = getClient();
+    var patch = { status: 'delivered', updated_at: new Date().toISOString() };
+    if (attachmentUrl) patch.attachment_url = attachmentUrl;
+    var res = await client.from('delivery_notes').update(patch).eq('id', dnId).select().single();
+    return throwIfError(res, 'Không cập nhật được trạng thái đã giao hàng');
+  }
+
+  async function cancelDeliveryNote(dnId, reason) {
+    var res = await getClient().rpc('cancel_delivery_note', { p_dn_id: dnId, p_reason: reason || '' });
+    return throwIfError(res, 'Không hủy được Phiếu xuất giao hàng');
+  }
+
+  async function uploadDeliveryAttachment(fileOrBlob, dnCode) {
+    return uploadVoucherAttachment(fileOrBlob, 'delivery_' + (dnCode || Date.now()));
+  }
+
+  async function getCompanyDashboardSummary() {
+    var client = getClient();
+    var res = await client.rpc('get_company_dashboard_summary');
+    if (res && res.error && /Could not find the function|does not exist/i.test(res.error.message || '')) {
+      return null;
+    }
+    return throwIfError(res, 'Không tải được tổng hợp Dashboard');
+  }
+
   function subscribeTables(handlers, onStatusChange, options) {
     var client = getClient();
     var hMap = handlers || {};
@@ -3575,6 +4085,28 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     uploadProjectAttachment: uploadProjectAttachment,
     getProjectAttachmentSignedUrl: getProjectAttachmentSignedUrl,
     deleteProjectAttachment: deleteProjectAttachment,
+    getPurchaseRequests: getPurchaseRequests,
+    getPendingPrCount: getPendingPrCount,
+    createPurchaseRequest: createPurchaseRequest,
+    updatePurchaseRequestStatus: updatePurchaseRequestStatus,
+    getPurchaseOrders: getPurchaseOrders,
+    getPurchaseOrderById: getPurchaseOrderById,
+    createPurchaseOrder: createPurchaseOrder,
+    createPurchaseOrderFromPr: createPurchaseOrderFromPr,
+    updatePurchaseOrderStatus: updatePurchaseOrderStatus,
+    getFinishedGoodsItems: getFinishedGoodsItems,
+    saveFinishedGoodsItem: saveFinishedGoodsItem,
+    getFgReceipts: getFgReceipts,
+    createFgReceipt: createFgReceipt,
+    approveFgReceipt: approveFgReceipt,
+    cancelFgReceipt: cancelFgReceipt,
+    getDeliveryNotes: getDeliveryNotes,
+    createDeliveryNote: createDeliveryNote,
+    approveDeliveryNote: approveDeliveryNote,
+    markDeliveryNoteDelivered: markDeliveryNoteDelivered,
+    cancelDeliveryNote: cancelDeliveryNote,
+    uploadDeliveryAttachment: uploadDeliveryAttachment,
+    getCompanyDashboardSummary: getCompanyDashboardSummary,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,

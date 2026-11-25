@@ -148,6 +148,8 @@
         <a href="/" class="subnav-link">🏠 Tổng quan</a>
         <a href="/inventory" class="subnav-link">📦 Kho vật tư</a>
         <a href="/vouchers" class="subnav-link active">🧾 Phiếu kho</a>
+        <a href="/purchasing" class="subnav-link">🛒 Mua hàng</a>
+        <a href="/delivery" class="subnav-link">🚚 Giao hàng</a>
         <a href="/projects" class="subnav-link">📁 Dự án</a>
         <a href="/reports" class="subnav-link reports-nav-link" id="navLinkReports" style="display:none;">📊 Báo cáo</a>
         <a href="/admin" class="subnav-link subnav-admin" id="navLinkAdmin" style="display:none;">🛡️ Quản trị</a>
@@ -999,6 +1001,9 @@
              </div>`
           : '';
 
+        const poHintHtml = it._poOrderedQty != null
+          ? `<div style="font-size:11px; color:${Number(it.qty) > Number(it._poRemainingQty || 0) ? '#B91C1C' : '#0369A1'}; font-weight:700; margin-top:2px;">PO Đặt: ${numVN(it._poOrderedQty)} · Đã nhận: ${numVN(it._poReceivedQty || 0)} · Còn: ${numVN(it._poRemainingQty || 0)}${Number(it.qty) > Number(it._poRemainingQty || 0) ? ' ⚠️ Vượt SL PO!' : ''}</div>`
+          : '';
         return `
           <tr>
             <td>
@@ -1008,6 +1013,7 @@
               </select>
               <input type="text" class="vi-prof-inp" data-idx="${idx}" value="${escapeHtml(it.profile)}" placeholder="Hoặc gõ tên vật tư mới..." style="margin-top:4px; min-height:30px; font-size:12.5px;">
               <div style="font-size:11px; color:#0F766E; margin-top:2px;">${escapeHtml(curStockHint)}</div>
+              ${poHintHtml}
             </td>
             <td>
               <select class="vi-grp-sel" data-idx="${idx}" style="min-height:30px; font-size:12px; margin-bottom:4px;">
@@ -1103,7 +1109,10 @@
       updateVoucherTotalDisp();
     }
 
+    let activePoIdForVoucher = null;
+
     function openNewVoucherModal(type = 'IN') {
+      activePoIdForVoucher = null;
       $('hidEditVoucherId').value = '';
       $('voucherModalTitle').textContent = `🧾 Lập ${getVoucherTypeMeta(type).label}`;
       $('selVoucherType').value = type;
@@ -1169,6 +1178,7 @@
         voucherType: vType,
         supplierId: vType === 'IN' ? ($('selVoucherSupplier').value || null) : null,
         projectId: $('selVoucherProject').value || null,
+        poId: vType === 'IN' ? (activePoIdForVoucher || null) : null,
         department: ($('inpVoucherDept').value || '').trim(),
         machineName: ($('inpVoucherMachine') ? $('inpVoucherMachine').value : '').trim(),
         recipientName: ($('inpVoucherRecipient') ? $('inpVoucherRecipient').value : '').trim(),
@@ -1494,7 +1504,7 @@
       };
 
       let _handledInitialQuery = false;
-      function handleInitialUrlQuery() {
+      async function handleInitialUrlQuery() {
         if (_handledInitialQuery) return;
         _handledInitialQuery = true;
         const params = new URLSearchParams(window.location.search);
@@ -1511,7 +1521,48 @@
         }
         if (qNew && ['IN', 'OUT', 'RETURN', 'ADJUST'].includes(qNew.toUpperCase())) {
           openNewVoucherModal(qNew.toUpperCase());
-          if (qFrom === 'reorder') {
+          const qPo = params.get('po');
+          if (qPo && qNew.toUpperCase() === 'IN' && window.SupabaseDB && typeof window.SupabaseDB.getPurchaseOrderById === 'function') {
+            try {
+              const po = await window.SupabaseDB.getPurchaseOrderById(qPo);
+              if (po) {
+                activePoIdForVoucher = po.id;
+                $('voucherModalTitle').textContent = `🧾 Lập Phiếu Nhập Kho từ PO ${po.poCode}`;
+                if (po.supplierId && $('selVoucherSupplier')) $('selVoucherSupplier').value = po.supplierId;
+                if (po.projectId && $('selVoucherProject')) $('selVoucherProject').value = po.projectId;
+                if ($('inpVoucherNote')) $('inpVoucherNote').value = `Nhập kho theo Đơn đặt hàng ${po.poCode}`;
+                const remItems = (po.items || [])
+                  .map(it => {
+                    const ord = Number(it.orderedQty || 0);
+                    const rec = Number(it.receivedQty || 0);
+                    const rem = Math.max(0, ord - rec);
+                    if (rem <= 0) return null;
+                    const invMatch = inventoryItems.find(x => x.id === it.inventoryId || x.profileName === it.itemName);
+                    return {
+                      inventoryId: it.inventoryId || (invMatch ? invMatch.id : ''),
+                      poItemId: it.id,
+                      profile: it.itemName || (invMatch ? invMatch.profileName : ''),
+                      materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
+                      unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
+                      lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
+                      qty: rem,
+                      unitPrice: Number(it.unitPrice || 0),
+                      note: `Theo PO ${po.poCode}`,
+                      _poOrderedQty: ord,
+                      _poReceivedQty: rec,
+                      _poRemainingQty: rem
+                    };
+                  })
+                  .filter(Boolean);
+                if (remItems.length) {
+                  draftItems = remItems;
+                  renderVoucherItemsRows();
+                }
+              }
+            } catch (err) {
+              console.warn('Không tải được PO:', err);
+            }
+          } else if (qFrom === 'reorder') {
             try {
               const raw = sessionStorage.getItem('xp_reorder_draft_pnk');
               if (raw) {

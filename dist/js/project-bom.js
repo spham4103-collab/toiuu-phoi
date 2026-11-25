@@ -889,10 +889,27 @@
     var zaloText = msgLines.join('\n');
 
     var mode = prompt(
-      'Tìm thấy ' + shortages.length + ' vật tư cần mua.\nChọn hành động:\n1 = Xuất file Excel Đề nghị mua hàng\n2 = Copy tin nhắn Zalo\n3 = Đẩy sang Phiếu Nhập Kho (PNK) nháp',
-      '1'
+      'Tìm thấy ' + shortages.length + ' vật tư cần mua.\nChọn hành động:\n1 = Xuất file Excel Đề nghị mua hàng\n2 = Copy tin nhắn Zalo\n3 = Đẩy sang Phiếu Nhập Kho (PNK) nháp\n4 = 📨 Gửi thành Đề nghị mua hàng (PR)',
+      '4'
     );
     if (!mode) return;
+    if (mode.trim() === '4') {
+      var prItems = shortages.map(function (s) {
+        return {
+          inventoryId: s.inv ? s.inv.id : null,
+          projectRequestId: s.req ? s.req.id : null,
+          projectId: STATE.project ? STATE.project.id : null,
+          itemName: s.inv ? s.inv.profileName : s.req.itemName,
+          unit: s.req.unit || (s.inv && s.inv.unit) || 'cái',
+          requestedQty: s.needBuy,
+          estimatedUnitPrice: s.inv ? Number(s.inv.avgCost || 0) : 0,
+          note: 'Mua cho dự án ' + (STATE.project ? STATE.project.name : '') + (s.req.specDimensions ? ' (' + s.req.specDimensions + ')' : '')
+        };
+      });
+      localStorage.setItem('xp_pr_draft_items', JSON.stringify(prItems));
+      window.location.href = '/purchasing?new=PR&from=bom';
+      return;
+    }
     if (mode.trim() === '2') {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(zaloText).then(function () {
