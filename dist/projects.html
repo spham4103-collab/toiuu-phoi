@@ -458,6 +458,10 @@
           <input type="text" id="inpFormCustomer" placeholder="Ví dụ: Công ty Cơ Khí An Bình">
         </div>
         <div>
+          <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Số PO Khách hàng</label>
+          <input type="text" id="inpFormCustomerPo" placeholder="Ví dụ: PO-KH-2026-089">
+        </div>
+        <div>
           <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Hạn giao hàng (tùy chọn)</label>
           <input type="date" id="inpFormDueDate">
         </div>
@@ -518,11 +522,15 @@
 
     function applyLoggedInUserUI(found) {
       currentUser = found;
-      const isOp = !found || found.role === 'operator';
+      const canEditProj = Boolean(found && (found.role === 'admin' || found.role === 'engineer' || found.role === 'sales'));
+      const isOp = !canEditProj;
       const isSuperAdmin = Boolean(found && found.role === 'admin');
+      const rMeta = (window.SharedUI && typeof window.SharedUI.getRoleMeta === 'function')
+        ? window.SharedUI.getRoleMeta(found && found.role)
+        : { icon: isOp ? '👷' : '📐', shortLabel: isOp ? 'Thợ CNC' : 'Kỹ sư' };
       document.body.classList.toggle('role-operator', isOp);
-      $('userIcon').textContent = isOp ? '👷' : (isSuperAdmin ? '👑' : '📐');
-      $('userNameDisp').textContent = `${found.fullName || found.username} [${isOp ? 'Thợ CNC' : (isSuperAdmin ? 'Admin' : 'Kỹ sư')}]`;
+      $('userIcon').textContent = rMeta.icon;
+      $('userNameDisp').textContent = `${found.fullName || found.username} [${rMeta.shortLabel}]`;
       $('userBadgePill').style.background = isOp ? '#FFF7ED' : '#F0FDFA';
       $('userBadgePill').style.color = isOp ? '#C2410C' : '#0F766E';
       $('userBadgePill').style.borderColor = isOp ? '#FDBA74' : '#99F6E4';
@@ -576,6 +584,14 @@
         showLoginGate();
       } finally {
         window.SupabaseDB.setLoading(false);
+        if (!window._xpProjQueryHandled) {
+          window._xpProjQueryHandled = true;
+          const qPid = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('project');
+          if (qPid && window.ProjectBomModal && projectsList.some(x => String(x.id) === String(qPid))) {
+            const inv = await window.SupabaseDB.getInventory().catch(() => []);
+            window.ProjectBomModal.open(qPid, { projectsList, inventoryItems: inv, currentUser });
+          }
+        }
       }
     }
 
@@ -604,6 +620,14 @@
         errEl.style.display = 'block';
       } finally {
         window.SupabaseDB.setLoading(false);
+        if (!window._xpProjQueryHandled) {
+          window._xpProjQueryHandled = true;
+          const qPid = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('project');
+          if (qPid && window.ProjectBomModal && projectsList.some(x => String(x.id) === String(qPid))) {
+            const inv = await window.SupabaseDB.getInventory().catch(() => []);
+            window.ProjectBomModal.open(qPid, { projectsList, inventoryItems: inv, currentUser });
+          }
+        }
       }
     }
 
@@ -656,6 +680,14 @@
         showToast('❌ Không thể tải dữ liệu từ máy chủ Supabase!');
       } finally {
         window.SupabaseDB.setLoading(false);
+        if (!window._xpProjQueryHandled) {
+          window._xpProjQueryHandled = true;
+          const qPid = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('project');
+          if (qPid && window.ProjectBomModal && projectsList.some(x => String(x.id) === String(qPid))) {
+            const inv = await window.SupabaseDB.getInventory().catch(() => []);
+            window.ProjectBomModal.open(qPid, { projectsList, inventoryItems: inv, currentUser });
+          }
+        }
       }
     }
 
@@ -795,7 +827,18 @@
                   ${isTrash ? '<span class="pill pill-red">Đã xóa</span>' : ''}
                 </div>
               </div>
-              ${p.customer ? `<div style="font-size:13px; color:#475569; margin-bottom:3px;">Khách hàng: <b>${escapeHtml(p.customer)}</b></div>` : ''}
+              ${p.customer || p.customerPoNo ? `<div style="font-size:13px; color:#475569; margin-bottom:3px;">${p.customer ? `Khách hàng: <b>${escapeHtml(p.customer)}</b>` : ''}${p.customer && p.customerPoNo ? ' · ' : ''}${p.customerPoNo ? `PO: <b style="color:#0F766E;">${escapeHtml(p.customerPoNo)}</b>` : ''}</div>` : ''}
+              ${(() => {
+                const wfMap = {
+                  waiting_drawings: ['pill-amber', '📐 Chờ bản vẽ KT'],
+                  drawings_ready: ['pill-slate', '✅ KT đã giao bản vẽ'],
+                  bom_submitted: ['pill-amber', '📤 Đã chuyển Kho & SX'],
+                  in_production: ['pill-green', '⚙️ Đang SX / Cấp phôi'],
+                  completed: ['pill-green', '🏁 Hoàn thành']
+                };
+                const wf = wfMap[p.workflowStatus || 'waiting_drawings'] || wfMap.waiting_drawings;
+                return `<div style="margin-bottom:5px;"><span class="pill ${wf[0]}">${wf[1]}</span></div>`;
+              })()}
               ${p.notes ? `<div style="font-size:12px; color:#64748B; font-style:italic; margin-bottom:6px;">${escapeHtml(p.notes)}</div>` : ''}
               ${stageBadgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">${stageBadgesHtml}</div>` : ''}
               <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;">
@@ -1096,6 +1139,7 @@
         $('modalFormTitle').textContent = 'Cập nhật thông tin Dự án';
         $('inpFormName').value = p.name || '';
         $('inpFormCustomer').value = p.customer || '';
+        if ($('inpFormCustomerPo')) $('inpFormCustomerPo').value = p.customerPoNo || '';
         $('inpFormNotes').value = p.notes || '';
         $('inpFormDueDate').value = (p.data && p.data.dueDate) ? p.data.dueDate : '';
         const stages = (p.data && Array.isArray(p.data.workStages)) ? p.data.workStages : ['laser_tube'];
@@ -1104,6 +1148,7 @@
         $('modalFormTitle').textContent = 'Tạo Dự Án Mới';
         $('inpFormName').value = `Dự án #${projectsList.length + 1} (${new Date().toLocaleDateString('vi-VN')})`;
         $('inpFormCustomer').value = '';
+        if ($('inpFormCustomerPo')) $('inpFormCustomerPo').value = '';
         $('inpFormNotes').value = '';
         $('inpFormDueDate').value = '';
         stageChecks.forEach(chk => { chk.checked = (chk.value === 'laser_tube'); });
@@ -1116,6 +1161,7 @@
       const name = ($('inpFormName').value || '').trim();
       if (!name) { alert('Vui lòng nhập tên dự án!'); return; }
       const customer = ($('inpFormCustomer').value || '').trim();
+      const customerPoNo = ($('inpFormCustomerPo') ? $('inpFormCustomerPo').value : '').trim();
       const notes = ($('inpFormNotes').value || '').trim();
       const dueDate = ($('inpFormDueDate').value || '').trim();
       const workStages = Array.from(document.querySelectorAll('#grpFormStages input[type="checkbox"]:checked')).map(c => c.value);
@@ -1128,16 +1174,16 @@
           const nextData = Object.assign({}, (p && p.data) || {}, { dueDate, workStages });
           let updated;
           if (p) {
-            updated = await window.SupabaseDB.saveProject(Object.assign({}, p, { name, customer, notes, data: nextData, updatedAt: now }));
+            updated = await window.SupabaseDB.saveProject(Object.assign({}, p, { name, customer, customerPoNo, notes, data: nextData, updatedAt: now }));
             Object.assign(p, updated);
           } else {
-            updated = await window.SupabaseDB.updateProjectFields(editingId, { name, customer, notes });
+            updated = await window.SupabaseDB.updateProjectFields(editingId, { name, customer, customerPoNo, notes });
           }
           showToast(`✓ Đã cập nhật "${name}"`);
         } else {
           const newProj = {
             id: makeId('proj'),
-            name, customer, notes,
+            name, customer, customerPoNo, notes,
             isLocked: false, isTrashed: false, isDraft: false, source: 'web',
             createdAt: now, updatedAt: now,
             data: {
@@ -1162,6 +1208,14 @@
         showToast('❌ Lỗi lưu dự án: ' + err.message);
       } finally {
         window.SupabaseDB.setLoading(false);
+        if (!window._xpProjQueryHandled) {
+          window._xpProjQueryHandled = true;
+          const qPid = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('project');
+          if (qPid && window.ProjectBomModal && projectsList.some(x => String(x.id) === String(qPid))) {
+            const inv = await window.SupabaseDB.getInventory().catch(() => []);
+            window.ProjectBomModal.open(qPid, { projectsList, inventoryItems: inv, currentUser });
+          }
+        }
       }
     }
 
@@ -1352,6 +1406,14 @@
         return null;
       } finally {
         window.SupabaseDB.setLoading(false);
+        if (!window._xpProjQueryHandled) {
+          window._xpProjQueryHandled = true;
+          const qPid = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('project');
+          if (qPid && window.ProjectBomModal && projectsList.some(x => String(x.id) === String(qPid))) {
+            const inv = await window.SupabaseDB.getInventory().catch(() => []);
+            window.ProjectBomModal.open(qPid, { projectsList, inventoryItems: inv, currentUser });
+          }
+        }
       }
     }
 

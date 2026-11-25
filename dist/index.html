@@ -534,28 +534,38 @@
     }
 
     function startHomeQrScan() {
-      if (!window.QrScanner || typeof window.QrScanner.open !== 'function') {
+      const scanner = window.WorkshopQrScanner || window.QrScanner;
+      if (!scanner || typeof scanner.open !== 'function') {
         showToast('⚠️ Chưa tải được bộ quét QR.');
         return;
       }
-      window.QrScanner.open(raw => {
-        const parsed = window.QrScanner.parsePayload ? window.QrScanner.parsePayload(raw) : { kind: 'RAW', raw };
-        let bodyHtml = `<div style="font-family:monospace;font-size:12px;color:#475569;margin-bottom:8px;">Mã QR: ${escapeHtml(raw)}</div>`;
-        if (parsed.kind === 'INV') {
-          const item = invList.find(x => String(x.id) === String(parsed.id) || (parsed.sku && x.sku === parsed.sku));
-          bodyHtml += item
-            ? `<div><b>${escapeHtml(item.profileName)}</b></div><div>Tồn kho: <b>${numVN(item.stockQty)} ${escapeHtml(item.unit || '')}</b></div><div>Vị trí kệ: <b>${escapeHtml(item.rackLocation || 'Chưa gán kệ')}</b></div>`
-            : '<div>Không tìm thấy vật tư khớp mã QR trong kho.</div>';
-        } else if (parsed.kind === 'RACK') {
-          const atRack = invList.filter(x => (x.rackLocation || '').toLowerCase() === String(parsed.rack || '').toLowerCase());
-          bodyHtml += `<div><b>📍 Kệ: ${escapeHtml(parsed.rack)}</b> (${atRack.length} mã vật tư)</div>` +
-            atRack.slice(0, 10).map(x => `<div style="margin-top:4px;">• ${escapeHtml(x.profileName)}: <b>${numVN(x.stockQty)} ${escapeHtml(x.unit || '')}</b></div>`).join('');
-        } else {
-          const matched = invList.filter(x => `${x.profileName} ${x.sku || ''}`.toLowerCase().includes(String(raw).toLowerCase())).slice(0, 5);
-          bodyHtml += matched.length ? matched.map(x => `<div>• <b>${escapeHtml(x.profileName)}</b> — Tồn: ${numVN(x.stockQty)} (${escapeHtml(x.rackLocation || '—')})</div>`).join('') : '<div>Không nhận diện được mã QR kho.</div>';
+      scanner.open({
+        title: '📷 Quét QR Tra Kho & Phiếu ĐNVT',
+        subtitle: 'Quét tem Vật tư (XP:INV), Kệ (XP:RACK) hoặc Phiếu ĐNVT (XP:PROJ)',
+        continuous: false,
+        onScan: (parsed) => {
+          if (parsed && parsed.kind === 'PROJ' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openProjectLookupModal === 'function') {
+            window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
+            return;
+          }
+          const raw = (parsed && parsed.raw) || String(parsed || '');
+          let bodyHtml = `<div style="font-family:monospace;font-size:12px;color:#475569;margin-bottom:8px;">Mã QR: ${escapeHtml(raw)}</div>`;
+          if (parsed && parsed.kind === 'INV') {
+            const item = invList.find(x => String(x.id) === String(parsed.id) || (parsed.sku && x.sku === parsed.sku));
+            bodyHtml += item
+              ? `<div><b>${escapeHtml(item.profileName)}</b></div><div>Tồn kho: <b>${numVN(item.stockQty)} ${escapeHtml(item.unit || '')}</b></div><div>Vị trí kệ: <b>${escapeHtml(item.rackLocation || 'Chưa gán kệ')}</b></div>`
+              : '<div>Không tìm thấy vật tư khớp mã QR trong kho.</div>';
+          } else if (parsed && parsed.kind === 'RACK') {
+            const atRack = invList.filter(x => (x.rackLocation || '').toLowerCase() === String(parsed.rack || '').toLowerCase());
+            bodyHtml += `<div><b>📍 Kệ: ${escapeHtml(parsed.rack)}</b> (${atRack.length} mã vật tư)</div>` +
+              atRack.slice(0, 10).map(x => `<div style="margin-top:4px;">• ${escapeHtml(x.profileName)}: <b>${numVN(x.stockQty)} ${escapeHtml(x.unit || '')}</b></div>`).join('');
+          } else {
+            const matched = invList.filter(x => `${x.profileName} ${x.sku || ''}`.toLowerCase().includes(String(raw).toLowerCase())).slice(0, 5);
+            bodyHtml += matched.length ? matched.map(x => `<div>• <b>${escapeHtml(x.profileName)}</b> — Tồn: ${numVN(x.stockQty)} (${escapeHtml(x.rackLocation || '—')})</div>`).join('') : '<div>Không nhận diện được mã QR kho.</div>';
+          }
+          $('homeQrBody').innerHTML = bodyHtml;
+          $('modalHomeQrResult').classList.add('open');
         }
-        $('homeQrBody').innerHTML = bodyHtml;
-        $('modalHomeQrResult').classList.add('open');
       });
     }
 

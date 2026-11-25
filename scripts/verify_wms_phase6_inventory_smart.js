@@ -119,7 +119,7 @@ function testSmartInventoryFiles() {
   assert(sbJs.includes('mergeInventoryItems'), 'supabaseClient.js must export mergeInventoryItems');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v31'), 'sw.js must be v31');
+  assert(sw.includes('toiuu-phoi-pwa-v32'), 'sw.js must be v32');
   assert(sw.includes('/js/inventory-smart.js'), 'sw.js must cache /js/inventory-smart.js');
   assert(!sw.includes('/toi-uu-engine.js') && !sw.includes('/cnc'), 'sw.js must not cache nesting/cnc assets');
 

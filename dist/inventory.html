@@ -3801,6 +3801,10 @@
           return;
         }
 
+        if (parsed.kind === 'PROJ' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openProjectLookupModal === 'function') {
+          window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
+          return;
+        }
         if (parsed.kind === 'INV') {
           const item = inventoryItems.find(x => String(x.id) === String(parsed.id));
           if (!item) {

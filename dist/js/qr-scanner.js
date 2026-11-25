@@ -68,6 +68,9 @@
     if (raw.indexOf('XP:RACK:') === 0) {
       return { kind: 'RACK', rack: raw.slice(8).trim(), raw: raw };
     }
+    if (raw.indexOf('XP:PROJ:') === 0) {
+      return { kind: 'PROJ', id: raw.slice(8).trim(), raw: raw };
+    }
     return { kind: 'RAW', raw: raw };
   }
 
@@ -219,10 +222,136 @@
     }
   }
 
+  async function openProjectLookupModal(projectId, currentUser) {
+    if (!projectId || !global.SupabaseDB) return;
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+    var modal = document.getElementById('xpQrProjLookupModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'xpQrProjLookupModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.58);z-index:3600;display:none;align-items:center;justify-content:center;padding:14px;';
+      modal.innerHTML =
+        '<div style="background:#fff;border-radius:16px;border:1.5px solid #5EEAD4;width:min(820px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 48px rgba(0,0,0,0.28);">' +
+        '  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#F0FDFA;border-bottom:1px solid #CCFBF1;">' +
+        '    <h3 id="xpQrProjTitle" style="margin:0;font-size:16px;color:#0B3B38;">📋 Trạng Thái Vật Tư Đơn Hàng</h3>' +
+        '    <button type="button" id="xpQrProjClose" class="btn btn-soft btn-sm">✕ Đóng</button>' +
+        '  </div>' +
+        '  <div id="xpQrProjBody" style="padding:16px 18px;overflow-y:auto;font-size:13px;">Đang tải dữ liệu...</div>' +
+        '  <div id="xpQrProjFoot" style="padding:12px 18px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;"></div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      document.getElementById('xpQrProjClose').onclick = function () { modal.style.display = 'none'; };
+    }
+    modal.style.display = 'flex';
+    var bodyEl = document.getElementById('xpQrProjBody');
+    var footEl = document.getElementById('xpQrProjFoot');
+    bodyEl.innerHTML = 'Đang tải thông tin đơn hàng & tồn kho...';
+    footEl.innerHTML = '';
+
+    try {
+      var resAll = await Promise.all([
+        global.SupabaseDB.getProjectById(projectId).catch(function () { return null; }),
+        global.SupabaseDB.getProjectMaterialRequests(projectId).catch(function () { return []; }),
+        global.SupabaseDB.getInventory().catch(function () { return []; }),
+        global.SupabaseDB.getProjectAttachments(projectId).catch(function () { return []; })
+      ]);
+      var proj = resAll[0] || { id: projectId, name: projectId };
+      var reqs = resAll[1] || [];
+      var invs = resAll[2] || [];
+      var atts = resAll[3] || [];
+      var invMap = {};
+      invs.forEach(function (i) { invMap[String(i.id)] = i; });
+
+      document.getElementById('xpQrProjTitle').textContent = '📋 Đơn hàng: ' + (proj.name || projectId);
+      var readyItems = [];
+      var rowsHtml = reqs.length ? reqs.map(function (r) {
+        var inv = r.inventoryId ? invMap[String(r.inventoryId)] : null;
+        var alloc = Number(r.allocatedQty || 0);
+        var issued = Number(r.issuedQty || 0);
+        var reqQ = Number(r.requiredQty || 0);
+        var rack = inv ? (inv.rackLocation || 'Kho') : '—';
+        var stHtml = '';
+        if (issued >= reqQ && reqQ > 0) {
+          stHtml = '<span style="background:#F1F5F9;color:#475569;padding:2px 8px;border-radius:999px;font-weight:700;font-size:11.5px;">⚪ Đã xuất SX</span>';
+        } else if (alloc > 0) {
+          stHtml = '<span style="background:#DCFCE7;color:#15803D;padding:2px 8px;border-radius:999px;font-weight:700;font-size:11.5px;">🟢 Sẵn sàng lĩnh (' + alloc + ') · Kệ: ' + esc(rack) + '</span>';
+          readyItems.push({
+            request_id: r.id,
+            inventory_id: r.inventoryId,
+            item_name: r.itemName,
+            qty: alloc,
+            unit: r.unit,
+            rack_location: rack
+          });
+        } else if (r.expectedDate) {
+          var pp = String(r.expectedDate).split('-');
+          stHtml = '<span style="background:#FEF3C7;color:#B45309;padding:2px 8px;border-radius:999px;font-weight:700;font-size:11.5px;">🟡 Đang về ' + (pp.length === 3 ? pp[2] + '/' + pp[1] : esc(r.expectedDate)) + '</span>';
+        } else {
+          stHtml = '<span style="background:#FEE2E2;color:#B91C1C;padding:2px 8px;border-radius:999px;font-weight:700;font-size:11.5px;">🔴 Thiếu kho – Chờ mua</span>';
+        }
+        return '<tr><td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;"><b>' + esc(r.itemName) + '</b></td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;text-align:right;">' + reqQ + ' ' + esc(r.unit) + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;text-align:right;">' + issued + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;">' + stHtml + '</td></tr>';
+      }).join('') : '<tr><td colspan="4" style="padding:14px;text-align:center;color:#64748B;">Chưa có dòng vật tư nào.</td></tr>';
+
+      var attHtml = atts.length ? '<div style="margin-top:12px;"><b>📐 Hồ sơ / Bản vẽ đính kèm:</b><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">' +
+        atts.map(function (a) {
+          return '<button type="button" class="btn btn-soft btn-sm xp-qr-att-dl" data-path="' + esc(a.storagePath) + '">⬇️ ' + esc(a.fileName) + '</button>';
+        }).join('') + '</div></div>' : '';
+
+      bodyEl.innerHTML =
+        '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;padding:10px;background:#F8FAFC;border-radius:10px;">' +
+        '  <span><b>PO Khách hàng:</b> ' + esc(proj.customerPoNo || '—') + '</span>' +
+        '  <span><b>Khách hàng:</b> ' + esc(proj.customer || '—') + '</span>' +
+        '</div>' +
+        '<div style="overflow-x:auto;border:1px solid #E2E8F0;border-radius:10px;">' +
+        '  <table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+        '    <thead><tr style="background:#F1F5F9;"><th style="padding:8px;text-align:left;">Vật tư / Quy cách</th><th style="padding:8px;text-align:right;">Yêu cầu</th><th style="padding:8px;text-align:right;">Đã xuất</th><th style="padding:8px;text-align:left;">Trạng thái &amp; Vị trí kệ</th></tr></thead>' +
+        '    <tbody>' + rowsHtml + '</tbody>' +
+        '  </table>' +
+        '</div>' + attHtml;
+
+      bodyEl.querySelectorAll('.xp-qr-att-dl').forEach(function (b) {
+        b.onclick = async function () {
+          var url = await global.SupabaseDB.getProjectAttachmentSignedUrl(b.getAttribute('data-path'), 3600);
+          if (url) window.open(url, '_blank', 'noopener');
+        };
+      });
+
+      var isWh = currentUser && (currentUser.role === 'warehouse' || currentUser.role === 'admin');
+      var fHtml = '<a href="/projects?id=' + encodeURIComponent(projectId) + '" class="btn btn-soft btn-sm">📁 Mở chi tiết dự án</a>';
+      if (isWh && readyItems.length > 0) {
+        fHtml = '<button type="button" id="xpQrBtnCreatePxk" class="btn btn-cta btn-sm">⚡ Tạo Phiếu Xuất Kho (PXK) giao Sản xuất</button> ' + fHtml;
+      }
+      footEl.innerHTML = fHtml;
+      var btnPxk = document.getElementById('xpQrBtnCreatePxk');
+      if (btnPxk) {
+        btnPxk.onclick = function () {
+          try {
+            sessionStorage.setItem('xp_crossdock_pxk', JSON.stringify({
+              projectId: projectId,
+              projectName: proj.name || projectId,
+              items: readyItems
+            }));
+          } catch (_) {}
+          window.location.href = '/vouchers?new=OUT&from=crossdock';
+        };
+      }
+    } catch (err) {
+      bodyEl.innerHTML = '<div style="color:#B91C1C;">❌ Không tải được thông tin đơn hàng: ' + esc(err.message || err) + '</div>';
+    }
+  }
+
   global.WorkshopQrScanner = {
     parseQrPayload: parseQrPayload,
     open: open,
     close: closeScanner,
-    playBeep: playBeep
+    playBeep: playBeep,
+    openProjectLookupModal: openProjectLookupModal
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -326,6 +326,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       id: row.id,
       name: row.name || '',
       customer: row.customer || '',
+      customerPoNo: row.customer_po_no || '',
+      workflowStatus: row.workflow_status || 'waiting_drawings',
+      drawingsHandedOverAt: row.drawings_handed_over_at || null,
+      bomSubmittedAt: row.bom_submitted_at || null,
       notes: row.notes || '',
       isLocked: Boolean(row.is_locked),
       isTrashed: Boolean(row.is_trashed),
@@ -354,6 +358,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       id: row.id,
       name: row.name || '',
       customer: row.customer || '',
+      customerPoNo: row.customer_po_no || '',
+      workflowStatus: row.workflow_status || 'waiting_drawings',
+      drawingsHandedOverAt: row.drawings_handed_over_at || null,
+      bomSubmittedAt: row.bom_submitted_at || null,
       notes: row.notes || '',
       isLocked: Boolean(row.is_locked),
       isTrashed: Boolean(row.is_trashed),
@@ -385,6 +393,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       id: String(proj.id),
       name: String(proj.name || 'Dự án không tên'),
       customer: String(proj.customer || ''),
+      customer_po_no: String(proj.customerPoNo != null ? proj.customerPoNo : (proj.customer_po_no || '')),
+      workflow_status: String(proj.workflowStatus || proj.workflow_status || 'waiting_drawings'),
       notes: String(proj.notes || ''),
       is_locked: Boolean(proj.isLocked != null ? proj.isLocked : proj.is_locked),
       is_trashed: Boolean(proj.isTrashed != null ? proj.isTrashed : proj.is_trashed),
@@ -641,6 +651,15 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .upsert(dbRow, { onConflict: 'id' })
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /customer_po_no|workflow_status/i)) {
+      delete dbRow.customer_po_no;
+      delete dbRow.workflow_status;
+      res = await client
+        .from('projects')
+        .upsert(dbRow, { onConflict: 'id' })
+        .select()
+        .single();
+    }
     var saved = throwIfError(res, 'Không lưu được dự án');
     return mapProjectFromDb(saved);
   }
@@ -2981,6 +3000,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       projectId: row.project_id,
       fileName: String(row.file_name || ''),
       fileType: String(row.file_type || 'other'),
+      docCategory: String(row.doc_category || 'drawing'),
       storagePath: String(row.storage_path || ''),
       fileSize: Number(row.file_size) || 0,
       note: String(row.note || ''),
@@ -3115,7 +3135,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return rows.map(mapProjectAttachmentFromDb);
   }
 
-  async function uploadProjectAttachment(projectId, file, note) {
+  async function uploadProjectAttachment(projectId, file, note, docCategory) {
     if (!projectId || !file) throw new Error('Thiếu thông tin dự án hoặc tệp đính kèm');
     if (file.size > 10 * 1024 * 1024) {
       throw new Error('Dung lượng tệp vượt quá giới hạn an toàn 10MB');
@@ -3137,14 +3157,20 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     else if (/\.(dxf|dwg|igs|iges|step|stp)$/i.test(ext)) fType = 'cad';
     else if (/\.(png|jpg|jpeg|webp|gif)$/i.test(ext)) fType = 'image';
 
-    var insRes = await client.from('project_attachments').insert({
+    var insPayload = {
       project_id: String(projectId),
       file_name: String(file.name || safeFile),
       file_type: fType,
+      doc_category: String(docCategory || 'drawing'),
       storage_path: storagePath,
       file_size: Number(file.size) || 0,
       note: String(note || '').trim()
-    }).select().single();
+    };
+    var insRes = await client.from('project_attachments').insert(insPayload).select().single();
+    if (insRes && insRes.error && _isMissingColumnError(insRes.error, /doc_category/i)) {
+      delete insPayload.doc_category;
+      insRes = await client.from('project_attachments').insert(insPayload).select().single();
+    }
     return mapProjectAttachmentFromDb(throwIfError(insRes, 'Không lưu được thông tin file đính kèm'));
   }
 
@@ -4023,7 +4049,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       var client = getClient();
       var res = await client
         .from('project_material_requests')
-        .select('id, project_id, work_stage, inventory_id, item_name, spec_dimensions, unit, required_qty, issued_qty, allocated_qty, ready_notified_at, projects(id, name, customer), inventory(id, profile_name, rack_location, stock_qty, reserved_qty)')
+        .select('id, project_id, work_stage, inventory_id, item_name, spec_dimensions, unit, required_qty, issued_qty, allocated_qty, ready_notified_at, projects(id, name, customer, customer_po_no), inventory(id, profile_name, rack_location, stock_qty, reserved_qty)')
         .gt('allocated_qty', 0)
         .order('updated_at', { ascending: false });
       if (res && res.error) return [];
@@ -4037,6 +4063,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           project_id: r.project_id,
           projectName: proj.name || r.project_id,
           project_name: proj.name || r.project_id,
+          customerPoNo: proj.customer_po_no || '',
+          customer_po_no: proj.customer_po_no || '',
           customer: proj.customer || '',
           workStage: r.work_stage || '',
           inventoryId: r.inventory_id || inv.id || null,
@@ -4081,6 +4109,16 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       var client = getClient();
       await client.rpc('mark_notification_read', { p_notification_id: notificationId });
     } catch (e) {}
+  }
+
+  async function transitionProjectWorkflow(projectId, nextStatus, note) {
+    var client = getClient();
+    var res = await client.rpc('transition_project_workflow', {
+      p_project_id: String(projectId),
+      p_next_status: String(nextStatus),
+      p_note: note ? String(note) : null
+    });
+    return throwIfError(res, 'Không chuyển được trạng thái quy trình đơn hàng');
   }
 
   function subscribeNotifications(callback) {
@@ -4229,6 +4267,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     getWmsNotifications: getWmsNotifications,
     markNotificationRead: markNotificationRead,
     subscribeNotifications: subscribeNotifications,
+    transitionProjectWorkflow: transitionProjectWorkflow,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
     updateCutStatus: updateCutStatus,

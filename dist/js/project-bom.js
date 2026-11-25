@@ -275,6 +275,7 @@
       dueBadge.innerHTML = '';
     }
     var metaParts = [];
+    if (p.customerPoNo) metaParts.push('PO: <b style="color:#0F766E;">' + escapeHtml(p.customerPoNo) + '</b>');
     if (p.customer) metaParts.push('Khách hàng: <b>' + escapeHtml(p.customer) + '</b>');
     if (p.notes) metaParts.push(escapeHtml(p.notes));
     $('bomModalMeta').innerHTML = metaParts.join(' · ') || 'Chưa có ghi chú khách hàng';
@@ -466,10 +467,18 @@
       '</div>'
     ) : '';
 
+    var catLabels = {
+      customer_po: ['PO Khách hàng', '#FEF3C7', '#B45309'],
+      drawing: ['Bản vẽ KT', '#E0F2FE', '#0369A1'],
+      bom_excel: ['Excel ĐNVT', '#DCFCE7', '#15803D'],
+      other: ['Khác', '#F1F5F9', '#475569']
+    };
     var attListHtml = STATE.attachments.length ? STATE.attachments.map(function (a) {
+      var cm = catLabels[a.docCategory] || catLabels.other;
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:#fff;border:1px solid #E2E8F0;border-radius:8px;">' +
         '<div style="min-width:0;">' +
-        '<div style="font-size:12.5px;font-weight:700;color:#0B3B38;word-break:break-word;">📎 ' + escapeHtml(a.fileName) + '</div>' +
+        '<div style="font-size:12.5px;font-weight:700;color:#0B3B38;word-break:break-word;">📎 ' + escapeHtml(a.fileName) +
+          ' <span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;background:' + cm[1] + ';color:' + cm[2] + ';margin-left:4px;">' + cm[0] + '</span></div>' +
         '<div style="font-size:11px;color:#64748B;">' + formatBytes(a.fileSize) + ' · ' + escapeHtml(a.uploadedBy || '') + ' · ' + formatShortDate(a.createdAt) + (a.note ? ' · ' + escapeHtml(a.note) : '') + '</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-shrink:0;">' +
@@ -478,8 +487,36 @@
         '</div></div>';
     }).join('') : '<div style="font-size:12px;color:#64748B;">Chưa có bản vẽ hoặc file đính kèm nào.</div>';
 
+    var wfStatus = (STATE.project && STATE.project.workflowStatus) || 'waiting_drawings';
+    var wfSteps = [
+      { key: 'customer_po', label: '1. PO Khách hàng', done: true },
+      { key: 'drawings_ready', label: '2. Bản vẽ Kỹ thuật', done: wfStatus !== 'waiting_drawings' },
+      { key: 'bom_submitted', label: '3. Đề nghị VT (KD)', done: ['bom_submitted', 'in_production', 'completed'].indexOf(wfStatus) >= 0 },
+      { key: 'in_production', label: '4. Kho cấp phôi & SX', done: ['in_production', 'completed'].indexOf(wfStatus) >= 0 }
+    ];
+    var uRole = STATE.currentUser && STATE.currentUser.role;
+    var wfActionBtn = '';
+    if (wfStatus === 'waiting_drawings' && (uRole === 'engineer' || uRole === 'admin')) {
+      wfActionBtn = '<button type="button" class="btn btn-sm btn-p" id="btnWfHandoverDrawings">✅ Bàn giao bản vẽ cho Kinh doanh</button>';
+    } else if (wfStatus === 'drawings_ready' && (uRole === 'sales' || uRole === 'admin' || uRole === 'engineer')) {
+      wfActionBtn = '<button type="button" class="btn btn-sm btn-cta" id="btnWfSubmitBom">📤 Chuyển ĐNVT sang Kho &amp; Sản xuất</button>';
+    }
+    var wfBarHtml =
+      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 12px;margin-bottom:8px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;">' +
+      '  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;">' +
+      wfSteps.map(function (st, idx) {
+        var bg = st.done ? '#DCFCE7' : '#F1F5F9';
+        var clr = st.done ? '#15803D' : '#64748B';
+        return (idx > 0 ? '<span style="color:#94A3B8;">→</span>' : '') +
+          '<span style="padding:3px 9px;border-radius:999px;font-weight:700;background:' + bg + ';color:' + clr + ';">' + (st.done ? '✓ ' : '') + st.label + '</span>';
+      }).join('') +
+      '  </div>' +
+      (wfActionBtn ? '<div>' + wfActionBtn + '</div>' : '') +
+      '</div>';
+
     $('bomModalBody').innerHTML = [
       '<div class="xp-modal-fixed-top" id="bomStickyEntry">',
+      wfBarHtml,
       '  <div class="bom-toolbar" style="margin-bottom:8px;">',
       '    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
       '      <select id="bomStageFilter" style="padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;font-size:12.5px;">',
@@ -518,7 +555,7 @@
       '  <div class="bom-card">',
       '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">',
       '    <strong style="font-size:13.5px;color:#0B3B38;">📁 Bản vẽ &amp; Hồ sơ đính kèm (' + STATE.attachments.length + ')</strong>',
-      editable ? '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><input type="text" id="bomAttNote" placeholder="Ghi chú file..." style="padding:5px 8px;border:1px solid #CBD5E1;border-radius:7px;font-size:12px;"><label class="btn btn-sm btn-p" style="cursor:pointer;margin:0;">⬆️ Tải file lên (<=10MB)<input type="file" id="inpBomAttFile" accept=".pdf,.dxf,.dwg,.step,.stp,.igs,.iges,.xlsx,.xls,.png,.jpg,.jpeg" style="display:none;"></label></div>' : '',
+      editable ? '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><select id="bomAttCategory" style="padding:5px 8px;border:1px solid #CBD5E1;border-radius:7px;font-size:12px;"><option value="drawing">📐 Bản vẽ kỹ thuật</option><option value="customer_po">📄 PO Khách hàng</option><option value="bom_excel">📊 File Excel ĐNVT gốc</option><option value="other">📎 Khác</option></select><input type="text" id="bomAttNote" placeholder="Ghi chú file..." style="padding:5px 8px;border:1px solid #CBD5E1;border-radius:7px;font-size:12px;"><label class="btn btn-sm btn-p" style="cursor:pointer;margin:0;">⬆️ Tải file lên (<=10MB)<input type="file" id="inpBomAttFile" accept=".pdf,.dxf,.dwg,.step,.stp,.igs,.iges,.xlsx,.xls,.png,.jpg,.jpeg" style="display:none;"></label></div>' : '',
       '  </div>',
       '  <div style="display:flex;flex-direction:column;gap:6px;">' + attListHtml + '</div>',
       '  </div>',
@@ -701,7 +738,11 @@
         try {
           await window.SupabaseDB.bulkAddProjectMaterialRequests(STATE.importPreviewRows);
           var count = STATE.importPreviewRows.length;
+          if (STATE.lastImportFile && typeof window.SupabaseDB.uploadProjectAttachment === 'function') {
+            await window.SupabaseDB.uploadProjectAttachment(STATE.project.id, STATE.lastImportFile, 'File Excel Đề nghị vật tư gốc', 'bom_excel').catch(function () {});
+          }
           STATE.importPreviewRows = null;
+          STATE.lastImportFile = null;
           await refreshData();
           renderModal();
           toast('✓ Đã nhập ' + count + ' dòng vật tư từ Excel');
@@ -721,7 +762,8 @@
           return;
         }
         try {
-          await window.SupabaseDB.uploadProjectAttachment(STATE.project.id, file, ($('bomAttNote') && $('bomAttNote').value) || '');
+          var docCat = ($('bomAttCategory') && $('bomAttCategory').value) || 'drawing';
+          await window.SupabaseDB.uploadProjectAttachment(STATE.project.id, file, ($('bomAttNote') && $('bomAttNote').value) || '', docCat);
           await refreshData();
           renderModal();
           toast('✓ Đã tải lên ' + file.name);
@@ -799,6 +841,36 @@
 
     var btnPur = $('btnBomPurchaseReq');
     if (btnPur) btnPur.addEventListener('click', handlePurchaseExport);
+
+    var btnWfHandover = $('btnWfHandoverDrawings');
+    if (btnWfHandover) {
+      btnWfHandover.addEventListener('click', async function () {
+        if (!confirm('Xác nhận Kỹ thuật đã tải đủ bản vẽ và bàn giao cho Kinh doanh lập Đề nghị vật tư?')) return;
+        try {
+          await window.SupabaseDB.transitionProjectWorkflow(STATE.project.id, 'drawings_ready');
+          STATE.project.workflowStatus = 'drawings_ready';
+          await refreshData();
+          renderModal();
+          if (typeof STATE.opts.onProjectChanged === 'function') STATE.opts.onProjectChanged();
+          toast('✅ Đã bàn giao bản vẽ cho Kinh doanh!');
+        } catch (err) { alert('❌ ' + (err.message || err)); }
+      });
+    }
+
+    var btnWfSubmit = $('btnWfSubmitBom');
+    if (btnWfSubmit) {
+      btnWfSubmit.addEventListener('click', async function () {
+        if (!confirm('Xác nhận chuyển Đề nghị vật tư sang Kho & Sản xuất?')) return;
+        try {
+          await window.SupabaseDB.transitionProjectWorkflow(STATE.project.id, 'bom_submitted');
+          STATE.project.workflowStatus = 'bom_submitted';
+          await refreshData();
+          renderModal();
+          if (typeof STATE.opts.onProjectChanged === 'function') STATE.opts.onProjectChanged();
+          toast('📤 Đã chuyển ĐNVT sang Kho & Sản xuất!');
+        } catch (err) { alert('❌ ' + (err.message || err)); }
+      });
+    }
 
     var btnPrt = $('btnBomPrintReqA4');
     if (btnPrt) btnPrt.addEventListener('click', printBomRequestA4);
@@ -878,6 +950,7 @@
           return;
         }
         STATE.importPreviewRows = parsed;
+        STATE.lastImportFile = file;
         renderBomTab();
       } catch (err) {
         alert('Lỗi đọc file Excel: ' + err.message);
@@ -1035,32 +1108,63 @@
   }
 
   function printBomRequestA4() {
-    var rows = getFilteredRequests();
+    var rows = getFilteredRequests().slice().sort(function (a, b) {
+      return String(a.workStage || '').localeCompare(String(b.workStage || ''));
+    });
     var p = STATE.project || {};
+    var dueDate = (p.data && p.data.dueDate) ? p.data.dueDate : '';
     var w = window.open('', '_blank', 'width=960,height=720');
     if (!w) {
       alert('Trình duyệt đã chặn popup in A4. Vui lòng cho phép mở cửa sổ mới.');
       return;
     }
+    var qrHtml = '';
+    if (typeof qrcode === 'function') {
+      try {
+        var qr = qrcode(0, 'M');
+        qr.addData('XP:PROJ:' + String(p.id || ''));
+        qr.make();
+        qrHtml = qr.createImgTag(3, 2);
+      } catch (_) {}
+    }
     var trs = rows.map(function (r, idx) {
+      var dimKl = [r.specDimensions || '', r.calcWeightKg > 0 ? (numVN(r.calcWeightKg) + ' kg') : ''].filter(Boolean).join(' · ') || '—';
       return '<tr>' +
         '<td style="text-align:center;">' + (idx + 1) + '</td>' +
         '<td>' + escapeHtml(getStageMeta(r.workStage).shortLabel) + '</td>' +
         '<td><b>' + escapeHtml(r.itemName) + '</b></td>' +
         '<td>' + escapeHtml(r.materialGrade || '—') + '</td>' +
-        '<td>' + escapeHtml(r.specDimensions || '—') + '</td>' +
-        '<td style="text-align:right;">' + (r.calcWeightKg > 0 ? numVN(r.calcWeightKg) : '—') + '</td>' +
-        '<td style="text-align:right;"><b>' + numVN(r.requiredQty) + '</b> ' + escapeHtml(r.unit) + '</td>' +
-        '<td style="text-align:right;">' + numVN(r.issuedQty) + '</td>' +
+        '<td>' + escapeHtml(dimKl) + '</td>' +
+        '<td style="text-align:center;">' + escapeHtml(r.unit) + '</td>' +
+        '<td style="text-align:right;"><b>' + numVN(r.requiredQty) + '</b></td>' +
         '<td>' + escapeHtml(r.note || '') + '</td>' +
       '</tr>';
     }).join('');
     w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Phiếu Đề Nghị Vật Tư - ' + escapeHtml(p.name) + '</title>' +
-      '<style>body{font-family:Arial,sans-serif;padding:20px;color:#111}table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px}th,td{border:1px solid #333;padding:6px 8px}th{background:#f1f5f9}@media print{button{display:none}}</style>' +
+      '<style>body{font-family:Arial,sans-serif;padding:20px;color:#000}table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px}th,td{border:1px solid #000;padding:6px 8px}th{background:#f1f5f9}@media print{button{display:none}@page{size:A4 portrait;margin:12mm;}}</style>' +
       '</head><body>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;"><div><h2 style="margin:0;">PHIẾU ĐỀ NGHỊ VẬT TƯ DỰ ÁN</h2><div style="margin-top:4px;font-size:13px;">Dự án: <b>' + escapeHtml(p.name) + '</b>' + (p.customer ? ' · Khách hàng: <b>' + escapeHtml(p.customer) + '</b>' : '') + '</div></div><button onclick="window.print()" style="padding:8px 14px;cursor:pointer;">🖨️ In phiếu</button></div>' +
-      '<table><thead><tr><th>STT</th><th>Công đoạn</th><th>Tên vật tư</th><th>Mác</th><th>Kích thước</th><th>KL (kg)</th><th>Yêu cầu</th><th>Đã xuất</th><th>Ghi chú</th></tr></thead><tbody>' + trs + '</tbody></table>' +
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);text-align:center;margin-top:32px;font-size:13px;"><div><b>Người lập đề nghị</b><br><br><br>(Ký, họ tên)</div><div><b>Thủ kho</b><br><br><br>(Ký, họ tên)</div><div><b>Giám đốc / Quản lý</b><br><br><br>(Ký, duyệt)</div></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:10px;">' +
+      '  <div>' +
+      '    <div style="font-size:15px;font-weight:bold;">CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH</div>' +
+      '    <h2 style="margin:6px 0 4px;font-size:18px;">PHIẾU ĐỀ NGHỊ VẬT TƯ (KẸP BẢN VẼ)</h2>' +
+      '    <div style="font-size:13px;line-height:1.5;">' +
+      '      <div>Đơn hàng: <b>' + escapeHtml(p.name) + '</b></div>' +
+      '      <div>Số PO Khách hàng: <b>' + escapeHtml(p.customerPoNo || '—') + '</b> &nbsp;|&nbsp; Khách hàng: <b>' + escapeHtml(p.customer || '—') + '</b></div>' +
+      '      <div>Hạn giao hàng: <b>' + escapeHtml(dueDate || '—') + '</b> &nbsp;|&nbsp; Ngày in: ' + new Date().toLocaleDateString('vi-VN') + '</div>' +
+      '    </div>' +
+      '  </div>' +
+      '  <div style="text-align:center;">' +
+      '    ' + qrHtml +
+      '    <div style="font-size:10px;margin-top:2px;max-width:130px;">Quét QR kiểm tra phôi đã về / Lĩnh phôi</div>' +
+      '    <button onclick="window.print()" style="margin-top:6px;padding:6px 12px;cursor:pointer;">🖨️ In phiếu A4</button>' +
+      '  </div>' +
+      '</div>' +
+      '<table><thead><tr><th>STT</th><th>Công đoạn</th><th>Tên vật tư / Quy cách</th><th>Mác VL</th><th>Kích thước &amp; KL</th><th>ĐVT</th><th>SL yêu cầu</th><th>Ghi chú</th></tr></thead><tbody>' + trs + '</tbody></table>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);text-align:center;margin-top:34px;font-size:13px;">' +
+      '  <div><b>Phòng Kinh doanh lập</b><br><br><br>(Ký, họ tên)</div>' +
+      '  <div><b>Bộ phận Kho</b><br><br><br>(Ký, họ tên)</div>' +
+      '  <div><b>Tổ Sản xuất nhận</b><br><br><br>(Ký, họ tên)</div>' +
+      '</div>' +
       '</body></html>');
     w.document.close();
   }

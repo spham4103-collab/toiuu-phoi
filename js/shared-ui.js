@@ -918,6 +918,7 @@
     var items = Array.isArray(o.items) ? o.items : [];
     var projectId = o.projectId || (items[0] && items[0].project_id) || '';
     var projectName = o.projectName || (items[0] && items[0].project_name) || projectId || 'Đơn hàng';
+    var customerPoNo = o.customerPoNo || (items[0] && (items[0].customer_po_no || items[0].customerPoNo)) || '';
     var customer = o.customer || (items[0] && items[0].customer) || 'Khách hàng';
     var reqIds = items.map(function (it) { return it.request_id || it.id; }).filter(Boolean);
 
@@ -927,10 +928,10 @@
     });
     var msgText = [
       '📦 PHÔI ĐÃ VỀ KHO — SẴN SÀNG LĨNH',
-      '• Đơn hàng: ' + projectName + (customer ? ' (KH: ' + customer + ')' : ''),
+      '• Đơn hàng: ' + projectName + (customerPoNo ? ' | PO: ' + customerPoNo : '') + (customer ? ' (KH: ' + customer + ')' : ''),
       '• Vật tư vừa về:',
       lines.join('\n'),
-      '• Trạng thái: Đã giữ riêng tại kho. Mời tổ Sản xuất ra kho lĩnh phôi!',
+      '• Trạng thái: Đã giữ riêng tại kho. Mời tổ Sản xuất cầm phiếu kẹp bản vẽ ra kho lĩnh phôi!',
       '🔗 Chi tiết: https://xepphoi.cloud/projects?id=' + encodeURIComponent(projectId)
     ].join('\n');
 
