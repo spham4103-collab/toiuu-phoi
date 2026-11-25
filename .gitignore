@@ -15,3 +15,5 @@ test_*
 supabase/.temp/
 .supabase/
 .DS_Store
+demo_screenshots/
+demo_assets/

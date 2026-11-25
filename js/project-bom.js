@@ -410,6 +410,13 @@
 
     var importPreviewHtml = '';
     if (STATE.importPreviewRows && STATE.importPreviewRows.length) {
+      var im = STATE.importMeta || {};
+      var metaBanner = im.format === 'ĐNMVT01'
+        ? '<div style="margin-bottom:8px;padding:6px 10px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:8px;font-size:12px;color:#15803D;font-weight:700;">📋 Đã nhận diện biểu mẫu chuẩn ĐNMVT01' +
+          (im.customer ? ' · Khách hàng: ' + escapeHtml(im.customer) : '') +
+          (im.orderName ? ' · Đơn hàng: ' + escapeHtml(im.orderName) : '') +
+          ' · Gom chuẩn ' + STATE.importPreviewRows.length + ' dòng phôi (Phôi thô + KT Tinh)</div>'
+        : '';
       importPreviewHtml = '<div class="bom-card" style="border-color:#0F766E;background:#F0FDFA;">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">' +
         '<strong>📥 Xem trước nhập Excel (' + STATE.importPreviewRows.length + ' dòng)</strong>' +
@@ -417,10 +424,11 @@
         '<button type="button" class="btn btn-sm btn-soft" id="btnCancelImportPreview">Hủy</button>' +
         '<button type="button" class="btn btn-sm btn-p" id="btnConfirmImportPreview">✅ Xác nhận nhập ' + STATE.importPreviewRows.length + ' dòng</button>' +
         '</div></div>' +
-        '<div class="table-responsive"><table class="bom-table"><thead><tr><th>Công đoạn</th><th>Tên vật tư</th><th>Khớp kho</th><th>Kích thước</th><th>SL</th><th>ĐVT</th></tr></thead><tbody>' +
+        metaBanner +
+        '<div class="table-responsive"><table class="bom-table"><thead><tr><th>Công đoạn</th><th>Tên vật tư</th><th>Mác VL</th><th>Khớp kho</th><th>SL</th><th>ĐVT</th><th>Ghi chú / KT Tinh</th></tr></thead><tbody>' +
         STATE.importPreviewRows.map(function (r) {
           var inv = getInventoryById(r.inventoryId);
-          return '<tr><td>' + escapeHtml(getStageMeta(r.workStage).shortLabel) + '</td><td>' + escapeHtml(r.itemName) + '</td><td>' + (inv ? '<span style="color:#0F766E;font-weight:700;">✓ ' + escapeHtml(inv.sku || inv.profileName) + '</span>' : '<span style="color:#94A3B8;">Mua ngoài</span>') + '</td><td>' + escapeHtml(r.specDimensions || '—') + '</td><td>' + numVN(r.requiredQty) + '</td><td>' + escapeHtml(r.unit) + '</td></tr>';
+          return '<tr><td>' + escapeHtml(getStageMeta(r.workStage).shortLabel) + '</td><td><b>' + escapeHtml(r.itemName) + '</b></td><td>' + escapeHtml(r.materialGrade || '—') + '</td><td>' + (inv ? '<span style="color:#0F766E;font-weight:700;">✓ ' + escapeHtml(inv.sku || inv.profileName) + '</span>' : '<span style="color:#94A3B8;">Mua ngoài</span>') + '</td><td><b>' + numVN(r.requiredQty) + '</b></td><td>' + escapeHtml(r.unit) + '</td><td style="font-size:11.5px;color:#334155;">' + escapeHtml(r.note || '—') + '</td></tr>';
         }).join('') +
         '</tbody></table></div></div>';
     }
@@ -908,6 +916,96 @@
     return 'laser_tube';
   }
 
+  function parseDnmvt01Matrix(aoa) {
+    var flatText = aoa.slice(0, 12).map(function (r) { return (r || []).join(' '); }).join(' ');
+    var headerRowIdx = -1;
+    var colMap = {};
+    for (var r = 0; r < Math.min(20, aoa.length); r++) {
+      var row = aoa[r] || [];
+      var joined = row.map(function (c) { return String(c || '').trim().toLowerCase(); });
+      var ttIdx = joined.indexOf('tt');
+      var nameIdx = joined.findIndex(function (c) { return c.indexOf('tên hàng') >= 0 || c.indexOf('ten hang') >= 0; });
+      var qtyIdx = joined.findIndex(function (c) { return c.indexOf('số lượng') >= 0 || c.indexOf('so luong') >= 0; });
+      if (ttIdx >= 0 && nameIdx >= 0 && qtyIdx >= 0) {
+        headerRowIdx = r;
+        colMap = {
+          tt: ttIdx,
+          name: nameIdx,
+          drawing: joined.findIndex(function (c) { return c.indexOf('mã bản vẽ') >= 0; }),
+          material: joined.findIndex(function (c) { return c === 'vật liệu' || c === 'vat lieu'; }),
+          unit: joined.findIndex(function (c) { return c === 'đvt' || c === 'dvt'; }),
+          qty: qtyIdx,
+          note: joined.findIndex(function (c) { return c.indexOf('ghi chú') >= 0 || c.indexOf('ghi chu') >= 0; })
+        };
+        break;
+      }
+    }
+    var isDnmvt = headerRowIdx >= 0 && (flatText.indexOf('ĐNMVT') >= 0 || flatText.indexOf('ĐỀ NGHỊ MUA VẬT TƯ') >= 0 || colMap.name >= 0);
+    if (!isDnmvt) return null;
+
+    var customer = '';
+    var orderName = '';
+    for (var m = 0; m < headerRowIdx; m++) {
+      var mRow = aoa[m] || [];
+      for (var c = 0; c < mRow.length; c++) {
+        var cell = String(mRow[c] || '').trim();
+        var low = cell.toLowerCase();
+        if (low.indexOf('khách hàng:') >= 0) {
+          customer = cell.split(':').slice(1).join(':').trim();
+          if (!customer && mRow[c + 1]) customer = String(mRow[c + 1]).trim();
+        }
+        if (low.indexOf('đơn hàng') >= 0 && !orderName) {
+          var after = cell.indexOf(':') >= 0 ? cell.split(':').slice(1).join(':').trim() : '';
+          if (after) orderName = after;
+        }
+      }
+    }
+
+    var parsed = [];
+    for (var i = headerRowIdx + 1; i < aoa.length; i++) {
+      var dRow = aoa[i] || [];
+      var rowText = dRow.join(' ').trim();
+      if (!rowText) continue;
+      if (/người đề nghị|tổng giám đốc|người kiểm tra/i.test(rowText)) break;
+      if (/ngày yêu cầu nk|ngày tt nhập kho/i.test(rowText)) continue;
+
+      var ttRaw = String(dRow[colMap.tt] != null ? dRow[colMap.tt] : '').trim();
+      var itemName = String(dRow[colMap.name] != null ? dRow[colMap.name] : '').trim();
+      if (!itemName) continue;
+
+      if (/^\d+$/.test(ttRaw)) {
+        var qty = Number(dRow[colMap.qty] || 0);
+        if (!(qty > 0)) qty = 1;
+        var mat = colMap.material >= 0 ? String(dRow[colMap.material] || '').trim() : '';
+        var unit = colMap.unit >= 0 ? String(dRow[colMap.unit] || '').trim() : '';
+        var noteRaw = colMap.note >= 0 ? String(dRow[colMap.note] || '').trim() : '';
+        if (noteRaw && !orderName) {
+          orderName = noteRaw.split(/\r?\n/)[0].trim();
+        }
+        var matchedInv = STATE.inventory.find(function (inv) {
+          return String(inv.profileName || '').trim().toLowerCase() === itemName.toLowerCase();
+        });
+        var stage = (/L\d+/i.test(itemName) && /D\d+/i.test(itemName)) ? 'laser_tube' : 'cnc_mill_turn';
+        parsed.push({
+          projectId: STATE.project.id,
+          workStage: stage,
+          inventoryId: matchedInv ? matchedInv.id : null,
+          itemName: itemName,
+          materialGrade: mat,
+          specDimensions: itemName,
+          calcWeightKg: 0,
+          requiredQty: qty,
+          unit: unit || (matchedInv && matchedInv.unit) || 'Đoạn',
+          note: noteRaw ? noteRaw.replace(/\r?\n/g, ' · ') : ''
+        });
+      } else if (parsed.length > 0 && !ttRaw) {
+        var prev = parsed[parsed.length - 1];
+        prev.note = prev.note ? (prev.note + ' · ' + itemName) : itemName;
+      }
+    }
+    return { format: 'ĐNMVT01', customer: customer, orderName: orderName, items: parsed };
+  }
+
   function handleImportExcel(file) {
     if (typeof XLSX === 'undefined') {
       alert('Chưa tải được thư viện Excel (SheetJS).');
@@ -918,6 +1016,16 @@
       try {
         var wb = XLSX.read(ev.target.result, { type: 'array' });
         var ws = wb.Sheets[wb.SheetNames[0]];
+        var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        var dnmvt = parseDnmvt01Matrix(aoa);
+        if (dnmvt && dnmvt.items.length) {
+          STATE.importPreviewRows = dnmvt.items;
+          STATE.importMeta = { format: 'ĐNMVT01', customer: dnmvt.customer, orderName: dnmvt.orderName };
+          STATE.lastImportFile = file;
+          renderBomTab();
+          return;
+        }
+
         var jsonRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
         var parsed = [];
         jsonRows.forEach(function (row) {
@@ -946,10 +1054,11 @@
         });
 
         if (!parsed.length) {
-          alert('Không đọc được dòng vật tư hợp lệ nào (cần cột "Tên vật tư" và "Số lượng" > 0).');
+          alert('Không đọc được dòng vật tư hợp lệ nào (hỗ trợ mẫu ĐNMVT01 hoặc cột "Tên vật tư" & "Số lượng" > 0).');
           return;
         }
         STATE.importPreviewRows = parsed;
+        STATE.importMeta = { format: 'generic' };
         STATE.lastImportFile = file;
         renderBomTab();
       } catch (err) {
@@ -1140,14 +1249,15 @@
         '<td>' + escapeHtml(r.note || '') + '</td>' +
       '</tr>';
     }).join('');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Phiếu Đề Nghị Vật Tư - ' + escapeHtml(p.name) + '</title>' +
-      '<style>body{font-family:Arial,sans-serif;padding:20px;color:#000}table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px}th,td{border:1px solid #000;padding:6px 8px}th{background:#f1f5f9}@media print{button{display:none}@page{size:A4 portrait;margin:12mm;}}</style>' +
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>ĐNMVT01 - ' + escapeHtml(p.name) + '</title>' +
+      '<style>body{font-family:Arial,sans-serif;padding:18px;color:#000}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}th,td{border:1px solid #000;padding:6px 8px}th{background:#f1f5f9}@media print{button{display:none}@page{size:A4 portrait;margin:12mm;}}</style>' +
       '</head><body>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:10px;">' +
       '  <div>' +
-      '    <div style="font-size:15px;font-weight:bold;">CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH</div>' +
-      '    <h2 style="margin:6px 0 4px;font-size:18px;">PHIẾU ĐỀ NGHỊ VẬT TƯ (KẸP BẢN VẼ)</h2>' +
-      '    <div style="font-size:13px;line-height:1.5;">' +
+      '    <div style="font-size:14px;font-weight:bold;">CÔNG TY CỔ PHẦN CƠ KHÍ VÀ DỊCH VỤ THƯƠNG MẠI AN BÌNH</div>' +
+      '    <div style="font-size:11.5px;margin-top:2px;">Biểu mẫu chuẩn: <b>ĐNMVT01</b></div>' +
+      '    <h2 style="margin:6px 0 4px;font-size:18px;">ĐỀ NGHỊ MUA VẬT TƯ (KẸP BẢN VẼ)</h2>' +
+      '    <div style="font-size:12.5px;line-height:1.5;">' +
       '      <div>Đơn hàng: <b>' + escapeHtml(p.name) + '</b></div>' +
       '      <div>Số PO Khách hàng: <b>' + escapeHtml(p.customerPoNo || '—') + '</b> &nbsp;|&nbsp; Khách hàng: <b>' + escapeHtml(p.customer || '—') + '</b></div>' +
       '      <div>Hạn giao hàng: <b>' + escapeHtml(dueDate || '—') + '</b> &nbsp;|&nbsp; Ngày in: ' + new Date().toLocaleDateString('vi-VN') + '</div>' +
@@ -1159,11 +1269,12 @@
       '    <button onclick="window.print()" style="margin-top:6px;padding:6px 12px;cursor:pointer;">🖨️ In phiếu A4</button>' +
       '  </div>' +
       '</div>' +
-      '<table><thead><tr><th>STT</th><th>Công đoạn</th><th>Tên vật tư / Quy cách</th><th>Mác VL</th><th>Kích thước &amp; KL</th><th>ĐVT</th><th>SL yêu cầu</th><th>Ghi chú</th></tr></thead><tbody>' + trs + '</tbody></table>' +
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);text-align:center;margin-top:34px;font-size:13px;">' +
-      '  <div><b>Phòng Kinh doanh lập</b><br><br><br>(Ký, họ tên)</div>' +
-      '  <div><b>Bộ phận Kho</b><br><br><br>(Ký, họ tên)</div>' +
-      '  <div><b>Tổ Sản xuất nhận</b><br><br><br>(Ký, họ tên)</div>' +
+      '<table><thead><tr><th>TT</th><th>Công đoạn</th><th>Tên hàng hóa / Quy cách</th><th>Vật liệu</th><th>Kích thước &amp; KL</th><th>ĐVT</th><th>Số lượng</th><th>Ghi chú / KT Tinh</th></tr></thead><tbody>' + trs + '</tbody></table>' +
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);text-align:center;margin-top:34px;font-size:12.5px;gap:8px;">' +
+      '  <div><b>Người đề nghị</b><br><span style="font-size:11px;">(Ký, ghi rõ họ tên)</span><br><br><br></div>' +
+      '  <div><b>Người kiểm tra</b><br><span style="font-size:11px;">(Ký, ghi rõ họ tên)</span><br><br><br></div>' +
+      '  <div><b>Người mua vật tư</b><br><span style="font-size:11px;">(Ký, ghi rõ họ tên)</span><br><br><br></div>' +
+      '  <div><b>Tổng giám đốc</b><br><span style="font-size:11px;">(Ký, duyệt)</span><br><br><br></div>' +
       '</div>' +
       '</body></html>');
     w.document.close();

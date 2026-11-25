@@ -62,8 +62,8 @@ function run() {
   const bomJs = read('js/project-bom.js');
   [
     'btnWfHandoverDrawings', 'btnWfSubmitBom', 'bomAttCategory', 'bom_excel',
-    'XP:PROJ:', 'Quét QR kiểm tra phôi đã về / Lĩnh phôi',
-    'Phòng Kinh doanh lập', 'Bộ phận Kho', 'Tổ Sản xuất nhận',
+    'XP:PROJ:', 'Quét QR kiểm tra phôi đã về / Lĩnh phôi', 'ĐNMVT01',
+    'Người đề nghị', 'Người kiểm tra', 'Người mua vật tư', 'Tổng giám đốc',
     'Đang về – Dự kiến', 'Phôi đã về kho – Sẵn sàng lĩnh', 'Thiếu kho – Chờ mua', 'Đã xuất SX',
     'bom-alloc-btn', 'bom-zalo-btn', 'allocateFreeStockToRequest'
   ].forEach(sym => assert(bomJs.includes(sym), `project-bom.js missing ${sym}`));
@@ -91,7 +91,7 @@ function run() {
 
   // 4. sw.js v32 & dist/
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v33'), 'sw.js must be v33');
+  assert(sw.includes('toiuu-phoi-pwa-v34'), 'sw.js must be v34');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'qr-scanner.js')), 'dist/js/qr-scanner.js missing');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'project-bom.js')), 'dist/js/project-bom.js missing');
   console.log('[OK] 4. sw.js (v32) & dist/ verified.');
