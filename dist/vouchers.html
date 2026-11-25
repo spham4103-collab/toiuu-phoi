@@ -240,10 +240,32 @@
     <!-- Danh sách Chứng từ Kho -->
     <section class="card">
       <div class="card-head">
-        <div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <h2>Danh Sách Chứng Từ Nhập – Xuất – Hoàn Kho</h2>
+          <button type="button" class="btn btn-soft btn-sm" id="btnToggleBorrowedTools" style="border-color:#93C5FD; color:#1D4ED8;">🔄 Đang mượn dụng cụ (<span id="cntBorrowedTools">0</span>)</button>
         </div>
         <button type="button" class="btn btn-soft btn-sm" id="btnRefreshVouchers">🔄 Tải lại</button>
+      </div>
+
+      <div id="secBorrowedTools" style="display:none; margin-bottom:16px; padding:12px; background:#EFF6FF; border:1.5px solid #93C5FD; border-radius:12px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+          <strong style="color:#1E3A8A;">🔄 Danh Sách Dụng Cụ / Đồ Gá Đang Mượn Chưa Trả</strong>
+          <button type="button" class="btn btn-soft btn-sm" id="btnCloseBorrowedTools">Ẩn</button>
+        </div>
+        <div class="table-responsive" style="background:#fff;">
+          <table class="v-table" style="min-width:640px;">
+            <thead>
+              <tr>
+                <th>Dụng cụ / Thiết bị</th>
+                <th>Máy / Người mượn</th>
+                <th>Phiếu xuất</th>
+                <th class="r">SL đang mượn</th>
+                <th class="r">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="borrowedToolsTableBody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="filter-bar">
@@ -335,6 +357,24 @@
               <option value="Tổ Lắp Ráp"></option>
               <option value="Kho Vật Tư"></option>
             </datalist>
+          </div>
+          <div id="wrapMachineRecipient" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div>
+              <label class="lbl">Máy gia công</label>
+              <input type="text" id="inpVoucherMachine" list="machineSuggestions" placeholder="CNC Phay, Laser...">
+              <datalist id="machineSuggestions">
+                <option value="CNC Phay"></option>
+                <option value="CNC Tiện"></option>
+                <option value="Laser Ống"></option>
+                <option value="Laser Tấm"></option>
+                <option value="Tổ Hàn"></option>
+                <option value="Tổ Lắp Ráp"></option>
+              </datalist>
+            </div>
+            <div>
+              <label class="lbl">Người nhận / Mượn</label>
+              <input type="text" id="inpVoucherRecipient" placeholder="Tên thợ nhận...">
+            </div>
           </div>
           <div>
             <label class="lbl">Số hóa đơn / Phiếu giao</label>
@@ -644,6 +684,7 @@
         populateFilterDropdowns();
         renderKpis();
         renderVouchersTable();
+        renderBorrowedToolsSection();
         initRealtime();
         if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
           window.SharedUI.initPendingVouchersBadge();
@@ -728,6 +769,83 @@
       });
     }
 
+    function renderBorrowedToolsSection() {
+      const tbody = $('borrowedToolsTableBody');
+      const cntEl = $('cntBorrowedTools');
+      const returnableIds = new Set(inventoryItems.filter(r => r.isReturnable).map(r => r.id));
+      const returnableProfs = new Set(inventoryItems.filter(r => r.isReturnable).map(r => r.profileName));
+
+      // Tính số lượng mượn - trả theo (profile, recipientName)
+      const map = {};
+      vouchersList.filter(v => v.status === 'approved').forEach(v => {
+        const recKey = (v.recipientName || v.machineName || 'Chưa rõ').trim();
+        (v.items || []).forEach(it => {
+          const isBor = it.issueReason === 'borrow' || returnableIds.has(it.inventoryId) || returnableProfs.has(it.profile);
+          const isRet = it.issueReason === 'return_tool' || v.voucherType === 'RETURN';
+          if (v.voucherType === 'OUT' && isBor) {
+            const k = `${it.profile}__${recKey}`;
+            if (!map[k]) {
+              map[k] = {
+                inventoryId: it.inventoryId,
+                profile: it.profile,
+                materialGroup: it.materialGroup,
+                unit: it.unit,
+                machineName: v.machineName || v.department || '',
+                recipientName: v.recipientName || '',
+                voucherCode: v.voucherCode,
+                qty: 0
+              };
+            }
+            map[k].qty += Number(it.qty) || 0;
+          } else if (v.voucherType === 'RETURN' && isRet) {
+            const k = `${it.profile}__${recKey}`;
+            if (map[k]) map[k].qty -= Number(it.qty) || 0;
+          }
+        });
+      });
+
+      const activeBorrows = Object.values(map).filter(x => x.qty > 0.001);
+      if (cntEl) cntEl.textContent = String(activeBorrows.length);
+      if (!tbody) return;
+      if (!activeBorrows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:16px; color:#64748B;">Không có dụng cụ nào đang mượn chưa trả.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = activeBorrows.map((b, idx) => `
+        <tr>
+          <td><strong>${escapeHtml(b.profile)}</strong></td>
+          <td>${escapeHtml(b.machineName || '—')}${b.recipientName ? ' · <b>' + escapeHtml(b.recipientName) + '</b>' : ''}</td>
+          <td style="font-family:monospace;">${escapeHtml(b.voucherCode)}</td>
+          <td class="r"><b>${numVN(b.qty)} ${escapeHtml(b.unit)}</b></td>
+          <td class="r"><button type="button" class="btn btn-sm btn-p btn-return-borrowed" data-idx="${idx}">↩️ Tạo phiếu trả dụng cụ</button></td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.btn-return-borrowed').forEach(btn => {
+        btn.onclick = () => {
+          const b = activeBorrows[parseInt(btn.dataset.idx, 10)];
+          if (!b) return;
+          openNewVoucherModal('RETURN');
+          if ($('inpVoucherMachine')) $('inpVoucherMachine').value = b.machineName || '';
+          if ($('inpVoucherRecipient')) $('inpVoucherRecipient').value = b.recipientName || '';
+          $('inpVoucherNote').value = `Trả dụng cụ mượn từ phiếu ${b.voucherCode}`;
+          draftItems = [{
+            inventoryId: b.inventoryId,
+            profile: b.profile,
+            materialGroup: b.materialGroup || 'tooling',
+            unit: b.unit || 'cái',
+            lengthMm: 100,
+            qty: b.qty,
+            unitPrice: 0,
+            issueReason: 'return_tool',
+            returnedOldQty: 0,
+            note: `Trả dụng cụ (${b.voucherCode})`
+          }];
+          renderVoucherItemsRows();
+        };
+      });
+    }
+
     function renderVouchersTable() {
       const list = getFilteredVouchers();
       const tbody = $('vouchersTableBody');
@@ -750,7 +868,11 @@
         const contextParts = [];
         if (v.supplierName) contextParts.push(`🏢 ${escapeHtml(v.supplierName)}`);
         if (v.projectName) contextParts.push(`📁 ${escapeHtml(v.projectName)}`);
-        if (v.department) contextParts.push(`🛠️ ${escapeHtml(v.department)}`);
+        if (v.machineName || v.recipientName) {
+          contextParts.push(`🔧 ${escapeHtml(v.machineName || v.department || '')}${v.recipientName ? ' · 👤 ' + escapeHtml(v.recipientName) : ''}`);
+        } else if (v.department) {
+          contextParts.push(`🛠️ ${escapeHtml(v.department)}`);
+        }
         if (v.invoiceNo) contextParts.push(`🧾 HĐ: ${escapeHtml(v.invoiceNo)}`);
 
         const isPendingOrDraft = v.status === 'pending' || v.status === 'draft';
@@ -814,13 +936,25 @@
     function syncVoucherTypeUI() {
       const t = $('selVoucherType').value;
       $('wrapSupplierField').style.display = t === 'IN' ? 'block' : 'none';
+      if ($('wrapMachineRecipient')) $('wrapMachineRecipient').style.display = (t === 'OUT' || t === 'RETURN') ? 'grid' : 'none';
       const canAllowNeg = currentUser && (currentUser.role === 'admin' || currentUser.role === 'warehouse');
       $('wrapAllowNegative').style.display = (t === 'OUT' && canAllowNeg) ? 'block' : 'none';
       renderVoucherItemsRows();
     }
 
+    function getEffectiveLineCalc(it, vType) {
+      const invMatch = inventoryItems.find(x => x.id === it.inventoryId || x.profileName === it.profile);
+      const packQty = (invMatch && Number(invMatch.packQty) > 1) ? Number(invMatch.packQty) : 1;
+      const isPack = vType === 'IN' && Boolean(it._usePackUnit) && packQty > 1;
+      if (window.SharedUI && typeof window.SharedUI.convertPackToBase === 'function') {
+        return window.SharedUI.convertPackToBase(it.qty, it.unitPrice, packQty, isPack);
+      }
+      return { baseQty: Number(it.qty) || 0, baseUnitPrice: Number(it.unitPrice) || 0, totalAmount: Math.round((Number(it.qty) || 0) * (Number(it.unitPrice) || 0)) };
+    }
+
     function updateVoucherTotalDisp() {
-      const total = draftItems.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0);
+      const vType = ($('selVoucherType') && $('selVoucherType').value) || 'IN';
+      const total = draftItems.reduce((a, it) => a + getEffectiveLineCalc(it, vType).totalAmount, 0);
       $('lblVoucherTotalAmount').textContent = numVN(total, 0) + ' đ';
     }
 
@@ -828,13 +962,35 @@
       const tbody = $('voucherItemsTableBody');
       if (!tbody) return;
       const vType = $('selVoucherType').value;
-      const unitOpts = (window.SharedUI && window.SharedUI.UNITS) || ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
+      const unitOpts = (window.SharedUI && window.SharedUI.UNITS) || ['cây', 'tấm', 'kg', 'cái', 'mũi', 'viên', 'bộ', 'hộp', 'm'];
 
       tbody.innerHTML = draftItems.map((it, idx) => {
-        const gMeta = window.SharedUI ? window.SharedUI.getMaterialGroupMeta(it.materialGroup) : { badgeClass: 'grp-tube_1d', icon: '🪵', shortLabel: it.materialGroup };
         const invMatch = inventoryItems.find(x => x.id === it.inventoryId || x.profileName === it.profile);
         const curStockHint = invMatch ? `Tồn: ${numVN(invMatch.stockQty)} ${invMatch.unit || 'cây'}` : 'Vật tư mới';
-        const lineTotal = Math.round((Number(it.qty) || 0) * (Number(it.unitPrice) || 0));
+        const hasPack = vType === 'IN' && invMatch && invMatch.packUnit && Number(invMatch.packQty) > 1;
+        const calc = getEffectiveLineCalc(it, vType);
+        const lineTotal = calc.totalAmount;
+        const packConvertHtml = hasPack
+          ? `<div style="margin-top:4px; display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+               <select class="vi-pack-mode" data-idx="${idx}" style="min-height:26px; font-size:11.5px; width:auto;">
+                 <option value="base" ${!it._usePackUnit ? 'selected' : ''}>Nhập lẻ (${escapeHtml(invMatch.unit)})</option>
+                 <option value="pack" ${it._usePackUnit ? 'selected' : ''}>Theo ${escapeHtml(invMatch.packUnit)} (×${invMatch.packQty})</option>
+               </select>
+               ${it._usePackUnit ? `<span style="font-size:11px; color:#0369A1; font-weight:700;">→ ${numVN(calc.baseQty)} ${escapeHtml(invMatch.unit)}</span>` : ''}
+             </div>`
+          : '';
+        const reasonHtml = (vType === 'OUT' || vType === 'RETURN')
+          ? `<div style="margin-top:4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+               <select class="vi-reason" data-idx="${idx}" style="min-height:26px; font-size:11.5px; width:auto;">
+                 <option value="new" ${(it.issueReason || 'new') === 'new' ? 'selected' : ''}>Cấp mới</option>
+                 <option value="worn_exchange" ${it.issueReason === 'worn_exchange' ? 'selected' : ''}>Đổi mòn</option>
+                 <option value="broken_exchange" ${it.issueReason === 'broken_exchange' ? 'selected' : ''}>Đổi gãy/mẻ</option>
+                 <option value="borrow" ${it.issueReason === 'borrow' ? 'selected' : ''}>Mượn dụng cụ</option>
+                 <option value="return_tool" ${it.issueReason === 'return_tool' ? 'selected' : ''}>Trả dụng cụ</option>
+               </select>
+               ${vType === 'OUT' ? `<label style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;cursor:pointer;"><input type="checkbox" class="vi-ret-old" data-idx="${idx}" ${Number(it.returnedOldQty) > 0 ? 'checked' : ''} style="width:14px;height:14px;"> Thu hồi cũ</label>` : ''}
+             </div>`
+          : '';
 
         return `
           <tr>
@@ -851,6 +1007,7 @@
                 <option value="tube_1d" ${it.materialGroup === 'tube_1d' ? 'selected' : ''}>🪵 1D</option>
                 <option value="sheet_2d" ${it.materialGroup === 'sheet_2d' ? 'selected' : ''}>📐 2D</option>
                 <option value="solid_cnc" ${it.materialGroup === 'solid_cnc' ? 'selected' : ''}>🔩 CNC</option>
+                <option value="tooling" ${it.materialGroup === 'tooling' ? 'selected' : ''}>🔧 Dao cụ</option>
                 <option value="consumable" ${it.materialGroup === 'consumable' ? 'selected' : ''}>🧰 Phụ</option>
               </select>
               <select class="vi-unit-sel" data-idx="${idx}" style="min-height:28px; font-size:12px;">
@@ -858,10 +1015,10 @@
               </select>
             </td>
             <td class="r"><input type="number" class="vi-len" data-idx="${idx}" value="${it.lengthMm || ''}" min="1" step="10" style="text-align:right;"></td>
-            <td class="r"><input type="number" class="vi-qty" data-idx="${idx}" value="${it.qty}" min="0.01" step="0.01" style="text-align:right; font-weight:800;"></td>
+            <td class="r"><input type="number" class="vi-qty" data-idx="${idx}" value="${it.qty}" min="0.01" step="0.01" style="text-align:right; font-weight:800;">${packConvertHtml}</td>
             <td class="r price-only"><input type="number" class="vi-price" data-idx="${idx}" value="${it.unitPrice || 0}" min="0" step="1000" ${vType === 'OUT' ? 'title="Tự chốt theo giá vốn BQ khi Thủ kho duyệt"' : ''} style="text-align:right;"></td>
             <td class="r price-only" style="font-weight:700; color:var(--dark);"><span class="vi-total" data-idx="${idx}">${numVN(lineTotal, 0)} đ</span></td>
-            <td><input type="text" class="vi-note" data-idx="${idx}" value="${escapeHtml(it.note || '')}" placeholder="Ghi chú..."></td>
+            <td><input type="text" class="vi-note" data-idx="${idx}" value="${escapeHtml(it.note || '')}" placeholder="Ghi chú...">${reasonHtml}</td>
             <td class="r"><button type="button" class="btn btn-sm btn-danger btn-del-vi" data-idx="${idx}">✕</button></td>
           </tr>
         `;
@@ -890,8 +1047,9 @@
             if (!draftItems[i]) return;
             draftItems[i][key] = isNum ? (parseFloat(el.value) || 0) : el.value;
             if (key === 'profile') draftItems[i].inventoryId = null;
+            const calc = getEffectiveLineCalc(draftItems[i], vType);
             const totalEl = tbody.querySelector(`.vi-total[data-idx="${i}"]`);
-            if (totalEl) totalEl.textContent = numVN(Math.round((Number(draftItems[i].qty) || 0) * (Number(draftItems[i].unitPrice) || 0)), 0) + ' đ';
+            if (totalEl) totalEl.textContent = numVN(calc.totalAmount, 0) + ' đ';
             updateVoucherTotalDisp();
           };
           el.onchange = el.oninput;
@@ -904,6 +1062,28 @@
       bindField('vi-qty', 'qty', true);
       bindField('vi-price', 'unitPrice', true);
       bindField('vi-note', 'note', false);
+
+      tbody.querySelectorAll('.vi-pack-mode').forEach(sel => {
+        sel.onchange = () => {
+          const i = parseInt(sel.dataset.idx, 10);
+          if (draftItems[i]) {
+            draftItems[i]._usePackUnit = sel.value === 'pack';
+            renderVoucherItemsRows();
+          }
+        };
+      });
+      tbody.querySelectorAll('.vi-reason').forEach(sel => {
+        sel.onchange = () => {
+          const i = parseInt(sel.dataset.idx, 10);
+          if (draftItems[i]) draftItems[i].issueReason = sel.value;
+        };
+      });
+      tbody.querySelectorAll('.vi-ret-old').forEach(chk => {
+        chk.onchange = () => {
+          const i = parseInt(chk.dataset.idx, 10);
+          if (draftItems[i]) draftItems[i].returnedOldQty = chk.checked ? (Number(draftItems[i].qty) || 1) : 0;
+        };
+      });
 
       tbody.querySelectorAll('.btn-del-vi').forEach(b => {
         b.onclick = () => {
@@ -923,6 +1103,8 @@
       $('selVoucherSupplier').value = '';
       $('selVoucherProject').value = '';
       $('inpVoucherDept').value = type === 'OUT' ? 'Tổ Laser CNC' : '';
+      if ($('inpVoucherMachine')) $('inpVoucherMachine').value = '';
+      if ($('inpVoucherRecipient')) $('inpVoucherRecipient').value = '';
       $('inpVoucherInvoiceNo').value = '';
       $('inpVoucherNote').value = '';
       $('selVoucherInitStatus').value = 'pending';
@@ -943,6 +1125,8 @@
       $('selVoucherSupplier').value = v.supplierId || '';
       $('selVoucherProject').value = v.projectId || '';
       $('inpVoucherDept').value = v.department || '';
+      if ($('inpVoucherMachine')) $('inpVoucherMachine').value = v.machineName || '';
+      if ($('inpVoucherRecipient')) $('inpVoucherRecipient').value = v.recipientName || '';
       $('inpVoucherInvoiceNo').value = v.invoiceNo || '';
       $('inpVoucherNote').value = v.note || '';
       $('selVoucherInitStatus').value = v.status === 'draft' ? 'draft' : 'pending';
@@ -957,16 +1141,30 @@
 
     async function handleSaveVoucher() {
       const editId = $('hidEditVoucherId').value;
-      const validItems = draftItems.filter(it => String(it.profile || '').trim() && Number(it.qty) > 0);
+      const vType = $('selVoucherType').value;
+      const validItems = draftItems
+        .filter(it => String(it.profile || '').trim() && Number(it.qty) > 0)
+        .map(it => {
+          const calc = getEffectiveLineCalc(it, vType);
+          const copy = Object.assign({}, it, {
+            qty: calc.baseQty,
+            unitPrice: calc.baseUnitPrice,
+            issueReason: it.issueReason || (vType === 'RETURN' ? 'return_tool' : 'new'),
+            returnedOldQty: Math.max(0, Number(it.returnedOldQty) || 0)
+          });
+          return copy;
+        });
       if (!validItems.length) {
         showToast('⚠️ Vui lòng nhập ít nhất 1 dòng vật tư có tên và số lượng > 0!');
         return;
       }
       const payload = {
-        voucherType: $('selVoucherType').value,
-        supplierId: $('selVoucherType').value === 'IN' ? ($('selVoucherSupplier').value || null) : null,
+        voucherType: vType,
+        supplierId: vType === 'IN' ? ($('selVoucherSupplier').value || null) : null,
         projectId: $('selVoucherProject').value || null,
         department: ($('inpVoucherDept').value || '').trim(),
+        machineName: ($('inpVoucherMachine') ? $('inpVoucherMachine').value : '').trim(),
+        recipientName: ($('inpVoucherRecipient') ? $('inpVoucherRecipient').value : '').trim(),
         invoiceNo: ($('inpVoucherInvoiceNo').value || '').trim(),
         note: ($('inpVoucherNote').value || '').trim(),
         attachmentUrl: $('hidVoucherAttachmentUrl').value || '',
@@ -1270,6 +1468,13 @@
       });
       if ($('inpSearchVoucher')) $('inpSearchVoucher').oninput = renderVouchersTable;
       if ($('btnRefreshVouchers')) $('btnRefreshVouchers').onclick = loadAllData;
+      if ($('btnToggleBorrowedTools')) $('btnToggleBorrowedTools').onclick = () => {
+        const sec = $('secBorrowedTools');
+        if (sec) sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+      };
+      if ($('btnCloseBorrowedTools')) $('btnCloseBorrowedTools').onclick = () => {
+        if ($('secBorrowedTools')) $('secBorrowedTools').style.display = 'none';
+      };
 
       if ($('btnNewVoucherIn')) $('btnNewVoucherIn').onclick = () => openNewVoucherModal('IN');
       if ($('btnNewVoucherOut')) $('btnNewVoucherOut').onclick = () => openNewVoucherModal('OUT');

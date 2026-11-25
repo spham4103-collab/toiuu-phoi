@@ -312,12 +312,19 @@
         <button type="button" class="wms-group-pill" data-grp="tube_1d">🪵 Thép hộp / Ống 1D (<span id="grpCntTube">0</span>)</button>
         <button type="button" class="wms-group-pill" data-grp="sheet_2d">📐 Thép tấm 2D (<span id="grpCntSheet">0</span>)</button>
         <button type="button" class="wms-group-pill" data-grp="solid_cnc">🔩 Phôi đặc CNC (<span id="grpCntSolid">0</span>)</button>
+        <button type="button" class="wms-group-pill" data-grp="tooling">🔧 Dao cụ CNC (<span id="grpCntTooling">0</span>)</button>
         <button type="button" class="wms-group-pill" data-grp="consumable">🧰 Vật tư phụ &amp; Tiêu hao (<span id="grpCntCons">0</span>)</button>
       </div>
 
       <div class="filter-bar">
-        <input type="text" id="inpSearchBars" placeholder="🔍 Tìm tên vật tư, SKU hoặc kệ..." style="max-width:250px;">
-        <select id="selFilterBarsStatus" style="max-width:220px;">
+        <input type="text" id="inpSearchBars" placeholder="🔍 Tìm tên, SKU, Ø10, M8, APMT, OSG, kệ..." style="max-width:260px;">
+        <select id="selFilterBarsSubCat" style="max-width:190px;">
+          <option value="ALL">Tất cả phân loại con</option>
+        </select>
+        <select id="selFilterBarsBrand" style="max-width:165px;">
+          <option value="ALL">Tất cả hãng SX</option>
+        </select>
+        <select id="selFilterBarsStatus" style="max-width:195px;">
           <option value="ALL">Tất cả trạng thái tồn</option>
           <option value="low">⚠️ Sắp hết hoặc đã hết</option>
           <option value="zero">⭕ Đã hết hàng (0)</option>
@@ -551,7 +558,8 @@
           <div class="card-sub" style="margin-bottom:0;">Quản lý mã SKU, đơn vị tính, dài/khổ chuẩn, trọng lượng kg/m, giá vốn BQ, định mức tồn tối thiểu &amp; vị trí kệ.</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <input type="text" id="inpSearchProf" placeholder="🔍 Lọc tên / SKU..." style="max-width:200px;">
+          <input type="text" id="inpSearchProf" placeholder="🔍 Lọc tên / SKU / Hãng..." style="max-width:200px;">
+          <button type="button" class="btn btn-p btn-sm eng-only" id="btnOpenToolingImport">📥 Nhập danh mục từ Excel</button>
           <button type="button" class="btn btn-soft btn-sm eng-only" id="btnResetDefaultProfs">🔄 Khôi phục mặc định</button>
         </div>
       </div>
@@ -561,6 +569,7 @@
         <button type="button" class="wms-group-pill" data-grp="tube_1d">🪵 Hộp / Ống 1D</button>
         <button type="button" class="wms-group-pill" data-grp="sheet_2d">📐 Thép tấm 2D</button>
         <button type="button" class="wms-group-pill" data-grp="solid_cnc">🔩 Phôi đặc CNC</button>
+        <button type="button" class="wms-group-pill" data-grp="tooling">🔧 Dao cụ CNC</button>
         <button type="button" class="wms-group-pill" data-grp="consumable">🧰 Vật tư phụ</button>
       </div>
 
@@ -572,26 +581,33 @@
             <option value="tube_1d">🪵 Hộp / Ống 1D</option>
             <option value="sheet_2d">📐 Thép tấm 2D</option>
             <option value="solid_cnc">🔩 Phôi đặc CNC</option>
+            <option value="tooling">🔧 Dao cụ cắt gọt CNC</option>
             <option value="consumable">🧰 Vật tư phụ</option>
           </select>
         </div>
         <div style="grid-column: span 2;">
           <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Tên vật tư / Quy cách *</label>
-          <input type="text" id="inpNewProfName" placeholder="Vd: Hộp 40x80x2.0, Tấm SS400 1500x3000x5, Que hàn 3.2...">
+          <input type="text" id="inpNewProfName" placeholder="Vd: Dao phay ngón Ø10 4 me OSG, Chíp APMT1604...">
         </div>
         <div>
           <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Mã SKU nội bộ</label>
-          <input type="text" id="inpNewProfSku" placeholder="Vd: TAM-5-1530">
+          <input type="text" id="inpNewProfSku" placeholder="Vd: DAO-PHAY-10">
         </div>
         <div>
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Đơn vị tính</label>
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Đơn vị lẻ</label>
           <select id="selNewProfUnit">
             <option value="cây">cây</option>
             <option value="tấm">tấm</option>
             <option value="kg">kg</option>
             <option value="cái">cái</option>
+            <option value="mũi">mũi</option>
+            <option value="viên">viên</option>
             <option value="bộ">bộ</option>
             <option value="hộp">hộp</option>
+            <option value="vỉ">vỉ</option>
+            <option value="cuộn">cuộn</option>
+            <option value="can">can</option>
+            <option value="lít">lít</option>
             <option value="m">m</option>
           </select>
         </div>
@@ -612,9 +628,40 @@
           <input type="number" id="inpNewProfMinStock" value="0" min="0">
         </div>
         <div>
-          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Vị trí kệ</label>
-          <input type="text" id="inpNewProfRack" placeholder="Kệ A1">
+          <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Vị trí tủ / kệ</label>
+          <input type="text" id="inpNewProfRack" placeholder="Tủ Dao A-01">
         </div>
+
+        <!-- Khung nhập chuyên sâu cho Dao cụ & Vật tư phụ -->
+        <div id="toolingSpecFormRow" style="grid-column: 1 / -1; display:none; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap:8px; padding-top:8px; border-top:1px dashed #5EEAD4;">
+          <div>
+            <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Phân loại con</label>
+            <select id="selNewProfSubCat"></select>
+          </div>
+          <div>
+            <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Hãng sản xuất</label>
+            <input type="text" id="inpNewProfBrand" placeholder="OSG, Mitsubishi, Korloy...">
+          </div>
+          <div>
+            <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Đường kính / Mã ISO</label>
+            <input type="text" id="inpNewProfIsoDiam" placeholder="Vd: Ø10, M8, APMT1604">
+          </div>
+          <div>
+            <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">ĐVT đóng gói (Mua vào)</label>
+            <input type="text" id="inpNewProfPackUnit" placeholder="Hộp, Vỉ, Thùng...">
+          </div>
+          <div>
+            <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:3px;">Quy đổi (1 gói = ? lẻ)</label>
+            <input type="number" id="inpNewProfPackQty" value="1" min="1" step="1">
+          </div>
+          <div style="display:flex; align-items:center; padding-top:16px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; cursor:pointer;">
+              <input type="checkbox" id="chkNewProfReturnable" style="width:16px; height:16px;">
+              <span>🔄 Dụng cụ mượn–trả</span>
+            </label>
+          </div>
+        </div>
+
         <button type="button" class="btn btn-p" id="btnAddProfToLib" style="min-height:36px;">+ Thêm vật tư</button>
       </div>
 
@@ -923,6 +970,7 @@
               <option value="3x7">3×7 (21 tem / trang A4 — Tomy A4 vừa, ống/vật tư)</option>
               <option value="2x5">2×5 (10 tem to / trang A4 — Kệ kho / Thép tấm)</option>
               <option value="3x8">3×8 (24 tem nhỏ / trang A4 — Phôi lẻ đề-xê)</option>
+              <option value="4x10">4×10 (40 tem siêu gọn / trang A4 — Hộp chíp, mũi khoan, hộc tủ)</option>
             </select>
           </div>
           <div style="display:flex; flex-direction:column; justify-content:center; gap:6px;">
@@ -955,6 +1003,55 @@
         <div style="display:flex; gap:8px;">
           <button type="button" class="btn btn-soft" id="btnCancelQrPrintModal">Đóng</button>
           <button type="button" class="btn btn-p" id="btnConfirmPrintQrA4" style="background:#0F172A;">🖨️ In lưới tem A4</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL NHẬP DANH MỤC DAO CỤ & VẬT TƯ PHỤ TỪ EXCEL -->
+  <div class="inv-modal-backdrop" id="modalToolingExcelImport" aria-hidden="true">
+    <div class="inv-modal">
+      <div class="inv-modal-head">
+        <div>
+          <h3 style="font-size:17px;">📥 Nhập Hàng Loạt Danh Mục Dao Cụ &amp; Vật Tư Phụ (.XLSX)</h3>
+          <div style="font-size:12px; color:#475569; margin-top:2px;">Xem trước dữ liệu &amp; kiểm tra trùng mã SKU trước khi lưu lên kho Supabase.</div>
+        </div>
+        <button type="button" class="btn btn-soft btn-sm" id="btnCloseToolingImportModal">✕ Đóng</button>
+      </div>
+      <div class="inv-modal-body">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+          <button type="button" class="btn btn-soft btn-sm" id="btnDownloadToolingTemplate">📄 Tải file Excel mẫu (Dao cụ &amp; Vật tư phụ)</button>
+          <button type="button" class="btn btn-p btn-sm" id="btnPickToolingExcel">📂 Chọn file Excel (.xlsx / .csv)</button>
+          <input type="file" id="inpToolingExcelFile" accept=".xlsx,.xls,.csv" style="display:none;">
+          <span id="lblToolingImportInfo" style="font-size:12.5px; color:#0F766E; font-weight:700;">Chưa chọn tệp</span>
+        </div>
+        <div class="table-responsive">
+          <table class="inv-table" style="min-width:860px;">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Tên vật tư / Dao cụ *</th>
+                <th>SKU</th>
+                <th>Nhóm &amp; Phân loại</th>
+                <th>Hãng</th>
+                <th>ĐVT &amp; Quy đổi</th>
+                <th class="r">Tồn đầu</th>
+                <th class="r">Định mức</th>
+                <th>Tủ / Kệ</th>
+                <th>Kiểm tra SKU</th>
+              </tr>
+            </thead>
+            <tbody id="toolingImportPreviewBody">
+              <tr><td colspan="10" style="text-align:center; padding:24px; color:#64748B;">Bấm "📄 Tải file Excel mẫu" hoặc chọn file Excel để xem trước danh mục.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="inv-modal-foot">
+        <div id="lblToolingImportSummary" style="font-size:12.5px; color:#475569;">0 dòng hợp lệ</div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-soft" id="btnCancelToolingImportModal">Hủy</button>
+          <button type="button" class="btn btn-p" id="btnConfirmToolingImport">✅ Lưu toàn bộ danh mục</button>
         </div>
       </div>
     </div>
@@ -1021,6 +1118,7 @@
       if (!s || s === 'tube_1d' || s.includes('1d') || s.includes('hộp') || s.includes('ống')) return 'tube_1d';
       if (s === 'sheet_2d' || s.includes('2d') || s.includes('tấm')) return 'sheet_2d';
       if (s === 'solid_cnc' || s.includes('cnc') || s.includes('đặc') || s.includes('trục')) return 'solid_cnc';
+      if (s === 'tooling' || s.includes('dao') || s.includes('chíp') || s.includes('taro') || s.includes('khoan')) return 'tooling';
       if (s === 'consumable' || s.includes('phụ') || s.includes('tiêu hao')) return 'consumable';
       return 'tube_1d';
     }
@@ -1538,6 +1636,7 @@
       if ($('grpCntTube')) $('grpCntTube').textContent = inventoryItems.filter(r => (r.materialGroup || 'tube_1d') === 'tube_1d').length;
       if ($('grpCntSheet')) $('grpCntSheet').textContent = inventoryItems.filter(r => r.materialGroup === 'sheet_2d').length;
       if ($('grpCntSolid')) $('grpCntSolid').textContent = inventoryItems.filter(r => r.materialGroup === 'solid_cnc').length;
+      if ($('grpCntTooling')) $('grpCntTooling').textContent = inventoryItems.filter(r => r.materialGroup === 'tooling').length;
       if ($('grpCntCons')) $('grpCntCons').textContent = inventoryItems.filter(r => r.materialGroup === 'consumable').length;
     }
 
@@ -1550,14 +1649,39 @@
         rackSel.value = (prev === 'ALL' || racks.includes(prev)) ? prev : 'ALL';
       }
 
+      const subSel = $('selFilterBarsSubCat');
+      if (subSel) {
+        const prevSub = subSel.value || 'ALL';
+        const subMap = (window.SharedUI && window.SharedUI.SUB_CATEGORIES) || {};
+        const usedSubs = Array.from(new Set(inventoryItems.map(r => (r.subCategory || '').trim()).filter(Boolean)));
+        subSel.innerHTML = '<option value="ALL">Tất cả phân loại con</option>' + usedSubs.map(k => `<option value="${escapeHtml(k)}">${escapeHtml((subMap[k] && subMap[k].label) || k)}</option>`).join('');
+        subSel.value = (prevSub === 'ALL' || usedSubs.includes(prevSub)) ? prevSub : 'ALL';
+      }
+
+      const brandSel = $('selFilterBarsBrand');
+      if (brandSel) {
+        const prevB = brandSel.value || 'ALL';
+        const usedBrands = Array.from(new Set(inventoryItems.map(r => (r.brand || '').trim()).filter(Boolean))).sort();
+        brandSel.innerHTML = '<option value="ALL">Tất cả hãng SX</option>' + usedBrands.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+        brandSel.value = (prevB === 'ALL' || usedBrands.includes(prevB)) ? prevB : 'ALL';
+      }
+
       const q = ($('inpSearchBars') ? $('inpSearchBars').value : '').trim().toLowerCase();
       const statusF = ($('selFilterBarsStatus') && $('selFilterBarsStatus').value) || 'ALL';
       const rackF = (rackSel && rackSel.value) || 'ALL';
+      const subF = (subSel && subSel.value) || 'ALL';
+      const brandF = (brandSel && brandSel.value) || 'ALL';
 
       const filtered = inventoryItems.filter(r => {
         const grp = r.materialGroup || 'tube_1d';
         if (activeGroupBars !== 'ALL' && grp !== activeGroupBars) return false;
-        if (q && !(r.profileName || '').toLowerCase().includes(q) && !(r.sku || '').toLowerCase().includes(q) && !(r.rackLocation || '').toLowerCase().includes(q)) return false;
+        if (subF !== 'ALL' && (r.subCategory || '').trim() !== subF) return false;
+        if (brandF !== 'ALL' && (r.brand || '').trim() !== brandF) return false;
+        if (q) {
+          const specStr = r.specJson ? JSON.stringify(r.specJson) : '';
+          const hay = `${r.profileName || ''} ${r.sku || ''} ${r.rackLocation || ''} ${r.brand || ''} ${r.subCategory || ''} ${specStr}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
         if (rackF !== 'ALL' && (r.rackLocation || '').trim() !== rackF) return false;
         const qty = Math.max(0, Number(r.stockQty) || 0);
         const minQ = Math.max(0, Number(r.minStockQty) || 0);
@@ -1597,17 +1721,25 @@
         }
 
         const qtyColor = qty === 0 ? '#B91C1C' : ((minQ > 0 && qty <= minQ) ? '#C2410C' : '#0F766E');
+        const packHint = (r.packUnit && Number(r.packQty) > 1)
+          ? `<div style="font-size:11px; color:#0369A1;">1 ${escapeHtml(r.packUnit)} = ${numVN(r.packQty)} ${escapeHtml(unit)}</div>`
+          : '';
         const specText = grp === 'tube_1d'
           ? `${numVN(stdLen)} mm${totalMeters > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalMeters, 1)} m${wPerM > 0 ? ' · ' + numVN(totalKg, 1) + ' kg' : ''}</div>` : ''}`
-          : (stdLen > 0 && grp !== 'consumable' ? `${numVN(stdLen)} mm${totalKg > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalKg, 1)} kg</div>` : ''}` : '<span style="color:#94A3B8;">—</span>');
+          : ((grp === 'tooling' || grp === 'consumable')
+            ? `${(r.specJson && (r.specJson.diameter || r.specJson.code_iso)) ? `<b>${escapeHtml(r.specJson.diameter || r.specJson.code_iso)}</b>` : '<span style="color:#94A3B8;">—</span>'}${packHint}`
+            : (stdLen > 0 ? `${numVN(stdLen)} mm${totalKg > 0 ? `<div style="font-size:11px;color:#64748B;">${numVN(totalKg, 1)} kg</div>` : ''}` : '<span style="color:#94A3B8;">—</span>'));
         const isChecked = selectedQrBarIds.has(String(r.id));
+        const subLbl = (r.subCategory && window.SharedUI && window.SharedUI.getSubCategoryLabel) ? window.SharedUI.getSubCategoryLabel(r.subCategory) : '';
 
         return `
           <tr>
             <td style="text-align:center;"><input type="checkbox" class="chk-qr-bar" data-id="${escapeHtml(r.id)}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;"></td>
             <td>
               <strong style="color:var(--dark);">${escapeHtml(r.profileName)}</strong>
-              ${r.sku ? `<div style="font-size:11px; font-family:monospace; color:#475569;">SKU: ${escapeHtml(r.sku)}</div>` : ''}
+              ${r.isReturnable ? '<span class="pill pill-blue" style="margin-left:4px;font-size:10.5px;">🔄 Mượn-trả</span>' : ''}
+              ${r.sku ? `<div style="font-size:11px; font-family:monospace; color:#475569;">SKU: ${escapeHtml(r.sku)}${r.brand ? ' · Hãng: <b>' + escapeHtml(r.brand) + '</b>' : ''}</div>` : (r.brand ? `<div style="font-size:11px; color:#475569;">Hãng: <b>${escapeHtml(r.brand)}</b></div>` : '')}
+              ${subLbl ? `<div style="font-size:11px; color:#64748B;">${escapeHtml(subLbl)}</div>` : ''}
             </td>
             <td>
               <span class="grp-badge ${gMeta.badgeClass}">${gMeta.icon} ${escapeHtml(gMeta.shortLabel)}</span>
@@ -2496,11 +2628,15 @@
 
       // Filters Tab 1 (Bars)
       if ($('inpSearchBars')) $('inpSearchBars').oninput = renderBarsSection;
+      if ($('selFilterBarsSubCat')) $('selFilterBarsSubCat').onchange = renderBarsSection;
+      if ($('selFilterBarsBrand')) $('selFilterBarsBrand').onchange = renderBarsSection;
       if ($('selFilterBarsStatus')) $('selFilterBarsStatus').onchange = renderBarsSection;
       if ($('selFilterBarsRack')) $('selFilterBarsRack').onchange = renderBarsSection;
       if ($('btnResetBarsFilter')) {
         $('btnResetBarsFilter').onclick = () => {
           $('inpSearchBars').value = '';
+          if ($('selFilterBarsSubCat')) $('selFilterBarsSubCat').value = 'ALL';
+          if ($('selFilterBarsBrand')) $('selFilterBarsBrand').value = 'ALL';
           $('selFilterBarsStatus').value = 'ALL';
           $('selFilterBarsRack').value = 'ALL';
           renderBarsSection();
@@ -2604,12 +2740,26 @@
       }
 
       // Tab 5 (Library)
+      function syncToolingFormVisibility() {
+        const g = ($('selNewProfGroup') && $('selNewProfGroup').value) || 'tube_1d';
+        const showTool = (g === 'tooling' || g === 'consumable');
+        if ($('toolingSpecFormRow')) $('toolingSpecFormRow').style.display = showTool ? 'grid' : 'none';
+        const subSel = $('selNewProfSubCat');
+        if (subSel && window.SharedUI && window.SharedUI.SUB_CATEGORIES) {
+          const allSubs = Object.values(window.SharedUI.SUB_CATEGORIES).filter(sc => sc.group === 'all' || sc.group === g);
+          subSel.innerHTML = allSubs.map(sc => `<option value="${escapeHtml(sc.key)}">${escapeHtml(sc.label)}</option>`).join('');
+        }
+      }
+      syncToolingFormVisibility();
+
       if ($('selNewProfGroup')) {
         $('selNewProfGroup').onchange = () => {
-          const gMeta = getGroupMeta($('selNewProfGroup').value);
+          const g = $('selNewProfGroup').value;
+          const gMeta = getGroupMeta(g);
           if ($('selNewProfUnit')) $('selNewProfUnit').value = gMeta.defaultUnit;
-          if ($('selNewProfGroup').value === 'consumable' && $('inpNewProfStdLen')) $('inpNewProfStdLen').value = '1000';
-          if ($('selNewProfGroup').value === 'tube_1d' && $('inpNewProfStdLen')) $('inpNewProfStdLen').value = '6000';
+          if ((g === 'consumable' || g === 'tooling') && $('inpNewProfStdLen')) $('inpNewProfStdLen').value = '100';
+          if (g === 'tube_1d' && $('inpNewProfStdLen')) $('inpNewProfStdLen').value = '6000';
+          syncToolingFormVisibility();
         };
       }
       if ($('inpNewProfName')) {
@@ -2633,6 +2783,13 @@
         const avgCost = Math.max(0, parseFloat($('inpNewProfAvgCost') && $('inpNewProfAvgCost').value) || 0);
         const minQ = Math.max(0, parseInt($('inpNewProfMinStock').value, 10) || 0);
         const rackLoc = ($('inpNewProfRack').value || '').trim();
+        const subCategory = ($('selNewProfSubCat') && (grp === 'tooling' || grp === 'consumable')) ? $('selNewProfSubCat').value : '';
+        const brand = ($('inpNewProfBrand') && (grp === 'tooling' || grp === 'consumable')) ? $('inpNewProfBrand').value.trim() : '';
+        const isoDiam = ($('inpNewProfIsoDiam') && (grp === 'tooling' || grp === 'consumable')) ? $('inpNewProfIsoDiam').value.trim() : '';
+        const packUnit = ($('inpNewProfPackUnit') && (grp === 'tooling' || grp === 'consumable')) ? $('inpNewProfPackUnit').value.trim() : '';
+        const packQty = ($('inpNewProfPackQty') && (grp === 'tooling' || grp === 'consumable')) ? Math.max(1, Number($('inpNewProfPackQty').value) || 1) : 1;
+        const isReturnable = Boolean($('chkNewProfReturnable') && $('chkNewProfReturnable').checked && (grp === 'tooling' || grp === 'consumable'));
+        const specJson = isoDiam ? { diameter: isoDiam } : {};
 
         window.SupabaseDB.setLoading(true, 'Đang lưu vật tư lên Supabase...');
         try {
@@ -2640,6 +2797,12 @@
             materialGroup: grp,
             sku: sku,
             unit: unit,
+            subCategory: subCategory,
+            brand: brand,
+            packUnit: packUnit,
+            packQty: packQty,
+            isReturnable: isReturnable,
+            specJson: specJson,
             standardLengthMm: stdLen,
             weightPerM: wPerM,
             unitPrice: avgCost,
@@ -2655,6 +2818,11 @@
           if ($('inpNewProfAvgCost')) $('inpNewProfAvgCost').value = '0';
           $('inpNewProfWeight').value = '0';
           $('inpNewProfRack').value = '';
+          if ($('inpNewProfBrand')) $('inpNewProfBrand').value = '';
+          if ($('inpNewProfIsoDiam')) $('inpNewProfIsoDiam').value = '';
+          if ($('inpNewProfPackUnit')) $('inpNewProfPackUnit').value = '';
+          if ($('inpNewProfPackQty')) $('inpNewProfPackQty').value = '1';
+          if ($('chkNewProfReturnable')) $('chkNewProfReturnable').checked = false;
           renderAll();
           showToast(`✓ Đã lưu "${val}" lên Supabase!`);
         } catch (err) {
@@ -3154,9 +3322,11 @@
         const dashed = Boolean($('chkQrDashedBorder') && $('chkQrDashedBorder').checked);
         const gridCfg = layout === '2x5'
           ? { cols: 2, rows: 5, qrPx: 74, titlePx: 13, subPx: 11, pad: '6px 8px' }
-          : (layout === '3x8'
-            ? { cols: 3, rows: 8, qrPx: 50, titlePx: 10.5, subPx: 9, pad: '4px 5px' }
-            : { cols: 3, rows: 7, qrPx: 58, titlePx: 11.5, subPx: 9.5, pad: '5px 6px' });
+          : (layout === '4x10'
+            ? { cols: 4, rows: 10, qrPx: 38, titlePx: 9, subPx: 7.5, pad: '3px 4px' }
+            : (layout === '3x8'
+              ? { cols: 3, rows: 8, qrPx: 50, titlePx: 10.5, subPx: 9, pad: '4px 5px' }
+              : { cols: 3, rows: 7, qrPx: 58, titlePx: 11.5, subPx: 9.5, pad: '5px 6px' }));
 
         const rowsDom = document.querySelectorAll('#qrPrintItemsBody .inp-qr-copy-cnt');
         const includeRacks = Boolean($('chkQrIncludeRackLabels') && $('chkQrIncludeRackLabels').checked);
@@ -3248,6 +3418,149 @@
       if ($('btnCloseQrPrintModal')) $('btnCloseQrPrintModal').onclick = () => $('modalPrintQrLabels').classList.remove('open');
       if ($('btnCancelQrPrintModal')) $('btnCancelQrPrintModal').onclick = () => $('modalPrintQrLabels').classList.remove('open');
       if ($('btnConfirmPrintQrA4')) $('btnConfirmPrintQrA4').onclick = printA4QrLabelsSheet;
+
+      // === IMPORT DANH MỤC DAO CỤ & VẬT TƯ PHỤ TỪ EXCEL ===
+      let toolingImportDraftRows = [];
+      function renderToolingImportPreview() {
+        const tbody = $('toolingImportPreviewBody');
+        if (!tbody) return;
+        if (!toolingImportDraftRows.length) {
+          tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748B;">Chưa có dòng dữ liệu hợp lệ nào.</td></tr>';
+          if ($('lblToolingImportSummary')) $('lblToolingImportSummary').textContent = '0 dòng hợp lệ';
+          return;
+        }
+        const existingSkuMap = {};
+        inventoryItems.forEach(r => { if (r.sku) existingSkuMap[r.sku.trim().toUpperCase()] = r.profileName; });
+        const seenFileSkus = new Set();
+        tbody.innerHTML = toolingImportDraftRows.map((row, idx) => {
+          const skuUpper = (row.sku || '').trim().toUpperCase();
+          let skuWarn = '<span class="pill pill-green">✓ Hợp lệ</span>';
+          if (skuUpper && existingSkuMap[skuUpper] && existingSkuMap[skuUpper] !== row.profileName) {
+            skuWarn = `<span class="pill pill-orange">⚠️ Trùng SKU với "${escapeHtml(existingSkuMap[skuUpper])}"</span>`;
+          } else if (skuUpper && seenFileSkus.has(skuUpper)) {
+            skuWarn = '<span class="pill pill-red">⚠️ Trùng SKU trong file</span>';
+          }
+          if (skuUpper) seenFileSkus.add(skuUpper);
+          const gMeta = getGroupMeta(row.materialGroup);
+          const packTxt = row.packUnit && row.packQty > 1 ? ` · 1 ${row.packUnit} = ${row.packQty} ${row.unit}` : '';
+          return `
+            <tr>
+              <td>${idx + 1}</td>
+              <td><b>${escapeHtml(row.profileName)}</b>${row.isReturnable ? ' <span class="pill pill-blue">🔄 Mượn-trả</span>' : ''}${row.specJson && row.specJson.diameter ? `<div style="font-size:11px;color:#475569;">${escapeHtml(row.specJson.diameter)}</div>` : ''}</td>
+              <td style="font-family:monospace;">${escapeHtml(row.sku || '—')}</td>
+              <td><span class="grp-badge ${gMeta.badgeClass}">${gMeta.icon} ${escapeHtml(gMeta.shortLabel)}</span><div style="font-size:11px;color:#64748B;">${escapeHtml(row.subCategory || '')}</div></td>
+              <td>${escapeHtml(row.brand || '—')}</td>
+              <td><b>${escapeHtml(row.unit)}</b><span style="font-size:11px;color:#0369A1;">${escapeHtml(packTxt)}</span></td>
+              <td class="r">${numVN(row.stockQty)}</td>
+              <td class="r">${numVN(row.minStockQty)}</td>
+              <td>${escapeHtml(row.rackLocation || '—')}</td>
+              <td>${skuWarn}</td>
+            </tr>
+          `;
+        }).join('');
+        if ($('lblToolingImportSummary')) $('lblToolingImportSummary').textContent = `Sẵn sàng lưu ${toolingImportDraftRows.length} mã vật tư`;
+      }
+
+      if ($('btnOpenToolingImport')) {
+        $('btnOpenToolingImport').onclick = () => {
+          toolingImportDraftRows = [];
+          if ($('lblToolingImportInfo')) $('lblToolingImportInfo').textContent = 'Chưa chọn tệp';
+          renderToolingImportPreview();
+          $('modalToolingExcelImport').classList.add('open');
+        };
+      }
+      if ($('btnCloseToolingImportModal')) $('btnCloseToolingImportModal').onclick = () => $('modalToolingExcelImport').classList.remove('open');
+      if ($('btnCancelToolingImportModal')) $('btnCancelToolingImportModal').onclick = () => $('modalToolingExcelImport').classList.remove('open');
+      if ($('btnDownloadToolingTemplate')) {
+        $('btnDownloadToolingTemplate').onclick = () => {
+          if (typeof XLSX === 'undefined' || !XLSX.utils) return;
+          const sampleRows = [
+            ['Tên vật tư / Dao cụ', 'SKU', 'Nhóm (tooling/consumable)', 'Phân loại con', 'Hãng', 'ĐVT lẻ', 'ĐVT đóng gói', 'Quy đổi', 'Tồn đầu', 'Định mức', 'Vị trí tủ/hộc', 'Mượn-trả (1/0)', 'Đường kính / Mã ISO'],
+            ['Dao phay ngón Ø10 4 me Carbide OSG', 'DAO-PHAY-10', 'tooling', 'dao_phay', 'OSG', 'mũi', 'hộp', 1, 8, 3, 'Tủ Dao A1-Hộc 2', 0, 'Ø10'],
+            ['Chíp phay APMT1604PDER-M2 Korloy', 'CHIP-APMT1604', 'tooling', 'chip_cat', 'Korloy', 'viên', 'hộp', 10, 40, 20, 'Tủ Chíp B1-Hộc 1', 0, 'APMT1604'],
+            ['Mũi taro xoắn M8x1.25 OSG', 'TARO-M8', 'tooling', 'mui_taro', 'OSG', 'mũi', 'hộp', 1, 6, 2, 'Tủ Taro C1', 0, 'M8x1.25'],
+            ['Thước cặp điện tử Mitutoyo 150mm', 'DO-THUOC150', 'tooling', 'bau_kep_do', 'Mitutoyo', 'cái', '', 1, 3, 1, 'Tủ Dụng Cụ Đo', 1, '0-150mm'],
+            ['Béc cắt Laser Fiber Ø1.5 Double', 'LASER-BEC15', 'consumable', 'vat_tu_laser', 'Raytools', 'cái', 'hộp', 10, 30, 10, 'Tủ Laser L1', 0, 'Ø1.5']
+          ];
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet(sampleRows);
+          ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 9 }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 16 }];
+          XLSX.utils.book_append_sheet(wb, ws, 'DanhMuc_DaoCu');
+          XLSX.writeFile(wb, 'Mau_Nhap_DaoCu_VatTuPhu.xlsx');
+          showToast('📄 Đã tải file Excel mẫu Dao cụ & Vật tư phụ!');
+        };
+      }
+      if ($('btnPickToolingExcel')) $('btnPickToolingExcel').onclick = () => $('inpToolingExcelFile').click();
+      if ($('inpToolingExcelFile')) {
+        $('inpToolingExcelFile').onchange = async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          try {
+            let aoa = [];
+            if (/\.csv$/i.test(file.name)) {
+              const txt = await file.text();
+              aoa = txt.split(/\r?\n/).map(l => l.split(/,|;|\t/));
+            } else if (typeof XLSX !== 'undefined') {
+              const buf = await file.arrayBuffer();
+              const wb = XLSX.read(buf, { type: 'array' });
+              aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+            }
+            const parsed = [];
+            aoa.forEach((row, idx) => {
+              if (!Array.isArray(row)) return;
+              const name = String(row[0] || '').trim();
+              if (!name || /tên\s*vật\s*tư|ten\s*vat\s*tu|^stt$/i.test(name)) return;
+              const grp = normalizeGroupKey(row[2] || 'tooling');
+              const unit = String(row[5] || '').trim() || getGroupMeta(grp).defaultUnit;
+              const iso = String(row[12] || '').trim();
+              parsed.push({
+                profileName: name,
+                sku: String(row[1] || '').trim(),
+                materialGroup: grp,
+                subCategory: String(row[3] || '').trim() || 'khac',
+                brand: String(row[4] || '').trim(),
+                unit: unit,
+                packUnit: String(row[6] || '').trim(),
+                packQty: Math.max(1, Number(row[7]) || 1),
+                stockQty: Math.max(0, Number(row[8]) || 0),
+                minStockQty: Math.max(0, Math.round(Number(row[9]) || 0)),
+                rackLocation: String(row[10] || '').trim(),
+                isReturnable: String(row[11] || '').trim() === '1' || /true|có|yes/i.test(String(row[11] || '')),
+                specJson: iso ? { diameter: iso } : {},
+                standardLengthMm: 100
+              });
+            });
+            toolingImportDraftRows = parsed;
+            if ($('lblToolingImportInfo')) $('lblToolingImportInfo').textContent = `✓ Đã đọc ${parsed.length} dòng từ "${file.name}"`;
+            renderToolingImportPreview();
+          } catch (err) {
+            showToast('❌ Lỗi đọc file Excel: ' + err.message);
+          } finally {
+            e.target.value = '';
+          }
+        };
+      }
+      if ($('btnConfirmToolingImport')) {
+        $('btnConfirmToolingImport').onclick = async () => {
+          if (!toolingImportDraftRows.length) {
+            showToast('⚠️ Chưa có dữ liệu để lưu!');
+            return;
+          }
+          window.SupabaseDB.setLoading(true, `Đang lưu ${toolingImportDraftRows.length} mã danh mục...`);
+          try {
+            await window.SupabaseDB.bulkImportToolingCatalog(toolingImportDraftRows, currentUser ? currentUser.username : '');
+            inventoryItems = await window.SupabaseDB.getInventory();
+            savedProfiles = inventoryItems.map(r => r.profileName);
+            renderAll();
+            $('modalToolingExcelImport').classList.remove('open');
+            showToast(`✅ Đã nhập thành công ${toolingImportDraftRows.length} mã dao cụ & vật tư phụ!`);
+          } catch (err) {
+            showToast('❌ Lỗi nhập danh mục: ' + err.message);
+          } finally {
+            window.SupabaseDB.setLoading(false);
+          }
+        };
+      }
 
       // === QUÉT QR CAMERA TRA KHO (B3) ===
       function showQrScanResultForPayload(parsed) {

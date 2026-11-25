@@ -77,6 +77,14 @@
       defaultUnit: 'kg',
       badgeClass: 'grp-solid_cnc'
     },
+    tooling: {
+      key: 'tooling',
+      label: 'Dao cụ cắt gọt CNC',
+      shortLabel: 'Dao cụ CNC',
+      icon: '🔧',
+      defaultUnit: 'mũi',
+      badgeClass: 'grp-tooling'
+    },
     consumable: {
       key: 'consumable',
       label: 'Vật tư phụ & Tiêu hao',
@@ -87,7 +95,31 @@
     }
   };
 
-  var UNITS = ['cây', 'tấm', 'kg', 'cái', 'bộ', 'hộp', 'm'];
+  var SUB_CATEGORIES = {
+    dao_phay: { key: 'dao_phay', label: 'Dao phay (Endmill / Mặt)', group: 'tooling' },
+    chip_cat: { key: 'chip_cat', label: 'Chíp cắt (Insert APMT/CNMG...)', group: 'tooling' },
+    mui_khoan: { key: 'mui_khoan', label: 'Mũi khoan (HSS / Carbide)', group: 'tooling' },
+    mui_taro: { key: 'mui_taro', label: 'Mũi taro ren', group: 'tooling' },
+    bau_kep_do: { key: 'bau_kep_do', label: 'Bầu kẹp / Collet / Dụng cụ đo', group: 'tooling' },
+    vat_tu_laser: { key: 'vat_tu_laser', label: 'Vật tư Laser (Béc, Kính, Gốm...)', group: 'consumable' },
+    vat_tu_han_mai: { key: 'vat_tu_han_mai', label: 'Que hàn, Dây hàn, Đá cắt/mài', group: 'consumable' },
+    bulong_ocvit: { key: 'bulong_ocvit', label: 'Bu-lông, Ốc vít, Long đền', group: 'consumable' },
+    vong_bi_phukien: { key: 'vong_bi_phukien', label: 'Vòng bi, Ray trượt, Bản lề', group: 'consumable' },
+    dau_son_hoachat: { key: 'dau_son_hoachat', label: 'Dầu cắt gọt, Sơn, Hóa chất', group: 'consumable' },
+    khac: { key: 'khac', label: 'Khác', group: 'all' }
+  };
+
+  var ISSUE_REASONS = {
+    new: { key: 'new', label: 'Cấp mới', shortLabel: 'Cấp mới' },
+    worn_exchange: { key: 'worn_exchange', label: 'Đổi mòn tự nhiên', shortLabel: 'Đổi mòn' },
+    broken_exchange: { key: 'broken_exchange', label: 'Đổi gãy / mẻ', shortLabel: 'Gãy/Mẻ' },
+    borrow: { key: 'borrow', label: 'Mượn dụng cụ', shortLabel: 'Mượn' },
+    return_tool: { key: 'return_tool', label: 'Trả dụng cụ', shortLabel: 'Trả dụng cụ' }
+  };
+
+  var MACHINES = ['CNC Phay', 'CNC Tiện', 'Laser Ống', 'Laser Tấm', 'Tổ Hàn', 'Tổ Lắp Ráp', 'Kho / Chung'];
+
+  var UNITS = ['cây', 'tấm', 'kg', 'cái', 'mũi', 'viên', 'bộ', 'hộp', 'vỉ', 'cuộn', 'can', 'lít', 'm', 'đoạn'];
 
   var NAV_ITEMS = [
     { key: 'index', href: '/', label: '📐 Bàn Xếp Phôi', badgeId: '' },
@@ -248,6 +280,32 @@
     return Math.round(Number(val) || 0).toLocaleString('vi-VN');
   }
 
+  function getSubCategoryLabel(key) {
+    var k = String(key || '').trim();
+    return (SUB_CATEGORIES[k] && SUB_CATEGORIES[k].label) || (k || '—');
+  }
+
+  function getIssueReasonLabel(key) {
+    var k = String(key || 'new').trim();
+    return (ISSUE_REASONS[k] && ISSUE_REASONS[k].shortLabel) || 'Cấp mới';
+  }
+
+  function convertPackToBase(qty, unitPrice, packQty, isPackMode) {
+    var q = Math.max(0, Number(qty) || 0);
+    var p = Math.max(0, Number(unitPrice) || 0);
+    var pq = Math.max(1, Number(packQty) || 1);
+    if (!isPackMode || pq <= 1) {
+      return { baseQty: q, baseUnitPrice: p, totalAmount: Math.round(q * p) };
+    }
+    var baseQty = Math.round(q * pq * 1000) / 1000;
+    var baseUnitPrice = Math.round((p / pq) * 100) / 100;
+    return {
+      baseQty: baseQty,
+      baseUnitPrice: baseUnitPrice,
+      totalAmount: Math.round(q * p)
+    };
+  }
+
   var _pendingVouchersUnsub = null;
   var _pendingVouchersTimer = null;
 
@@ -290,10 +348,16 @@
     ROLES: ROLES,
     VALID_ROLES: VALID_ROLES,
     MATERIAL_GROUPS: MATERIAL_GROUPS,
+    SUB_CATEGORIES: SUB_CATEGORIES,
+    ISSUE_REASONS: ISSUE_REASONS,
+    MACHINES: MACHINES,
     UNITS: UNITS,
     NAV_ITEMS: NAV_ITEMS,
     getRoleMeta: getRoleMeta,
     getMaterialGroupMeta: getMaterialGroupMeta,
+    getSubCategoryLabel: getSubCategoryLabel,
+    getIssueReasonLabel: getIssueReasonLabel,
+    convertPackToBase: convertPackToBase,
     canManageInventory: canManageInventory,
     canCreateVouchers: canCreateVouchers,
     canApproveVouchers: canApproveVouchers,

@@ -256,6 +256,7 @@
       <button type="button" class="btn btn-sm btn-p rep-tab-btn" data-tab="nxt">📦 Báo cáo Nhập – Xuất – Tồn (NXT)</button>
       <button type="button" class="btn btn-sm btn-soft rep-tab-btn" data-tab="projects">🏗️ Giá vốn NVL theo Dự án</button>
       <button type="button" class="btn btn-sm btn-soft rep-tab-btn" data-tab="suppliers">🏢 Quản lý &amp; Tổng hợp Nhà cung cấp</button>
+      <button type="button" class="btn btn-sm btn-soft rep-tab-btn" data-tab="tooling">🔧 Tiêu hao Dao cụ &amp; Vật tư phụ</button>
     </div>
 
     <!-- TAB 1: BÁO CÁO NXT -->
@@ -270,10 +271,11 @@
 
       <div class="filter-bar">
         <select id="selNxtGroup" style="max-width:210px;">
-          <option value="ALL">📚 Tất cả 4 nhóm vật tư</option>
+          <option value="ALL">📚 Tất cả 5 nhóm vật tư</option>
           <option value="tube_1d">🪵 Thép hộp / Ống 1D</option>
           <option value="sheet_2d">📐 Thép tấm 2D</option>
           <option value="solid_cnc">🔩 Phôi đặc CNC</option>
+          <option value="tooling">🔧 Dao cụ cắt gọt CNC</option>
           <option value="consumable">🧰 Vật tư phụ</option>
         </select>
         <input type="text" id="inpNxtSearch" placeholder="🔍 Tìm tên vật tư hoặc SKU..." style="max-width:260px;">
@@ -385,6 +387,35 @@
         </table>
       </div>
     </section>
+
+    <!-- TAB 4: TIÊU HAO DAO CỤ & VẬT TƯ PHỤ -->
+    <section class="card" id="secTabTooling" style="display:none;">
+      <div class="card-head">
+        <div>
+          <h2>4. Thống Kê Tiêu Hao Dao Cụ CNC &amp; Vật Tư Phụ</h2>
+          <div style="font-size:12.5px; color:var(--mut);">Theo dõi lượng xuất theo Máy gia công, Người nhận, lý do cấp (Cấp mới / Đổi mòn / Gãy-mẻ / Mượn) và cảnh báo tỷ lệ gãy/mẻ cao (&ge; 25%).</div>
+        </div>
+        <button type="button" class="btn btn-p btn-sm" id="btnExportToolingXlsx">📊 Xuất Excel Dao Cụ (.xlsx)</button>
+      </div>
+      <div class="table-responsive">
+        <table class="r-table">
+          <thead>
+            <tr>
+              <th>Máy / Tổ</th>
+              <th>Người nhận</th>
+              <th>Dao cụ / Vật tư &amp; Hãng</th>
+              <th class="r">Tổng xuất</th>
+              <th class="r">Cấp mới / Mòn</th>
+              <th class="r">Gãy / Mẻ (%)</th>
+              <th class="r">Thu hồi cũ</th>
+              <th class="r price-only">Chi phí (đ)</th>
+            </tr>
+          </thead>
+          <tbody id="toolingTableBody"></tbody>
+          <tfoot id="toolingTableFoot"></tfoot>
+        </table>
+      </div>
+    </section>
   </main>
 
   <!-- MODAL CHI TIẾT GIÁ VỐN DỰ ÁN -->
@@ -426,6 +457,7 @@
     let nxtRows = [];
     let projCostRows = [];
     let supSummaryRows = [];
+    let toolingRows = [];
     let activeProjDetail = null;
     let activeTab = 'nxt';
 
@@ -566,19 +598,24 @@
 
       window.SupabaseDB.setLoading(true, 'Đang tổng hợp báo cáo từ Supabase RPC...');
       try {
-        const [nxt, proj, sup] = await Promise.all([
+        const [nxt, proj, sup, tooling] = await Promise.all([
           window.SupabaseDB.getNxtReport(fromIso, toIso, 'ALL'),
           window.SupabaseDB.getProjectCostReport(fromIso, toIso),
-          window.SupabaseDB.getSupplierPurchaseSummary(fromIso, toIso)
+          window.SupabaseDB.getSupplierPurchaseSummary(fromIso, toIso),
+          typeof window.SupabaseDB.getToolingConsumptionReport === 'function'
+            ? window.SupabaseDB.getToolingConsumptionReport(fromIso, toIso).catch(() => [])
+            : Promise.resolve([])
         ]);
         nxtRows = Array.isArray(nxt) ? nxt : [];
         projCostRows = Array.isArray(proj) ? proj : [];
         supSummaryRows = Array.isArray(sup) ? sup : [];
+        toolingRows = Array.isArray(tooling) ? tooling : [];
         $('dot6Warn').style.display = 'none';
         renderKpis();
         renderNxtTable();
         renderProjectCostTable();
         renderSupplierSummaryTable();
+        renderToolingConsumptionTable();
       } catch (err) {
         console.error(err);
         if (/get_nxt_report|does not exist|schema cache/i.test(String(err.message || ''))) {
@@ -888,6 +925,86 @@
       });
     }
 
+    function renderToolingConsumptionTable() {
+      const tbody = $('toolingTableBody');
+      const tfoot = $('toolingTableFoot');
+      if (!tbody || !tfoot) return;
+      if (!toolingRows.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:26px; color:#64748B;">Chưa phát sinh phiếu xuất Dao cụ / Vật tư phụ đã duyệt trong kỳ.</td></tr>';
+        tfoot.innerHTML = '';
+        return;
+      }
+      let sumQty = 0, sumBroken = 0, sumCost = 0;
+      tbody.innerHTML = toolingRows.map(r => {
+        const tot = Number(r.total_qty) || 0;
+        const brk = Number(r.broken_qty) || 0;
+        const brkPct = tot > 0 ? Math.round((brk / tot) * 100) : 0;
+        const isHighBroken = brk > 0 && brkPct >= 25;
+        const subLbl = window.SharedUI && window.SharedUI.getSubCategoryLabel ? window.SharedUI.getSubCategoryLabel(r.sub_category) : r.sub_category;
+        sumQty += tot;
+        sumBroken += brk;
+        sumCost += Number(r.total_cost) || 0;
+        return `
+          <tr style="${isHighBroken ? 'background:#FEF2F2;' : ''}">
+            <td><b>${escapeHtml(r.machine_name || 'Chung')}</b></td>
+            <td>${escapeHtml(r.recipient_name || '—')}</td>
+            <td>
+              <strong>${escapeHtml(r.profile)}</strong>
+              <div style="font-size:11px; color:#64748B;">${escapeHtml(subLbl)}${r.brand ? ' · Hãng: <b>' + escapeHtml(r.brand) + '</b>' : ''}</div>
+            </td>
+            <td class="r"><b>${numVN(tot)} ${escapeHtml(r.unit)}</b></td>
+            <td class="r">${numVN(r.new_qty)} / ${numVN(r.worn_qty)}</td>
+            <td class="r" style="font-weight:800; color:${isHighBroken ? '#B91C1C' : '#334155'};">${numVN(brk)} (${brkPct}%)${isHighBroken ? ' ⚠️' : ''}</td>
+            <td class="r">${numVN(r.returned_old_qty)}</td>
+            <td class="r price-only" style="font-weight:800; color:#0F766E;">${numVN(r.total_cost, 0)} đ</td>
+          </tr>
+        `;
+      }).join('');
+
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="3">TỔNG TIÊU HAO (${toolingRows.length} dòng)</td>
+          <td class="r">${numVN(sumQty)}</td>
+          <td></td>
+          <td class="r" style="color:#B91C1C;">${numVN(sumBroken)}</td>
+          <td></td>
+          <td class="r price-only">${numVN(sumCost, 0)} đ</td>
+        </tr>
+      `;
+    }
+
+    function exportToolingExcel() {
+      if (!toolingRows.length) { showToast('⚠️ Chưa có dữ liệu tiêu hao dao cụ để xuất!'); return; }
+      const fromD = $('inpRepFrom').value;
+      const toD = $('inpRepTo').value;
+      const canSeePrices = window.SharedUI ? window.SharedUI.canViewPrices(currentUser) : false;
+      const header = ['STT', 'Máy / Tổ', 'Người nhận', 'Phân loại', 'Dao cụ / Vật tư', 'Hãng', 'ĐVT', 'Tổng xuất', 'Cấp mới', 'Đổi mòn', 'Gãy/Mẻ', 'Mượn', 'Thu hồi cũ'];
+      if (canSeePrices) header.push('Chi phí (đ)', 'Chi phí Gãy/Mẻ (đ)');
+      const rows = [
+        ['CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH'],
+        ['BÁO CÁO TIÊU HAO DAO CỤ CẮT GỌT CNC & VẬT TƯ PHỤ'],
+        [`Kỳ báo cáo: Từ ${fromD} đến ${toD}`, '', 'Người lập:', currentUser ? '@' + currentUser.username : ''],
+        [],
+        header
+      ];
+      toolingRows.forEach((r, idx) => {
+        const line = [
+          idx + 1, r.machine_name, r.recipient_name, r.sub_category, r.profile, r.brand, r.unit,
+          Number(r.total_qty) || 0, Number(r.new_qty) || 0, Number(r.worn_qty) || 0,
+          Number(r.broken_qty) || 0, Number(r.borrow_qty) || 0, Number(r.returned_old_qty) || 0
+        ];
+        if (canSeePrices) line.push(Number(r.total_cost) || 0, Number(r.broken_cost) || 0);
+        rows.push(line);
+      });
+      if (typeof XLSX !== 'undefined' && XLSX.utils) {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, 'TieuHao_DaoCu');
+        XLSX.writeFile(wb, `TieuHao_DaoCu_${fromD}_${toD}.xlsx`);
+        showToast('📊 Đã xuất file Excel Tiêu hao Dao cụ!');
+      }
+    }
+
     function resetSupForm() {
       ['hidEditSupId', 'inpSupCode', 'inpSupName', 'inpSupPhone', 'inpSupEmail', 'inpSupTax', 'inpSupAddr', 'inpSupNote'].forEach(id => $(id).value = '');
       $('btnResetSupForm').style.display = 'none';
@@ -914,6 +1031,7 @@
           $('secTabNxt').style.display = activeTab === 'nxt' ? 'block' : 'none';
           $('secTabProjects').style.display = activeTab === 'projects' ? 'block' : 'none';
           $('secTabSuppliers').style.display = activeTab === 'suppliers' ? 'block' : 'none';
+          if ($('secTabTooling')) $('secTabTooling').style.display = activeTab === 'tooling' ? 'block' : 'none';
           document.querySelectorAll('.rep-tab-btn').forEach(b => {
             b.className = b === btn ? 'btn btn-sm btn-p rep-tab-btn' : 'btn btn-sm btn-soft rep-tab-btn';
           });
@@ -923,6 +1041,7 @@
       $('selNxtGroup').onchange = renderNxtTable;
       $('inpNxtSearch').oninput = renderNxtTable;
       $('btnExportNxtXlsx').onclick = exportNxtExcel;
+      if ($('btnExportToolingXlsx')) $('btnExportToolingXlsx').onclick = exportToolingExcel;
 
       $('btnCloseProjDetail').onclick = () => $('modalProjCostDetail').classList.remove('open');
       $('btnDoneProjDetail').onclick = () => $('modalProjCostDetail').classList.remove('open');

@@ -429,6 +429,11 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       materialGroup: row.material_group || 'tube_1d',
       sku: row.sku ? String(row.sku) : '',
       unit: row.unit ? String(row.unit) : 'cây',
+      subCategory: row.sub_category ? String(row.sub_category) : '',
+      brand: row.brand ? String(row.brand) : '',
+      packUnit: row.pack_unit ? String(row.pack_unit) : '',
+      packQty: row.pack_qty != null ? Math.max(1, Number(row.pack_qty) || 1) : 1,
+      isReturnable: Boolean(row.is_returnable),
       specJson: specObj,
       standardLength: stdLen,
       standardLengthMm: stdLen,
@@ -535,6 +540,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       lengthMm: row.length_mm != null ? Number(row.length_mm) : null,
       unitPrice: Number(row.unit_price) || 0,
       totalAmount: Number(row.total_amount) || 0,
+      issueReason: String(row.issue_reason || 'new'),
+      returnedOldQty: Number(row.returned_old_qty) || 0,
       note: String(row.note || ''),
       createdAt: row.created_at || null
     };
@@ -553,6 +560,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       supplierName: row.supplier && row.supplier.name ? String(row.supplier.name) : String(row.supplier_name || ''),
       projectName: row.project && row.project.name ? String(row.project.name) : String(row.project_name || ''),
       department: String(row.department || ''),
+      machineName: String(row.machine_name || ''),
+      recipientName: String(row.recipient_name || ''),
       invoiceNo: String(row.invoice_no || ''),
       attachmentUrl: String(row.attachment_url || ''),
       note: String(row.note || ''),
@@ -848,8 +857,18 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return _ledgerTableReady;
   }
 
-  function _stripWmsInventoryCols(obj) {
+  function _stripToolingInventoryCols(obj) {
     var copy = Object.assign({}, obj);
+    delete copy.sub_category;
+    delete copy.brand;
+    delete copy.pack_unit;
+    delete copy.pack_qty;
+    delete copy.is_returnable;
+    return copy;
+  }
+
+  function _stripWmsInventoryCols(obj) {
+    var copy = _stripToolingInventoryCols(obj);
     delete copy.material_group;
     delete copy.sku;
     delete copy.unit;
@@ -901,6 +920,11 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       material_group: String(info.materialGroup || 'tube_1d').trim() || 'tube_1d',
       sku: String(info.sku || '').trim() || null,
       unit: String(info.unit || 'cây').trim() || 'cây',
+      sub_category: String(info.subCategory || '').trim() || null,
+      brand: String(info.brand || '').trim() || null,
+      pack_unit: String(info.packUnit || '').trim() || null,
+      pack_qty: Math.max(1, Number(info.packQty) || 1),
+      is_returnable: Boolean(info.isReturnable),
       spec_json: (info.specJson && typeof info.specJson === 'object') ? info.specJson : {},
       standard_length: stdLen,
       standard_length_mm: stdLen,
@@ -918,6 +942,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .upsert(_sanitizeInvPayload(payload), { onConflict: 'profile_name' })
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /sub_category|brand|pack_unit|pack_qty|is_returnable/i)) {
+      res = await client
+        .from('inventory')
+        .upsert(_stripToolingInventoryCols(_sanitizeInvPayload(payload)), { onConflict: 'profile_name' })
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /material_group|sku|unit|spec_json|avg_cost/i)) {
       _inventoryWmsReady = false;
       res = await client
@@ -953,6 +984,11 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (p.materialGroup !== undefined) updateObj.material_group = String(p.materialGroup || 'tube_1d');
     if (p.sku !== undefined) updateObj.sku = String(p.sku || '').trim() || null;
     if (p.unit !== undefined) updateObj.unit = String(p.unit || 'cây');
+    if (p.subCategory !== undefined) updateObj.sub_category = String(p.subCategory || '').trim() || null;
+    if (p.brand !== undefined) updateObj.brand = String(p.brand || '').trim() || null;
+    if (p.packUnit !== undefined) updateObj.pack_unit = String(p.packUnit || '').trim() || null;
+    if (p.packQty !== undefined) updateObj.pack_qty = Math.max(1, Number(p.packQty) || 1);
+    if (p.isReturnable !== undefined) updateObj.is_returnable = Boolean(p.isReturnable);
     if (p.specJson !== undefined) updateObj.spec_json = (p.specJson && typeof p.specJson === 'object') ? p.specJson : {};
     if (p.standardLengthMm !== undefined || p.standardLength !== undefined) {
       var sLen = Math.max(1, Number(p.standardLengthMm !== undefined ? p.standardLengthMm : p.standardLength) || 6000);
@@ -990,6 +1026,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .eq(colKey, String(profileNameOrId).trim())
       .select()
       .single();
+    if (res && res.error && _isMissingColumnError(res.error, /sub_category|brand|pack_unit|pack_qty|is_returnable/i)) {
+      res = await client
+        .from('inventory')
+        .upsert(_stripToolingInventoryCols(_sanitizeInvPayload(payload)), { onConflict: 'profile_name' })
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /material_group|sku|unit|spec_json|avg_cost/i)) {
       _inventoryWmsReady = false;
       res = await client
@@ -1126,6 +1169,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .from('inventory')
       .upsert(payloads, { onConflict: 'profile_name' })
       .select();
+    if (res && res.error && _isMissingColumnError(res.error, /sub_category|brand|pack_unit|pack_qty|is_returnable/i)) {
+      res = await client
+        .from('inventory')
+        .upsert(_stripToolingInventoryCols(_sanitizeInvPayload(payload)), { onConflict: 'profile_name' })
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /material_group|sku|unit|spec_json|avg_cost/i)) {
       _inventoryWmsReady = false;
       res = await client
@@ -2389,10 +2439,26 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
           length_mm: (it.lengthMm != null && Number(it.lengthMm) > 0) ? Number(it.lengthMm) : null,
           unit_price: price,
           total_amount: Math.round(qty * price),
+          issue_reason: String(it.issueReason || it.issue_reason || 'new'),
+          returned_old_qty: Math.max(0, Number(it.returnedOldQty != null ? it.returnedOldQty : it.returned_old_qty) || 0),
           note: String(it.note || '').trim()
         };
       })
       .filter(Boolean);
+  }
+
+  function _stripToolingVoucherCols(obj) {
+    var copy = Object.assign({}, obj);
+    delete copy.machine_name;
+    delete copy.recipient_name;
+    return copy;
+  }
+
+  function _stripToolingVoucherItemCols(obj) {
+    var copy = Object.assign({}, obj);
+    delete copy.issue_reason;
+    delete copy.returned_old_qty;
+    return copy;
   }
 
   async function createWarehouseVoucher(payload, items) {
@@ -2408,6 +2474,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       project_id: p.projectId || null,
       supplier_id: p.supplierId || null,
       department: String(p.department || '').trim(),
+      machine_name: String(p.machineName || '').trim(),
+      recipient_name: String(p.recipientName || '').trim(),
       invoice_no: String(p.invoiceNo || '').trim(),
       attachment_url: String(p.attachmentUrl || '').trim(),
       note: String(p.note || '').trim(),
@@ -2416,6 +2484,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     };
 
     var vRes = await client.from('warehouse_vouchers').insert(headerRow).select().single();
+    if (vRes && vRes.error && _isMissingColumnError(vRes.error, /machine_name|recipient_name/i)) {
+      vRes = await client.from('warehouse_vouchers').insert(_stripToolingVoucherCols(headerRow)).select().single();
+    }
     if (vRes && vRes.error && _isMissingTableError(vRes.error, 'warehouse_vouchers')) {
       _wmsVouchersReady = false;
       throw new Error('Chưa chạy SQL Đợt 5 (supabase_migration_dot5_wms_vouchers.sql) trên Supabase.');
@@ -2426,6 +2497,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       return Object.assign({ voucher_id: created.id }, it);
     });
     var iRes = await client.from('warehouse_voucher_items').insert(itemsRows).select();
+    if (iRes && iRes.error && _isMissingColumnError(iRes.error, /issue_reason|returned_old_qty/i)) {
+      iRes = await client.from('warehouse_voucher_items').insert(itemsRows.map(_stripToolingVoucherItemCols)).select();
+    }
     if (iRes && iRes.error) {
       try { await client.from('warehouse_vouchers').delete().eq('id', created.id); } catch (e) {}
       throwIfError(iRes, 'Không lưu được chi tiết dòng vật tư trên phiếu');
@@ -2443,12 +2517,17 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     if (p.projectId !== undefined) updateObj.project_id = p.projectId || null;
     if (p.supplierId !== undefined) updateObj.supplier_id = p.supplierId || null;
     if (p.department !== undefined) updateObj.department = String(p.department || '').trim();
+    if (p.machineName !== undefined) updateObj.machine_name = String(p.machineName || '').trim();
+    if (p.recipientName !== undefined) updateObj.recipient_name = String(p.recipientName || '').trim();
     if (p.invoiceNo !== undefined) updateObj.invoice_no = String(p.invoiceNo || '').trim();
     if (p.attachmentUrl !== undefined) updateObj.attachment_url = String(p.attachmentUrl || '').trim();
     if (p.note !== undefined) updateObj.note = String(p.note || '').trim();
     if (p.allowNegative !== undefined) updateObj.allow_negative = Boolean(p.allowNegative);
 
     var uRes = await client.from('warehouse_vouchers').update(updateObj).eq('id', voucherId).select().single();
+    if (uRes && uRes.error && _isMissingColumnError(uRes.error, /machine_name|recipient_name/i)) {
+      uRes = await client.from('warehouse_vouchers').update(_stripToolingVoucherCols(updateObj)).eq('id', voucherId).select().single();
+    }
     throwIfError(uRes, 'Không cập nhật được thông tin phiếu kho');
 
     if (Array.isArray(items)) {
@@ -2456,9 +2535,15 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       if (!cleanItems.length) throw new Error('Phiếu phải có ít nhất 1 dòng vật tư với số lượng > 0');
       var delRes = await client.from('warehouse_voucher_items').delete().eq('voucher_id', voucherId);
       throwIfError(delRes, 'Không làm mới được dòng vật tư của phiếu');
+      var rowsToIns = cleanItems.map(function (it) { return Object.assign({ voucher_id: voucherId }, it); });
       var insRes = await client
         .from('warehouse_voucher_items')
-        .insert(cleanItems.map(function (it) { return Object.assign({ voucher_id: voucherId }, it); }));
+        .insert(rowsToIns);
+      if (insRes && insRes.error && _isMissingColumnError(insRes.error, /issue_reason|returned_old_qty/i)) {
+        insRes = await client
+          .from('warehouse_voucher_items')
+          .insert(rowsToIns.map(_stripToolingVoucherItemCols));
+      }
       throwIfError(insRes, 'Không lưu được danh sách dòng vật tư mới');
     }
 
@@ -2720,6 +2805,27 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       p_to: toIso || null
     });
     return throwIfError(res, 'Không tải được tổng hợp Nhà cung cấp') || [];
+  }
+
+  async function getToolingConsumptionReport(fromIso, toIso) {
+    var client = getClient();
+    var res = await client.rpc('get_tooling_consumption_report', {
+      p_from: fromIso || null,
+      p_to: toIso || null
+    });
+    return throwIfError(res, 'Không tải được báo cáo tiêu hao Dao cụ & Vật tư phụ') || [];
+  }
+
+  async function bulkImportToolingCatalog(items, createdBy) {
+    var list = Array.isArray(items) ? items : [];
+    var saved = [];
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      if (!it || !it.profileName) continue;
+      var row = await addProfile(it.profileName, it);
+      if (row) saved.push(row);
+    }
+    return saved;
   }
 
   async function submitCncOffcutReturn(opts) {
@@ -3132,6 +3238,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     getNxtReport: getNxtReport,
     getProjectCostReport: getProjectCostReport,
     getSupplierPurchaseSummary: getSupplierPurchaseSummary,
+    getToolingConsumptionReport: getToolingConsumptionReport,
+    bulkImportToolingCatalog: bulkImportToolingCatalog,
     submitCncOffcutReturn: submitCncOffcutReturn,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,
