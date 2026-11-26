@@ -2545,12 +2545,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         var qty = Number(it && it.qty) || 0;
         if (!profile || qty <= 0) return null;
         var price = Math.max(0, Number(it.unitPrice != null ? it.unitPrice : it.unit_price) || 0);
+        var rawUnit = String(it.unit || 'cây').trim();
+        var normUnit = /^đoạn$/i.test(rawUnit) ? 'cái' : rawUnit.toLowerCase();
         return {
           inventory_id: it.inventoryId || it.inventory_id || null,
           offcut_id: it.offcutId || it.offcut_id || null,
           profile: profile,
           material_group: String(it.materialGroup || it.material_group || 'tube_1d'),
-          unit: String(it.unit || 'cây'),
+          unit: normUnit || 'cái',
           qty: qty,
           length_mm: (it.lengthMm != null && Number(it.lengthMm) > 0) ? Number(it.lengthMm) : null,
           unit_price: price,

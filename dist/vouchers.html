@@ -1500,6 +1500,130 @@
       });
     }
 
+    let _handledInitialQuery = false;
+    async function handleInitialUrlQuery() {
+      if (_handledInitialQuery) return;
+      _handledInitialQuery = true;
+      const params = new URLSearchParams(window.location.search);
+      const qId = params.get('id');
+      const qNew = params.get('new');
+      const qInv = params.get('inv');
+      const qFrom = params.get('from');
+      if (qId) {
+        const found = vouchersList.find(x => x.id === qId);
+        if (found && typeof openViewVoucherModal === 'function') {
+          openViewVoucherModal(found.id);
+        }
+        return;
+      }
+      if (qNew && ['IN', 'OUT', 'RETURN', 'ADJUST'].includes(qNew.toUpperCase())) {
+        openNewVoucherModal(qNew.toUpperCase());
+        const qPo = params.get('po');
+        if (qPo && qNew.toUpperCase() === 'IN' && window.SupabaseDB && typeof window.SupabaseDB.getPurchaseOrderById === 'function') {
+          try {
+            const po = await window.SupabaseDB.getPurchaseOrderById(qPo);
+            if (po) {
+              activePoIdForVoucher = po.id;
+              $('voucherModalTitle').textContent = `🧾 Lập Phiếu Nhập Kho từ PO ${po.poCode}`;
+              if (po.supplierId && $('selVoucherSupplier')) $('selVoucherSupplier').value = po.supplierId;
+              if (po.projectId && $('selVoucherProject')) $('selVoucherProject').value = po.projectId;
+              if ($('inpVoucherNote')) $('inpVoucherNote').value = `Nhập kho theo Đơn đặt hàng ${po.poCode}`;
+              const remItems = (po.items || [])
+                .map(it => {
+                  const ord = Number(it.orderedQty || 0);
+                  const rec = Number(it.receivedQty || 0);
+                  const rem = Math.max(0, ord - rec);
+                  if (rem <= 0) return null;
+                  const invMatch = inventoryItems.find(x => x.id === it.inventoryId || x.profileName === it.itemName);
+                  return {
+                    inventoryId: it.inventoryId || (invMatch ? invMatch.id : ''),
+                    poItemId: it.id,
+                    profile: it.itemName || (invMatch ? invMatch.profileName : ''),
+                    materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
+                    unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
+                    lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
+                    qty: rem,
+                    unitPrice: Number(it.unitPrice || 0),
+                    note: `Theo PO ${po.poCode}`,
+                    _poOrderedQty: ord,
+                    _poReceivedQty: rec,
+                    _poRemainingQty: rem
+                  };
+                })
+                .filter(Boolean);
+              if (remItems.length) {
+                draftItems = remItems;
+                renderVoucherItemsRows();
+              }
+            }
+          } catch (err) {
+            console.warn('Không tải được PO:', err);
+          }
+        } else if (qFrom === 'crossdock') {
+          try {
+            const rawCd = sessionStorage.getItem('xp_crossdock_pxk');
+            if (rawCd) {
+              const cd = JSON.parse(rawCd);
+              sessionStorage.removeItem('xp_crossdock_pxk');
+              if (cd.projectId && $('selVoucherProject')) $('selVoucherProject').value = cd.projectId;
+              if ($('inpVoucherDept')) $('inpVoucherDept').value = 'Tổ Sản Xuất';
+              if ($('inpVoucherNote')) $('inpVoucherNote').value = `Xuất thẳng cho sản xuất đơn ${cd.projectName || cd.projectId || ''}`;
+              if (Array.isArray(cd.items) && cd.items.length) {
+                draftItems = cd.items.map(it => {
+                  const invMatch = inventoryItems.find(x => x.id === (it.inventory_id || it.inventoryId) || x.profileName === (it.item_name || it.itemName));
+                  return {
+                    inventoryId: it.inventory_id || it.inventoryId || (invMatch ? invMatch.id : ''),
+                    projectRequestId: it.request_id || it.id || null,
+                    profile: it.item_name || it.itemName || (invMatch ? invMatch.profileName : ''),
+                    materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
+                    unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
+                    lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
+                    qty: Number(it.qty || it.allocatedQty || 1),
+                    unitPrice: invMatch ? Number(invMatch.avgCost || invMatch.unitPrice || 0) : 0,
+                    note: 'Xuất thẳng cho sản xuất'
+                  };
+                });
+                renderVoucherItemsRows();
+              }
+            }
+          } catch (e) {}
+          return;
+        } else if (qFrom === 'reorder') {
+          try {
+            const raw = sessionStorage.getItem('xp_reorder_draft_pnk');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              sessionStorage.removeItem('xp_reorder_draft_pnk');
+              if (Array.isArray(parsed) && parsed.length) {
+                draftItems = parsed;
+                $('selVoucherInitStatus').value = 'draft';
+                $('inpVoucherNote').value = 'Đề nghị nhập mua bổ sung vật tư dưới định mức';
+                renderVoucherItemsRows();
+              }
+            }
+          } catch (e) {}
+          return;
+        }
+        if (qInv) {
+          const inv = inventoryItems.find(x => String(x.id) === String(qInv));
+          if (inv) {
+            draftItems = [{
+              inventoryId: inv.id,
+              offcutId: null,
+              profile: inv.profileName,
+              materialGroup: inv.materialGroup || 'tube_1d',
+              unit: inv.unit || 'cây',
+              lengthMm: inv.standardLengthMm || inv.standardLength || 6000,
+              qty: 1,
+              unitPrice: Number(inv.avgCost || inv.unitPrice || 0),
+              note: ''
+            }];
+            renderVoucherItemsRows();
+          }
+        }
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       $('btnSubmitLogin').onclick = handleLogin;
       $('inpLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
@@ -1531,130 +1655,6 @@
         draftItems.push(createEmptyDraftItem());
         renderVoucherItemsRows();
       };
-
-      let _handledInitialQuery = false;
-      async function handleInitialUrlQuery() {
-        if (_handledInitialQuery) return;
-        _handledInitialQuery = true;
-        const params = new URLSearchParams(window.location.search);
-        const qId = params.get('id');
-        const qNew = params.get('new');
-        const qInv = params.get('inv');
-        const qFrom = params.get('from');
-        if (qId) {
-          const found = vouchersList.find(x => x.id === qId);
-          if (found && typeof openViewVoucherModal === 'function') {
-            openViewVoucherModal(found.id);
-          }
-          return;
-        }
-        if (qNew && ['IN', 'OUT', 'RETURN', 'ADJUST'].includes(qNew.toUpperCase())) {
-          openNewVoucherModal(qNew.toUpperCase());
-          const qPo = params.get('po');
-          if (qPo && qNew.toUpperCase() === 'IN' && window.SupabaseDB && typeof window.SupabaseDB.getPurchaseOrderById === 'function') {
-            try {
-              const po = await window.SupabaseDB.getPurchaseOrderById(qPo);
-              if (po) {
-                activePoIdForVoucher = po.id;
-                $('voucherModalTitle').textContent = `🧾 Lập Phiếu Nhập Kho từ PO ${po.poCode}`;
-                if (po.supplierId && $('selVoucherSupplier')) $('selVoucherSupplier').value = po.supplierId;
-                if (po.projectId && $('selVoucherProject')) $('selVoucherProject').value = po.projectId;
-                if ($('inpVoucherNote')) $('inpVoucherNote').value = `Nhập kho theo Đơn đặt hàng ${po.poCode}`;
-                const remItems = (po.items || [])
-                  .map(it => {
-                    const ord = Number(it.orderedQty || 0);
-                    const rec = Number(it.receivedQty || 0);
-                    const rem = Math.max(0, ord - rec);
-                    if (rem <= 0) return null;
-                    const invMatch = inventoryItems.find(x => x.id === it.inventoryId || x.profileName === it.itemName);
-                    return {
-                      inventoryId: it.inventoryId || (invMatch ? invMatch.id : ''),
-                      poItemId: it.id,
-                      profile: it.itemName || (invMatch ? invMatch.profileName : ''),
-                      materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
-                      unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
-                      lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
-                      qty: rem,
-                      unitPrice: Number(it.unitPrice || 0),
-                      note: `Theo PO ${po.poCode}`,
-                      _poOrderedQty: ord,
-                      _poReceivedQty: rec,
-                      _poRemainingQty: rem
-                    };
-                  })
-                  .filter(Boolean);
-                if (remItems.length) {
-                  draftItems = remItems;
-                  renderVoucherItemsRows();
-                }
-              }
-            } catch (err) {
-              console.warn('Không tải được PO:', err);
-            }
-          } else if (qFrom === 'crossdock') {
-            try {
-              const rawCd = sessionStorage.getItem('xp_crossdock_pxk');
-              if (rawCd) {
-                const cd = JSON.parse(rawCd);
-                sessionStorage.removeItem('xp_crossdock_pxk');
-                if (cd.projectId && $('selVoucherProject')) $('selVoucherProject').value = cd.projectId;
-                if ($('inpVoucherDept')) $('inpVoucherDept').value = 'Tổ Sản Xuất';
-                if ($('inpVoucherNote')) $('inpVoucherNote').value = `Xuất thẳng cho sản xuất đơn ${cd.projectName || cd.projectId || ''}`;
-                if (Array.isArray(cd.items) && cd.items.length) {
-                  draftItems = cd.items.map(it => {
-                    const invMatch = inventoryItems.find(x => x.id === (it.inventory_id || it.inventoryId) || x.profileName === (it.item_name || it.itemName));
-                    return {
-                      inventoryId: it.inventory_id || it.inventoryId || (invMatch ? invMatch.id : ''),
-                      projectRequestId: it.request_id || it.id || null,
-                      profile: it.item_name || it.itemName || (invMatch ? invMatch.profileName : ''),
-                      materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
-                      unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
-                      lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
-                      qty: Number(it.qty || it.allocatedQty || 1),
-                      unitPrice: invMatch ? Number(invMatch.avgCost || invMatch.unitPrice || 0) : 0,
-                      note: 'Xuất thẳng cho sản xuất'
-                    };
-                  });
-                  renderVoucherItemsRows();
-                }
-              }
-            } catch (e) {}
-            return;
-          } else if (qFrom === 'reorder') {
-            try {
-              const raw = sessionStorage.getItem('xp_reorder_draft_pnk');
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                sessionStorage.removeItem('xp_reorder_draft_pnk');
-                if (Array.isArray(parsed) && parsed.length) {
-                  draftItems = parsed;
-                  $('selVoucherInitStatus').value = 'draft';
-                  $('inpVoucherNote').value = 'Đề nghị nhập mua bổ sung vật tư dưới định mức';
-                  renderVoucherItemsRows();
-                }
-              }
-            } catch (e) {}
-            return;
-          }
-          if (qInv) {
-            const inv = inventoryItems.find(x => String(x.id) === String(qInv));
-            if (inv) {
-              draftItems = [{
-                inventoryId: inv.id,
-                offcutId: null,
-                profile: inv.profileName,
-                materialGroup: inv.materialGroup || 'tube_1d',
-                unit: inv.unit || 'cây',
-                lengthMm: inv.standardLengthMm || inv.standardLength || 6000,
-                qty: 1,
-                unitPrice: Number(inv.avgCost || inv.unitPrice || 0),
-                note: ''
-              }];
-              renderVoucherItemsRows();
-            }
-          }
-        }
-      }
 
       async function addScannedItemToVoucher(parsed) {
         if (!parsed) return;
