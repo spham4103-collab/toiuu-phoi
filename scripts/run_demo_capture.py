@@ -360,57 +360,61 @@ def main():
             browser.close()
 
     finally:
-        print("[INFO] Cleaning up 100% demo data from Supabase...")
-        for vid in [pxk_id, pnk_id]:
-            if vid:
-                try:
-                    supa.req("DELETE", f"/rest/v1/inventory_transactions?voucher_id=eq.{vid}")
-                    supa.req("DELETE", f"/rest/v1/warehouse_voucher_items?voucher_id=eq.{vid}")
-                    supa.req("DELETE", f"/rest/v1/warehouse_vouchers?id=eq.{vid}")
-                except Exception:
-                    pass
-        if po_id:
-            try:
-                supa.req("DELETE", f"/rest/v1/purchase_order_items?po_id=eq.{po_id}")
-                supa.req("DELETE", f"/rest/v1/purchase_orders?id=eq.{po_id}")
-            except Exception:
-                pass
-        if pr_id:
-            try:
-                supa.req("DELETE", f"/rest/v1/purchase_request_items?pr_id=eq.{pr_id}")
-                supa.req("DELETE", f"/rest/v1/purchase_requests?id=eq.{pr_id}")
-            except Exception:
-                pass
-        if sup_id:
-            try:
-                supa.req("DELETE", f"/rest/v1/suppliers?id=eq.{sup_id}")
-            except Exception:
-                pass
-        if proj_id:
-            try:
-                atts = supa.req("GET", f"/rest/v1/project_attachments?project_id=eq.{proj_id}&select=id,storage_path") or []
-                for a in atts:
+        keep_data = "--keep-data" in sys.argv
+        if keep_data:
+            print(f"[INFO] --keep-data enabled: Preserving demo data (proj_id={proj_id}, po_id={po_id}, pnk_id={pnk_id}, pxk_id={pxk_id}).")
+        else:
+            print("[INFO] Cleaning up 100% demo data from Supabase...")
+            for vid in [pxk_id, pnk_id]:
+                if vid:
                     try:
-                        supa.req("DELETE", f"/storage/v1/object/project-attachments/{a['storage_path']}")
+                        supa.req("DELETE", f"/rest/v1/inventory_transactions?voucher_id=eq.{vid}")
+                        supa.req("DELETE", f"/rest/v1/warehouse_voucher_items?voucher_id=eq.{vid}")
+                        supa.req("DELETE", f"/rest/v1/warehouse_vouchers?id=eq.{vid}")
                     except Exception:
                         pass
-                supa.req("DELETE", f"/rest/v1/project_attachments?project_id=eq.{proj_id}")
-                supa.req("DELETE", f"/rest/v1/wms_notifications?project_id=eq.{proj_id}")
-                supa.req("DELETE", f"/rest/v1/project_material_requests?project_id=eq.{proj_id}")
-                supa.req("DELETE", f"/rest/v1/projects?id=eq.{proj_id}")
-            except Exception:
-                pass
-        if pnk_code:
-            try:
-                supa.req("DELETE", f"/rest/v1/inventory?notes=eq.{urllib.request.quote('Tự động tạo từ chứng từ ' + pnk_code)}")
-            except Exception:
-                pass
-        if inv_id:
-            try:
-                supa.req("DELETE", f"/rest/v1/inventory_transactions?profile=eq.{urllib.request.quote(DEMO_INV_NAME)}")
-                supa.req("DELETE", f"/rest/v1/inventory?id=eq.{inv_id}")
-            except Exception:
-                pass
+            if po_id:
+                try:
+                    supa.req("DELETE", f"/rest/v1/purchase_order_items?po_id=eq.{po_id}")
+                    supa.req("DELETE", f"/rest/v1/purchase_orders?id=eq.{po_id}")
+                except Exception:
+                    pass
+            if pr_id:
+                try:
+                    supa.req("DELETE", f"/rest/v1/purchase_request_items?pr_id=eq.{pr_id}")
+                    supa.req("DELETE", f"/rest/v1/purchase_requests?id=eq.{pr_id}")
+                except Exception:
+                    pass
+            if sup_id:
+                try:
+                    supa.req("DELETE", f"/rest/v1/suppliers?id=eq.{sup_id}")
+                except Exception:
+                    pass
+            if proj_id:
+                try:
+                    atts = supa.req("GET", f"/rest/v1/project_attachments?project_id=eq.{proj_id}&select=id,storage_path") or []
+                    for a in atts:
+                        try:
+                            supa.req("DELETE", f"/storage/v1/object/project-attachments/{a['storage_path']}")
+                        except Exception:
+                            pass
+                    supa.req("DELETE", f"/rest/v1/project_attachments?project_id=eq.{proj_id}")
+                    supa.req("DELETE", f"/rest/v1/wms_notifications?project_id=eq.{proj_id}")
+                    supa.req("DELETE", f"/rest/v1/project_material_requests?project_id=eq.{proj_id}")
+                    supa.req("DELETE", f"/rest/v1/projects?id=eq.{proj_id}")
+                except Exception:
+                    pass
+            if pnk_code:
+                try:
+                    supa.req("DELETE", f"/rest/v1/inventory?notes=eq.{urllib.request.quote('Tự động tạo từ chứng từ ' + pnk_code)}")
+                except Exception:
+                    pass
+            if inv_id:
+                try:
+                    supa.req("DELETE", f"/rest/v1/inventory_transactions?profile=eq.{urllib.request.quote(DEMO_INV_NAME)}")
+                    supa.req("DELETE", f"/rest/v1/inventory?id=eq.{inv_id}")
+                except Exception:
+                    pass
         supa.delete_temp_user(temp_uid)
         server_proc.terminate()
         server_proc.wait(timeout=5)
