@@ -229,12 +229,16 @@
       window.SupabaseDB.getProjectMaterialRequests(pid),
       window.SupabaseDB.getProjectAttachments(pid),
       window.SupabaseDB.getWarehouseVouchers({ projectId: pid }),
-      window.SupabaseDB.getInventory().catch(function () { return STATE.inventory; })
+      window.SupabaseDB.getInventory().catch(function () { return STATE.inventory; }),
+      typeof window.SupabaseDB.getProjectById === 'function' ? window.SupabaseDB.getProjectById(pid).catch(function () { return null; }) : Promise.resolve(null)
     ]);
     STATE.requests = results[0] || [];
     STATE.attachments = results[1] || [];
     STATE.vouchers = results[2] || [];
     if (Array.isArray(results[3])) STATE.inventory = results[3];
+    if (results[4]) {
+      STATE.project = Object.assign({}, STATE.project, results[4]);
+    }
     if (typeof STATE.opts.onProjectChanged === 'function') {
       STATE.opts.onProjectChanged(pid, STATE.requests);
     }
@@ -497,30 +501,147 @@
 
     var wfStatus = (STATE.project && STATE.project.workflowStatus) || 'waiting_drawings';
     var wfSteps = [
-      { key: 'customer_po', label: '1. PO Khách hàng', done: true },
-      { key: 'drawings_ready', label: '2. Bản vẽ Kỹ thuật', done: wfStatus !== 'waiting_drawings' },
-      { key: 'bom_submitted', label: '3. Đề nghị VT (KD)', done: ['bom_submitted', 'in_production', 'completed'].indexOf(wfStatus) >= 0 },
-      { key: 'in_production', label: '4. Kho cấp phôi & SX', done: ['in_production', 'completed'].indexOf(wfStatus) >= 0 }
+      {
+        key: 'po_draft',
+        label: '1. KD Tạo PO',
+        done: wfStatus !== 'po_draft',
+        active: wfStatus === 'po_draft'
+      },
+      {
+        key: 'waiting_drawings',
+        label: '2. KT Gửi Bản vẽ',
+        done: ['drawings_ready', 'bom_submitted', 'in_production', 'completed'].indexOf(wfStatus) >= 0,
+        active: wfStatus === 'waiting_drawings'
+      },
+      {
+        key: 'drawings_ready',
+        label: '3. KD Lập ĐNVT',
+        done: ['bom_submitted', 'in_production', 'completed'].indexOf(wfStatus) >= 0,
+        active: wfStatus === 'drawings_ready'
+      },
+      {
+        key: 'bom_submitted',
+        label: '4. Kho Rà & Cấp phôi',
+        done: wfStatus === 'completed',
+        active: wfStatus === 'bom_submitted' || wfStatus === 'in_production'
+      },
+      {
+        key: 'completed',
+        label: '5. Hoàn thành',
+        done: wfStatus === 'completed',
+        active: wfStatus === 'completed'
+      }
     ];
+    var wfWaitingMap = {
+      po_draft: { text: '⏳ Đang chờ: Phòng Kinh doanh đẩy PO sang Kỹ thuật', bg: '#F1F5F9', clr: '#334155' },
+      waiting_drawings: { text: '⏳ Đang chờ: Phòng Kỹ thuật tải bản vẽ', bg: '#FEF3C7', clr: '#92400E' },
+      drawings_ready: { text: '⏳ Đang chờ: Phòng Kinh doanh lập/import ĐNVT', bg: '#DBEAFE', clr: '#1E40AF' },
+      bom_submitted: { text: '⏳ Đang chờ: Bộ phận Kho rà phôi thừa & cấp phôi / gửi PR', bg: '#FFEDD5', clr: '#9A3412' },
+      in_production: { text: '⚙️ Đang sản xuất (Kho đã/đang cấp phôi cho Xưởng)', bg: '#DCFCE7', clr: '#166534' },
+      completed: { text: '🏁 Đã hoàn thành & giao đủ hàng cho khách', bg: '#DCFCE7', clr: '#15803D' }
+    };
+    var waitMeta = wfWaitingMap[wfStatus] || wfWaitingMap.waiting_drawings;
     var uRole = STATE.currentUser && STATE.currentUser.role;
     var wfActionBtn = '';
-    if (wfStatus === 'waiting_drawings' && (uRole === 'engineer' || uRole === 'admin')) {
-      wfActionBtn = '<button type="button" class="btn btn-sm btn-p" id="btnWfHandoverDrawings">✅ Bàn giao bản vẽ cho Kinh doanh</button>';
-    } else if (wfStatus === 'drawings_ready' && (uRole === 'sales' || uRole === 'admin' || uRole === 'engineer')) {
-      wfActionBtn = '<button type="button" class="btn btn-sm btn-cta" id="btnWfSubmitBom">📤 Chuyển ĐNVT sang Kho &amp; Sản xuất</button>';
+    var wfReturnBtn = '';
+    var returnTarget = null;
+
+    if (wfStatus === 'po_draft') {
+      if (uRole === 'sales' || uRole === 'admin') {
+        wfActionBtn = '<button type="button" class="btn btn-sm btn-p" id="btnWfPushToEng">📤 Đẩy sang Phòng Kỹ thuật (Yêu cầu bản vẽ)</button>';
+      } else {
+        wfActionBtn = '<span class="pill" style="background:#F1F5F9;color:#475569;">Đang chờ Kinh doanh đẩy PO</span>';
+      }
+    } else if (wfStatus === 'waiting_drawings') {
+      if (uRole === 'engineer' || uRole === 'admin') {
+        wfActionBtn = '<button type="button" class="btn btn-sm btn-p" id="btnWfHandoverDrawings">✅ Chuyển tiếp sang Phòng Kinh doanh (Làm ĐNVT)</button>';
+        returnTarget = { status: 'po_draft', label: 'KD Tạo PO' };
+      } else {
+        wfActionBtn = '<span class="pill" style="background:#FEF3C7;color:#92400E;">Đang chờ Kỹ thuật tải bản vẽ</span>';
+      }
+    } else if (wfStatus === 'drawings_ready') {
+      if (uRole === 'sales' || uRole === 'admin') {
+        wfActionBtn = '<button type="button" class="btn btn-sm btn-cta" id="btnWfSubmitBom">📤 Chuyển tiếp sang Kho &amp; Sản xuất</button>';
+        returnTarget = { status: 'waiting_drawings', label: 'KT Gửi Bản vẽ' };
+      } else {
+        wfActionBtn = '<span class="pill" style="background:#DBEAFE;color:#1E40AF;">Đang chờ Kinh doanh lập ĐNVT</span>';
+      }
+    } else if (wfStatus === 'bom_submitted') {
+      if (uRole === 'warehouse' || uRole === 'admin') {
+        wfActionBtn = '<button type="button" class="btn btn-sm btn-p" id="btnWfStartProd">⚙️ Chuyển sang Đang sản xuất</button>';
+        returnTarget = { status: 'drawings_ready', label: 'KD Lập ĐNVT' };
+      } else {
+        wfActionBtn = '<span class="pill" style="background:#FFEDD5;color:#9A3412;">Đang chờ Kho rà phôi &amp; cấp phôi</span>';
+      }
+    } else if (wfStatus === 'in_production') {
+      if (uRole === 'warehouse' || uRole === 'admin') {
+        wfActionBtn = '<button type="button" class="btn btn-sm btn-p" id="btnWfComplete">🏁 Xác nhận Hoàn thành</button>';
+        returnTarget = { status: 'bom_submitted', label: 'Kho rà phôi' };
+      }
     }
+
+    if (returnTarget) {
+      wfReturnBtn = '<button type="button" class="btn btn-sm btn-soft" id="btnWfReturnPrev" data-prev-status="' + returnTarget.status + '" data-prev-label="' + escapeHtml(returnTarget.label) + '" title="Trả lại bước trước để chỉnh sửa">↩️ Trả về bước trước</button>';
+    }
+
+    function fmtHm(iso) {
+      if (!iso) return '';
+      try {
+        return new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+      } catch (e) { return ''; }
+    }
+    var wfHist = (STATE.project && Array.isArray(STATE.project.workflowHistory)) ? STATE.project.workflowHistory : [];
+    var histParts = [];
+    if (wfHist.length) {
+      var stepNameShort = {
+        po_draft: 'KD soạn PO',
+        waiting_drawings: 'KD đẩy PO',
+        drawings_ready: 'KT giao bản vẽ',
+        bom_submitted: 'KD chuyển ĐNVT',
+        in_production: 'Kho cấp phôi/SX',
+        completed: 'Hoàn thành'
+      };
+      wfHist.slice(-5).forEach(function (h) {
+        var lbl = (h.direction === 'return' ? '↩️ Trả về ' : '') + (stepNameShort[h.to] || h.to);
+        var tm = fmtHm(h.at);
+        var byStr = h.by ? (' (' + escapeHtml(h.by) + ')') : '';
+        var noteStr = (h.direction === 'return' && h.note) ? (' [' + escapeHtml(h.note) + ']') : '';
+        histParts.push(lbl + (tm ? ': ' + tm : '') + byStr + noteStr);
+      });
+    } else {
+      if (STATE.project && STATE.project.poPushedAt) histParts.push('KD đẩy PO: ' + fmtHm(STATE.project.poPushedAt));
+      if (STATE.project && STATE.project.drawingsHandedOverAt) histParts.push('KT giao bản vẽ: ' + fmtHm(STATE.project.drawingsHandedOverAt));
+      if (STATE.project && STATE.project.bomSubmittedAt) histParts.push('KD chuyển ĐNVT: ' + fmtHm(STATE.project.bomSubmittedAt));
+    }
+    var histLineHtml = histParts.length
+      ? '<div style="font-size:11.5px;color:#475569;padding-top:5px;border-top:1px dashed #CCFBF1;width:100%;">🕒 <strong>Lịch sử bàn giao:</strong> ' + histParts.join(' → ') + '</div>'
+      : '';
+
     var wfBarHtml =
-      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 12px;margin-bottom:8px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;">' +
-      '  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;">' +
+      '<div style="display:flex;flex-direction:column;gap:6px;padding:9px 12px;margin-bottom:8px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;">' +
+      '  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
+      '    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px;">' +
       wfSteps.map(function (st, idx) {
-        var bg = st.done ? '#DCFCE7' : '#F1F5F9';
-        var clr = st.done ? '#15803D' : '#64748B';
+        var bg = st.done ? '#DCFCE7' : (st.active ? '#DBEAFE' : '#F1F5F9');
+        var clr = st.done ? '#15803D' : (st.active ? '#1D4ED8' : '#64748B');
+        var bdr = st.active ? '1px solid #60A5FA' : '1px solid transparent';
+        var icon = st.done ? '✓ ' : (st.active ? '● ' : '');
         return (idx > 0 ? '<span style="color:#94A3B8;">→</span>' : '') +
-          '<span style="padding:3px 9px;border-radius:999px;font-weight:700;background:' + bg + ';color:' + clr + ';">' + (st.done ? '✓ ' : '') + st.label + '</span>';
+          '<span style="padding:3px 9px;border-radius:999px;font-weight:700;background:' + bg + ';color:' + clr + ';border:' + bdr + ';">' + icon + st.label + '</span>';
       }).join('') +
+      '    </div>' +
+      '    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' + wfReturnBtn + wfActionBtn + '</div>' +
       '  </div>' +
-      (wfActionBtn ? '<div>' + wfActionBtn + '</div>' : '') +
+      '  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+      '    <span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:800;background:' + waitMeta.bg + ';color:' + waitMeta.clr + ';">' + waitMeta.text + '</span>' +
+      '  </div>' +
+      histLineHtml +
       '</div>';
+
+    var excelImportBtnCls = (wfStatus === 'drawings_ready' && (uRole === 'sales' || uRole === 'admin')) ? 'btn btn-sm btn-cta' : 'btn btn-sm btn-soft';
+    var khoActionHighlight = (wfStatus === 'bom_submitted' && (uRole === 'warehouse' || uRole === 'admin'))
+      ? 'box-shadow:0 0 0 2px #14B8A6;border-radius:8px;padding:3px;background:#F0FDFA;'
+      : '';
 
     $('bomModalBody').innerHTML = [
       '<div class="xp-modal-fixed-top" id="bomStickyEntry">',
@@ -531,11 +652,11 @@
       '        <option value="all">Tất cả công đoạn (' + STATE.requests.length + ')</option>' + stageOpts,
       '      </select>',
       editable ? '<button type="button" class="btn btn-sm btn-soft" id="btnBomDlTemplate">📥 File mẫu Excel</button>' : '',
-      editable ? '<label class="btn btn-sm btn-soft" style="cursor:pointer;margin:0;">📤 Nhập Excel<input type="file" id="inpBomImportExcel" accept=".xlsx,.xls,.csv" style="display:none;"></label>' : '',
+      editable ? '<label class="' + excelImportBtnCls + '" style="cursor:pointer;margin:0;">📤 Nhập Excel ĐNMVT01<input type="file" id="inpBomImportExcel" accept=".xlsx,.xls,.csv" style="display:none;"></label>' : '',
       '    </div>',
-      '    <div style="display:flex;gap:6px;flex-wrap:wrap;">',
+      '    <div style="display:flex;gap:6px;flex-wrap:wrap;' + khoActionHighlight + '">',
       canPxk ? '<button type="button" class="btn btn-sm btn-p" id="btnBomCreatePxk">📤 Tạo Phiếu Xuất Kho (PXK)</button>' : '',
-      '<button type="button" class="btn btn-sm btn-cta" id="btnBomPurchaseReq">🛒 Xuất Đề nghị Mua hàng</button>',
+      '<button type="button" class="btn btn-sm btn-cta" id="btnBomPurchaseReq">🛒 Xuất Đề nghị Mua hàng (PR)</button>',
       '<button type="button" class="btn btn-sm btn-soft" id="btnBomPrintReqA4">🖨️ In Đề nghị Vật tư (A4)</button>',
       '    </div>',
       '  </div>',
@@ -850,33 +971,82 @@
     var btnPur = $('btnBomPurchaseReq');
     if (btnPur) btnPur.addEventListener('click', handlePurchaseExport);
 
+    async function runWorkflowTransition(nextStatus, note, successMsg) {
+      try {
+        var res = await window.SupabaseDB.transitionProjectWorkflow(STATE.project.id, nextStatus, note || null);
+        STATE.project.workflowStatus = nextStatus;
+        if (res && Array.isArray(res.workflow_history)) {
+          STATE.project.workflowHistory = res.workflow_history;
+        }
+        await refreshData();
+        renderModal();
+        if (typeof STATE.opts.onProjectChanged === 'function') STATE.opts.onProjectChanged(STATE.project.id, STATE.requests);
+        toast(successMsg);
+      } catch (err) { alert('❌ ' + (err.message || err)); }
+    }
+
+    var btnWfPush = $('btnWfPushToEng');
+    if (btnWfPush) {
+      btnWfPush.addEventListener('click', async function () {
+        if (!confirm('Xác nhận đẩy PO đơn hàng sang Phòng Kỹ thuật để tải bản vẽ?')) return;
+        await runWorkflowTransition('waiting_drawings', null, '📤 Đã đẩy đơn hàng sang Phòng Kỹ thuật!');
+      });
+    }
+
     var btnWfHandover = $('btnWfHandoverDrawings');
     if (btnWfHandover) {
       btnWfHandover.addEventListener('click', async function () {
-        if (!confirm('Xác nhận Kỹ thuật đã tải đủ bản vẽ và bàn giao cho Kinh doanh lập Đề nghị vật tư?')) return;
-        try {
-          await window.SupabaseDB.transitionProjectWorkflow(STATE.project.id, 'drawings_ready');
-          STATE.project.workflowStatus = 'drawings_ready';
-          await refreshData();
-          renderModal();
-          if (typeof STATE.opts.onProjectChanged === 'function') STATE.opts.onProjectChanged();
-          toast('✅ Đã bàn giao bản vẽ cho Kinh doanh!');
-        } catch (err) { alert('❌ ' + (err.message || err)); }
+        var hasDrawing = (STATE.attachments || []).some(function (a) {
+          return a.docCategory === 'drawing' || /\.(pdf|dxf|dwg|step|stp|igs|iges)$/i.test(a.fileName || '');
+        });
+        var msg = hasDrawing
+          ? 'Xác nhận Kỹ thuật đã tải đủ bản vẽ và chuyển tiếp sang Phòng Kinh doanh (Làm ĐNVT)?'
+          : '⚠️ Chưa thấy file bản vẽ PDF/CAD nào được tải lên!\nBạn vẫn muốn chuyển tiếp sang Phòng Kinh doanh chứ?';
+        if (!confirm(msg)) return;
+        await runWorkflowTransition('drawings_ready', null, '✅ Đã chuyển tiếp sang Phòng Kinh doanh!');
       });
     }
 
     var btnWfSubmit = $('btnWfSubmitBom');
     if (btnWfSubmit) {
       btnWfSubmit.addEventListener('click', async function () {
+        if (!STATE.requests || !STATE.requests.length) {
+          alert('Đơn hàng chưa có dòng Đề nghị vật tư nào!\nVui lòng lập hoặc nhập Excel ĐNMVT01 trước khi chuyển sang Kho & Sản xuất.');
+          return;
+        }
         if (!confirm('Xác nhận chuyển Đề nghị vật tư sang Kho & Sản xuất?')) return;
-        try {
-          await window.SupabaseDB.transitionProjectWorkflow(STATE.project.id, 'bom_submitted');
-          STATE.project.workflowStatus = 'bom_submitted';
-          await refreshData();
-          renderModal();
-          if (typeof STATE.opts.onProjectChanged === 'function') STATE.opts.onProjectChanged();
-          toast('📤 Đã chuyển ĐNVT sang Kho & Sản xuất!');
-        } catch (err) { alert('❌ ' + (err.message || err)); }
+        await runWorkflowTransition('bom_submitted', null, '📤 Đã chuyển ĐNVT sang Kho & Sản xuất!');
+      });
+    }
+
+    var btnWfStartProd = $('btnWfStartProd');
+    if (btnWfStartProd) {
+      btnWfStartProd.addEventListener('click', async function () {
+        if (!confirm('Chuyển đơn hàng sang trạng thái Đang sản xuất?')) return;
+        await runWorkflowTransition('in_production', null, '⚙️ Đã chuyển sang Đang sản xuất!');
+      });
+    }
+
+    var btnWfComplete = $('btnWfComplete');
+    if (btnWfComplete) {
+      btnWfComplete.addEventListener('click', async function () {
+        if (!confirm('Xác nhận đã giao đủ hàng và Hoàn thành đơn hàng?')) return;
+        await runWorkflowTransition('completed', null, '🏁 Đơn hàng đã hoàn thành!');
+      });
+    }
+
+    var btnWfReturn = $('btnWfReturnPrev');
+    if (btnWfReturn) {
+      btnWfReturn.addEventListener('click', async function () {
+        var prevSt = btnWfReturn.getAttribute('data-prev-status');
+        var prevLbl = btnWfReturn.getAttribute('data-prev-label') || prevSt;
+        var reason = prompt('Nhập lý do bắt buộc để trả về bước "' + prevLbl + '":');
+        if (reason === null) return;
+        if (!String(reason).trim()) {
+          alert('Vui lòng nhập lý do trả về bước trước.');
+          return;
+        }
+        await runWorkflowTransition(prevSt, String(reason).trim(), '↩️ Đã trả về bước "' + prevLbl + '"');
       });
     }
 
@@ -1150,15 +1320,28 @@
     if (!mode) return;
     if (mode.trim() === '4') {
       var prItems = shortages.map(function (s) {
+        var matGrade = String(s.req.materialGrade || '').trim();
+        var specParts = [];
+        if (s.req.specDimensions && s.req.specDimensions !== s.req.itemName) specParts.push(s.req.specDimensions);
+        if (Number(s.req.calcWeightKg || 0) > 0) specParts.push('KL LT: ' + numVN(s.req.calcWeightKg, 2) + ' kg');
+        var specText = specParts.join(' · ');
+        var noteParts = [];
+        if (specText) noteParts.push(specText);
+        if (s.req.note) noteParts.push(s.req.note);
         return {
           inventoryId: s.inv ? s.inv.id : null,
           projectRequestId: s.req ? s.req.id : null,
           projectId: STATE.project ? STATE.project.id : null,
+          projectName: STATE.project ? (STATE.project.name || '') : '',
+          projectCustomer: STATE.project ? (STATE.project.customer || '') : '',
           itemName: s.inv ? s.inv.profileName : s.req.itemName,
+          materialGrade: matGrade,
+          specText: specText,
+          calcWeightKg: Number(s.req.calcWeightKg || 0),
           unit: s.req.unit || (s.inv && s.inv.unit) || 'cái',
           requestedQty: s.needBuy,
           estimatedUnitPrice: s.inv ? Number(s.inv.avgCost || 0) : 0,
-          note: 'Mua cho dự án ' + (STATE.project ? STATE.project.name : '') + (s.req.specDimensions ? ' (' + s.req.specDimensions + ')' : '')
+          note: noteParts.join(' · ')
         };
       });
       localStorage.setItem('xp_pr_draft_items', JSON.stringify(prItems));

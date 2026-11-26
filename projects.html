@@ -830,11 +830,12 @@
               ${p.customer || p.customerPoNo ? `<div style="font-size:13px; color:#475569; margin-bottom:3px;">${p.customer ? `Khách hàng: <b>${escapeHtml(p.customer)}</b>` : ''}${p.customer && p.customerPoNo ? ' · ' : ''}${p.customerPoNo ? `PO: <b style="color:#0F766E;">${escapeHtml(p.customerPoNo)}</b>` : ''}</div>` : ''}
               ${(() => {
                 const wfMap = {
-                  waiting_drawings: ['pill-amber', '📐 Chờ bản vẽ KT'],
-                  drawings_ready: ['pill-slate', '✅ KT đã giao bản vẽ'],
-                  bom_submitted: ['pill-amber', '📤 Đã chuyển Kho & SX'],
-                  in_production: ['pill-green', '⚙️ Đang SX / Cấp phôi'],
-                  completed: ['pill-green', '🏁 Hoàn thành']
+                  po_draft: ['pill-slate', '📝 Bước 1: KD đang soạn PO'],
+                  waiting_drawings: ['pill-amber', '📐 Bước 2: Chờ KT gửi bản vẽ'],
+                  drawings_ready: ['pill-amber', '📋 Bước 3: Chờ KD lập ĐNVT'],
+                  bom_submitted: ['pill-amber', '📤 Bước 4: Chờ Kho rà & cấp phôi'],
+                  in_production: ['pill-green', '⚙️ Bước 5: Đang SX / Cấp phôi'],
+                  completed: ['pill-green', '🏁 Bước 6: Hoàn thành']
                 };
                 const wf = wfMap[p.workflowStatus || 'waiting_drawings'] || wfMap.waiting_drawings;
                 return `<div style="margin-bottom:5px;"><span class="pill ${wf[0]}">${wf[1]}</span></div>`;
@@ -871,7 +872,14 @@
           projectsList,
           inventoryItems: inv,
           currentUser,
-          onProjectChanged: async () => {
+          onProjectChanged: async (changedPid) => {
+            if (changedPid && typeof window.SupabaseDB.getProjectById === 'function') {
+              const freshP = await window.SupabaseDB.getProjectById(changedPid).catch(() => null);
+              if (freshP) {
+                const idx = projectsList.findIndex(x => x.id === changedPid);
+                if (idx >= 0) Object.assign(projectsList[idx], freshP);
+              }
+            }
             if (typeof window.SupabaseDB.getProjectRequestsSummaryMap === 'function') {
               projectReqSummaryMap = await window.SupabaseDB.getProjectRequestsSummaryMap().catch(() => ({}));
               renderList();
@@ -1184,6 +1192,7 @@
           const newProj = {
             id: makeId('proj'),
             name, customer, customerPoNo, notes,
+            workflowStatus: 'po_draft',
             isLocked: false, isTrashed: false, isDraft: false, source: 'web',
             createdAt: now, updatedAt: now,
             data: {

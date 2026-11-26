@@ -321,10 +321,11 @@
           </div>
         </div>
         <div class="xp-modal-table-scroll table-responsive">
-          <table class="v-table" style="min-width:680px;">
+          <table class="v-table" style="min-width:760px;">
             <thead>
               <tr>
                 <th>Vật tư / Quy cách</th>
+                <th style="width:125px;">Vật liệu / Mác</th>
                 <th style="width:90px;">ĐVT</th>
                 <th class="r" style="width:110px;">SL cần mua *</th>
                 <th class="r price-col" style="width:130px;">Đơn giá dự kiến</th>
@@ -353,10 +354,11 @@
       <div class="inv-modal-body xp-modal-body-flex">
         <div class="xp-modal-fixed-top" id="prDetailMeta"></div>
         <div class="xp-modal-table-scroll table-responsive">
-          <table class="v-table" style="min-width:650px;">
+          <table class="v-table" style="min-width:720px;">
             <thead>
               <tr>
                 <th>Vật tư / Quy cách</th>
+                <th>Vật liệu / Mác</th>
                 <th>ĐVT</th>
                 <th class="r">SL đề nghị</th>
                 <th class="r price-col">Đơn giá dự kiến</th>
@@ -395,10 +397,11 @@
           </div>
         </div>
         <div class="xp-modal-table-scroll table-responsive">
-          <table class="v-table" style="min-width:720px;">
+          <table class="v-table" style="min-width:800px;">
             <thead>
               <tr>
                 <th>Vật tư / Quy cách</th>
+                <th style="width:125px;">Vật liệu / Mác</th>
                 <th style="width:85px;">ĐVT</th>
                 <th class="r" style="width:105px;">SL đặt *</th>
                 <th class="r price-col" style="width:130px;">Đơn giá (đ)</th>
@@ -430,10 +433,11 @@
       <div class="inv-modal-body xp-modal-body-flex">
         <div class="xp-modal-fixed-top" id="poDetailMeta"></div>
         <div class="xp-modal-table-scroll table-responsive">
-          <table class="v-table" style="min-width:700px;">
+          <table class="v-table" style="min-width:780px;">
             <thead>
               <tr>
                 <th>Vật tư / Quy cách</th>
+                <th>Vật liệu / Mác</th>
                 <th>ĐVT</th>
                 <th class="r">SL đặt</th>
                 <th class="r">Đã nhận kho</th>
@@ -472,6 +476,37 @@
     function openModal(id) { $(id).classList.add('open'); }
     function closeModal(id) { $(id).classList.remove('open'); }
 
+    function formatProjectLabel(projectId, projectName, projectCustomer) {
+      if (!projectId) return 'Dùng chung';
+      let name = projectName || '';
+      let cust = projectCustomer || '';
+      if (!name && Array.isArray(allProjects)) {
+        const found = allProjects.find(p => String(p.id) === String(projectId));
+        if (found) {
+          name = found.name || '';
+          if (!cust) cust = found.customer || '';
+        }
+      }
+      if (!name) return String(projectId);
+      return cust ? `${name} (KH: ${cust})` : name;
+    }
+    function materialBadgeHtml(grade) {
+      const g = String(grade || '').trim();
+      if (!g) return '<span style="color:#94A3B8;">—</span>';
+      const low = g.toLowerCase();
+      let bg = '#E0F2FE', clr = '#0369A1', bdr = '#BAE6FD';
+      if (low.includes('sus') || low.includes('inox') || low.includes('304') || low.includes('316')) {
+        bg = '#CCFBF1'; clr = '#0F766E'; bdr = '#99F6E4';
+      } else if (low.includes('pom') || low.includes('nhựa') || low.includes('mc') || low.includes('pe') || low.includes('pa')) {
+        bg = '#F3E8FF'; clr = '#7E22CE'; bdr = '#E9D5FF';
+      } else if (low.includes('nhôm') || low.includes('al') || low.includes('6061')) {
+        bg = '#FEF3C7'; clr = '#B45309'; bdr = '#FDE68A';
+      } else if (low.includes('ss400') || low.includes('skd') || low.includes('s45c') || low.includes('ct3')) {
+        bg = '#E2E8F0'; clr = '#1E293B'; bdr = '#CBD5E1';
+      }
+      return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:800;background:${bg};color:${clr};border:1px solid ${bdr};white-space:nowrap;">${esc(g)}</span>`;
+    }
+
     const PR_STATUS_MAP = {
       draft: ['pill-draft', 'Nháp'],
       pending: ['pill-pending', '⏳ Chờ duyệt'],
@@ -482,7 +517,9 @@
     };
     const PO_STATUS_MAP = {
       draft: ['pill-draft', 'Nháp'],
+      sent: ['pill-ordered', '📦 Đã đặt'],
       ordered: ['pill-ordered', '📦 Đã đặt'],
+      partial_received: ['pill-partial', '🚚 Đang giao dở'],
       partial: ['pill-partial', '🚚 Đang giao dở'],
       completed: ['pill-completed', '✅ Đã nhận đủ'],
       cancelled: ['pill-cancelled', '✕ Đã hủy']
@@ -562,7 +599,7 @@
     function renderKpis() {
       const today = new Date().toISOString().slice(0, 10);
       const pendingPr = allPrs.filter(x => x.status === 'pending').length;
-      const openPos = allPos.filter(x => x.status === 'ordered' || x.status === 'partial');
+      const openPos = allPos.filter(x => ['sent', 'ordered', 'partial', 'partial_received'].includes(x.status));
       const overduePos = openPos.filter(x => x.expectedDate && x.expectedDate < today);
       const openVal = openPos.reduce((s, x) => s + Number(x.totalAmount || 0), 0);
       $('kpiPendingPr').textContent = pendingPr;
@@ -579,7 +616,8 @@
         if (st && r.status !== st) return false;
         if (pri && r.priority !== pri) return false;
         if (q) {
-          const hay = `${r.prCode} ${r.title} ${r.department} ${r.projectId}`.toLowerCase();
+          const projLbl = formatProjectLabel(r.projectId, r.projectName, r.projectCustomer);
+          const hay = `${r.prCode} ${r.title} ${r.department} ${r.projectId} ${projLbl}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -594,10 +632,11 @@
         const priBadge = r.priority === 'urgent' ? '<span class="pill pill-urgent">🔥 Khẩn</span>' : '<span class="pill pill-draft">Thường</span>';
         const canApprove = SharedUI.canApprovePR(currentUser) && r.status === 'pending';
         const canToPo = (r.status === 'approved') && SharedUI.canAccessPurchasing(currentUser);
+        const projLabel = formatProjectLabel(r.projectId, r.projectName, r.projectCustomer);
         return `<tr>
           <td><strong>${esc(r.prCode)}</strong><div style="font-size:11px;color:#64748B;">${esc((r.createdAt || '').slice(0, 10))}</div></td>
           <td><strong>${esc(r.title)}</strong>${r.note ? `<div style="font-size:11.5px;color:#64748B;">${esc(r.note)}</div>` : ''}</td>
-          <td>${esc(r.projectId || 'Dùng chung')}</td>
+          <td>${esc(projLabel)}</td>
           <td>${esc(r.department || '-')}</td>
           <td>${esc(r.neededDate || '-')}</td>
           <td>${priBadge}</td>
@@ -619,7 +658,8 @@
       const list = allPos.filter(o => {
         if (st && o.status !== st) return false;
         if (q) {
-          const hay = `${o.poCode} ${o.supplierName} ${o.prCode} ${o.projectId}`.toLowerCase();
+          const projLbl = formatProjectLabel(o.projectId, o.projectName, o.projectCustomer);
+          const hay = `${o.poCode} ${o.supplierName} ${o.prCode} ${o.projectId} ${projLbl}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -636,12 +676,13 @@
         const totalRec = items.reduce((s, it) => s + Number(it.receivedQty || 0), 0);
         const pct = totalOrd > 0 ? Math.min(100, Math.round((totalRec / totalOrd) * 100)) : 0;
         const isOverdue = o.expectedDate && o.expectedDate < today && !['completed', 'cancelled'].includes(o.status);
-        const canReceive = ['ordered', 'partial'].includes(o.status);
+        const canReceive = ['sent', 'ordered', 'partial', 'partial_received'].includes(o.status);
+        const projLabel = formatProjectLabel(o.projectId, o.projectName, o.projectCustomer);
         return `<tr>
           <td><strong>${esc(o.poCode)}</strong></td>
           <td><strong>${esc(o.supplierName || '-')}</strong></td>
           <td>${esc(o.prCode || '-')}</td>
-          <td>${esc(o.projectId || 'Dùng chung')}</td>
+          <td>${esc(projLabel)}</td>
           <td>
             <div>Đặt: ${esc(o.orderDate || '-')}</div>
             <div style="font-size:11.5px;${isOverdue ? 'color:#B91C1C;font-weight:800;' : 'color:#64748B;'}">
@@ -664,7 +705,10 @@
     }
 
     function openCreatePrModal(prefillItems) {
-      $('prTitle').value = prefillItems && prefillItems.length ? 'Đề nghị mua vật tư thiếu / theo dự án' : '';
+      const firstProjName = (prefillItems && prefillItems[0] && prefillItems[0].projectName) || '';
+      $('prTitle').value = prefillItems && prefillItems.length
+        ? (firstProjName ? `Đề nghị mua vật tư: ${firstProjName}` : 'Đề nghị mua vật tư thiếu / theo dự án')
+        : '';
       $('prProjectId').value = (prefillItems && prefillItems[0] && prefillItems[0].projectId) || '';
       $('prDepartment').value = 'Xưởng cơ khí';
       $('prPriority').value = 'normal';
@@ -674,6 +718,8 @@
         inventoryId: it.inventoryId || null,
         projectRequestId: it.projectRequestId || null,
         itemName: it.itemName || it.name || '',
+        materialGrade: it.materialGrade || '',
+        specText: it.specText || '',
         unit: it.unit || 'Cái',
         requestedQty: Number(it.requestedQty || it.qty || 1),
         estimatedUnitPrice: Number(it.estimatedUnitPrice || it.unitPrice || 0),
@@ -686,11 +732,12 @@
     function renderPrDraftItems() {
       const tb = $('prDraftItemsBody');
       if (!prDraftItems.length) {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748B;padding:18px;">Hãy chọn vật tư từ kho hoặc thêm dòng tự do ở trên.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748B;padding:18px;">Hãy chọn vật tư từ kho hoặc thêm dòng tự do ở trên.</td></tr>';
         return;
       }
       tb.innerHTML = prDraftItems.map((it, idx) => `<tr>
         <td><input type="text" value="${esc(it.itemName)}" onchange="prDraftItems[${idx}].itemName=this.value"></td>
+        <td><input type="text" value="${esc(it.materialGrade || '')}" placeholder="SUS 304, POM..." onchange="prDraftItems[${idx}].materialGrade=this.value"></td>
         <td><input type="text" value="${esc(it.unit)}" onchange="prDraftItems[${idx}].unit=this.value"></td>
         <td><input type="number" step="any" min="0.001" value="${it.requestedQty}" onchange="prDraftItems[${idx}].requestedQty=Number(this.value||0)"></td>
         <td class="price-col"><input type="number" step="any" min="0" value="${it.estimatedUnitPrice}" onchange="prDraftItems[${idx}].estimatedUnitPrice=Number(this.value||0)"></td>
@@ -713,7 +760,8 @@
           priority: $('prPriority').value,
           neededDate: $('prNeededDate').value || null,
           note: $('prNote').value.trim() || null,
-          status: 'pending'
+          status: 'pending',
+          createdBy: (currentUser && (currentUser.id || currentUser.username)) || ''
         }, validItems);
         closeModal('modalCreatePr');
         showToast('✅ Đã gửi Đề nghị mua hàng (PR) thành công!');
@@ -738,18 +786,24 @@
       const r = allPrs.find(x => x.id === prId);
       if (!r) return;
       const [cls, label] = PR_STATUS_MAP[r.status] || ['pill-draft', r.status];
+      const projLabel = formatProjectLabel(r.projectId, r.projectName, r.projectCustomer);
+      const creatorLabel = r.createdByName || r.createdBy || '-';
       $('prDetailTitle').textContent = `PR: ${r.prCode} — ${r.title}`;
       $('prDetailMeta').innerHTML = `
         <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;">
           <span><strong>Trạng thái:</strong> <span class="pill ${cls}">${label}</span></span>
-          <span><strong>Dự án:</strong> ${esc(r.projectId || 'Dùng chung')}</span>
+          <span><strong>Dự án:</strong> ${esc(projLabel)}</span>
           <span><strong>Bộ phận:</strong> ${esc(r.department || '-')}</span>
           <span><strong>Ngày cần:</strong> ${esc(r.neededDate || '-')}</span>
-          <span><strong>Người tạo:</strong> ${esc(r.createdBy || '-')}</span>
+          <span><strong>Người tạo:</strong> ${esc(creatorLabel)}</span>
           ${r.rejectReason ? `<span style="color:#B91C1C;"><strong>Lý do từ chối:</strong> ${esc(r.rejectReason)}</span>` : ''}
         </div>`;
       $('prDetailItemsBody').innerHTML = (r.items || []).map(it => `<tr>
-        <td><strong>${esc(it.itemName)}</strong></td>
+        <td>
+          <strong>${esc(it.itemName)}</strong>
+          ${it.specText && it.specText !== it.itemName ? `<div style="font-size:11.5px;color:#475569;">${esc(it.specText)}</div>` : ''}
+        </td>
+        <td>${materialBadgeHtml(it.materialGrade)}</td>
         <td>${esc(it.unit)}</td>
         <td class="r"><strong>${fmtNum(it.requestedQty)}</strong></td>
         <td class="r price-col">${fmtMoney(it.estimatedUnitPrice)}</td>
@@ -800,6 +854,7 @@
         inventoryId: it.inventoryId || null,
         prItemId: it.id,
         itemName: it.itemName,
+        materialGrade: it.materialGrade || '',
         unit: it.unit || 'Cái',
         orderedQty: Number(it.requestedQty || 0),
         unitPrice: Number(it.estimatedUnitPrice || 0),
@@ -827,7 +882,7 @@
     function renderPoDraftItems() {
       const tb = $('poDraftItemsBody');
       if (!poDraftItems.length) {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748B;padding:18px;">Chưa có dòng hàng hóa nào trong PO.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748B;padding:18px;">Chưa có dòng hàng hóa nào trong PO.</td></tr>';
         $('poTotalPreview').textContent = '0 đ';
         return;
       }
@@ -837,6 +892,7 @@
         total += line;
         return `<tr>
           <td><input type="text" value="${esc(it.itemName)}" onchange="poDraftItems[${idx}].itemName=this.value"></td>
+          <td><input type="text" value="${esc(it.materialGrade || '')}" placeholder="SUS 304, POM..." onchange="poDraftItems[${idx}].materialGrade=this.value"></td>
           <td><input type="text" value="${esc(it.unit)}" onchange="poDraftItems[${idx}].unit=this.value"></td>
           <td><input type="number" step="any" min="0.001" value="${it.orderedQty}" onchange="poDraftItems[${idx}].orderedQty=Number(this.value||0);renderPoDraftItems();"></td>
           <td class="price-col"><input type="number" step="any" min="0" value="${it.unitPrice}" onchange="poDraftItems[${idx}].unitPrice=Number(this.value||0);renderPoDraftItems();"></td>
@@ -858,7 +914,8 @@
         orderDate: $('poOrderDate').value || new Date().toISOString().slice(0, 10),
         expectedDate: $('poExpectedDate').value || null,
         paymentTerms: $('poPaymentTerms').value.trim() || null,
-        note: $('poNote').value.trim() || null
+        note: $('poNote').value.trim() || null,
+        createdBy: (currentUser && (currentUser.id || currentUser.username)) || ''
       };
       try {
         if (activePoFromPrId) {
@@ -879,11 +936,13 @@
       const o = allPos.find(x => x.id === poId);
       if (!o) return;
       const [cls, label] = PO_STATUS_MAP[o.status] || ['pill-draft', o.status];
+      const projLabel = formatProjectLabel(o.projectId, o.projectName, o.projectCustomer);
       $('poDetailTitle').textContent = `PO: ${o.poCode} — ${o.supplierName || ''}`;
       $('poDetailMeta').innerHTML = `
         <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;">
           <span><strong>Trạng thái:</strong> <span class="pill ${cls}">${label}</span></span>
           <span><strong>NCC:</strong> ${esc(o.supplierName || '-')}</span>
+          <span><strong>Dự án:</strong> ${esc(projLabel)}</span>
           <span><strong>PR gốc:</strong> ${esc(o.prCode || '-')}</span>
           <span><strong>Ngày đặt:</strong> ${esc(o.orderDate || '-')}</span>
           <span><strong>Hẹn giao:</strong> ${esc(o.expectedDate || '-')}</span>
@@ -894,6 +953,7 @@
         const rem = Math.max(0, Number(it.orderedQty || 0) - Number(it.receivedQty || 0));
         return `<tr>
           <td><strong>${esc(it.itemName)}</strong></td>
+          <td>${materialBadgeHtml(it.materialGrade)}</td>
           <td>${esc(it.unit)}</td>
           <td class="r">${fmtNum(it.orderedQty)}</td>
           <td class="r" style="color:#15803D;font-weight:700;">${fmtNum(it.receivedQty)}</td>
@@ -904,10 +964,10 @@
       }).join('');
 
       let btns = `<button type="button" class="btn btn-soft" onclick="printPoA4('${esc(o.id)}')">🖨️ In Đơn Đặt Hàng (A4)</button>`;
-      if (['ordered', 'partial'].includes(o.status)) {
+      if (['sent', 'ordered', 'partial', 'partial_received'].includes(o.status)) {
         btns += `<a class="btn btn-p" href="/vouchers?new=IN&po=${encodeURIComponent(o.id)}">📦 Nhập kho từ PO này</a>`;
       }
-      if (SharedUI.canApprovePR(currentUser) && o.status === 'ordered') {
+      if (SharedUI.canApprovePR(currentUser) && ['sent', 'ordered'].includes(o.status)) {
         btns += `<button type="button" class="btn btn-danger" onclick="cancelPoAction('${esc(o.id)}')">✕ Hủy PO</button>`;
       }
       btns += `<button type="button" class="btn btn-soft" onclick="closeModal('modalPoDetail')">Đóng</button>`;
@@ -932,10 +992,13 @@
       const o = allPos.find(x => x.id === poId);
       if (!o) return;
       const showPrice = SharedUI.canViewPrices(currentUser);
+      const projLabel = formatProjectLabel(o.projectId, o.projectName, o.projectCustomer);
+      const creatorLabel = o.createdByName || o.createdBy || '';
       const rows = (o.items || []).map((it, i) => `
         <tr>
           <td style="border:1px solid #333;padding:6px;text-align:center;">${i + 1}</td>
           <td style="border:1px solid #333;padding:6px;">${esc(it.itemName)}</td>
+          <td style="border:1px solid #333;padding:6px;text-align:center;font-weight:bold;">${esc(it.materialGrade || '-')}</td>
           <td style="border:1px solid #333;padding:6px;text-align:center;">${esc(it.unit)}</td>
           <td style="border:1px solid #333;padding:6px;text-align:right;">${fmtNum(it.orderedQty)}</td>
           ${showPrice ? `<td style="border:1px solid #333;padding:6px;text-align:right;">${fmtMoney(it.unitPrice)}</td><td style="border:1px solid #333;padding:6px;text-align:right;">${fmtMoney(it.lineTotal)}</td>` : ''}
@@ -954,7 +1017,7 @@
         <h2 style="text-align:center;margin:8px 0 14px;font-size:20px;">ĐƠN ĐẶT HÀNG (PURCHASE ORDER)</h2>
         <div style="font-size:13.5px;line-height:1.7;margin-bottom:14px;">
           <div><strong>Nhà cung cấp:</strong> ${esc(o.supplierName || '-')}</div>
-          <div><strong>Dự án / Tham chiếu:</strong> ${esc(o.projectId || 'Dùng chung')} &nbsp;|&nbsp; <strong>PR gốc:</strong> ${esc(o.prCode || '-')}</div>
+          <div><strong>Dự án / Tham chiếu:</strong> ${esc(projLabel)} &nbsp;|&nbsp; <strong>PR gốc:</strong> ${esc(o.prCode || '-')}</div>
           <div><strong>Ngày hẹn giao:</strong> ${esc(o.expectedDate || '-')} &nbsp;|&nbsp; <strong>Điều khoản TT:</strong> ${esc(o.paymentTerms || '-')}</div>
           ${o.note ? `<div><strong>Ghi chú:</strong> ${esc(o.note)}</div>` : ''}
         </div>
@@ -963,16 +1026,17 @@
             <tr style="background:#f1f5f9;">
               <th style="border:1px solid #333;padding:6px;">STT</th>
               <th style="border:1px solid #333;padding:6px;">Tên hàng hóa / Quy cách</th>
+              <th style="border:1px solid #333;padding:6px;">Vật liệu / Mác</th>
               <th style="border:1px solid #333;padding:6px;">ĐVT</th>
               <th style="border:1px solid #333;padding:6px;">Số lượng</th>
               ${showPrice ? '<th style="border:1px solid #333;padding:6px;">Đơn giá</th><th style="border:1px solid #333;padding:6px;">Thành tiền</th>' : ''}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
-          ${showPrice ? `<tfoot><tr><td colspan="5" style="border:1px solid #333;padding:7px;text-align:right;font-weight:bold;">TỔNG CỘNG:</td><td style="border:1px solid #333;padding:7px;text-align:right;font-weight:bold;">${fmtMoney(o.totalAmount)}</td></tr></tfoot>` : ''}
+          ${showPrice ? `<tfoot><tr><td colspan="6" style="border:1px solid #333;padding:7px;text-align:right;font-weight:bold;">TỔNG CỘNG:</td><td style="border:1px solid #333;padding:7px;text-align:right;font-weight:bold;">${fmtMoney(o.totalAmount)}</td></tr></tfoot>` : ''}
         </table>
         <div style="display:flex;justify-content:space-between;margin-top:34px;text-align:center;font-size:13px;">
-          <div style="width:32%;"><strong>Người lập đơn</strong><br><br><br>${esc(o.createdBy || '')}</div>
+          <div style="width:32%;"><strong>Người lập đơn</strong><br><br><br>${esc(creatorLabel)}</div>
           <div style="width:32%;"><strong>Giám đốc / Duyệt</strong></div>
           <div style="width:32%;"><strong>Xác nhận Nhà cung cấp</strong></div>
         </div>`;
@@ -1029,22 +1093,22 @@
         const id = $('prAddInvSelect').value;
         const inv = allInventory.find(x => x.id === id);
         if (!inv) return;
-        prDraftItems.push({ inventoryId: inv.id, itemName: inv.profileName || inv.name || '', unit: inv.unit || 'Cái', requestedQty: Math.max(1, Number(inv.minStockQty || inv.minStock || 1)), estimatedUnitPrice: Number(inv.avgCost || inv.unitPrice || 0), note: '' });
+        prDraftItems.push({ inventoryId: inv.id, itemName: inv.profileName || inv.name || '', materialGrade: inv.materialGrade || '', unit: inv.unit || 'Cái', requestedQty: Math.max(1, Number(inv.minStockQty || inv.minStock || 1)), estimatedUnitPrice: Number(inv.avgCost || inv.unitPrice || 0), note: '' });
         renderPrDraftItems();
       });
       $('btnPrAddManualRow').addEventListener('click', () => {
-        prDraftItems.push({ inventoryId: null, itemName: '', unit: 'Cái', requestedQty: 1, estimatedUnitPrice: 0, note: '' });
+        prDraftItems.push({ inventoryId: null, itemName: '', materialGrade: '', unit: 'Cái', requestedQty: 1, estimatedUnitPrice: 0, note: '' });
         renderPrDraftItems();
       });
       $('btnPoAddInvRow').addEventListener('click', () => {
         const id = $('poAddInvSelect').value;
         const inv = allInventory.find(x => x.id === id);
         if (!inv) return;
-        poDraftItems.push({ inventoryId: inv.id, itemName: inv.profileName || inv.name || '', unit: inv.unit || 'Cái', orderedQty: 1, unitPrice: Number(inv.avgCost || inv.unitPrice || 0) });
+        poDraftItems.push({ inventoryId: inv.id, itemName: inv.profileName || inv.name || '', materialGrade: inv.materialGrade || '', unit: inv.unit || 'Cái', orderedQty: 1, unitPrice: Number(inv.avgCost || inv.unitPrice || 0) });
         renderPoDraftItems();
       });
       $('btnPoAddManualRow').addEventListener('click', () => {
-        poDraftItems.push({ inventoryId: null, itemName: '', unit: 'Cái', orderedQty: 1, unitPrice: 0 });
+        poDraftItems.push({ inventoryId: null, itemName: '', materialGrade: '', unit: 'Cái', orderedQty: 1, unitPrice: 0 });
         renderPoDraftItems();
       });
 

@@ -1001,6 +1001,9 @@
              </div>`
           : '';
 
+        const matBadgeHtml = it.materialGrade
+          ? `<div style="margin-top:3px;"><span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:800;background:#E0F2FE;color:#0369A1;border:1px solid #BAE6FD;">Mác: ${escapeHtml(it.materialGrade)}</span></div>`
+          : '';
         const poHintHtml = it._poOrderedQty != null
           ? `<div style="font-size:11px; color:${Number(it.qty) > Number(it._poRemainingQty || 0) ? '#B91C1C' : '#0369A1'}; font-weight:700; margin-top:2px;">PO Đặt: ${numVN(it._poOrderedQty)} · Đã nhận: ${numVN(it._poReceivedQty || 0)} · Còn: ${numVN(it._poRemainingQty || 0)}${Number(it.qty) > Number(it._poRemainingQty || 0) ? ' ⚠️ Vượt SL PO!' : ''}</div>`
           : '';
@@ -1012,6 +1015,7 @@
                 ${inventoryItems.map(r => `<option value="${escapeHtml(r.id)}" ${(it.inventoryId === r.id || (!it.inventoryId && it.profile === r.profileName)) ? 'selected' : ''}>${escapeHtml(r.profileName)}${r.sku ? ' [' + escapeHtml(r.sku) + ']' : ''}</option>`).join('')}
               </select>
               <input type="text" class="vi-prof-inp" data-idx="${idx}" value="${escapeHtml(it.profile)}" placeholder="Hoặc gõ tên vật tư mới..." style="margin-top:4px; min-height:30px; font-size:12.5px;">
+              ${matBadgeHtml}
               <div style="font-size:11px; color:#0F766E; margin-top:2px;">${escapeHtml(curStockHint)}</div>
               ${poHintHtml}
             </td>
@@ -1539,12 +1543,13 @@
                     inventoryId: it.inventoryId || (invMatch ? invMatch.id : ''),
                     poItemId: it.id,
                     profile: it.itemName || (invMatch ? invMatch.profileName : ''),
+                    materialGrade: it.materialGrade || '',
                     materialGroup: invMatch ? (invMatch.materialGroup || 'consumable') : 'consumable',
                     unit: it.unit || (invMatch ? invMatch.unit : 'cái'),
                     lengthMm: invMatch ? (invMatch.standardLengthMm || 6000) : 6000,
                     qty: rem,
                     unitPrice: Number(it.unitPrice || 0),
-                    note: `Theo PO ${po.poCode}`,
+                    note: (it.materialGrade ? `[${it.materialGrade}] ` : '') + `Theo PO ${po.poCode}`,
                     _poOrderedQty: ord,
                     _poReceivedQty: rec,
                     _poRemainingQty: rem

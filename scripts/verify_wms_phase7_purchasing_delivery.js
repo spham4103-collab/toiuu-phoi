@@ -96,7 +96,7 @@ function run() {
   assert(syncPy.includes("'purchasing'") && syncPy.includes("'delivery'"), 'sync_all.py missing purchasing/delivery');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v34'), 'sw.js must be v34');
+  assert(sw.includes('toiuu-phoi-pwa-v35'), 'sw.js must be v35');
   assert(sw.includes('/purchasing') && sw.includes('/delivery'), 'sw.js missing /purchasing or /delivery');
 
   assert(fs.existsSync(path.join(ROOT, 'dist', 'purchasing.html')), 'dist/purchasing.html missing (run sync_all.py)');

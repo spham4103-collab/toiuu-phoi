@@ -328,8 +328,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       customer: row.customer || '',
       customerPoNo: row.customer_po_no || '',
       workflowStatus: row.workflow_status || 'waiting_drawings',
+      poPushedAt: row.po_pushed_at || null,
+      poPushedBy: row.po_pushed_by || null,
       drawingsHandedOverAt: row.drawings_handed_over_at || null,
+      drawingsHandedOverBy: row.drawings_handed_over_by || null,
       bomSubmittedAt: row.bom_submitted_at || null,
+      bomSubmittedBy: row.bom_submitted_by || null,
+      workflowHistory: Array.isArray(row.workflow_history) ? row.workflow_history : [],
       notes: row.notes || '',
       isLocked: Boolean(row.is_locked),
       isTrashed: Boolean(row.is_trashed),
@@ -360,8 +365,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       customer: row.customer || '',
       customerPoNo: row.customer_po_no || '',
       workflowStatus: row.workflow_status || 'waiting_drawings',
+      poPushedAt: row.po_pushed_at || null,
+      poPushedBy: row.po_pushed_by || null,
       drawingsHandedOverAt: row.drawings_handed_over_at || null,
+      drawingsHandedOverBy: row.drawings_handed_over_by || null,
       bomSubmittedAt: row.bom_submitted_at || null,
+      bomSubmittedBy: row.bom_submitted_by || null,
+      workflowHistory: Array.isArray(row.workflow_history) ? row.workflow_history : [],
       notes: row.notes || '',
       isLocked: Boolean(row.is_locked),
       isTrashed: Boolean(row.is_trashed),
@@ -651,6 +661,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .upsert(dbRow, { onConflict: 'id' })
       .select()
       .single();
+    if (res && res.error && dbRow.workflow_status === 'po_draft' && (String(res.error.code || '') === '23514' || /projects_workflow_status_check/i.test(String(res.error.message || '')))) {
+      dbRow.workflow_status = 'waiting_drawings';
+      res = await client
+        .from('projects')
+        .upsert(dbRow, { onConflict: 'id' })
+        .select()
+        .single();
+    }
     if (res && res.error && _isMissingColumnError(res.error, /customer_po_no|workflow_status/i)) {
       delete dbRow.customer_po_no;
       delete dbRow.workflow_status;
@@ -3295,46 +3313,68 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return prefix + '-' + ymd + '-' + rnd;
   }
 
-  function mapPurchaseRequestFromDb(row) {
+  async function _loadProfileNameMap() {
+    var map = {};
+    try {
+      var profs = await getProfiles();
+      (profs || []).forEach(function (pr) {
+        var label = pr.displayName || pr.username || '';
+        if (pr.id && label) map[String(pr.id)] = label;
+        if (pr.username && label) map[String(pr.username)] = label;
+      });
+    } catch (e) {}
+    return map;
+  }
+
+  function mapPurchaseRequestFromDb(row, profileMap) {
     if (!row) return null;
+    var pMap = profileMap || {};
     var items = Array.isArray(row.purchase_request_items) ? row.purchase_request_items : [];
+    var rawCreator = String(row.created_by || '');
     return {
       id: row.id,
       prCode: String(row.pr_code || ''),
       title: String(row.title || ''),
       projectId: row.project_id || null,
       projectName: row.project && row.project.name ? String(row.project.name) : '',
+      projectCustomer: row.project && row.project.customer ? String(row.project.customer) : '',
       department: String(row.department || ''),
       priority: String(row.priority || 'normal'),
       neededDate: row.needed_date || null,
       status: String(row.status || 'pending'),
       rejectReason: String(row.reject_reason || ''),
       note: String(row.note || ''),
-      createdBy: String(row.created_by || ''),
+      createdBy: rawCreator,
+      createdByName: pMap[rawCreator] || rawCreator,
       approvedBy: String(row.approved_by || ''),
       approvedAt: row.approved_at || null,
       createdAt: row.created_at || new Date().toISOString(),
       items: items.map(function (it) {
+        var est = Number(it.estimated_price) || 0;
         return {
           id: it.id,
           prId: it.pr_id,
           inventoryId: it.inventory_id || null,
           projectRequestId: it.project_request_id || null,
           itemName: String(it.item_name || ''),
+          materialGrade: String(it.material_grade || ''),
           specText: String(it.spec_text || ''),
           unit: String(it.unit || 'cái'),
           requestedQty: Number(it.requested_qty) || 0,
           orderedQty: Number(it.ordered_qty) || 0,
-          estimatedPrice: Number(it.estimated_price) || 0,
+          estimatedPrice: est,
+          estimatedUnitPrice: est,
           note: String(it.note || '')
         };
       })
     };
   }
 
-  function mapPurchaseOrderFromDb(row) {
+  function mapPurchaseOrderFromDb(row, profileMap) {
     if (!row) return null;
+    var pMap = profileMap || {};
     var items = Array.isArray(row.purchase_order_items) ? row.purchase_order_items : [];
+    var rawCreator = String(row.created_by || '');
     return {
       id: row.id,
       poCode: String(row.po_code || ''),
@@ -3343,8 +3383,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       supplierPhone: row.supplier && row.supplier.phone ? String(row.supplier.phone) : '',
       supplierAddress: row.supplier && row.supplier.address ? String(row.supplier.address) : '',
       prId: row.pr_id || null,
+      prCode: (row.pr && row.pr.pr_code) ? String(row.pr.pr_code) : String(row.pr_code || ''),
       projectId: row.project_id || null,
       projectName: row.project && row.project.name ? String(row.project.name) : '',
+      projectCustomer: row.project && row.project.customer ? String(row.project.customer) : '',
       orderDate: row.order_date || null,
       expectedDate: row.expected_date || null,
       status: String(row.status || 'sent'),
@@ -3352,21 +3394,25 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       paymentTerms: String(row.payment_terms || ''),
       deliveryTerms: String(row.delivery_terms || ''),
       note: String(row.note || ''),
-      createdBy: String(row.created_by || ''),
+      createdBy: rawCreator,
+      createdByName: pMap[rawCreator] || rawCreator,
       approvedBy: String(row.approved_by || ''),
       createdAt: row.created_at || new Date().toISOString(),
       items: items.map(function (it) {
+        var lineAmt = Number(it.total_amount) || 0;
         return {
           id: it.id,
           poId: it.po_id,
           prItemId: it.pr_item_id || null,
           inventoryId: it.inventory_id || null,
           itemName: String(it.item_name || ''),
+          materialGrade: String(it.material_grade || ''),
           unit: String(it.unit || 'cái'),
           orderedQty: Number(it.ordered_qty) || 0,
           receivedQty: Number(it.received_qty) || 0,
           unitPrice: Number(it.unit_price) || 0,
-          totalAmount: Number(it.total_amount) || 0,
+          totalAmount: lineAmt,
+          lineTotal: lineAmt,
           note: String(it.note || '')
         };
       })
@@ -3377,7 +3423,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var f = filters || {};
     var client = getClient();
     var q = client.from('purchase_requests')
-      .select('*, project:projects(name), purchase_request_items(*)')
+      .select('*, project:projects(name,customer), purchase_request_items(*)')
       .order('created_at', { ascending: false });
     if (f.status && f.status !== 'ALL') q = q.eq('status', f.status);
     if (f.priority && f.priority !== 'ALL') q = q.eq('priority', f.priority);
@@ -3385,7 +3431,39 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var res = await q;
     if (res && res.error && _isMissingTableError(res.error, 'purchase_requests')) return [];
     var rows = throwIfError(res, 'Không tải được danh sách Đề nghị mua hàng') || [];
-    return rows.map(mapPurchaseRequestFromDb);
+    var profileMap = await _loadProfileNameMap();
+    var mapped = rows.map(function (r) { return mapPurchaseRequestFromDb(r, profileMap); });
+
+    // Fallback: các dòng PR cũ chưa có material_grade -> đọc bù từ project_material_requests theo project_request_id
+    var missingReqIds = [];
+    mapped.forEach(function (pr) {
+      (pr.items || []).forEach(function (it) {
+        if ((!it.materialGrade || !it.specText) && it.projectRequestId && missingReqIds.indexOf(it.projectRequestId) < 0) {
+          missingReqIds.push(it.projectRequestId);
+        }
+      });
+    });
+    if (missingReqIds.length) {
+      try {
+        var pmrRes = await client.from('project_material_requests')
+          .select('id, material_grade, spec_dimensions')
+          .in('id', missingReqIds);
+        if (pmrRes && !pmrRes.error && Array.isArray(pmrRes.data)) {
+          var pmrMap = {};
+          pmrRes.data.forEach(function (m) { pmrMap[m.id] = m; });
+          mapped.forEach(function (pr) {
+            (pr.items || []).forEach(function (it) {
+              var src = it.projectRequestId ? pmrMap[it.projectRequestId] : null;
+              if (src) {
+                if (!it.materialGrade && src.material_grade) it.materialGrade = String(src.material_grade);
+                if (!it.specText && src.spec_dimensions) it.specText = String(src.spec_dimensions);
+              }
+            });
+          });
+        }
+      } catch (e) {}
+    }
+    return mapped;
   }
 
   async function getPendingPrCount() {
@@ -3416,19 +3494,29 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var res = await client.from('purchase_requests').insert(header).select().single();
     var created = throwIfError(res, 'Không tạo được Đề nghị mua hàng');
     var itemRows = list.map(function (it) {
+      var estPrice = Math.max(0, Number(it.estimatedPrice != null ? it.estimatedPrice : (it.estimatedUnitPrice || 0)));
       return {
         pr_id: created.id,
         inventory_id: it.inventoryId || null,
         project_request_id: it.projectRequestId || null,
         item_name: String(it.itemName).trim(),
+        material_grade: String(it.materialGrade || '').trim(),
         spec_text: String(it.specText || '').trim(),
         unit: String(it.unit || 'cái').trim(),
         requested_qty: Number(it.requestedQty),
-        estimated_price: Math.max(0, Number(it.estimatedPrice || 0)),
+        estimated_price: estPrice,
         note: String(it.note || '').trim()
       };
     });
     var iRes = await client.from('purchase_request_items').insert(itemRows).select();
+    if (iRes && iRes.error && _isMissingColumnError(iRes.error, /material_grade/i)) {
+      var fallbackRows = itemRows.map(function (r) {
+        var copy = Object.assign({}, r);
+        delete copy.material_grade;
+        return copy;
+      });
+      iRes = await client.from('purchase_request_items').insert(fallbackRows).select();
+    }
     if (iRes && iRes.error) {
       try { await client.from('purchase_requests').delete().eq('id', created.id); } catch (e) {}
       throwIfError(iRes, 'Không lưu được chi tiết PR');
@@ -3455,25 +3543,41 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     var f = filters || {};
     var client = getClient();
     var q = client.from('purchase_orders')
-      .select('*, supplier:suppliers(name,phone,address), project:projects(name), purchase_order_items(*)')
+      .select('*, supplier:suppliers(name,phone,address), project:projects(name,customer), pr:purchase_requests(pr_code), purchase_order_items(*)')
       .order('created_at', { ascending: false });
     if (f.status && f.status !== 'ALL') q = q.eq('status', f.status);
     if (f.supplierId) q = q.eq('supplier_id', f.supplierId);
     var res = await q;
     if (res && res.error && _isMissingTableError(res.error, 'purchase_orders')) return [];
+    if (res && res.error) {
+      var q2 = client.from('purchase_orders')
+        .select('*, supplier:suppliers(name,phone,address), project:projects(name,customer), purchase_order_items(*)')
+        .order('created_at', { ascending: false });
+      if (f.status && f.status !== 'ALL') q2 = q2.eq('status', f.status);
+      if (f.supplierId) q2 = q2.eq('supplier_id', f.supplierId);
+      res = await q2;
+    }
     var rows = throwIfError(res, 'Không tải được danh sách Đơn đặt hàng (PO)') || [];
-    return rows.map(mapPurchaseOrderFromDb);
+    var profileMap = await _loadProfileNameMap();
+    return rows.map(function (r) { return mapPurchaseOrderFromDb(r, profileMap); });
   }
 
   async function getPurchaseOrderById(poId) {
     var client = getClient();
     var res = await client.from('purchase_orders')
-      .select('*, supplier:suppliers(name,phone,address), project:projects(name), purchase_order_items(*)')
+      .select('*, supplier:suppliers(name,phone,address), project:projects(name,customer), pr:purchase_requests(pr_code), purchase_order_items(*)')
       .eq('id', poId)
       .maybeSingle();
     if (res && res.error && _isMissingTableError(res.error, 'purchase_orders')) return null;
+    if (res && res.error) {
+      res = await client.from('purchase_orders')
+        .select('*, supplier:suppliers(name,phone,address), project:projects(name,customer), purchase_order_items(*)')
+        .eq('id', poId)
+        .maybeSingle();
+    }
     var row = throwIfError(res, 'Không tải được Đơn đặt hàng');
-    return mapPurchaseOrderFromDb(row);
+    var profileMap = await _loadProfileNameMap();
+    return mapPurchaseOrderFromDb(row, profileMap);
   }
 
   async function createPurchaseOrder(payload, items) {
@@ -3511,6 +3615,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
         pr_item_id: it.prItemId || null,
         inventory_id: it.inventoryId || null,
         item_name: String(it.itemName).trim(),
+        material_grade: String(it.materialGrade || '').trim(),
         unit: String(it.unit || 'cái').trim(),
         ordered_qty: qty,
         unit_price: price,
@@ -3519,6 +3624,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       };
     });
     var iRes = await client.from('purchase_order_items').insert(itemRows).select();
+    if (iRes && iRes.error && _isMissingColumnError(iRes.error, /material_grade/i)) {
+      var fallbackRows = itemRows.map(function (r) {
+        var copy = Object.assign({}, r);
+        delete copy.material_grade;
+        return copy;
+      });
+      iRes = await client.from('purchase_order_items').insert(fallbackRows).select();
+    }
     if (iRes && iRes.error) {
       try { await client.from('purchase_orders').delete().eq('id', created.id); } catch (e) {}
       throwIfError(iRes, 'Không lưu được chi tiết PO');
