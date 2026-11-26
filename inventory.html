@@ -3802,7 +3802,7 @@
         }
 
         if (parsed.kind === 'PROJ' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openProjectLookupModal === 'function') {
-          window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
+          window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser, parsed.rev);
           return;
         }
         if (parsed.kind === 'FG' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openFinishedGoodsLookupModal === 'function') {

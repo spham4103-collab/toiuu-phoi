@@ -604,6 +604,293 @@
     return result;
   }
 
+  function formatRevLabel(rev) {
+    var n = Math.max(1, Number(rev) || 1);
+    return 'Rev ' + (n < 10 ? '0' + n : String(n));
+  }
+
+  function normalizeMaterialGrade(raw) {
+    var s = String(raw || '').trim().toUpperCase().replace(/\s+/g, ' ');
+    if (!s) return '';
+    if (/SUS\s*304|INOX\s*304|304L?\b/.test(s)) return 'SUS 304';
+    if (/SUS\s*316|INOX\s*316/.test(s)) return 'SUS 316';
+    if (/SUS\s*201|INOX\s*201/.test(s)) return 'SUS 201';
+    if (/NH[OÔ]M\s*6061|AL?\s*6061|\b6061\b/.test(s)) return 'NHOM 6061';
+    if (/NH[OÔ]M\s*5052|\b5052\b/.test(s)) return 'NHOM 5052';
+    if (/NH[OÔ]M\s*7075|\b7075\b/.test(s)) return 'NHOM 7075';
+    if (/\bPOM\b/.test(s)) return 'POM';
+    if (/NH[UỰ]A\s*MC|\bMC\s*NYLON|\bMC\b/.test(s)) return 'NHUA MC';
+    if (/PH[IÍ]P|BAKELITE/.test(s)) return 'NHUA PHIP';
+    if (/\bSKD\s*11\b/.test(s)) return 'SKD11';
+    if (/\bS45C\b|\bC45\b/.test(s)) return 'S45C';
+    if (/\b2083\b/.test(s)) return 'THEP 2083';
+    if (/SS\s*400|\bCT3\b|\bQ235\b/.test(s)) return 'SS400';
+    return s;
+  }
+
+  function parseDimForCutMatching(rawText, fallbackGrade, specJson) {
+    var text = String(rawText || '').trim();
+    var sj = (specJson && typeof specJson === 'object') ? specJson : {};
+    var normGrade = normalizeMaterialGrade(fallbackGrade || sj.material_grade || text);
+    var lMatch = text.match(/\bL\s*=?\s*(\d+(?:[.,]\d+)?)/i);
+    var extraLen = lMatch ? parseFloat(lMatch[1].replace(',', '.')) : 0;
+
+    // 1. Round bar: D16x43, Φ16×43, Ø20x6000
+    var rMatch = text.match(/(?:^|[^a-zA-Z0-9])(?:D|Φ|Ø|Phi)\s*(\d+(?:[.,]\d+)?)(?:\s*[x×*]\s*(\d+(?:[.,]\d+)?))?/i);
+    if (rMatch) {
+      var dia = parseFloat(rMatch[1].replace(',', '.')) || 0;
+      var rLen = rMatch[2] ? parseFloat(rMatch[2].replace(',', '.')) : (extraLen || Number(sj.length_mm) || 0);
+      if (dia > 0) {
+        return { shape: 'round', materialGrade: normGrade, diameterMm: dia, lengthMm: rLen };
+      }
+    }
+    if (sj.shape === 'round' && Number(sj.diameter_mm) > 0) {
+      return { shape: 'round', materialGrade: normGrade, diameterMm: Number(sj.diameter_mm), lengthMm: Number(sj.length_mm) || extraLen || 0 };
+    }
+
+    // 2. Plate / Block: 270x25x80mm or T25x1000x2000
+    var tri = text.match(/(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)/i);
+    if (tri) {
+      var n1 = parseFloat(tri[1].replace(',', '.')) || 0;
+      var n2 = parseFloat(tri[2].replace(',', '.')) || 0;
+      var n3 = parseFloat(tri[3].replace(',', '.')) || 0;
+      var sorted = [n1, n2, n3].sort(function (a, b) { return a - b; });
+      if (sorted[0] > 0) {
+        return {
+          shape: 'plate',
+          materialGrade: normGrade,
+          thicknessMm: sorted[0],
+          widthMm: sorted[1],
+          lengthMm: sorted[2]
+        };
+      }
+    }
+    if (sj.shape === 'plate' && Number(sj.thickness_mm) > 0) {
+      var sArr = [Number(sj.thickness_mm), Number(sj.width_mm) || 1000, Number(sj.length_mm) || 2000].sort(function (a, b) { return a - b; });
+      return { shape: 'plate', materialGrade: normGrade, thicknessMm: sArr[0], widthMm: sArr[1], lengthMm: sArr[2] };
+    }
+    return { shape: 'unknown', materialGrade: normGrade, diameterMm: 0, thicknessMm: 0, widthMm: 0, lengthMm: extraLen || 0 };
+  }
+
+  function findCuttableStockCandidates(requestRow, inventoryList, offcutsList) {
+    var req = requestRow || {};
+    var reqSpecText = [req.itemName, req.specDimensions, req.materialGrade].filter(Boolean).join(' ');
+    var reqDim = parseDimForCutMatching(reqSpecText, req.materialGrade, null);
+    if (reqDim.shape !== 'round' && reqDim.shape !== 'plate') return [];
+
+    var invs = Array.isArray(inventoryList) ? inventoryList : [];
+    var offs = Array.isArray(offcutsList) ? offcutsList : [];
+    var out = [];
+
+    function gradeCompatible(candGrade) {
+      if (!reqDim.materialGrade) return Boolean(candGrade);
+      if (!candGrade) return false;
+      return reqDim.materialGrade === candGrade;
+    }
+
+    // 1. Check Offcuts (stock_offcuts) first
+    offs.forEach(function (off) {
+      if (!off || Number(off.quantity || 0) <= 0 || (off.status && off.status !== 'available')) return;
+      var offText = [off.profile, off.note, off.notes].filter(Boolean).join(' ');
+      var cDim = parseDimForCutMatching(offText + (off.lengthMm > 0 ? (' L' + off.lengthMm) : ''), '', null);
+      if (!gradeCompatible(cDim.materialGrade)) return;
+
+      if (reqDim.shape === 'round' && cDim.shape === 'round') {
+        var availLen = Math.max(Number(off.lengthMm) || 0, cDim.lengthMm || 0);
+        if (cDim.diameterMm >= reqDim.diameterMm && cDim.diameterMm <= reqDim.diameterMm + 5 && (reqDim.lengthMm <= 0 || availLen >= reqDim.lengthMm)) {
+          out.push({
+            sourceType: 'offcut',
+            id: off.id,
+            offcutId: off.id,
+            inventoryId: null,
+            label: off.profile + ' (Đề-xê L=' + availLen + 'mm)',
+            sku: 'ĐỀ-XÊ',
+            rackLocation: off.rackLocation || 'Kệ Đề-xê',
+            availableQty: Number(off.quantity) || 0,
+            unit: 'đoạn',
+            materialGrade: cDim.materialGrade,
+            diameterMm: cDim.diameterMm,
+            lengthMm: availLen,
+            cutNote: 'Cắt lẻ ' + (req.specDimensions || req.itemName) + ' từ đề-xê ' + off.profile + ' L=' + availLen + 'mm'
+          });
+        }
+      } else if (reqDim.shape === 'plate' && cDim.shape === 'plate') {
+        if (cDim.thicknessMm >= reqDim.thicknessMm && cDim.thicknessMm <= reqDim.thicknessMm + 3 &&
+            cDim.widthMm >= reqDim.widthMm && cDim.lengthMm >= reqDim.lengthMm) {
+          out.push({
+            sourceType: 'offcut',
+            id: off.id,
+            offcutId: off.id,
+            inventoryId: null,
+            label: off.profile + ' (Đề-xê tấm)',
+            sku: 'ĐỀ-XÊ',
+            rackLocation: off.rackLocation || 'Kệ Đề-xê',
+            availableQty: Number(off.quantity) || 0,
+            unit: 'tấm',
+            materialGrade: cDim.materialGrade,
+            thicknessMm: cDim.thicknessMm,
+            lengthMm: cDim.lengthMm,
+            cutNote: 'Cắt lẻ ' + (req.specDimensions || req.itemName) + ' từ đề-xê ' + off.profile
+          });
+        }
+      }
+    });
+
+    // 2. Check Inventory long bars / big sheets (freeQty > 0)
+    invs.forEach(function (inv) {
+      if (!inv || inv.isActive === false) return;
+      if (req.inventoryId && String(inv.id) === String(req.inventoryId)) return;
+      var freeQ = inv.freeQty != null ? Number(inv.freeQty) : Math.max(0, Number(inv.stockQty || 0) - Number(inv.reservedQty || 0));
+      if (freeQ <= 0) return;
+      var cDim = parseDimForCutMatching(inv.profileName, (inv.specJson && inv.specJson.material_grade) || '', inv.specJson);
+      if (!gradeCompatible(cDim.materialGrade)) return;
+
+      if (reqDim.shape === 'round' && cDim.shape === 'round') {
+        var barLen = cDim.lengthMm || Number(inv.standardLengthMm) || 6000;
+        if (cDim.diameterMm >= reqDim.diameterMm && cDim.diameterMm <= reqDim.diameterMm + 5 && (reqDim.lengthMm <= 0 || barLen >= reqDim.lengthMm)) {
+          out.push({
+            sourceType: 'inventory',
+            id: inv.id,
+            offcutId: null,
+            inventoryId: inv.id,
+            label: inv.profileName + (barLen ? ' (Dài ' + barLen + 'mm)' : ''),
+            sku: inv.sku || '',
+            rackLocation: inv.rackLocation || 'Kho chính',
+            availableQty: freeQ,
+            unit: inv.unit || 'cây',
+            materialGrade: cDim.materialGrade,
+            diameterMm: cDim.diameterMm,
+            lengthMm: barLen,
+            cutNote: 'Cắt ' + (req.specDimensions || req.itemName) + ' từ phôi dài ' + inv.profileName
+          });
+        }
+      } else if (reqDim.shape === 'plate' && cDim.shape === 'plate') {
+        if (cDim.thicknessMm >= reqDim.thicknessMm && cDim.thicknessMm <= reqDim.thicknessMm + 3 &&
+            cDim.widthMm >= reqDim.widthMm && cDim.lengthMm >= reqDim.lengthMm) {
+          out.push({
+            sourceType: 'inventory',
+            id: inv.id,
+            offcutId: null,
+            inventoryId: inv.id,
+            label: inv.profileName,
+            sku: inv.sku || '',
+            rackLocation: inv.rackLocation || 'Kho chính',
+            availableQty: freeQ,
+            unit: inv.unit || 'tấm',
+            materialGrade: cDim.materialGrade,
+            thicknessMm: cDim.thicknessMm,
+            lengthMm: cDim.lengthMm,
+            cutNote: 'Cắt ' + (req.specDimensions || req.itemName) + ' từ tấm/phôi lớn ' + inv.profileName
+          });
+        }
+      }
+    });
+
+    out.sort(function (a, b) {
+      if (a.sourceType !== b.sourceType) return a.sourceType === 'offcut' ? -1 : 1;
+      if (reqDim.shape === 'round') return (a.diameterMm - reqDim.diameterMm) || (a.lengthMm - b.lengthMm);
+      return (a.thicknessMm - reqDim.thicknessMm) || (a.lengthMm - b.lengthMm);
+    });
+    return out;
+  }
+
+  function openQuickInventoryModal(prefill, onCreated) {
+    if (typeof document === 'undefined' || !global.SupabaseDB) return;
+    var p = prefill || {};
+    var parsed = parseSmartMaterialSpec([p.profileName, p.materialGrade, p.specDimensions].filter(Boolean).join(' '));
+    var guessGroup = p.materialGroup || parsed.materialGroup || 'solid_cnc';
+    var guessGrade = p.materialGrade || (parsed.specJson && parsed.specJson.material_grade) || '';
+    var guessSpec = p.specDimensions || p.profileName || '';
+    var guessUnit = p.unit || parsed.unit || 'cái';
+    var guessLen = Number(p.standardLengthMm) || parsed.standardLengthMm || 1000;
+    var guessWt = Number(p.calcWeightKg) || parsed.weightKg || 0;
+
+    function escQ(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    var modal = document.getElementById('xpQuickSkuModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'xpQuickSkuModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.58);z-index:3700;display:none;align-items:center;justify-content:center;padding:14px;';
+      modal.innerHTML =
+        '<div style="background:#fff;border-radius:16px;border:1.5px solid #5EEAD4;width:min(540px,100%);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 48px rgba(0,0,0,0.28);">' +
+        '  <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;background:#F0FDFA;border-bottom:1px solid #CCFBF1;">' +
+        '    <h3 style="margin:0;font-size:16px;color:#0B3B38;">⚡ Tạo Nhanh Mã Kho Tại Chỗ</h3>' +
+        '    <button type="button" id="xpQuickSkuClose" class="btn btn-soft btn-sm">✕ Đóng</button>' +
+        '  </div>' +
+        '  <div style="padding:16px 18px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;">' +
+        '    <div style="grid-column:span 2;"><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">Tên / Quy cách vật tư *</label><input type="text" id="qsProfileName" style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;"></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">Nhóm vật tư</label><select id="qsGroup" style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;">' +
+        MATERIAL_GROUPS.map(function (g) { return '<option value="' + g.key + '">' + g.icon + ' ' + g.shortLabel + '</option>'; }).join('') +
+        '    </select></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">ĐVT</label><input type="text" id="qsUnit" style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;"></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">Mác vật liệu</label><input type="text" id="qsGrade" placeholder="VD: SUS 304, POM..." style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;"></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">Kích thước / Quy cách</label><input type="text" id="qsDims" style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;"></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">Chiều dài chuẩn (mm)</label><input type="number" id="qsStdLen" min="1" style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;"></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">Khối lượng LT (kg)</label><input type="number" step="0.01" id="qsWeightKg" min="0" style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;"></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;color:#0F766E;">📍 Vị trí kệ (Nhập ngay)</label><input type="text" id="qsRack" placeholder="VD: Kệ B2, Giá C1..." style="width:100%;padding:7px 9px;border:1.5px solid #0F766E;border-radius:8px;background:#F0FDFA;"></div>' +
+        '    <div><label style="font-size:11.5px;font-weight:700;display:block;margin-bottom:3px;">Mã SKU (tùy chọn)</label><input type="text" id="qsSku" placeholder="Tự động hoặc nhập tay" style="width:100%;padding:7px 9px;border:1.5px solid #CBD5E1;border-radius:8px;"></div>' +
+        '  </div>' +
+        '  <div style="padding:12px 18px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;justify-content:flex-end;gap:8px;">' +
+        '    <button type="button" id="xpQuickSkuCancel" class="btn btn-soft btn-sm">Hủy</button>' +
+        '    <button type="button" id="xpQuickSkuSave" class="btn btn-p btn-sm">💾 Lưu &amp; Gắn Mã Kho</button>' +
+        '  </div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      document.getElementById('xpQuickSkuClose').onclick = function () { modal.style.display = 'none'; };
+      document.getElementById('xpQuickSkuCancel').onclick = function () { modal.style.display = 'none'; };
+    }
+
+    document.getElementById('qsProfileName').value = p.profileName || guessSpec;
+    document.getElementById('qsGroup').value = guessGroup;
+    document.getElementById('qsUnit').value = guessUnit;
+    document.getElementById('qsGrade').value = guessGrade;
+    document.getElementById('qsDims').value = guessSpec;
+    document.getElementById('qsStdLen').value = guessLen;
+    document.getElementById('qsWeightKg').value = guessWt;
+    document.getElementById('qsRack').value = p.rackLocation || '';
+    document.getElementById('qsSku').value = '';
+
+    var btnSave = document.getElementById('xpQuickSkuSave');
+    btnSave.disabled = false;
+    btnSave.onclick = async function () {
+      var name = String(document.getElementById('qsProfileName').value || '').trim();
+      if (!name) { alert('Vui lòng nhập Tên / Quy cách vật tư'); return; }
+      btnSave.disabled = true;
+      try {
+        var gradeVal = String(document.getElementById('qsGrade').value || '').trim();
+        var dimsVal = String(document.getElementById('qsDims').value || '').trim();
+        var wtVal = Number(document.getElementById('qsWeightKg').value || 0);
+        var created = await global.SupabaseDB.addProfile(name, {
+          materialGroup: document.getElementById('qsGroup').value || 'solid_cnc',
+          unit: String(document.getElementById('qsUnit').value || 'cái').trim() || 'cái',
+          standardLengthMm: Number(document.getElementById('qsStdLen').value) || 1000,
+          rackLocation: String(document.getElementById('qsRack').value || '').trim(),
+          sku: String(document.getElementById('qsSku').value || '').trim() || undefined,
+          stockQty: 0,
+          specJson: Object.assign({}, parsed.specJson || {}, {
+            material_grade: gradeVal,
+            dimensions: dimsVal,
+            weight_kg: wtVal
+          })
+        });
+        modal.style.display = 'none';
+        if (typeof onCreated === 'function') await onCreated(created);
+      } catch (err) {
+        alert('❌ Không tạo được mã kho: ' + escQ(err.message || err));
+      } finally {
+        btnSave.disabled = false;
+      }
+    };
+
+    modal.style.display = 'flex';
+    setTimeout(function () { var rk = document.getElementById('qsRack'); if (rk) rk.focus(); }, 60);
+  }
+
   var _pendingVouchersUnsub = null;
   var _pendingVouchersTimer = null;
 
@@ -868,9 +1155,12 @@
         }
         listEl.innerHTML = rows.map(function (n) {
           var isUnread = !Array.isArray(n.is_read_by) || n.is_read_by.indexOf(uid) === -1;
+          var isRevAlert = n.type === 'revision_bumped';
           var targetHref = n.project_id ? ('/projects?id=' + encodeURIComponent(n.project_id)) : '/vouchers';
-          return '<div class="wms-notif-item" data-id="' + escH(n.id) + '" data-href="' + escH(targetHref) + '" style="padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid ' + (isUnread ? '#99F6E4' : '#F1F5F9') + ';background:' + (isUnread ? '#F0FDFA' : '#fff') + ';">' +
-            '<div style="font-weight:700;color:#0B3B38;font-size:12.5px;">' + escH(n.title) + '</div>' +
+          var bdr = isRevAlert ? '#FCA5A5' : (isUnread ? '#99F6E4' : '#F1F5F9');
+          var bg = isRevAlert ? '#FEF2F2' : (isUnread ? '#F0FDFA' : '#fff');
+          return '<div class="wms-notif-item" data-id="' + escH(n.id) + '" data-href="' + escH(targetHref) + '" style="padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid ' + bdr + ';background:' + bg + ';">' +
+            '<div style="font-weight:700;color:' + (isRevAlert ? '#B91C1C' : '#0B3B38') + ';font-size:12.5px;">' + escH(n.title) + '</div>' +
             '<div style="font-size:12px;color:#475569;margin-top:2px;">' + escH(n.message) + '</div>' +
             '<div style="font-size:10.5px;color:#94A3B8;margin-top:3px;">' + escH((n.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
           '</div>';
@@ -1061,6 +1351,11 @@
     getWorkStageMeta: getWorkStageMeta,
     calcMaterialWeightKg: calcMaterialWeightKg,
     parseSmartMaterialSpec: parseSmartMaterialSpec,
+    formatRevLabel: formatRevLabel,
+    normalizeMaterialGrade: normalizeMaterialGrade,
+    parseDimForCutMatching: parseDimForCutMatching,
+    findCuttableStockCandidates: findCuttableStockCandidates,
+    openQuickInventoryModal: openQuickInventoryModal,
     convertPackToBase: convertPackToBase,
     canManageInventory: canManageInventory,
     canDeleteInventory: canDeleteInventory,

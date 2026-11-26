@@ -91,7 +91,7 @@ function run() {
 
   // 4. sw.js v36, XP:FG QR, clean /cnc refs & dist/
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v36'), 'sw.js must be v36');
+  assert(sw.includes('toiuu-phoi-pwa-v37'), 'sw.js must be v37');
   assert(qrJs.includes('XP:FG:') && qrJs.includes('openFinishedGoodsLookupModal'), 'qr-scanner.js must support XP:FG: scanning');
   assert(!projHtml.includes('/cnc') && !bomJs.includes('/cnc') && !read('js/workshopExport.js').includes('/cnc'), 'stale /cnc URL must be removed');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'qr-scanner.js')), 'dist/js/qr-scanner.js missing');

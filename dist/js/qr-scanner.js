@@ -69,7 +69,12 @@
       return { kind: 'RACK', rack: raw.slice(8).trim(), raw: raw };
     }
     if (raw.indexOf('XP:PROJ:') === 0) {
-      return { kind: 'PROJ', id: raw.slice(8).trim(), raw: raw };
+      var projRest = raw.slice(8).trim();
+      var revMatch = projRest.match(/^(.+?):R(\d+)$/i);
+      if (revMatch) {
+        return { kind: 'PROJ', id: revMatch[1].trim(), rev: Number(revMatch[2]) || 1, raw: raw };
+      }
+      return { kind: 'PROJ', id: projRest, rev: null, raw: raw };
     }
     if (raw.indexOf('XP:FG:') === 0) {
       return { kind: 'FG', id: raw.slice(6).trim(), raw: raw };
@@ -225,12 +230,16 @@
     }
   }
 
-  async function openProjectLookupModal(projectId, currentUser) {
+  async function openProjectLookupModal(projectId, currentUser, scannedRev) {
     if (!projectId || !global.SupabaseDB) return;
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
       });
+    }
+    function fmtRev(r) {
+      var n = Math.max(1, Number(r) || 1);
+      return 'Rev ' + (n < 10 ? '0' + n : String(n));
     }
     var modal = document.getElementById('xpQrProjLookupModal');
     if (!modal) {
@@ -269,7 +278,28 @@
       var invMap = {};
       invs.forEach(function (i) { invMap[String(i.id)] = i; });
 
-      document.getElementById('xpQrProjTitle').textContent = '📋 Đơn hàng: ' + (proj.name || projectId);
+      document.getElementById('xpQrProjTitle').textContent = '📋 Đơn hàng: ' + (proj.name || projectId) + ' (' + fmtRev(proj.bomRevision || 1) + ')';
+      var currentRev = Math.max(1, Number(proj.bomRevision) || 1);
+      var isOldPrint = scannedRev != null && Number(scannedRev) < currentRev;
+      var revAlertHtml = '';
+      if (isOldPrint) {
+        try {
+          if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+            navigator.vibrate([200, 100, 200]);
+          }
+        } catch (_) {}
+        var wfHist = Array.isArray(proj.workflowHistory) ? proj.workflowHistory : [];
+        var revEntry = wfHist.slice().reverse().find(function (h) {
+          return h && (h.type === 'revision_bumped' || h.direction === 'revision');
+        });
+        var reasonTxt = (revEntry && revEntry.note) ? (' (' + esc(revEntry.note) + ')') : '';
+        revAlertHtml =
+          '<div id="xpQrOldRevAlert" style="margin-bottom:12px;padding:12px 14px;border-radius:12px;background:#FEF2F2;border:2px solid #DC2626;color:#991B1B;">' +
+          '  <div style="font-size:15px;font-weight:900;color:#B91C1C;margin-bottom:4px;">⚠️ CẢNH BÁO BẢN IN CŨ (' + fmtRev(scannedRev) + ')!</div>' +
+          '  <div style="font-size:13px;line-height:1.45;">Đơn hàng này đã được cập nhật lên <b>' + fmtRev(currentRev) + '</b>' + reasonTxt + '. Vui lòng <b>dừng cắt phôi</b> và liên hệ Phòng Kinh doanh / Kỹ thuật lấy bản vẽ &amp; phiếu <b>ĐNMVT01</b> mới nhất!</div>' +
+          '</div>';
+      }
+
       var readyItems = [];
       var rowsHtml = reqs.length ? reqs.map(function (r) {
         var inv = r.inventoryId ? invMap[String(r.inventoryId)] : null;
@@ -277,6 +307,9 @@
         var issued = Number(r.issuedQty || 0);
         var reqQ = Number(r.requiredQty || 0);
         var rack = inv ? (inv.rackLocation || 'Kho') : '—';
+        var ngPill = r.requestType === 'rework_ng'
+          ? ' <span style="background:#FEE2E2;color:#B91C1C;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:800;">⚠️ Bù hỏng (NG)</span>'
+          : '';
         var stHtml = '';
         if (issued >= reqQ && reqQ > 0) {
           stHtml = '<span style="background:#F1F5F9;color:#475569;padding:2px 8px;border-radius:999px;font-weight:700;font-size:11.5px;">⚪ Đã xuất SX</span>';
@@ -296,7 +329,7 @@
         } else {
           stHtml = '<span style="background:#FEE2E2;color:#B91C1C;padding:2px 8px;border-radius:999px;font-weight:700;font-size:11.5px;">🔴 Thiếu kho – Chờ mua</span>';
         }
-        return '<tr><td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;"><b>' + esc(r.itemName) + '</b></td>' +
+        return '<tr><td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;"><b>' + esc(r.itemName) + '</b>' + ngPill + '</td>' +
           '<td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;text-align:right;">' + reqQ + ' ' + esc(r.unit) + '</td>' +
           '<td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;text-align:right;">' + issued + '</td>' +
           '<td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;">' + stHtml + '</td></tr>';
@@ -304,11 +337,16 @@
 
       var attHtml = atts.length ? '<div style="margin-top:12px;"><b>📐 Hồ sơ / Bản vẽ đính kèm:</b><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">' +
         atts.map(function (a) {
-          return '<button type="button" class="btn btn-soft btn-sm xp-qr-att-dl" data-path="' + esc(a.storagePath) + '">⬇️ ' + esc(a.fileName) + '</button>';
+          var revTag = a.revLabel ? (' [' + esc(a.revLabel) + ']') : '';
+          var supTag = a.isSuperseded ? ' (Đã thay thế)' : '';
+          return '<button type="button" class="btn btn-soft btn-sm xp-qr-att-dl" data-path="' + esc(a.storagePath) + '"' + (a.isSuperseded ? ' style="opacity:0.6;text-decoration:line-through;"' : '') + '>⬇️ ' + esc(a.fileName) + revTag + supTag + '</button>';
         }).join('') + '</div></div>' : '';
 
       bodyEl.innerHTML =
-        '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;padding:10px;background:#F8FAFC;border-radius:10px;">' +
+        revAlertHtml +
+        '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;padding:10px;background:#F8FAFC;border-radius:10px;align-items:center;">' +
+        '  <span><b>Phiên bản:</b> <span style="background:#E0F2FE;color:#0369A1;padding:2px 8px;border-radius:999px;font-weight:800;">' + fmtRev(currentRev) + '</span></span>' +
+        (proj.priority === 'urgent' ? '  <span style="background:#FEE2E2;color:#B91C1C;padding:2px 8px;border-radius:999px;font-weight:800;">🔥 GẤP</span>' : '') +
         '  <span><b>PO Khách hàng:</b> ' + esc(proj.customerPoNo || '—') + '</span>' +
         '  <span><b>Khách hàng:</b> ' + esc(proj.customer || '—') + '</span>' +
         '</div>' +

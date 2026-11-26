@@ -406,10 +406,17 @@
           </div>
         </div>
 
-        <div id="wrapAllowNegative" style="display:none; margin-bottom:12px; padding:8px 12px; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px;">
+        <div id="wrapAllowNegative" style="display:none; margin-bottom:8px; padding:8px 12px; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12.5px; font-weight:700; color:#991B1B;">
             <input type="checkbox" id="chkAllowNegative" style="width:16px; height:16px;">
             <span>Cho phép xuất vượt tồn kho hiện có (Chỉ dành cho trường hợp đặc biệt)</span>
+          </label>
+        </div>
+
+        <div id="wrapEmergencyOut" style="display:none; margin-bottom:12px; padding:8px 12px; background:#FFFBEB; border:1.5px solid #F59E0B; border-radius:8px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12.5px; font-weight:800; color:#92400E;">
+            <input type="checkbox" id="chkEmergencyOut" style="width:16px; height:16px;">
+            <span>⚡ Xuất khẩn cấp ca gấp (Chờ bổ sung ĐNVT / xác nhận hợp thức hóa trong ngày)</span>
           </label>
         </div>
 
@@ -884,11 +891,20 @@
 
         const isPendingOrDraft = v.status === 'pending' || v.status === 'draft';
         const canCancelThis = (isPendingOrDraft && canCreate) || (v.status === 'approved' && isAdmin);
+        const canConfirmEmerg = Boolean(v.isEmergency && !v.emergencyConfirmedAt && v.status !== 'cancelled' && currentUser && ['admin', 'warehouse', 'accountant'].includes(currentUser.role));
+        const emergBadgeHtml = v.isEmergency
+          ? (v.emergencyConfirmedAt
+              ? '<div style="margin-top:3px;"><span class="pill" style="background:#DCFCE7;color:#15803D;">⚡ Khẩn cấp · Đã hợp thức hóa</span></div>'
+              : '<div style="margin-top:3px;"><span class="pill" style="background:#FEF3C7;color:#B45309;border:1px solid #F59E0B;">⚡ Khẩn cấp – Chờ hợp thức hóa</span></div>')
+          : '';
+        const hasNgItem = (v.items || []).some(it => /Bù hỏng NG|rework_ng/i.test(String(it.note || '')));
 
         return `
           <tr>
             <td>
               <strong style="font-family:monospace; color:var(--dark); font-size:13.5px;">${escapeHtml(v.voucherCode)}</strong>
+              ${emergBadgeHtml}
+              ${hasNgItem ? '<div style="margin-top:2px;"><span class="pill" style="background:#FEE2E2;color:#B91C1C;">⚠️ Bù hỏng (NG)</span></div>' : ''}
               <div style="font-size:11.5px; color:#64748B;">${escapeHtml(formatShortDate(v.createdAt))}</div>
             </td>
             <td><span class="pill ${tm.cls}">${tm.label}</span></td>
@@ -908,6 +924,7 @@
             <td class="r" style="white-space:nowrap;">
               <button type="button" class="btn btn-sm btn-soft btn-view-vouch" data-id="${escapeHtml(v.id)}">👁️ Xem</button>
               <button type="button" class="btn btn-sm btn-soft btn-print-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">🖨️ In</button>
+              ${canConfirmEmerg ? `<button type="button" class="btn btn-sm btn-cta btn-confirm-emerg" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">⚡ Hợp thức hóa</button>` : ''}
               ${isPendingOrDraft && canCreate ? `<button type="button" class="btn btn-sm btn-soft btn-edit-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">✏️ Sửa</button>` : ''}
               ${isPendingOrDraft && canApprove ? `<button type="button" class="btn btn-sm btn-ok btn-approve-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">✅ Duyệt</button>` : ''}
               ${canCancelThis ? `<button type="button" class="btn btn-sm btn-danger btn-cancel-vouch" data-id="${escapeHtml(v.id)}" style="margin-left:3px;">✕ Hủy</button>` : ''}
@@ -918,6 +935,7 @@
 
       tbody.querySelectorAll('.btn-view-vouch').forEach(b => b.onclick = () => openViewVoucherModal(b.dataset.id));
       tbody.querySelectorAll('.btn-print-vouch').forEach(b => b.onclick = () => printVoucherById(b.dataset.id));
+      tbody.querySelectorAll('.btn-confirm-emerg').forEach(b => b.onclick = () => handleConfirmEmergencyVoucher(b.dataset.id));
       tbody.querySelectorAll('.btn-edit-vouch').forEach(b => b.onclick = () => openEditVoucherModal(b.dataset.id));
       tbody.querySelectorAll('.btn-approve-vouch').forEach(b => b.onclick = () => handleApproveVoucher(b.dataset.id));
       tbody.querySelectorAll('.btn-cancel-vouch').forEach(b => b.onclick = () => handleCancelVoucher(b.dataset.id));
@@ -946,6 +964,7 @@
       if ($('wrapMachineRecipient')) $('wrapMachineRecipient').style.display = (t === 'OUT' || t === 'RETURN') ? 'grid' : 'none';
       const canAllowNeg = currentUser && (currentUser.role === 'admin' || currentUser.role === 'warehouse');
       $('wrapAllowNegative').style.display = (t === 'OUT' && canAllowNeg) ? 'block' : 'none';
+      if ($('wrapEmergencyOut')) $('wrapEmergencyOut').style.display = (t === 'OUT' && canAllowNeg) ? 'block' : 'none';
       renderVoucherItemsRows();
     }
 
@@ -1016,7 +1035,10 @@
               </select>
               <input type="text" class="vi-prof-inp" data-idx="${idx}" value="${escapeHtml(it.profile)}" placeholder="Hoặc gõ tên vật tư mới..." style="margin-top:4px; min-height:30px; font-size:12.5px;">
               ${matBadgeHtml}
-              <div style="font-size:11px; color:#0F766E; margin-top:2px;">${escapeHtml(curStockHint)}</div>
+              <div style="font-size:11px; color:#0F766E; margin-top:2px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span>${escapeHtml(curStockHint)}</span>
+                ${(!invMatch && currentUser && (currentUser.role === 'admin' || currentUser.role === 'warehouse')) ? `<button type="button" class="btn btn-soft btn-sm btn-quick-sku-vi" data-idx="${idx}" style="min-height:22px;padding:1px 8px;font-size:11px;border-color:#0F766E;color:#0F766E;">+ Tạo mã kho</button>` : ''}
+              </div>
               ${poHintHtml}
             </td>
             <td>
@@ -1102,6 +1124,35 @@
         };
       });
 
+      tbody.querySelectorAll('.btn-quick-sku-vi').forEach(b => {
+        b.onclick = () => {
+          const i = parseInt(b.dataset.idx, 10);
+          const it = draftItems[i];
+          if (!it || !window.SharedUI || typeof window.SharedUI.openQuickInventoryModal !== 'function') return;
+          window.SharedUI.openQuickInventoryModal({
+            profileName: it.profile || '',
+            materialGroup: it.materialGroup || 'solid_cnc',
+            materialGrade: it.materialGrade || '',
+            specDimensions: it.profile || '',
+            unit: it.unit || 'cái',
+            standardLengthMm: it.lengthMm || 1000
+          }, (createdInv) => {
+            if (!createdInv) return;
+            if (!inventoryItems.some(x => x.id === createdInv.id)) {
+              inventoryItems.push(createdInv);
+            }
+            if (draftItems[i]) {
+              draftItems[i].inventoryId = createdInv.id;
+              draftItems[i].profile = createdInv.profileName;
+              draftItems[i].materialGroup = createdInv.materialGroup || draftItems[i].materialGroup;
+              draftItems[i].unit = createdInv.unit || draftItems[i].unit;
+            }
+            renderVoucherItemsRows();
+            showToast('✅ Đã tạo mã kho & tự động gắn vào dòng phiếu!');
+          });
+        };
+      });
+
       tbody.querySelectorAll('.btn-del-vi').forEach(b => {
         b.onclick = () => {
           const i = parseInt(b.dataset.idx, 10);
@@ -1129,6 +1180,7 @@
       $('inpVoucherNote').value = '';
       $('selVoucherInitStatus').value = 'pending';
       $('chkAllowNegative').checked = false;
+      if ($('chkEmergencyOut')) $('chkEmergencyOut').checked = false;
       $('hidVoucherAttachmentUrl').value = '';
       $('lblAttachmentStatus').textContent = 'Chưa đính kèm';
       draftItems = [createEmptyDraftItem()];
@@ -1151,6 +1203,7 @@
       $('inpVoucherNote').value = v.note || '';
       $('selVoucherInitStatus').value = v.status === 'draft' ? 'draft' : 'pending';
       $('chkAllowNegative').checked = Boolean(v.allowNegative);
+      if ($('chkEmergencyOut')) $('chkEmergencyOut').checked = Boolean(v.isEmergency);
       $('hidVoucherAttachmentUrl').value = v.attachmentUrl || '';
       $('lblAttachmentStatus').textContent = v.attachmentUrl ? '📷 Đã có ảnh đính kèm' : 'Chưa đính kèm';
       draftItems = (v.items || []).map(it => Object.assign({}, it));
@@ -1191,6 +1244,7 @@
         attachmentUrl: $('hidVoucherAttachmentUrl').value || '',
         status: $('selVoucherInitStatus').value,
         allowNegative: Boolean($('chkAllowNegative').checked),
+        isEmergency: Boolean($('chkEmergencyOut') && $('chkEmergencyOut').checked),
         createdBy: currentUser ? currentUser.username : ''
       };
 
@@ -1253,6 +1307,24 @@
         }
       } catch (err) {
         alert('❌ Không duyệt được phiếu:\n' + err.message);
+      } finally {
+        window.SupabaseDB.setLoading(false);
+      }
+    }
+
+    async function handleConfirmEmergencyVoucher(id) {
+      const v = vouchersList.find(x => x.id === id);
+      if (!v) return;
+      const note = prompt(`⚡ Xác nhận hợp thức hóa chứng từ cho phiếu xuất khẩn cấp [${v.voucherCode}]:\n(Nhập số ĐNVT / ghi chú xác nhận đã bổ sung hồ sơ)`, '');
+      if (note === null) return;
+      window.SupabaseDB.setLoading(true, 'Đang xác nhận hợp thức hóa...');
+      try {
+        await window.SupabaseDB.confirmEmergencyVoucher(id, note);
+        showToast(`✅ Đã hợp thức hóa phiếu khẩn cấp ${v.voucherCode}!`);
+        $('modalVoucherView').classList.remove('open');
+        await loadAllData();
+      } catch (err) {
+        alert('❌ Lỗi hợp thức hóa phiếu:\n' + err.message);
       } finally {
         window.SupabaseDB.setLoading(false);
       }
@@ -1344,8 +1416,12 @@
       const canApprove = window.SharedUI && window.SharedUI.canApproveVouchers(currentUser);
       const isPending = v.status === 'pending' || v.status === 'draft';
       const isAdmin = Boolean(currentUser && currentUser.role === 'admin');
+      const canConfirmEmerg = Boolean(v.isEmergency && !v.emergencyConfirmedAt && v.status !== 'cancelled' && currentUser && ['admin', 'warehouse', 'accountant'].includes(currentUser.role));
       const btns = [];
       btns.push(`<button type="button" class="btn btn-soft" onclick="printVoucherById('${escapeHtml(v.id)}')">🖨️ In phiếu A4/A5</button>`);
+      if (canConfirmEmerg) {
+        btns.push(`<button type="button" class="btn btn-cta" onclick="handleConfirmEmergencyVoucher('${escapeHtml(v.id)}')">⚡ Hợp thức hóa chứng từ</button>`);
+      }
       if (isPending && canApprove) {
         btns.push(`<button type="button" class="btn btn-ok" onclick="handleApproveVoucher('${escapeHtml(v.id)}')">✅ Duyệt &amp; Hạch toán kho</button>`);
       }
@@ -1726,7 +1802,7 @@
         }
         if (parsed && parsed.kind === 'PROJ' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openProjectLookupModal === 'function') {
           if (window.WorkshopQrScanner.close) window.WorkshopQrScanner.close();
-          window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
+          window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser, parsed.rev);
           return;
         }
         if (parsed && parsed.kind === 'FG' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openFinishedGoodsLookupModal === 'function') {

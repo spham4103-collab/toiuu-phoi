@@ -315,9 +315,9 @@
               <th>Dự án / Đơn hàng</th>
               <th>Khách hàng</th>
               <th class="c">Số phiếu (PXK / PHK)</th>
-              <th class="r">Vật tư đã xuất</th>
-              <th class="r">Hoàn kho / Đề-xê</th>
-              <th class="r">Chi phí ròng thực tế</th>
+              <th class="r">Giá vốn định mức</th>
+              <th class="r">Chi phí bù hỏng (NG)</th>
+              <th class="r">Tổng giá vốn thực tế</th>
               <th class="r">Chi tiết</th>
             </tr>
           </thead>
@@ -752,19 +752,22 @@
         tfoot.innerHTML = '';
         return;
       }
-      let sOut = 0, sRet = 0, sNet = 0;
+      let sStd = 0, sNg = 0, sNet = 0;
       tbody.innerHTML = projCostRows.map(p => {
-        sOut += Number(p.out_value) || 0;
-        sRet += Number(p.return_value) || 0;
-        sNet += Number(p.net_cost) || 0;
+        const ngCost = Number(p.ng_rework_cost || 0);
+        const netCost = Number(p.total_net_cost != null ? p.total_net_cost : p.net_cost) || 0;
+        const stdCost = p.standard_cost != null ? Number(p.standard_cost) : (netCost - ngCost);
+        sStd += stdCost;
+        sNg += ngCost;
+        sNet += netCost;
         return `
-          <tr>
+          <tr${ngCost > 0 ? ' style="background:#FFFBFB;"' : ''}>
             <td><strong>${escapeHtml(p.project_name || p.project_id)}</strong><div style="font-size:11px;font-family:monospace;color:#64748B;">${escapeHtml(p.project_id)}</div></td>
             <td>${escapeHtml(p.customer || '—')}</td>
             <td class="c"><span class="pill pill-orange">PXK: ${p.out_voucher_count}</span> <span class="pill pill-slate">PHK: ${p.return_voucher_count}</span></td>
-            <td class="r" style="color:#C2410C; font-weight:700;">${numVN(p.out_value, 0)} đ</td>
-            <td class="r" style="color:#0369A1; font-weight:700;">-${numVN(p.return_value, 0)} đ</td>
-            <td class="r" style="color:#0F766E; font-weight:800; font-size:14.5px;">${numVN(p.net_cost, 0)} đ</td>
+            <td class="r" style="color:#334155; font-weight:700;">${numVN(stdCost, 0)} đ<div style="font-size:10.5px;color:#64748B;">Xuất: ${numVN(p.out_value, 0)} · Hoàn: -${numVN(p.return_value, 0)}</div></td>
+            <td class="r" style="font-weight:800;${ngCost > 0 ? 'color:#B91C1C;background:#FEF2F2;' : 'color:#64748B;'}">${ngCost > 0 ? ('⚠️ ' + numVN(ngCost, 0) + ' đ') : '0 đ'}</td>
+            <td class="r" style="color:#0F766E; font-weight:800; font-size:14.5px;">${numVN(netCost, 0)} đ</td>
             <td class="r"><button type="button" class="btn btn-sm btn-soft btn-view-proj-cost" data-pid="${escapeHtml(p.project_id)}">👁️ Chi tiết</button></td>
           </tr>
         `;
@@ -772,8 +775,8 @@
       tfoot.innerHTML = `
         <tr>
           <td colspan="3">TỔNG CHI PHÍ VẬT TƯ (${projCostRows.length} dự án)</td>
-          <td class="r">${numVN(sOut, 0)} đ</td>
-          <td class="r">-${numVN(sRet, 0)} đ</td>
+          <td class="r">${numVN(sStd, 0)} đ</td>
+          <td class="r" style="${sNg > 0 ? 'color:#B91C1C;' : ''}">${numVN(sNg, 0)} đ</td>
           <td class="r">${numVN(sNet, 0)} đ</td>
           <td></td>
         </tr>
@@ -804,13 +807,13 @@
             </thead>
             <tbody>
               ${items.map(it => `
-                <tr>
+                <tr${it.request_type === 'rework_ng' ? ' style="background:#FEF2F2;"' : ''}>
                   <td style="font-family:monospace;font-weight:700;">${escapeHtml(it.voucher_code)}</td>
-                  <td>${it.voucher_type === 'RETURN' ? '<span class="pill pill-green">Hoàn kho</span>' : '<span class="pill pill-orange">Xuất kho</span>'}</td>
-                  <td><b>${escapeHtml(it.profile)}</b>${it.length_mm ? ` (${numVN(it.length_mm)}mm)` : ''}</td>
+                  <td>${it.voucher_type === 'RETURN' ? '<span class="pill pill-green">Hoàn kho</span>' : (it.request_type === 'rework_ng' ? '<span class="pill" style="background:#FEE2E2;color:#B91C1C;">⚠️ Bù hỏng (NG)</span>' : '<span class="pill pill-orange">Xuất định mức</span>')}</td>
+                  <td><b>${escapeHtml(it.profile)}</b>${it.length_mm ? ` (${numVN(it.length_mm)}mm)` : ''}${it.ng_reason ? `<div style="font-size:11px;color:#B91C1C;">Lý do NG: ${escapeHtml(it.ng_reason)}${it.ng_reported_by ? ' · Báo bởi: ' + escapeHtml(it.ng_reported_by) : ''}</div>` : ''}</td>
                   <td class="r"><b>${numVN(it.qty)} ${escapeHtml(it.unit)}</b></td>
                   <td class="r">${numVN(it.unit_price, 0)}</td>
-                  <td class="r" style="font-weight:800;color:${it.voucher_type === 'RETURN' ? '#15803D' : '#C2410C'};">${it.voucher_type === 'RETURN' ? '-' : ''}${numVN(it.total_amount, 0)} đ</td>
+                  <td class="r" style="font-weight:800;color:${it.voucher_type === 'RETURN' ? '#15803D' : (it.request_type === 'rework_ng' ? '#B91C1C' : '#C2410C')};">${it.voucher_type === 'RETURN' ? '-' : ''}${numVN(it.total_amount, 0)} đ</td>
                   <td style="font-size:12px;">${escapeHtml(it.note || '')}</td>
                 </tr>
               `).join('')}
@@ -818,7 +821,10 @@
           </table>
         </div>
       `;
-      $('projDetailTotals').textContent = `Xuất: ${numVN(p.out_value, 0)} đ · Hoàn: ${numVN(p.return_value, 0)} đ · Chi phí ròng: ${numVN(p.net_cost, 0)} đ`;
+      const ngC = Number(p.ng_rework_cost || 0);
+      const netC = Number(p.total_net_cost != null ? p.total_net_cost : p.net_cost) || 0;
+      const stdC = p.standard_cost != null ? Number(p.standard_cost) : (netC - ngC);
+      $('projDetailTotals').textContent = `Định mức: ${numVN(stdC, 0)} đ · Bù hỏng NG: ${numVN(ngC, 0)} đ · Tổng thực tế: ${numVN(netC, 0)} đ`;
       $('modalProjCostDetail').classList.add('open');
     }
 

@@ -465,6 +465,12 @@
           <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:4px;">Hạn giao hàng (tùy chọn)</label>
           <input type="date" id="inpFormDueDate">
         </div>
+        <div style="padding:8px 10px; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:800; color:#B91C1C;">
+            <input type="checkbox" id="chkFormUrgent" style="width:17px; height:17px;">
+            <span>🔥 Đơn hàng Gấp (Ghim ưu tiên lên đầu Xưởng &amp; Mua hàng)</span>
+          </label>
+        </div>
         <div>
           <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:6px;">Công đoạn thực hiện</label>
           <div id="grpFormStages" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(175px, 1fr)); gap:6px;">
@@ -638,7 +644,12 @@
     }
 
     function sortByUpdatedDesc(arr) {
-      arr.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+      arr.sort((a, b) => {
+        const ua = a && a.priority === 'urgent' ? 1 : 0;
+        const ub = b && b.priority === 'urgent' ? 1 : 0;
+        if (ua !== ub) return ub - ua;
+        return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+      });
     }
 
     let projectReqSummaryMap = {};
@@ -812,12 +823,17 @@
           return `<span class="pill" style="background:${clr}15; color:${clr}; border-color:${clr}40;">${m.icon} ${escapeHtml(m.shortLabel)}</span>`;
         }).join('');
 
+        const revLabel = (window.SharedUI && typeof window.SharedUI.formatRevLabel === 'function')
+          ? window.SharedUI.formatRevLabel(p.bomRevision || 1)
+          : `Rev ${String(Math.max(1, Number(p.bomRevision) || 1)).padStart(2, '0')}`;
         return `
-          <div class="proj-item ${isActive ? 'active-proj' : ''} ${p.isLocked && !isTrash ? 'locked-proj' : ''} ${isTrash ? 'trash-proj' : ''}">
+          <div class="proj-item ${isActive ? 'active-proj' : ''} ${p.isLocked && !isTrash ? 'locked-proj' : ''} ${isTrash ? 'trash-proj' : ''}"${p.priority === 'urgent' && !isTrash ? ' style="border-color:#FCA5A5;border-left:4px solid #DC2626;"' : ''}>
             <div>
               <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
                 <strong style="font-size:16px; color:var(--dark); word-break:break-word;">${escapeHtml(p.name)}</strong>
                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                  ${p.priority === 'urgent' && !isTrash ? '<span class="pill pill-red">🔥 GẤP</span>' : ''}
+                  ${!isTrash ? `<span class="pill" style="background:#E0F2FE;color:#0369A1;">${escapeHtml(revLabel)}</span>` : ''}
                   ${isActive ? '<span class="pill pill-green">● Đang mở</span>' : ''}
                   ${p.isLocked && !isTrash ? '<span class="pill pill-amber">🔒 Đã khóa</span>' : ''}
                   ${dueDate && !isTrash ? `<span class="pill pill-amber">📅 ${escapeHtml(dueDate)}</span>` : ''}
@@ -1150,6 +1166,7 @@
         if ($('inpFormCustomerPo')) $('inpFormCustomerPo').value = p.customerPoNo || '';
         $('inpFormNotes').value = p.notes || '';
         $('inpFormDueDate').value = (p.data && p.data.dueDate) ? p.data.dueDate : '';
+        if ($('chkFormUrgent')) $('chkFormUrgent').checked = p.priority === 'urgent';
         const stages = (p.data && Array.isArray(p.data.workStages)) ? p.data.workStages : ['laser_tube'];
         stageChecks.forEach(chk => { chk.checked = stages.includes(chk.value); });
       } else {
@@ -1159,6 +1176,7 @@
         if ($('inpFormCustomerPo')) $('inpFormCustomerPo').value = '';
         $('inpFormNotes').value = '';
         $('inpFormDueDate').value = '';
+        if ($('chkFormUrgent')) $('chkFormUrgent').checked = false;
         stageChecks.forEach(chk => { chk.checked = (chk.value === 'laser_tube'); });
       }
       $('modalProjForm').style.display = 'flex';
@@ -1172,6 +1190,7 @@
       const customerPoNo = ($('inpFormCustomerPo') ? $('inpFormCustomerPo').value : '').trim();
       const notes = ($('inpFormNotes').value || '').trim();
       const dueDate = ($('inpFormDueDate').value || '').trim();
+      const priority = ($('chkFormUrgent') && $('chkFormUrgent').checked) ? 'urgent' : 'normal';
       const workStages = Array.from(document.querySelectorAll('#grpFormStages input[type="checkbox"]:checked')).map(c => c.value);
       const now = new Date().toISOString();
 
@@ -1182,17 +1201,18 @@
           const nextData = Object.assign({}, (p && p.data) || {}, { dueDate, workStages });
           let updated;
           if (p) {
-            updated = await window.SupabaseDB.saveProject(Object.assign({}, p, { name, customer, customerPoNo, notes, data: nextData, updatedAt: now }));
+            updated = await window.SupabaseDB.saveProject(Object.assign({}, p, { name, customer, customerPoNo, priority, notes, data: nextData, updatedAt: now }));
             Object.assign(p, updated);
           } else {
-            updated = await window.SupabaseDB.updateProjectFields(editingId, { name, customer, customerPoNo, notes });
+            updated = await window.SupabaseDB.updateProjectFields(editingId, { name, customer, customerPoNo, priority, notes });
           }
           showToast(`✓ Đã cập nhật "${name}"`);
         } else {
           const newProj = {
             id: makeId('proj'),
-            name, customer, customerPoNo, notes,
+            name, customer, customerPoNo, priority, notes,
             workflowStatus: 'po_draft',
+            bomRevision: 1,
             isLocked: false, isTrashed: false, isDraft: false, source: 'web',
             createdAt: now, updatedAt: now,
             data: {

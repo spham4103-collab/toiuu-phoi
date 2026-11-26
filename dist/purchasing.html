@@ -612,6 +612,7 @@
       const q = ($('inpSearchPr').value || '').trim().toLowerCase();
       const st = $('selPrStatus').value;
       const pri = $('selPrPriority').value;
+      const urgentProjSet = new Set(allProjects.filter(p => p.priority === 'urgent').map(p => String(p.id)));
       const list = allPrs.filter(r => {
         if (st && r.status !== st) return false;
         if (pri && r.priority !== pri) return false;
@@ -621,6 +622,10 @@
           if (!hay.includes(q)) return false;
         }
         return true;
+      }).sort((a, b) => {
+        const ua = (a.priority === 'urgent' || (a.projectId && urgentProjSet.has(String(a.projectId)))) ? 1 : 0;
+        const ub = (b.priority === 'urgent' || (b.projectId && urgentProjSet.has(String(b.projectId)))) ? 1 : 0;
+        return ub - ua;
       });
       const tb = $('prTableBody');
       if (!list.length) {
@@ -629,7 +634,8 @@
       }
       tb.innerHTML = list.map(r => {
         const [cls, label] = PR_STATUS_MAP[r.status] || ['pill-draft', r.status];
-        const priBadge = r.priority === 'urgent' ? '<span class="pill pill-urgent">🔥 Khẩn</span>' : '<span class="pill pill-draft">Thường</span>';
+        const isUrgent = r.priority === 'urgent' || (r.projectId && urgentProjSet.has(String(r.projectId)));
+        const priBadge = isUrgent ? '<span class="pill pill-urgent">🔥 GẤP</span>' : '<span class="pill pill-draft">Thường</span>';
         const canApprove = SharedUI.canApprovePR(currentUser) && r.status === 'pending';
         const canToPo = (r.status === 'approved') && SharedUI.canAccessPurchasing(currentUser);
         const projLabel = formatProjectLabel(r.projectId, r.projectName, r.projectCustomer);
@@ -655,6 +661,7 @@
       const q = ($('inpSearchPo').value || '').trim().toLowerCase();
       const st = $('selPoStatus').value;
       const today = new Date().toISOString().slice(0, 10);
+      const urgentProjSet = new Set(allProjects.filter(p => p.priority === 'urgent').map(p => String(p.id)));
       const list = allPos.filter(o => {
         if (st && o.status !== st) return false;
         if (q) {
@@ -663,6 +670,10 @@
           if (!hay.includes(q)) return false;
         }
         return true;
+      }).sort((a, b) => {
+        const ua = (a.projectId && urgentProjSet.has(String(a.projectId))) ? 1 : 0;
+        const ub = (b.projectId && urgentProjSet.has(String(b.projectId))) ? 1 : 0;
+        return ub - ua;
       });
       const tb = $('poTableBody');
       if (!list.length) {
@@ -671,6 +682,7 @@
       }
       tb.innerHTML = list.map(o => {
         const [cls, label] = PO_STATUS_MAP[o.status] || ['pill-draft', o.status];
+        const isUrgentProj = o.projectId && urgentProjSet.has(String(o.projectId));
         const items = o.items || [];
         const totalOrd = items.reduce((s, it) => s + Number(it.orderedQty || 0), 0);
         const totalRec = items.reduce((s, it) => s + Number(it.receivedQty || 0), 0);
@@ -679,7 +691,7 @@
         const canReceive = ['sent', 'ordered', 'partial', 'partial_received'].includes(o.status);
         const projLabel = formatProjectLabel(o.projectId, o.projectName, o.projectCustomer);
         return `<tr>
-          <td><strong>${esc(o.poCode)}</strong></td>
+          <td><strong>${esc(o.poCode)}</strong>${isUrgentProj ? ' <span class="pill pill-urgent">🔥 GẤP</span>' : ''}</td>
           <td><strong>${esc(o.supplierName || '-')}</strong></td>
           <td>${esc(o.prCode || '-')}</td>
           <td>${esc(projLabel)}</td>

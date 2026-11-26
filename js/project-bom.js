@@ -13,6 +13,7 @@
     attachments: [],
     vouchers: [],
     inventory: [],
+    offcuts: [],
     currentUser: null,
     activeTab: 'bom',
     stageFilter: 'all',
@@ -230,12 +231,14 @@
       window.SupabaseDB.getProjectAttachments(pid),
       window.SupabaseDB.getWarehouseVouchers({ projectId: pid }),
       window.SupabaseDB.getInventory().catch(function () { return STATE.inventory; }),
-      typeof window.SupabaseDB.getProjectById === 'function' ? window.SupabaseDB.getProjectById(pid).catch(function () { return null; }) : Promise.resolve(null)
+      typeof window.SupabaseDB.getProjectById === 'function' ? window.SupabaseDB.getProjectById(pid).catch(function () { return null; }) : Promise.resolve(null),
+      typeof window.SupabaseDB.getStockOffcuts === 'function' ? window.SupabaseDB.getStockOffcuts({ onlyAvailable: true }).catch(function () { return []; }) : Promise.resolve([])
     ]);
     STATE.requests = results[0] || [];
     STATE.attachments = results[1] || [];
     STATE.vouchers = results[2] || [];
     if (Array.isArray(results[3])) STATE.inventory = results[3];
+    if (Array.isArray(results[5])) STATE.offcuts = results[5];
     if (results[4]) {
       STATE.project = Object.assign({}, STATE.project, results[4]);
     }
@@ -268,16 +271,35 @@
     }
   }
 
+  function formatRev(rev) {
+    if (window.SharedUI && typeof window.SharedUI.formatRevLabel === 'function') {
+      return window.SharedUI.formatRevLabel(rev);
+    }
+    var n = Math.max(1, Number(rev) || 1);
+    return 'Rev ' + (n < 10 ? '0' + n : String(n));
+  }
+
   function renderHeader() {
     var p = STATE.project || {};
     var data = p.data || {};
+    var uRole = STATE.currentUser && STATE.currentUser.role;
+    var canBumpRev = Boolean(uRole === 'admin' || uRole === 'engineer' || uRole === 'sales');
     $('bomModalTitle').textContent = p.name || 'Dự án';
     var dueBadge = $('bomModalDueBadge');
-    if (data.dueDate) {
-      dueBadge.innerHTML = '<span class="pill pill-amber">📅 Hạn giao: ' + escapeHtml(data.dueDate) + '</span>';
-    } else {
-      dueBadge.innerHTML = '';
+    var revStr = formatRev(p.bomRevision || 1);
+    var badgeParts = [
+      '<span id="bomModalRevBadge" class="pill" style="background:#E0F2FE;color:#0369A1;font-weight:800;">' + escapeHtml(revStr) + '</span>'
+    ];
+    if (p.priority === 'urgent') {
+      badgeParts.push('<span class="pill pill-red">🔥 GẤP</span>');
     }
+    if (data.dueDate) {
+      badgeParts.push('<span class="pill pill-amber">📅 Hạn giao: ' + escapeHtml(data.dueDate) + '</span>');
+    }
+    if (canBumpRev) {
+      badgeParts.push('<button type="button" id="btnBomBumpRev" class="btn btn-sm btn-soft" style="border-color:#0369A1;color:#0369A1;min-height:26px;padding:2px 10px;font-size:11.5px;">🔄 Cập nhật lên Rev mới</button>');
+    }
+    dueBadge.innerHTML = badgeParts.join(' ');
     var metaParts = [];
     if (p.customerPoNo) metaParts.push('PO: <b style="color:#0F766E;">' + escapeHtml(p.customerPoNo) + '</b>');
     if (p.customer) metaParts.push('Khách hàng: <b>' + escapeHtml(p.customer) + '</b>');
@@ -351,6 +373,12 @@
     var canAlloc = window.SharedUI && typeof window.SharedUI.canAllocateStock === 'function'
       ? window.SharedUI.canAllocateStock(STATE.currentUser)
       : Boolean(STATE.currentUser && (STATE.currentUser.role === 'admin' || STATE.currentUser.role === 'warehouse'));
+    var wfStatus = (STATE.project && STATE.project.workflowStatus) || 'waiting_drawings';
+    var isBomLockedStage = wfStatus === 'bom_submitted' || wfStatus === 'in_production' || wfStatus === 'completed';
+    var uRoleCur = STATE.currentUser && STATE.currentUser.role;
+    var isAdminCur = uRoleCur === 'admin';
+    var isWhOrAdmin = uRoleCur === 'warehouse' || isAdminCur;
+    var canReportNg = Boolean(STATE.currentUser && ['admin', 'engineer', 'sales', 'warehouse', 'operator'].indexOf(uRoleCur) >= 0);
 
     var tableRowsHtml = rows.length ? rows.map(function (r) {
       var m = getStageMeta(r.workStage);
@@ -364,6 +392,13 @@
       var remainingToIssue = Math.max(0, reqQty - issuedQty - allocQty);
       var shortageToBuy = inv ? Math.max(0, remainingToIssue - freeStock) : remainingToIssue;
       var checked = Boolean(STATE.selectedIds[r.id]);
+      var isNgRow = r.requestType === 'rework_ng';
+      var standardLocked = isBomLockedStage && !isNgRow && !isAdminCur;
+
+      var cutCandidates = [];
+      if ((!inv || freeStock <= 0) && remainingToIssue > 0 && window.SharedUI && typeof window.SharedUI.findCuttableStockCandidates === 'function') {
+        cutCandidates = window.SharedUI.findCuttableStockCandidates(r, STATE.inventory, STATE.offcuts);
+      }
 
       var tlHtml = '';
       if (issuedQty >= reqQty && reqQty > 0) {
@@ -389,21 +424,36 @@
       if (allocQty > 0) {
         actionBtns += '<button type="button" class="btn btn-sm btn-soft bom-zalo-btn" data-id="' + escapeHtml(r.id) + '" style="margin-bottom:3px;">📲 Báo nhóm Zalo</button> ';
       }
-      if (editable && issuedQty === 0 && allocQty === 0) {
+      if (!inv && isWhOrAdmin) {
+        actionBtns += '<button type="button" class="btn btn-sm btn-soft bom-quick-sku-btn" data-id="' + escapeHtml(r.id) + '" style="border-color:#0F766E;color:#0F766E;margin-bottom:3px;">+ Tạo mã kho</button> ';
+      }
+      if (editable && issuedQty === 0 && allocQty === 0 && !standardLocked) {
         actionBtns += '<button type="button" class="btn btn-sm btn-danger bom-del-req" data-id="' + escapeHtml(r.id) + '" title="Xóa dòng đề nghị">🗑️</button>';
+      } else if (standardLocked && editable) {
+        actionBtns += '<span title="Định mức gốc đã khóa sau khi chuyển Kho. Hãy cập nhật Rev mới hoặc tạo Cấp bù hỏng NG." style="font-size:11px;color:#64748B;">🔒</span>';
       }
 
-      return '<tr>' +
+      var ngBadgeHtml = isNgRow
+        ? '<div style="margin-top:3px;"><span class="bom-stage-badge" style="background:#FEE2E2;color:#B91C1C;border-color:#FCA5A5;">⚠️ Bù hỏng (NG)</span>' +
+          (r.ngReason ? ' <span style="font-size:11px;color:#991B1B;font-weight:700;">' + escapeHtml(r.ngReason) + '</span>' : '') +
+          (r.ngReportedBy ? ' <span style="font-size:11px;color:#64748B;">· Tổ/Thợ: ' + escapeHtml(r.ngReportedBy) + '</span>' : '') + '</div>'
+        : '';
+
+      var cutSuggestHtml = cutCandidates.length
+        ? '<div style="margin-top:4px;"><button type="button" class="btn btn-sm bom-cut-cand-btn" data-id="' + escapeHtml(r.id) + '" style="background:#CCFBF1;color:#0F766E;border:1px solid #5EEAD4;font-size:11px;padding:2px 8px;min-height:24px;border-radius:999px;font-weight:800;cursor:pointer;">✂️ Kho có ' + cutCandidates.length + ' phôi dài/đề-xê cắt được</button></div>'
+        : '';
+
+      return '<tr' + (isNgRow ? ' style="background:#FFFBFB;"' : '') + '>' +
         '<td><input type="checkbox" class="bom-row-chk" data-id="' + escapeHtml(r.id) + '"' + (checked ? ' checked' : '') + '></td>' +
         '<td><span class="bom-stage-badge" style="background:' + m.color + '15;color:' + m.color + ';border-color:' + m.color + '35;">' + m.icon + ' ' + escapeHtml(m.shortLabel) + '</span></td>' +
-        '<td><strong>' + escapeHtml(r.itemName) + '</strong>' +
+        '<td><strong>' + escapeHtml(r.itemName) + '</strong>' + ngBadgeHtml +
           (r.specDimensions ? '<div style="font-size:11.5px;color:#475569;">📐 ' + escapeHtml(r.specDimensions) + (r.calcWeightKg > 0 ? ' · <b>' + numVN(r.calcWeightKg) + ' kg</b>' : '') + '</div>' : (r.calcWeightKg > 0 ? '<div style="font-size:11.5px;color:#475569;">⚖️ ' + numVN(r.calcWeightKg) + ' kg</div>' : '')) +
           (r.note ? '<div style="font-size:11px;color:#64748B;font-style:italic;">' + escapeHtml(r.note) + '</div>' : '') +
         '</td>' +
         '<td>' + escapeHtml(r.materialGrade || '—') + '</td>' +
         '<td>' + (inv
           ? '<div style="font-size:11.5px;font-weight:700;color:#0F766E;">' + escapeHtml(inv.sku || inv.profileName) + '</div><div style="font-size:11px;color:#475569;">Khả dụng: <b>' + numVN(freeStock) + '</b> / Tồn: ' + numVN(stockQty) + ' ' + escapeHtml(inv.unit || r.unit) + '</div>'
-          : '<span style="font-size:11px;color:#94A3B8;">Ngoài danh mục kho</span>') + '</td>' +
+          : '<span style="font-size:11px;color:#94A3B8;">Ngoài danh mục kho</span>') + cutSuggestHtml + '</td>' +
         '<td style="text-align:right;"><b>' + numVN(reqQty) + '</b> ' + escapeHtml(r.unit) + '</td>' +
         '<td style="text-align:right;color:#0F766E;font-weight:700;">' + numVN(issuedQty) + '</td>' +
         '<td style="text-align:right;color:' + (shortageToBuy > 0 ? '#B4232C' : '#166534') + ';font-weight:700;">' + (shortageToBuy > 0 ? numVN(shortageToBuy) : '0') + '</td>' +
@@ -487,19 +537,45 @@
     };
     var attListHtml = STATE.attachments.length ? STATE.attachments.map(function (a) {
       var cm = catLabels[a.docCategory] || catLabels.other;
-      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:#fff;border:1px solid #E2E8F0;border-radius:8px;">' +
-        '<div style="min-width:0;">' +
-        '<div style="font-size:12.5px;font-weight:700;color:#0B3B38;word-break:break-word;">📎 ' + escapeHtml(a.fileName) +
-          ' <span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;background:' + cm[1] + ';color:' + cm[2] + ';margin-left:4px;">' + cm[0] + '</span></div>' +
+      var revPill = a.revLabel ? '<span style="display:inline-block;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:700;background:#F1F5F9;color:#334155;margin-left:4px;">' + escapeHtml(a.revLabel) + '</span>' : '';
+      var supPill = a.isSuperseded ? '<span style="display:inline-block;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:700;background:#FEE2E2;color:#B91C1C;margin-left:4px;">Đã thay thế</span>' : '';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:' + (a.isSuperseded ? '#FEF2F2' : '#fff') + ';border:1px solid ' + (a.isSuperseded ? '#FECACA' : '#E2E8F0') + ';border-radius:8px;">' +
+        '<div style="min-width:0;' + (a.isSuperseded ? 'opacity:0.7;' : '') + '">' +
+        '<div style="font-size:12.5px;font-weight:700;color:#0B3B38;word-break:break-word;' + (a.isSuperseded ? 'text-decoration:line-through;' : '') + '">📎 ' + escapeHtml(a.fileName) +
+          ' <span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;background:' + cm[1] + ';color:' + cm[2] + ';margin-left:4px;">' + cm[0] + '</span>' + revPill + supPill + '</div>' +
         '<div style="font-size:11px;color:#64748B;">' + formatBytes(a.fileSize) + ' · ' + escapeHtml(a.uploadedBy || '') + ' · ' + formatShortDate(a.createdAt) + (a.note ? ' · ' + escapeHtml(a.note) : '') + '</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-shrink:0;">' +
+        (editable ? '<button type="button" class="btn btn-sm btn-soft bom-toggle-superseded" data-id="' + escapeHtml(a.id) + '" data-sup="' + (a.isSuperseded ? '1' : '0') + '">' + (a.isSuperseded ? '↩️ Khôi phục' : '🕰️ Đánh dấu bản cũ') + '</button>' : '') +
         '<button type="button" class="btn btn-sm btn-soft bom-dl-att" data-path="' + escapeHtml(a.storagePath) + '">⬇️</button>' +
         (editable ? '<button type="button" class="btn btn-sm btn-danger bom-del-att" data-id="' + escapeHtml(a.id) + '" data-path="' + escapeHtml(a.storagePath) + '">🗑️</button>' : '') +
         '</div></div>';
     }).join('') : '<div style="font-size:12px;color:#64748B;">Chưa có bản vẽ hoặc file đính kèm nào.</div>';
 
-    var wfStatus = (STATE.project && STATE.project.workflowStatus) || 'waiting_drawings';
+    var reworkNgBoxHtml = canReportNg ? (
+      '<div id="bomReworkNgBox" class="bom-card" style="display:none;border-color:#FCA5A5;background:#FEF2F2;margin-bottom:8px;">' +
+      '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+      '    <strong style="color:#B91C1C;font-size:13.5px;">⚠️ Cấp Bù Phôi Hỏng / Làm Lại (NG)</strong>' +
+      '    <button type="button" class="btn btn-sm btn-soft" id="btnCloseNgBox">✕ Đóng</button>' +
+      '  </div>' +
+      '  <div class="bom-grid">' +
+      '    <div><label>Chọn từ dòng định mức gốc</label><select id="ngSrcReqSel"><option value="">— Tự nhập vật tư bù mới —</option>' +
+      STATE.requests.filter(function (x) { return x.requestType !== 'rework_ng'; }).map(function (x) {
+        return '<option value="' + escapeHtml(x.id) + '">' + escapeHtml(x.itemName) + (x.materialGrade ? ' (' + escapeHtml(x.materialGrade) + ')' : '') + '</option>';
+      }).join('') +
+      '    </select></div>' +
+      '    <div><label>Tên vật tư / Quy cách bù *</label><input type="text" id="ngItemName" placeholder="VD: Trục D16x43 SUS 304"></div>' +
+      '    <div><label>Mác vật liệu</label><input type="text" id="ngGrade" placeholder="SUS 304, POM..."></div>' +
+      '    <div><label>Số lượng cần bù *</label><input type="number" id="ngQty" step="0.01" min="0.01" value="1"></div>' +
+      '    <div><label>ĐVT</label><input type="text" id="ngUnit" value="cái"></div>' +
+      '    <div><label>Lý do hỏng (NG) *</label><select id="ngReasonSel"><option value="Gá lệch">Gá lệch</option><option value="Gãy dao">Gãy dao</option><option value="Lỗi lập trình CNC">Lỗi lập trình CNC</option><option value="Lỗi vật liệu">Lỗi vật liệu</option><option value="Khác">Khác</option></select></div>' +
+      '    <div><label>Thợ / Tổ báo hỏng *</label><input type="text" id="ngReporter" placeholder="VD: Tổ CNC Phay - Anh Nam"></div>' +
+      '  </div>' +
+      '  <div style="display:flex;justify-content:flex-end;margin-top:10px;">' +
+      '    <button type="button" class="btn btn-sm btn-danger" id="btnSaveReworkNg" style="background:#B91C1C;color:#fff;border-color:#991B1B;">⚠️ Xác nhận tạo dòng Bù Phôi Hỏng (NG)</button>' +
+      '  </div>' +
+      '</div>'
+    ) : '';
     var wfSteps = [
       {
         key: 'po_draft',
@@ -656,10 +732,13 @@
       '    </div>',
       '    <div style="display:flex;gap:6px;flex-wrap:wrap;' + khoActionHighlight + '">',
       canPxk ? '<button type="button" class="btn btn-sm btn-p" id="btnBomCreatePxk">📤 Tạo Phiếu Xuất Kho (PXK)</button>' : '',
+      canReportNg ? '<button type="button" class="btn btn-sm btn-danger" id="btnBomReworkNg" style="font-weight:800;">⚠️ + Cấp bù phôi hỏng (NG)</button>' : '',
       '<button type="button" class="btn btn-sm btn-cta" id="btnBomPurchaseReq">🛒 Xuất Đề nghị Mua hàng (PR)</button>',
       '<button type="button" class="btn btn-sm btn-soft" id="btnBomPrintReqA4">🖨️ In Đề nghị Vật tư (A4)</button>',
       '    </div>',
       '  </div>',
+      reworkNgBoxHtml,
+      (isBomLockedStage && editable && !isAdminCur) ? '<div style="font-size:11.5px;padding:6px 10px;border-radius:8px;background:#FFFBEB;border:1px solid #FCD34D;color:#92400E;margin-bottom:6px;">🔒 Định mức gốc (Standard) đã chốt sau khi chuyển Kho. Muốn đổi quy cách hãy bấm <b>Cập nhật lên Rev mới</b> hoặc dùng <b>Cấp bù phôi hỏng (NG)</b>.</div>' : '',
       addFormHtml,
       importPreviewHtml,
       '</div>',
@@ -892,10 +971,11 @@
         }
         try {
           var docCat = ($('bomAttCategory') && $('bomAttCategory').value) || 'drawing';
-          await window.SupabaseDB.uploadProjectAttachment(STATE.project.id, file, ($('bomAttNote') && $('bomAttNote').value) || '', docCat);
+          var curRevLbl = formatRev((STATE.project && STATE.project.bomRevision) || 1);
+          await window.SupabaseDB.uploadProjectAttachment(STATE.project.id, file, ($('bomAttNote') && $('bomAttNote').value) || '', docCat, curRevLbl);
           await refreshData();
           renderModal();
-          toast('✓ Đã tải lên ' + file.name);
+          toast('✓ Đã tải lên ' + file.name + ' (' + curRevLbl + ')');
         } catch (err) {
           toast('❌ Lỗi tải file: ' + err.message);
         }
@@ -962,6 +1042,143 @@
         } catch (err) {
           toast('❌ ' + err.message);
         }
+      });
+    });
+
+    var btnBumpRev = $('btnBomBumpRev');
+    if (btnBumpRev) {
+      btnBumpRev.addEventListener('click', async function () {
+        var curRev = Math.max(1, Number((STATE.project && STATE.project.bomRevision) || 1));
+        var nextRevLbl = formatRev(curRev + 1);
+        var reason = prompt('Cập nhật đơn hàng lên ' + nextRevLbl + '.\nNhập lý do thay đổi bản vẽ / ĐNVT (bắt buộc để cảnh báo xưởng):');
+        if (reason === null) return;
+        if (!String(reason).trim()) {
+          alert('Vui lòng nhập lý do cập nhật phiên bản.');
+          return;
+        }
+        try {
+          var res = await window.SupabaseDB.bumpProjectRevision(STATE.project.id, String(reason).trim());
+          if (res && res.bom_revision) STATE.project.bomRevision = res.bom_revision;
+          await refreshData();
+          renderModal();
+          toast('🔄 Đã cập nhật lên ' + nextRevLbl + ' & gửi cảnh báo toàn xưởng!');
+        } catch (err) {
+          alert('❌ ' + (err.message || err));
+        }
+      });
+    }
+
+    document.querySelectorAll('.bom-toggle-superseded').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var attId = btn.getAttribute('data-id');
+        var isSup = btn.getAttribute('data-sup') === '1';
+        try {
+          await window.SupabaseDB.markProjectAttachmentSuperseded(attId, !isSup);
+          await refreshData();
+          renderModal();
+          toast(!isSup ? '🕰️ Đã đánh dấu bản vẽ cũ (Superseded)' : '↩️ Đã khôi phục bản vẽ');
+        } catch (err) {
+          toast('❌ ' + (err.message || err));
+        }
+      });
+    });
+
+    var btnReworkNg = $('btnBomReworkNg');
+    if (btnReworkNg) {
+      btnReworkNg.addEventListener('click', function () {
+        var box = $('bomReworkNgBox');
+        if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
+      });
+    }
+    var btnCloseNgBox = $('btnCloseNgBox');
+    if (btnCloseNgBox) {
+      btnCloseNgBox.addEventListener('click', function () {
+        var box = $('bomReworkNgBox');
+        if (box) box.style.display = 'none';
+      });
+    }
+    var ngSrcSel = $('ngSrcReqSel');
+    if (ngSrcSel) {
+      ngSrcSel.addEventListener('change', function () {
+        var src = STATE.requests.find(function (x) { return String(x.id) === String(ngSrcSel.value); });
+        if (!src) return;
+        if ($('ngItemName')) $('ngItemName').value = src.itemName || '';
+        if ($('ngGrade')) $('ngGrade').value = src.materialGrade || '';
+        if ($('ngUnit')) $('ngUnit').value = src.unit || 'cái';
+        ngSrcSel._selectedInvId = src.inventoryId || null;
+        ngSrcSel._selectedStage = src.workStage || 'cnc_mill_turn';
+        ngSrcSel._selectedDims = src.specDimensions || '';
+      });
+    }
+    var btnSaveNg = $('btnSaveReworkNg');
+    if (btnSaveNg) {
+      btnSaveNg.addEventListener('click', async function () {
+        var itemName = ($('ngItemName') && $('ngItemName').value || '').trim();
+        var qty = Number(($('ngQty') && $('ngQty').value) || 0);
+        var reason = ($('ngReasonSel') && $('ngReasonSel').value) || 'Khác';
+        var reporter = ($('ngReporter') && $('ngReporter').value || '').trim();
+        if (!itemName || !(qty > 0)) {
+          alert('Vui lòng nhập Tên vật tư bù và Số lượng > 0.');
+          return;
+        }
+        if (!reporter) {
+          alert('Vui lòng nhập tên Thợ / Tổ báo hỏng.');
+          return;
+        }
+        try {
+          var sel = $('ngSrcReqSel');
+          await window.SupabaseDB.addProjectMaterialRequest({
+            projectId: STATE.project.id,
+            workStage: (sel && sel._selectedStage) || 'cnc_mill_turn',
+            inventoryId: (sel && sel._selectedInvId) || null,
+            itemName: itemName,
+            materialGrade: ($('ngGrade') && $('ngGrade').value || '').trim(),
+            specDimensions: (sel && sel._selectedDims) || itemName,
+            unit: ($('ngUnit') && $('ngUnit').value || 'cái').trim(),
+            requiredQty: qty,
+            requestType: 'rework_ng',
+            ngReason: reason,
+            ngReportedBy: reporter,
+            note: 'Bù hỏng NG: ' + reason + ' (Báo bởi: ' + reporter + ')'
+          });
+          await refreshData();
+          renderModal();
+          toast('⚠️ Đã thêm dòng Cấp bù phôi hỏng (NG)');
+        } catch (err) {
+          alert('❌ ' + (err.message || err));
+        }
+      });
+    }
+
+    document.querySelectorAll('.bom-quick-sku-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var reqId = btn.getAttribute('data-id');
+        var r = STATE.requests.find(function (x) { return String(x.id) === String(reqId); });
+        if (!r || !window.SharedUI || typeof window.SharedUI.openQuickInventoryModal !== 'function') return;
+        window.SharedUI.openQuickInventoryModal({
+          profileName: r.itemName,
+          materialGrade: r.materialGrade,
+          specDimensions: r.specDimensions,
+          unit: r.unit,
+          calcWeightKg: r.calcWeightKg
+        }, async function (createdInv) {
+          if (createdInv && createdInv.id) {
+            await window.SupabaseDB.updateProjectMaterialRequest(r.id, { inventoryId: createdInv.id });
+            await refreshData();
+            renderModal();
+            toast('✅ Đã tạo mã kho & liên kết vào ĐNVT!');
+          }
+        });
+      });
+    });
+
+    document.querySelectorAll('.bom-cut-cand-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var reqId = btn.getAttribute('data-id');
+        var r = STATE.requests.find(function (x) { return String(x.id) === String(reqId); });
+        if (!r || !window.SharedUI || typeof window.SharedUI.findCuttableStockCandidates !== 'function') return;
+        var cands = window.SharedUI.findCuttableStockCandidates(r, STATE.inventory, STATE.offcuts);
+        openCuttableCandidatesPopover(r, cands);
       });
     });
 
@@ -1253,7 +1470,10 @@
           qty: rem,
           unitPrice: Number(inv.avgCost || 0),
           projectRequestId: r.id,
-          note: getStageMeta(r.workStage).shortLabel + (r.specDimensions ? ' · ' + r.specDimensions : '')
+          note: getStageMeta(r.workStage).shortLabel +
+            (r.specDimensions ? ' · ' + r.specDimensions : '') +
+            (r.requestType === 'rework_ng' ? ' · [⚠️ Bù hỏng NG: ' + (r.ngReason || '') + ']' : '') +
+            (r.note && r.note.indexOf('Cắt') >= 0 ? ' · ' + r.note : '')
         });
       }
     });
@@ -1399,12 +1619,91 @@
     }
   }
 
+  function openCuttableCandidatesPopover(reqRow, candidates) {
+    if (!reqRow || !Array.isArray(candidates)) return;
+    var modal = $('xpCuttableCandModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'xpCuttableCandModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.58);z-index:3650;display:none;align-items:center;justify-content:center;padding:14px;';
+      modal.innerHTML =
+        '<div style="background:#fff;border-radius:16px;border:1.5px solid #5EEAD4;width:min(680px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 48px rgba(0,0,0,0.28);">' +
+        '  <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;background:#F0FDFA;border-bottom:1px solid #CCFBF1;">' +
+        '    <h3 id="xpCutCandTitle" style="margin:0;font-size:15.5px;color:#0B3B38;">✂️ Gợi ý Phôi Dài / Tấm Lớn / Đề-xê Cắt Được</h3>' +
+        '    <button type="button" id="xpCutCandClose" class="btn btn-soft btn-sm">✕ Đóng</button>' +
+        '  </div>' +
+        '  <div id="xpCutCandBody" style="padding:15px 18px;overflow-y:auto;font-size:13px;"></div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      $('xpCutCandClose').onclick = function () { modal.style.display = 'none'; };
+      modal.onclick = function (e) { if (e.target === modal) modal.style.display = 'none'; };
+    }
+    $('xpCutCandTitle').textContent = '✂️ Phôi cắt được cho: ' + (reqRow.itemName || '');
+    var canWh = window.SharedUI && typeof window.SharedUI.canAllocateStock === 'function'
+      ? window.SharedUI.canAllocateStock(STATE.currentUser)
+      : Boolean(STATE.currentUser && (STATE.currentUser.role === 'warehouse' || STATE.currentUser.role === 'admin'));
+
+    var listHtml = candidates.length ? candidates.map(function (c, idx) {
+      var badge = c.sourceType === 'offcut'
+        ? '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:800;">♻️ Đề-xê</span>'
+        : '<span style="background:#CCFBF1;color:#0F766E;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:800;">📦 Phôi kho</span>';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:8px;background:#F8FAFC;">' +
+        '<div style="min-width:0;">' +
+        '  <div>' + badge + ' <b>' + escapeHtml(c.label) + '</b></div>' +
+        '  <div style="font-size:12px;color:#475569;margin-top:3px;">📍 Kệ: <b>' + escapeHtml(c.rackLocation) + '</b> · Khả dụng: <b style="color:#0F766E;">' + numVN(c.availableQty) + ' ' + escapeHtml(c.unit) + '</b>' + (c.materialGrade ? ' · Mác: <b>' + escapeHtml(c.materialGrade) + '</b>' : '') + '</div>' +
+        '  <div style="font-size:11.5px;color:#64748B;margin-top:2px;">📝 ' + escapeHtml(c.cutNote) + '</div>' +
+        '</div>' +
+        (canWh ? '<button type="button" class="btn btn-sm btn-p xp-cand-link-btn" data-idx="' + idx + '" style="flex-shrink:0;">🔗 Liên kết &amp; Giữ phôi từ mã này</button>' : '') +
+      '</div>';
+    }).join('') : '<div style="color:#64748B;padding:16px;text-align:center;">Không tìm thấy phôi dài/đề-xê phù hợp.</div>';
+
+    $('xpCutCandBody').innerHTML =
+      '<div style="margin-bottom:10px;padding:8px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:12.5px;">Yêu cầu cần: <b>' + escapeHtml(reqRow.specDimensions || reqRow.itemName) + '</b> (' + escapeHtml(reqRow.materialGrade || 'Chưa rõ mác') + ') × <b>' + numVN(reqRow.requiredQty) + ' ' + escapeHtml(reqRow.unit) + '</b></div>' +
+      listHtml;
+
+    $('xpCutCandBody').querySelectorAll('.xp-cand-link-btn').forEach(function (btn) {
+      btn.onclick = async function () {
+        var c = candidates[Number(btn.getAttribute('data-idx'))];
+        if (!c) return;
+        btn.disabled = true;
+        try {
+          var nextNote = [reqRow.note || '', c.cutNote].filter(Boolean).join(' · ');
+          if (c.inventoryId) {
+            await window.SupabaseDB.updateProjectMaterialRequest(reqRow.id, {
+              inventoryId: c.inventoryId,
+              note: nextNote
+            });
+            var rem = Math.max(0, Number(reqRow.requiredQty || 0) - Number(reqRow.issuedQty || 0) - Number(reqRow.allocatedQty || 0));
+            var allocAmount = Math.min(rem || 1, Number(c.availableQty || 0));
+            if (allocAmount > 0 && typeof window.SupabaseDB.allocateFreeStockToRequest === 'function') {
+              await window.SupabaseDB.allocateFreeStockToRequest(reqRow.id, allocAmount).catch(function () {});
+            }
+          } else {
+            await window.SupabaseDB.updateProjectMaterialRequest(reqRow.id, {
+              note: nextNote + ' [Kệ: ' + c.rackLocation + ']'
+            });
+          }
+          modal.style.display = 'none';
+          await refreshData();
+          renderModal();
+          toast('✅ Đã liên kết & giữ phôi cắt từ ' + c.label);
+        } catch (err) {
+          alert('❌ ' + (err.message || err));
+          btn.disabled = false;
+        }
+      };
+    });
+    modal.style.display = 'flex';
+  }
+
   function printBomRequestA4() {
     var rows = getFilteredRequests().slice().sort(function (a, b) {
       return String(a.workStage || '').localeCompare(String(b.workStage || ''));
     });
     var p = STATE.project || {};
     var dueDate = (p.data && p.data.dueDate) ? p.data.dueDate : '';
+    var revNum = Math.max(1, Number(p.bomRevision) || 1);
+    var revStr = formatRev(revNum);
     var w = window.open('', '_blank', 'width=960,height=720');
     if (!w) {
       alert('Trình duyệt đã chặn popup in A4. Vui lòng cho phép mở cửa sổ mới.');
@@ -1414,17 +1713,18 @@
     if (typeof qrcode === 'function') {
       try {
         var qr = qrcode(0, 'M');
-        qr.addData('XP:PROJ:' + String(p.id || ''));
+        qr.addData('XP:PROJ:' + String(p.id || '') + ':R' + revNum);
         qr.make();
         qrHtml = qr.createImgTag(3, 2);
       } catch (_) {}
     }
     var trs = rows.map(function (r, idx) {
       var dimKl = [r.specDimensions || '', r.calcWeightKg > 0 ? (numVN(r.calcWeightKg) + ' kg') : ''].filter(Boolean).join(' · ') || '—';
+      var ngTag = r.requestType === 'rework_ng' ? ' <span style="color:#B91C1C;font-weight:bold;">[⚠️ Bù hỏng NG: ' + escapeHtml(r.ngReason || '') + ']</span>' : '';
       return '<tr>' +
         '<td style="text-align:center;">' + (idx + 1) + '</td>' +
         '<td>' + escapeHtml(getStageMeta(r.workStage).shortLabel) + '</td>' +
-        '<td><b>' + escapeHtml(r.itemName) + '</b></td>' +
+        '<td><b>' + escapeHtml(r.itemName) + '</b>' + ngTag + '</td>' +
         '<td>' + escapeHtml(r.materialGrade || '—') + '</td>' +
         '<td>' + escapeHtml(dimKl) + '</td>' +
         '<td style="text-align:center;">' + escapeHtml(r.unit) + '</td>' +
@@ -1432,13 +1732,13 @@
         '<td>' + escapeHtml(r.note || '') + '</td>' +
       '</tr>';
     }).join('');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>ĐNMVT01 - ' + escapeHtml(p.name) + '</title>' +
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>ĐNMVT01 (' + escapeHtml(revStr) + ') - ' + escapeHtml(p.name) + '</title>' +
       '<style>body{font-family:Arial,sans-serif;padding:18px;color:#000}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}th,td{border:1px solid #000;padding:6px 8px}th{background:#f1f5f9}@media print{button{display:none}@page{size:A4 portrait;margin:12mm;}}</style>' +
       '</head><body>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:10px;">' +
       '  <div>' +
       '    <div style="font-size:14px;font-weight:bold;">CÔNG TY CỔ PHẦN CƠ KHÍ VÀ DỊCH VỤ THƯƠNG MẠI AN BÌNH</div>' +
-      '    <div style="font-size:11.5px;margin-top:2px;">Biểu mẫu chuẩn: <b>ĐNMVT01</b></div>' +
+      '    <div style="font-size:12px;margin-top:2px;">Biểu mẫu chuẩn: <b>ĐNMVT01</b> &nbsp;|&nbsp; Phiên bản: <b style="padding:1px 6px;border:1px solid #000;border-radius:4px;">' + escapeHtml(revStr) + '</b>' + (p.priority === 'urgent' ? ' &nbsp;|&nbsp; <b style="color:#B91C1C;">🔥 ĐƠN GẤP</b>' : '') + '</div>' +
       '    <h2 style="margin:6px 0 4px;font-size:18px;">ĐỀ NGHỊ MUA VẬT TƯ (KẸP BẢN VẼ)</h2>' +
       '    <div style="font-size:12.5px;line-height:1.5;">' +
       '      <div>Đơn hàng: <b>' + escapeHtml(p.name) + '</b></div>' +

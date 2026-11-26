@@ -227,6 +227,19 @@
         <a href="/reports" class="btn btn-soft reports-nav-link" id="btnHomeReports" style="display:none;">📊 Xem Báo Cáo NXT</a>
       </div>
 
+      <section class="card" id="emergencyAlertCard" style="display:none; border-color:#F59E0B; background:linear-gradient(135deg,#FFFBEB,#FFFFFF);">
+        <div class="card-head">
+          <h2 id="emergencyAlertTitle" style="color:#92400E;">⚡ Có 0 phiếu xuất khẩn cấp cần hoàn thiện chứng từ trước 17h hôm nay</h2>
+          <a href="/vouchers" class="btn btn-soft btn-sm">Mở Phiếu kho ↗</a>
+        </div>
+        <div class="table-responsive">
+          <table class="wms-table">
+            <thead><tr><th>Mã phiếu</th><th>Dự án / Bộ phận</th><th>Lập bởi</th><th>Ngày lập</th><th>Thao tác</th></tr></thead>
+            <tbody id="emergencyAlertBody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="card" id="readyMaterialSectionManager" style="border-color:#86EFAC; background:linear-gradient(135deg,#F0FDF4,#FFFFFF);">
         <div class="card-head">
           <h2>🟢 Phôi Đã Về Kho — Sẵn Sàng Lĩnh</h2>
@@ -387,19 +400,22 @@
     }
 
     async function loadDashboard() {
-      const [inv, vouches, projs, summary, readyList] = await Promise.all([
+      const [inv, vouches, projs, summary, readyList, unconfEmerg] = await Promise.all([
         window.SupabaseDB.getInventory().catch(() => []),
         window.SupabaseDB.getWarehouseVouchers({ limit: 80 }).catch(() => []),
         window.SupabaseDB.getProjectsSummary({ includeTrash: false, includeDraft: false }).catch(() => []),
         (window.SupabaseDB.getCompanyDashboardSummary ? window.SupabaseDB.getCompanyDashboardSummary().catch(() => null) : Promise.resolve(null)),
-        (window.SupabaseDB.getReadyAllocatedRequests ? window.SupabaseDB.getReadyAllocatedRequests().catch(() => []) : Promise.resolve([]))
+        (window.SupabaseDB.getReadyAllocatedRequests ? window.SupabaseDB.getReadyAllocatedRequests().catch(() => []) : Promise.resolve([])),
+        (window.SupabaseDB.getUnconfirmedEmergencyVouchers ? window.SupabaseDB.getUnconfirmedEmergencyVouchers().catch(() => []) : Promise.resolve([]))
       ]);
       invList = inv || [];
       vouchersList = vouches || [];
       if (currentUser && currentUser.role === 'sales') {
         document.querySelectorAll('.non-sales-action').forEach(el => { el.style.display = 'none'; });
       }
-      renderReadyMaterialBoard(readyList || []);
+      renderEmergencyAlertBoard(unconfEmerg || []);
+      const sortedReady = (readyList || []).slice().sort((a, b) => (b.projectPriority === 'urgent' ? 1 : 0) - (a.projectPriority === 'urgent' ? 1 : 0));
+      renderReadyMaterialBoard(sortedReady);
 
       if (currentUser && currentUser.role !== 'operator') {
         const lowItems = invList.filter(r => {
@@ -443,6 +459,44 @@
       }
     }
 
+    function renderEmergencyAlertBoard(list) {
+      const card = $('emergencyAlertCard');
+      const body = $('emergencyAlertBody');
+      const title = $('emergencyAlertTitle');
+      if (!card || !body || !title) return;
+      if (!list.length || (currentUser && currentUser.role === 'operator')) {
+        card.style.display = 'none';
+        return;
+      }
+      const canConfirm = currentUser && ['admin', 'warehouse', 'accountant'].includes(currentUser.role);
+      title.textContent = `⚡ Có ${list.length} phiếu xuất khẩn cấp cần hoàn thiện chứng từ trước 17h hôm nay`;
+      body.innerHTML = list.map(v => `
+        <tr>
+          <td><a href="/vouchers?id=${encodeURIComponent(v.id)}" style="font-family:monospace;font-weight:800;color:#B45309;">${escapeHtml(v.voucherCode)}</a></td>
+          <td>${escapeHtml(v.projectName || v.department || '—')}</td>
+          <td>${escapeHtml(v.createdBy || '—')}</td>
+          <td>${escapeHtml(String(v.createdAt || '').slice(0, 16).replace('T', ' '))}</td>
+          <td style="white-space:nowrap;">
+            <a href="/vouchers?id=${encodeURIComponent(v.id)}" class="btn btn-soft btn-sm">👁️ Xem</a>
+            ${canConfirm ? `<button type="button" class="btn btn-cta btn-sm" onclick="confirmHomeEmergencyVoucher('${escapeHtml(v.id)}', '${escapeHtml(v.voucherCode)}')">✅ Hợp thức hóa</button>` : ''}
+          </td>
+        </tr>
+      `).join('');
+      card.style.display = 'block';
+    }
+
+    async function confirmHomeEmergencyVoucher(id, code) {
+      const note = prompt(`⚡ Xác nhận hợp thức hóa chứng từ cho phiếu xuất khẩn cấp [${code}]:\n(Nhập số ĐNVT / ghi chú xác nhận)`, '');
+      if (note === null) return;
+      try {
+        await window.SupabaseDB.confirmEmergencyVoucher(id, note);
+        showToast(`✅ Đã hợp thức hóa phiếu ${code}!`);
+        await loadDashboard();
+      } catch (err) {
+        alert('❌ ' + (err.message || err));
+      }
+    }
+
     function renderReadyMaterialBoard(readyList) {
       const canWh = currentUser && (currentUser.role === 'admin' || currentUser.role === 'warehouse');
       const mBody = $('readyMatManagerBody');
@@ -457,7 +511,7 @@
             canWh ? `<button type="button" class="btn btn-cta btn-sm" onclick="triggerHomeCrossDock(${escapeHtml(JSON.stringify(JSON.stringify(r)))})">⚡ Xuất kho</button>` : ''
           ].filter(Boolean).join(' ');
           return `<tr>
-            <td><strong>${escapeHtml(r.projectName)}</strong>${r.customer ? `<div style="font-size:11px;color:#64748B;">KH: ${escapeHtml(r.customer)}</div>` : ''}</td>
+            <td><strong>${escapeHtml(r.projectName)}</strong>${r.projectPriority === 'urgent' ? ' <span class="pill" style="background:#FEE2E2;color:#B91C1C;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:800;">🔥 GẤP</span>' : ''}${r.customer ? `<div style="font-size:11px;color:#64748B;">KH: ${escapeHtml(r.customer)}</div>` : ''}</td>
             <td><strong>${escapeHtml(r.itemName)}</strong>${r.specDimensions ? `<div style="font-size:11px;color:#64748B;">${escapeHtml(r.specDimensions)}</div>` : ''}</td>
             <td class="r" style="font-weight:800;color:#15803D;">${numVN(r.allocatedQty)} ${escapeHtml(r.unit)}</td>
             <td>${escapeHtml(r.rackLocation || 'Kho')}</td>
@@ -545,7 +599,7 @@
         continuous: false,
         onScan: (parsed) => {
           if (parsed && parsed.kind === 'PROJ' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openProjectLookupModal === 'function') {
-            window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
+            window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser, parsed.rev);
             return;
           }
           if (parsed && parsed.kind === 'FG' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openFinishedGoodsLookupModal === 'function') {
