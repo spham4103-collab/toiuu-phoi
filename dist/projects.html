@@ -893,7 +893,7 @@
           onOpenCnc: (pid) => {
             const p = projectsList.find(x => x.id === pid);
             if (p) activateProjectSelection(p);
-            window.location.href = `/cnc?project=${encodeURIComponent(pid)}`;
+            window.location.href = `/projects?id=${encodeURIComponent(pid)}`;
           },
           onPrintA4: async (pid) => {
             const expOpts = await prepareProjectExportPayload(pid);
@@ -912,7 +912,7 @@
         const p = projectsList.find(x => x.id === b.dataset.id);
         if (p) {
           activateProjectSelection(p);
-          window.location.href = `/cnc?project=${encodeURIComponent(p.id)}`;
+          window.location.href = `/projects?id=${encodeURIComponent(p.id)}`;
         }
       });
       wrap.querySelectorAll('.btn-print-a4').forEach(b => b.onclick = async () => {

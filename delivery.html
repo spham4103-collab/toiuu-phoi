@@ -471,8 +471,8 @@
     function renderKpis() {
       const stock = allFgItems.reduce((s, x) => s + Number(x.stockQty || 0), 0);
       const debt = allFgItems.reduce((s, x) => s + Math.max(0, Number(x.plannedQty || 0) - Number(x.deliveredQty || 0)), 0);
-      const pntpPend = allPntp.filter(x => x.status === 'pending').length;
-      const pxghPend = allPxgh.filter(x => x.status === 'pending' || x.status === 'approved').length;
+      const pntpPend = allPntp.filter(x => x.status === 'draft' || x.status === 'pending').length;
+      const pxghPend = allPxgh.filter(x => x.status === 'draft' || x.status === 'pending' || x.status === 'approved').length;
       $('kpiFgStockQty').textContent = fmtNum(stock);
       $('kpiFgDebtQty').textContent = fmtNum(debt);
       $('kpiPendingPntp').textContent = pntpPend;
@@ -483,12 +483,12 @@
       const pId1 = $('pntpProject').value;
       const list1 = pId1 ? allFgItems.filter(x => x.projectId === pId1) : allFgItems;
       $('pntpSelectFg').innerHTML = '<option value="">-- Chọn Thành phẩm --</option>' +
-        list1.map(x => `<option value="${esc(x.id)}">[${esc(x.projectId)}] ${esc(x.itemCode ? x.itemCode + ' - ' : '')}${esc(x.itemName)} (${esc(x.unit)})</option>`).join('');
+        list1.map(x => `<option value="${esc(x.id)}">[${esc(x.projectName || x.projectId || 'Dùng chung')}] ${esc(x.fgCode ? x.fgCode + ' - ' : '')}${esc(x.name)} (${esc(x.unit)})</option>`).join('');
 
       const pId2 = $('pxghProject').value;
       const list2 = (pId2 ? allFgItems.filter(x => x.projectId === pId2) : allFgItems).filter(x => Number(x.stockQty || 0) > 0);
       $('pxghSelectFg').innerHTML = '<option value="">-- Chọn Thành phẩm đang có tồn --</option>' +
-        list2.map(x => `<option value="${esc(x.id)}">[${esc(x.projectId)}] ${esc(x.itemName)} (Tồn: ${fmtNum(x.stockQty)} ${esc(x.unit)})</option>`).join('');
+        list2.map(x => `<option value="${esc(x.id)}">[${esc(x.projectName || x.projectId || 'Dùng chung')}] ${esc(x.name)} (Tồn: ${fmtNum(x.stockQty)} ${esc(x.unit)})</option>`).join('');
     }
 
     function renderFgTable() {
@@ -497,7 +497,7 @@
       const list = allFgItems.filter(x => {
         if (pid && x.projectId !== pid) return false;
         if (q) {
-          const hay = `${x.itemCode} ${x.itemName} ${x.projectId} ${x.location}`.toLowerCase();
+          const hay = `${x.fgCode} ${x.name} ${x.projectName} ${x.projectId} ${x.rackLocation}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -510,15 +510,15 @@
       tb.innerHTML = list.map(x => {
         const debt = Math.max(0, Number(x.plannedQty || 0) - Number(x.deliveredQty || 0));
         return `<tr>
-          <td><strong>${esc(x.itemName)}</strong>${x.itemCode ? `<div style="font-size:11.5px;color:#64748B;">Mã: ${esc(x.itemCode)}</div>` : ''}</td>
-          <td>${esc(x.projectId)}</td>
+          <td><strong>${esc(x.name)}</strong>${x.fgCode ? `<div style="font-size:11.5px;color:#64748B;">Mã: ${esc(x.fgCode)}</div>` : ''}</td>
+          <td>${esc(x.projectName || x.projectId || '-')}</td>
           <td>${esc(x.unit)}</td>
           <td class="r">${fmtNum(x.plannedQty)}</td>
           <td class="r" style="color:#0369A1;font-weight:700;">${fmtNum(x.producedQty)}</td>
           <td class="r" style="color:#15803D;font-weight:700;">${fmtNum(x.deliveredQty)}</td>
           <td class="r"><strong style="color:var(--p);">${fmtNum(x.stockQty)}</strong></td>
           <td class="r" style="color:${debt > 0 ? '#C2410C' : '#64748B'};font-weight:700;">${fmtNum(debt)}</td>
-          <td>${esc(x.location || '-')}</td>
+          <td>${esc(x.rackLocation || '-')}</td>
         </tr>`;
       }).join('');
     }
@@ -533,15 +533,16 @@
         const pill = r.status === 'approved' ? '<span class="pill pill-delivered">✅ Đã nhập kho TP</span>'
           : r.status === 'cancelled' ? '<span class="pill pill-cancelled">✕ Đã hủy</span>'
           : '<span class="pill pill-pending">⏳ Chờ duyệt</span>';
+        const isWait = r.status === 'draft' || r.status === 'pending';
         return `<tr>
           <td><strong>${esc(r.receiptCode)}</strong></td>
-          <td>${esc(r.projectId)}</td>
-          <td>${esc(r.deliveredBy || '-')}</td>
+          <td>${esc(r.projectName || r.projectId || '-')}</td>
+          <td>${esc(r.department || r.qcBy || '-')}</td>
           <td>${esc((r.createdAt || '').slice(0, 10))}</td>
           <td class="r"><strong>${(r.items || []).length}</strong></td>
           <td>${pill}</td>
           <td style="white-space:nowrap;">
-            ${r.status === 'pending' ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePntpAction('${esc(r.id)}')">✅ Duyệt nhập kho</button>` : ''}
+            ${isWait ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePntpAction('${esc(r.id)}')">✅ Duyệt nhập kho</button>` : ''}
             ${r.status !== 'cancelled' && SharedUI.canApprovePR(currentUser) ? `<button type="button" class="btn btn-danger btn-sm" onclick="cancelPntpAction('${esc(r.id)}')">✕ Hủy</button>` : ''}
           </td>
         </tr>`;
@@ -559,16 +560,17 @@
           : d.status === 'approved' ? '<span class="pill pill-approved">🚚 Đã xuất kho (Đang giao)</span>'
           : d.status === 'cancelled' ? '<span class="pill pill-cancelled">✕ Đã hủy</span>'
           : '<span class="pill pill-pending">⏳ Chờ duyệt xuất</span>';
+        const isWait = d.status === 'draft' || d.status === 'pending';
         return `<tr>
           <td><strong>${esc(d.dnCode)}</strong></td>
           <td><strong>${esc(d.customerName || '-')}</strong></td>
-          <td>${esc(d.projectId)}</td>
+          <td>${esc(d.projectName || d.projectId || '-')}</td>
           <td>${esc(d.vehicleNo || '-')} ${d.driverName ? '· ' + esc(d.driverName) : ''}</td>
           <td>${esc(d.deliveryDate || '-')}</td>
           <td>${pill}</td>
           <td style="white-space:nowrap;">
             <button type="button" class="btn btn-soft btn-sm" onclick="printDeliveryNoteA4('${esc(d.id)}')">🖨️ In PXGH</button>
-            ${d.status === 'pending' ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePxghAction('${esc(d.id)}')">✅ Duyệt xuất</button>` : ''}
+            ${isWait ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePxghAction('${esc(d.id)}')">✅ Duyệt xuất</button>` : ''}
             ${d.status === 'approved' ? `<button type="button" class="btn btn-p btn-sm" onclick="openDeliverConfirm('${esc(d.id)}','${esc(d.dnCode)}')">📸 Xác nhận đã giao</button>` : ''}
             ${d.status !== 'cancelled' && SharedUI.canApprovePR(currentUser) ? `<button type="button" class="btn btn-danger btn-sm" onclick="cancelPxghAction('${esc(d.id)}')">✕ Hủy</button>` : ''}
             ${d.attachmentUrl ? `<a class="btn btn-soft btn-sm" href="${esc(d.attachmentUrl)}" target="_blank">📎 Ảnh BB</a>` : ''}
@@ -629,7 +631,7 @@
       const rows = (d.items || []).map((it, i) => `
         <tr>
           <td style="border:1px solid #333;padding:6px;text-align:center;">${i + 1}</td>
-          <td style="border:1px solid #333;padding:6px;">${esc(it.itemName)}</td>
+          <td style="border:1px solid #333;padding:6px;">${esc(it.fgCode ? it.fgCode + ' - ' : '')}${esc(it.name || it.itemName || '')}</td>
           <td style="border:1px solid #333;padding:6px;text-align:center;">${esc(it.unit)}</td>
           <td style="border:1px solid #333;padding:6px;text-align:right;">${fmtNum(it.qty)}</td>
           <td style="border:1px solid #333;padding:6px;">${esc(it.note || '')}</td>
@@ -685,9 +687,9 @@
         return `<div style="border:1.5px solid #000;border-radius:6px;padding:8px;width:47%;display:inline-flex;gap:10px;align-items:center;margin:4px;vertical-align:top;page-break-inside:avoid;">
           <div>${qrHtml}</div>
           <div style="font-size:11.5px;line-height:1.35;">
-            <div style="font-weight:bold;font-size:13px;">${esc(item.itemName)}</div>
-            <div>Mã: ${esc(item.itemCode || '-')} · DA: ${esc(item.projectId)}</div>
-            <div>Tồn TP: <strong>${fmtNum(item.stockQty)} ${esc(item.unit)}</strong> · Kệ: ${esc(item.location || '-')}</div>
+            <div style="font-weight:bold;font-size:13px;">${esc(item.name)}</div>
+            <div>Mã: ${esc(item.fgCode || '-')} · DA: ${esc(item.projectName || item.projectId || '-')}</div>
+            <div>Tồn TP: <strong>${fmtNum(item.stockQty)} ${esc(item.unit)}</strong> · Kệ: ${esc(item.rackLocation || '-')}</div>
           </div>
         </div>`;
       }).join('');
@@ -723,16 +725,17 @@
       $('btnAddFgItem').addEventListener('click', () => openModal('modalFgItem'));
       $('btnSaveFgItem').addEventListener('click', async () => {
         const projectId = $('fgItemProject').value;
-        const itemName = $('fgItemName').value.trim();
-        if (!projectId || !itemName) return alert('Vui lòng chọn Dự án và nhập Tên thành phẩm!');
+        const name = $('fgItemName').value.trim();
+        const fgCode = $('fgItemCode').value.trim() || ('TP-' + Date.now().toString().slice(-6));
+        if (!projectId || !name) return alert('Vui lòng chọn Dự án và nhập Tên thành phẩm!');
         try {
           await SupabaseDB.saveFinishedGoodsItem({
             projectId,
-            itemCode: $('fgItemCode').value.trim(),
-            itemName,
-            unit: $('fgItemUnit').value.trim() || 'Bộ',
+            fgCode,
+            name,
+            unit: ($('fgItemUnit').value.trim() || 'bộ').toLowerCase(),
             plannedQty: Number($('fgItemPlanned').value || 0),
-            location: $('fgItemLocation').value.trim()
+            rackLocation: $('fgItemLocation').value.trim()
           });
           closeModal('modalFgItem');
           showToast('✅ Đã lưu thành phẩm!');
@@ -745,9 +748,9 @@
         const id = $('pntpSelectFg').value;
         const fg = allFgItems.find(x => x.id === id);
         if (!fg) return;
-        pntpDraft.push({ fgItemId: fg.id, itemName: fg.itemName, unit: fg.unit || 'Bộ', qty: 1, note: '' });
+        pntpDraft.push({ fgItemId: fg.id, fgCode: fg.fgCode, name: fg.name, unit: fg.unit || 'bộ', qty: 1, note: '' });
         $('pntpDraftBody').innerHTML = pntpDraft.map((it, idx) => `<tr>
-          <td><strong>${esc(it.itemName)}</strong></td><td>${esc(it.unit)}</td>
+          <td><strong>${esc(it.name)}</strong></td><td>${esc(it.unit)}</td>
           <td><input type="number" step="any" min="0.001" value="${it.qty}" onchange="pntpDraft[${idx}].qty=Number(this.value||0)"></td>
           <td><input type="text" value="${esc(it.note)}" onchange="pntpDraft[${idx}].note=this.value"></td>
           <td><button type="button" class="btn btn-danger btn-sm" onclick="pntpDraft.splice(${idx},1);this.closest('tr').remove();">✕</button></td>
@@ -757,7 +760,7 @@
         const projectId = $('pntpProject').value;
         if (!projectId || !pntpDraft.length) return alert('Chọn Dự án và ít nhất 1 thành phẩm!');
         try {
-          await SupabaseDB.createFgReceipt({ projectId, deliveredBy: $('pntpDeliveredBy').value.trim(), note: $('pntpNote').value.trim() }, pntpDraft);
+          await SupabaseDB.createFgReceipt({ projectId, department: $('pntpDeliveredBy').value.trim(), note: $('pntpNote').value.trim(), createdBy: currentUser ? currentUser.username : '' }, pntpDraft);
           closeModal('modalPntp');
           showToast('✅ Đã lập Phiếu Nhập Thành Phẩm (PNTP)!');
           await refreshAllData();
@@ -776,9 +779,9 @@
         const id = $('pxghSelectFg').value;
         const fg = allFgItems.find(x => x.id === id);
         if (!fg) return;
-        pxghDraft.push({ fgItemId: fg.id, itemName: fg.itemName, unit: fg.unit || 'Bộ', stockQty: fg.stockQty, qty: Math.min(1, fg.stockQty) });
+        pxghDraft.push({ fgItemId: fg.id, fgCode: fg.fgCode, name: fg.name, unit: fg.unit || 'bộ', stockQty: fg.stockQty, qty: Math.min(1, fg.stockQty) });
         $('pxghDraftBody').innerHTML = pxghDraft.map((it, idx) => `<tr>
-          <td><strong>${esc(it.itemName)}</strong></td><td>${esc(it.unit)}</td>
+          <td><strong>${esc(it.name)}</strong></td><td>${esc(it.unit)}</td>
           <td class="r">${fmtNum(it.stockQty)}</td>
           <td><input type="number" step="any" min="0.001" max="${it.stockQty}" value="${it.qty}" onchange="pxghDraft[${idx}].qty=Number(this.value||0)"></td>
           <td><button type="button" class="btn btn-danger btn-sm" onclick="pxghDraft.splice(${idx},1);this.closest('tr').remove();">✕</button></td>
@@ -795,7 +798,8 @@
             vehicleNo: $('pxghVehicle').value.trim(),
             driverName: $('pxghDriver').value.trim(),
             deliveryDate: $('pxghDate').value || null,
-            note: $('pxghNote').value.trim()
+            note: $('pxghNote').value.trim(),
+            createdBy: currentUser ? currentUser.username : ''
           }, pxghDraft);
           closeModal('modalPxgh');
           showToast('✅ Đã lập Phiếu Xuất Giao Hàng (PXGH)!');

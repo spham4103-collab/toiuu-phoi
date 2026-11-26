@@ -1496,7 +1496,7 @@
     if ($('bomBtnOpenCnc')) {
       $('bomBtnOpenCnc').addEventListener('click', function () {
         if (typeof STATE.opts.onOpenCnc === 'function') STATE.opts.onOpenCnc(p.id);
-        else window.location.href = '/cnc?project=' + encodeURIComponent(p.id);
+        else window.location.href = '/projects?id=' + encodeURIComponent(p.id);
       });
     }
     if ($('bomBtnPrintA4')) {

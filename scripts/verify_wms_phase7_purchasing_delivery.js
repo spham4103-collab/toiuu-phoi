@@ -96,12 +96,18 @@ function run() {
   assert(syncPy.includes("'purchasing'") && syncPy.includes("'delivery'"), 'sync_all.py missing purchasing/delivery');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v35'), 'sw.js must be v35');
+  assert(sw.includes('toiuu-phoi-pwa-v36'), 'sw.js must be v36');
   assert(sw.includes('/purchasing') && sw.includes('/delivery'), 'sw.js missing /purchasing or /delivery');
+
+  assert(purchHtml.includes('value="sent"') && purchHtml.includes('value="partial_received"'), 'purchasing.html PO filter must use sent/partial_received');
+  assert(delivHtml.includes('fgCode') && delivHtml.includes('rackLocation') && delivHtml.includes("status === 'draft'"), 'delivery.html must align with FG fields and draft status');
+  assert(dbJs.includes('getWmsPeriodLocks') && dbJs.includes('setWmsPeriodLock') && dbJs.includes('getWmsAuditLogs'), 'supabaseClient.js missing Period Lock / Audit Log methods');
+  const admHtml = read('admin.html');
+  assert(admHtml.includes('cardPeriodLockAudit') && admHtml.includes('btnLockPeriod') && admHtml.includes('auditLogsBody'), 'admin.html missing Period Lock & Audit Log UI');
 
   assert(fs.existsSync(path.join(ROOT, 'dist', 'purchasing.html')), 'dist/purchasing.html missing (run sync_all.py)');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'delivery.html')), 'dist/delivery.html missing (run sync_all.py)');
-  console.log('[OK] 5. server.js, sync_all.py, sw.js (v33) & dist/ verified.');
+  console.log('[OK] 5. server.js, sync_all.py, sw.js (v36) & dist/ verified.');
 
   // 6. Verify every SharedUI.<fn> and SupabaseDB.<fn> call in purchasing.html & delivery.html actually exists
   [['purchasing.html', purchHtml], ['delivery.html', delivHtml]].forEach(([fname, html]) => {

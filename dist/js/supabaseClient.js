@@ -4236,6 +4236,37 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     return throwIfError(res, 'Không chuyển được trạng thái quy trình đơn hàng');
   }
 
+  async function getWmsPeriodLocks() {
+    if (!isConfigured()) return [];
+    try {
+      var res = await getClient().from('wms_period_locks').select('*').order('period_ym', { ascending: false });
+      if (res && res.error) return [];
+      return res.data || [];
+    } catch (e) { return []; }
+  }
+
+  async function setWmsPeriodLock(periodYm, isLocked, lockedBy, note) {
+    var ym = String(periodYm || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(ym)) throw new Error('Kỳ kế toán phải có định dạng YYYY-MM (vd: 2026-11)');
+    var res = await getClient().from('wms_period_locks').upsert({
+      period_ym: ym,
+      is_locked: Boolean(isLocked),
+      locked_by: String(lockedBy || '').trim(),
+      locked_at: new Date().toISOString(),
+      note: String(note || '').trim()
+    }, { onConflict: 'period_ym' }).select().single();
+    return throwIfError(res, 'Không cập nhật được trạng thái khóa kỳ');
+  }
+
+  async function getWmsAuditLogs(limit) {
+    if (!isConfigured()) return [];
+    try {
+      var res = await getClient().from('wms_audit_logs').select('*').order('created_at', { ascending: false }).limit(Number(limit) || 60);
+      if (res && res.error) return [];
+      return res.data || [];
+    } catch (e) { return []; }
+  }
+
   function subscribeNotifications(callback) {
     if (!isConfigured() || typeof callback !== 'function') return function () {};
     var client = getClient();
@@ -4382,6 +4413,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
     getWmsNotifications: getWmsNotifications,
     markNotificationRead: markNotificationRead,
     subscribeNotifications: subscribeNotifications,
+    getWmsPeriodLocks: getWmsPeriodLocks,
+    setWmsPeriodLock: setWmsPeriodLock,
+    getWmsAuditLogs: getWmsAuditLogs,
     transitionProjectWorkflow: transitionProjectWorkflow,
     getCutProgress: getCutProgress,
     getAllCutProgress: getAllCutProgress,

@@ -71,6 +71,9 @@
     if (raw.indexOf('XP:PROJ:') === 0) {
       return { kind: 'PROJ', id: raw.slice(8).trim(), raw: raw };
     }
+    if (raw.indexOf('XP:FG:') === 0) {
+      return { kind: 'FG', id: raw.slice(6).trim(), raw: raw };
+    }
     return { kind: 'RAW', raw: raw };
   }
 
@@ -347,11 +350,52 @@
     }
   }
 
+  async function openFinishedGoodsLookupModal(fgId) {
+    if (!fgId || !global.SupabaseDB) return;
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+    var items = await global.SupabaseDB.getFinishedGoodsItems().catch(function () { return []; });
+    var fg = (items || []).find(function (x) { return String(x.id) === String(fgId); });
+    var modal = document.getElementById('xpQrProjLookupModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'xpQrProjLookupModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.58);z-index:3600;display:none;align-items:center;justify-content:center;padding:14px;';
+      modal.innerHTML =
+        '<div style="background:#fff;border-radius:16px;border:1.5px solid #5EEAD4;width:min(620px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 48px rgba(0,0,0,0.28);">' +
+        '  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#F0FDFA;border-bottom:1px solid #CCFBF1;">' +
+        '    <h3 id="xpQrProjTitle" style="margin:0;font-size:16px;color:#0B3B38;">🏭 Thông Tin Kiện Thành Phẩm</h3>' +
+        '    <button type="button" id="xpQrProjClose" class="btn btn-soft btn-sm">✕ Đóng</button>' +
+        '  </div>' +
+        '  <div id="xpQrProjBody" style="padding:16px 18px;overflow-y:auto;font-size:13.5px;"></div>' +
+        '  <div id="xpQrProjFoot" style="padding:12px 18px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;"></div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      document.getElementById('xpQrProjClose').onclick = function () { modal.style.display = 'none'; };
+    }
+    document.getElementById('xpQrProjTitle').textContent = fg ? ('🏭 Thành phẩm: ' + fg.name) : '⚠️ Không tìm thấy Thành phẩm';
+    document.getElementById('xpQrProjBody').innerHTML = fg ? (
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;">' +
+      '  <div><div style="font-size:11.5px;color:#475569;">Mã TP</div><b>' + esc(fg.fgCode || '—') + '</b></div>' +
+      '  <div><div style="font-size:11.5px;color:#475569;">Dự án</div><b>' + esc(fg.projectName || fg.projectId || '—') + '</b></div>' +
+      '  <div><div style="font-size:11.5px;color:#475569;">Tồn sẵn sàng giao</div><b style="color:#0F766E;font-size:18px;">' + fg.stockQty + ' ' + esc(fg.unit) + '</b></div>' +
+      '  <div><div style="font-size:11.5px;color:#475569;">Vị trí bãi / kệ</div><b>' + esc(fg.rackLocation || 'Chưa gán') + '</b></div>' +
+      '  <div><div style="font-size:11.5px;color:#475569;">Kế hoạch / Đã giao</div><b>' + fg.plannedQty + ' / ' + fg.deliveredQty + ' ' + esc(fg.unit) + '</b></div>' +
+      '</div>'
+    ) : '<p style="color:#B91C1C;">Không tìm thấy kiện thành phẩm ID <code>' + esc(fgId) + '</code>.</p>';
+    document.getElementById('xpQrProjFoot').innerHTML = '<a href="/delivery" class="btn btn-p btn-sm">🚚 Mở Kho Thành Phẩm &amp; Giao Hàng</a>';
+    modal.style.display = 'flex';
+  }
+
   global.WorkshopQrScanner = {
     parseQrPayload: parseQrPayload,
     open: open,
     close: closeScanner,
     playBeep: playBeep,
-    openProjectLookupModal: openProjectLookupModal
+    openProjectLookupModal: openProjectLookupModal,
+    openFinishedGoodsLookupModal: openFinishedGoodsLookupModal
   };
 })(typeof window !== 'undefined' ? window : globalThis);

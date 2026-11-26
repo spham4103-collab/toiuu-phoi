@@ -1729,6 +1729,11 @@
           window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
           return;
         }
+        if (parsed && parsed.kind === 'FG' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openFinishedGoodsLookupModal === 'function') {
+          if (window.WorkshopQrScanner.close) window.WorkshopQrScanner.close();
+          window.WorkshopQrScanner.openFinishedGoodsLookupModal(parsed.id);
+          return;
+        }
         showToast(`ℹ️ Mã QR "${parsed.raw}" không phải tem vật tư (XP:INV / XP:OFF).`);
       }
 

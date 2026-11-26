@@ -548,6 +548,10 @@
             window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
             return;
           }
+          if (parsed && parsed.kind === 'FG' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openFinishedGoodsLookupModal === 'function') {
+            window.WorkshopQrScanner.openFinishedGoodsLookupModal(parsed.id);
+            return;
+          }
           const raw = (parsed && parsed.raw) || String(parsed || '');
           let bodyHtml = `<div style="font-family:monospace;font-size:12px;color:#475569;margin-bottom:8px;">Mã QR: ${escapeHtml(raw)}</div>`;
           if (parsed && parsed.kind === 'INV') {

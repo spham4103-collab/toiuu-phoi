@@ -89,12 +89,14 @@ function run() {
   assert(admHtml.includes('value="sales"'), 'admin.html missing sales role option');
   console.log('[OK] 3. Workflow, QR ĐNVT, BOM, Inventory, Vouchers, Dashboard & Admin UI verified.');
 
-  // 4. sw.js v32 & dist/
+  // 4. sw.js v36, XP:FG QR, clean /cnc refs & dist/
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v35'), 'sw.js must be v35');
+  assert(sw.includes('toiuu-phoi-pwa-v36'), 'sw.js must be v36');
+  assert(qrJs.includes('XP:FG:') && qrJs.includes('openFinishedGoodsLookupModal'), 'qr-scanner.js must support XP:FG: scanning');
+  assert(!projHtml.includes('/cnc') && !bomJs.includes('/cnc') && !read('js/workshopExport.js').includes('/cnc'), 'stale /cnc URL must be removed');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'qr-scanner.js')), 'dist/js/qr-scanner.js missing');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'project-bom.js')), 'dist/js/project-bom.js missing');
-  console.log('[OK] 4. sw.js (v32) & dist/ verified.');
+  console.log('[OK] 4. sw.js (v36), XP:FG QR & dist/ verified.');
   console.log('=== PHASE 8 VERIFICATION PASSED 100% ===');
 }
 

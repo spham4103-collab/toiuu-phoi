@@ -3805,6 +3805,10 @@
           window.WorkshopQrScanner.openProjectLookupModal(parsed.id, currentUser);
           return;
         }
+        if (parsed.kind === 'FG' && window.WorkshopQrScanner && typeof window.WorkshopQrScanner.openFinishedGoodsLookupModal === 'function') {
+          window.WorkshopQrScanner.openFinishedGoodsLookupModal(parsed.id);
+          return;
+        }
         if (parsed.kind === 'INV') {
           const item = inventoryItems.find(x => String(x.id) === String(parsed.id));
           if (!item) {

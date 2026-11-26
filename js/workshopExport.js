@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * WORKSHOP EXPORT HELPER - PHIẾU LỆNH SẢN XUẤT A4 (CÓ QR) & EXCEL (.XLSX)
- * Dùng chung cho cả /, /projects, /inventory, /cnc (xepphoi.cloud)
+ * Dùng chung cho cả /, /projects, /inventory, /vouchers (xepphoi.cloud)
  * ============================================================================
  */
 (function (global) {
@@ -158,8 +158,8 @@
 
     var isRealProj = Boolean(projectId && projectId !== '__draft__');
     var cncUrl = isRealProj
-      ? ('https://xepphoi.cloud/cnc?project=' + encodeURIComponent(String(projectId)))
-      : 'https://xepphoi.cloud/cnc';
+      ? ('https://xepphoi.cloud/projects?id=' + encodeURIComponent(String(projectId)))
+      : 'https://xepphoi.cloud/projects';
 
     return {
       projectId: projectId || '__draft__',
@@ -257,7 +257,7 @@
   }
 
   function generateQrSvg(url) {
-    var target = String(url || 'https://xepphoi.cloud/cnc');
+    var target = String(url || 'https://xepphoi.cloud/projects');
     try {
       if (typeof global.qrcode === 'function') {
         var qr = global.qrcode(0, 'M');
