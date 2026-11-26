@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * SHARED UI & WMS METADATA - XẾP PHÔI AN BÌNH (xepphoi.cloud)
- * Dùng chung cho cả 6 trang: /, /projects, /inventory, /vouchers, /cnc, /admin
+ * Dùng chung cho tất cả các trang WMS: /, /projects, /inventory, /vouchers, /purchasing, /delivery, /reports, /admin
  * ============================================================================
  */
 (function (global) {
@@ -1116,7 +1116,7 @@
         '  </div>' +
         '  <div id="wmsNotifList" style="font-size:12.5px;color:#334155;">Đang tải...</div>' +
         '</div>';
-      var pill = document.getElementById('userBadgePill');
+      var pill = document.getElementById('userBadgePill') || document.getElementById('topAdminBadge');
       if (pill && pill.parentNode === topActions) {
         topActions.insertBefore(wrap, pill);
       } else {
@@ -1331,6 +1331,7 @@
     if (iconEl) iconEl.textContent = rMeta.icon;
     if (nameEl) nameEl.textContent = (user.fullName || user.username || 'User') + ' [' + rMeta.shortLabel + ']';
     if (navAdm) navAdm.style.display = user.role === 'admin' ? 'inline-flex' : 'none';
+    initNotificationBell(user);
   }
 
   global.SharedUI = {

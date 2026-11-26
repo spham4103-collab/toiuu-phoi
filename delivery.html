@@ -429,6 +429,10 @@
         $('loginGateWrap').style.display = 'none';
         $('mainContent').style.display = 'block';
         window.SharedUI?.initHeaderUser?.(user);
+        const canDeliv = window.SharedUI ? window.SharedUI.canAccessDelivery(user) : Boolean(user && user.role !== 'operator');
+        ['btnAddFgItem', 'btnNewFgReceipt', 'btnNewDeliveryNote'].forEach(bid => {
+          if ($(bid)) $(bid).style.display = canDeliv ? '' : 'none';
+        });
         await window.SharedUI?.loadWmsSettings?.();
         window.SharedUI?.applyPriceVisibilityUI?.(user);
         window.SharedUI?.initPendingVouchersBadge?.();
@@ -529,6 +533,7 @@
         tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748B;padding:24px;">Chưa có Phiếu Nhập Thành Phẩm (PNTP).</td></tr>';
         return;
       }
+      const canApprove = window.SharedUI ? window.SharedUI.canApproveVouchers(currentUser) : false;
       tb.innerHTML = allPntp.map(r => {
         const pill = r.status === 'approved' ? '<span class="pill pill-delivered">✅ Đã nhập kho TP</span>'
           : r.status === 'cancelled' ? '<span class="pill pill-cancelled">✕ Đã hủy</span>'
@@ -542,7 +547,7 @@
           <td class="r"><strong>${(r.items || []).length}</strong></td>
           <td>${pill}</td>
           <td style="white-space:nowrap;">
-            ${isWait ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePntpAction('${esc(r.id)}')">✅ Duyệt nhập kho</button>` : ''}
+            ${isWait && canApprove ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePntpAction('${esc(r.id)}')">✅ Duyệt nhập kho</button>` : ''}
             ${r.status !== 'cancelled' && SharedUI.canApprovePR(currentUser) ? `<button type="button" class="btn btn-danger btn-sm" onclick="cancelPntpAction('${esc(r.id)}')">✕ Hủy</button>` : ''}
           </td>
         </tr>`;
@@ -555,6 +560,8 @@
         tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748B;padding:24px;">Chưa có Phiếu Xuất Giao Hàng (PXGH).</td></tr>';
         return;
       }
+      const canApprove = window.SharedUI ? window.SharedUI.canApproveVouchers(currentUser) : false;
+      const canDeliv = window.SharedUI ? window.SharedUI.canAccessDelivery(currentUser) : false;
       tb.innerHTML = allPxgh.map(d => {
         const pill = d.status === 'delivered' ? '<span class="pill pill-delivered">✅ Đã bàn giao</span>'
           : d.status === 'approved' ? '<span class="pill pill-approved">🚚 Đã xuất kho (Đang giao)</span>'
@@ -570,8 +577,8 @@
           <td>${pill}</td>
           <td style="white-space:nowrap;">
             <button type="button" class="btn btn-soft btn-sm" onclick="printDeliveryNoteA4('${esc(d.id)}')">🖨️ In PXGH</button>
-            ${isWait ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePxghAction('${esc(d.id)}')">✅ Duyệt xuất</button>` : ''}
-            ${d.status === 'approved' ? `<button type="button" class="btn btn-p btn-sm" onclick="openDeliverConfirm('${esc(d.id)}','${esc(d.dnCode)}')">📸 Xác nhận đã giao</button>` : ''}
+            ${isWait && canApprove ? `<button type="button" class="btn btn-ok btn-sm" onclick="approvePxghAction('${esc(d.id)}')">✅ Duyệt xuất</button>` : ''}
+            ${d.status === 'approved' && canDeliv ? `<button type="button" class="btn btn-p btn-sm" onclick="openDeliverConfirm('${esc(d.id)}','${esc(d.dnCode)}')">📸 Xác nhận đã giao</button>` : ''}
             ${d.status !== 'cancelled' && SharedUI.canApprovePR(currentUser) ? `<button type="button" class="btn btn-danger btn-sm" onclick="cancelPxghAction('${esc(d.id)}')">✕ Hủy</button>` : ''}
             ${d.attachmentUrl ? `<a class="btn btn-soft btn-sm" href="${esc(d.attachmentUrl)}" target="_blank">📎 Ảnh BB</a>` : ''}
           </td>
@@ -650,7 +657,7 @@
         <h2 style="text-align:center;margin:8px 0 14px;font-size:19px;">PHIẾU XUẤT GIAO HÀNG / BIÊN BẢN BÀN GIAO</h2>
         <div style="font-size:13.5px;line-height:1.7;margin-bottom:14px;">
           <div><strong>Khách hàng / Công trình:</strong> ${esc(d.customerName || '-')}</div>
-          <div><strong>Dự án:</strong> ${esc(d.projectId)} &nbsp;|&nbsp; <strong>Xe vận chuyển:</strong> ${esc(d.vehicleNo || '-')} &nbsp;|&nbsp; <strong>Tài xế:</strong> ${esc(d.driverName || '-')}</div>
+          <div><strong>Dự án:</strong> ${esc(d.projectName || d.projectId)} &nbsp;|&nbsp; <strong>Xe vận chuyển:</strong> ${esc(d.vehicleNo || '-')} &nbsp;|&nbsp; <strong>Tài xế:</strong> ${esc(d.driverName || '-')}</div>
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>

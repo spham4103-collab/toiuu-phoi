@@ -520,6 +520,9 @@
       $('mainContent').style.display = 'block';
       const canManageSup = window.SharedUI ? window.SharedUI.canManageSuppliers(user) : false;
       if ($('supCrudFormWrap')) $('supCrudFormWrap').style.display = canManageSup ? 'grid' : 'none';
+      if (window.SharedUI && typeof window.SharedUI.initNotificationBell === 'function') {
+        window.SharedUI.initNotificationBell(user);
+      }
       return true;
     }
 
@@ -832,25 +835,32 @@
       const p = activeProjDetail;
       if (!p) return;
       const items = Array.isArray(p.items_json) ? p.items_json : [];
+      const ngCost = Number(p.ng_rework_cost || 0);
+      const netCost = Number(p.total_net_cost != null ? p.total_net_cost : p.net_cost) || 0;
+      const stdCost = p.standard_cost != null ? Number(p.standard_cost) : (netCost - ngCost);
       const rows = [
         ['CÔNG TY CỔ PHẦN CƠ KHÍ AN BÌNH'],
         ['BẢNG QUYẾT TOÁN CHI PHÍ VẬT TƯ DỰ ÁN'],
         ['Dự án:', p.project_name, 'Mã:', p.project_id],
         ['Khách hàng:', p.customer || '—', 'Ngày xuất:', new Date().toLocaleDateString('vi-VN')],
         [],
-        ['STT', 'Số phiếu', 'Loại phiếu', 'Vật tư / Quy cách', 'Dài (mm)', 'ĐVT', 'Số lượng', 'Đơn giá (đ)', 'Thành tiền (đ)', 'Ghi chú']
+        ['STT', 'Số phiếu', 'Loại phiếu', 'Vật tư / Quy cách', 'Dài (mm)', 'ĐVT', 'Số lượng', 'Đơn giá (đ)', 'Thành tiền (đ)', 'Ghi chú / Lý do NG']
       ];
       items.forEach((it, idx) => {
+        const typeLbl = it.voucher_type === 'RETURN'
+          ? 'Hoàn kho (PHK)'
+          : (it.request_type === 'rework_ng' ? 'Bù hỏng NG (PXK)' : 'Xuất định mức (PXK)');
+        const noteStr = [it.ng_reason ? ('Lý do NG: ' + it.ng_reason) : '', it.note || ''].filter(Boolean).join(' · ');
         rows.push([
-          idx + 1, it.voucher_code, it.voucher_type === 'RETURN' ? 'Hoàn kho (PHK)' : 'Xuất kho (PXK)',
+          idx + 1, it.voucher_code, typeLbl,
           it.profile, it.length_mm || '', it.unit, Number(it.qty) || 0, Number(it.unit_price) || 0,
-          (it.voucher_type === 'RETURN' ? -1 : 1) * (Number(it.total_amount) || 0), it.note || ''
+          (it.voucher_type === 'RETURN' ? -1 : 1) * (Number(it.total_amount) || 0), noteStr
         ]);
       });
       rows.push([]);
-      rows.push(['', '', '', 'TỔNG XUẤT KHO:', '', '', '', '', Number(p.out_value) || 0]);
-      rows.push(['', '', '', 'TỔNG HOÀN KHO / ĐỀ-XÊ:', '', '', '', '', -(Number(p.return_value) || 0)]);
-      rows.push(['', '', '', 'CHI PHÍ VẬT TƯ RÒNG THỰC TẾ:', '', '', '', '', Number(p.net_cost) || 0]);
+      rows.push(['', '', '', 'GIÁ VỐN ĐỊNH MỨC:', '', '', '', '', stdCost]);
+      rows.push(['', '', '', 'CHI PHÍ BÙ HỎNG (NG):', '', '', '', '', ngCost]);
+      rows.push(['', '', '', 'TỔNG GIÁ VỐN THỰC TẾ:', '', '', '', '', netCost]);
 
       if (typeof XLSX !== 'undefined' && XLSX.utils) {
         const wb = XLSX.utils.book_new();

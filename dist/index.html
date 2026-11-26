@@ -387,6 +387,9 @@
       if (window.SharedUI && typeof window.SharedUI.applyPriceVisibilityUI === 'function') {
         window.SharedUI.applyPriceVisibilityUI(user);
       }
+      if (window.SharedUI && typeof window.SharedUI.initNotificationBell === 'function') {
+        window.SharedUI.initNotificationBell(user);
+      }
     }
 
     function showLoginGate(msg) {

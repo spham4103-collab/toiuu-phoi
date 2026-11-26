@@ -730,9 +730,11 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5oX0pgAGMONVczCPR9yY-A__fmnqaEo';
       .eq('id', id)
       .select()
       .single();
-    if (res && res.error && _isMissingColumnError(res.error, /inventory_deducted_at/i)) {
-      _projectsDeductedColReady = false;
+    if (res && res.error && _isMissingColumnError(res.error, /inventory_deducted_at|customer_po_no|priority/i)) {
+      if (_isMissingColumnError(res.error, /inventory_deducted_at/i)) _projectsDeductedColReady = false;
       delete patch.inventory_deducted_at;
+      delete patch.customer_po_no;
+      delete patch.priority;
       res = await client
         .from('projects')
         .update(patch)

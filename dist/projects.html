@@ -543,6 +543,9 @@
       if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
       $('loginGateWrap').style.display = 'none';
       $('mainContent').style.display = 'block';
+      if (window.SharedUI && typeof window.SharedUI.initNotificationBell === 'function') {
+        window.SharedUI.initNotificationBell(found);
+      }
     }
 
     function showLoginGate(msg = '') {

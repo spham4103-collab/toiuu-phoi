@@ -140,9 +140,14 @@ function run() {
   );
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v37'), 'sw.js must be bumped to v37');
+  assert(sw.includes('toiuu-phoi-pwa-v38'), 'sw.js must be bumped to v38');
   assert(fs.existsSync(path.join(ROOT, 'dist', 'js', 'shared-ui.js')), 'dist/js/shared-ui.js missing');
-  console.log('[OK] 5. All Dot 13 UI features & sw.js (v37) verified.');
+  ['index.html', 'inventory.html', 'vouchers.html', 'projects.html', 'reports.html', 'admin.html'].forEach(f => {
+    assert(read(f).includes('initNotificationBell'), `${f} must wire SharedUI.initNotificationBell`);
+  });
+  assert(read('js/shared-ui.js').includes('initNotificationBell(user)'), 'initHeaderUser must initialize notification bell');
+  assert(read('vouchers.html').includes('parsed.items') && read('js/project-bom.js').includes("sessionStorage.setItem('xp_reorder_draft_pnk'"), 'xp_reorder_draft_pnk handoff must use sessionStorage & support object/array');
+  console.log('[OK] 5. All Dot 13 UI features, notification bell parity, reorder PNK handoff & sw.js (v38) verified.');
   console.log('=== PHASE 9 VERIFICATION PASSED 100% ===');
 }
 

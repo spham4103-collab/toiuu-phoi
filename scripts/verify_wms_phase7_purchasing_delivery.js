@@ -96,7 +96,7 @@ function run() {
   assert(syncPy.includes("'purchasing'") && syncPy.includes("'delivery'"), 'sync_all.py missing purchasing/delivery');
 
   const sw = read('sw.js');
-  assert(sw.includes('toiuu-phoi-pwa-v37'), 'sw.js must be v37');
+  assert(sw.includes('toiuu-phoi-pwa-v38'), 'sw.js must be v38');
   assert(sw.includes('/purchasing') && sw.includes('/delivery'), 'sw.js missing /purchasing or /delivery');
 
   assert(purchHtml.includes('value="sent"') && purchHtml.includes('value="partial_received"'), 'purchasing.html PO filter must use sent/partial_received');

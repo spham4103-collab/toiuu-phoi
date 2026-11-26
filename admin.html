@@ -1407,6 +1407,9 @@
         if (window.SharedUI && typeof window.SharedUI.initPendingVouchersBadge === 'function') {
           window.SharedUI.initPendingVouchersBadge();
         }
+        if (window.SharedUI && typeof window.SharedUI.initNotificationBell === 'function') {
+          window.SharedUI.initNotificationBell(user);
+        }
         if (user.role !== 'admin') {
           if (adminRealtimeUnsub) { adminRealtimeUnsub(); adminRealtimeUnsub = null; }
           $('adminLoginGate').style.display = 'none';

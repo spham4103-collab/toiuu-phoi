@@ -605,6 +605,9 @@
       if ($('navLinkAdmin')) $('navLinkAdmin').style.display = isSuperAdmin ? 'inline-flex' : 'none';
       $('loginGateWrap').style.display = 'none';
       $('mainContent').style.display = 'block';
+      if (window.SharedUI && typeof window.SharedUI.initNotificationBell === 'function') {
+        window.SharedUI.initNotificationBell(user);
+      }
     }
 
     function showLoginGate(msg = '') {
@@ -1671,14 +1674,16 @@
           return;
         } else if (qFrom === 'reorder') {
           try {
-            const raw = sessionStorage.getItem('xp_reorder_draft_pnk');
+            const raw = sessionStorage.getItem('xp_reorder_draft_pnk') || localStorage.getItem('xp_reorder_draft_pnk');
             if (raw) {
               const parsed = JSON.parse(raw);
               sessionStorage.removeItem('xp_reorder_draft_pnk');
-              if (Array.isArray(parsed) && parsed.length) {
-                draftItems = parsed;
+              localStorage.removeItem('xp_reorder_draft_pnk');
+              const itemsArr = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : []);
+              if (itemsArr.length) {
+                draftItems = itemsArr;
                 $('selVoucherInitStatus').value = 'draft';
-                $('inpVoucherNote').value = 'Đề nghị nhập mua bổ sung vật tư dưới định mức';
+                $('inpVoucherNote').value = (parsed && parsed.note) ? parsed.note : 'Đề nghị nhập mua bổ sung vật tư dưới định mức';
                 renderVoucherItemsRows();
               }
             }

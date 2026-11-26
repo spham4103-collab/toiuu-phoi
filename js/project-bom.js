@@ -1590,10 +1590,10 @@
           note: 'Mua cho dự án ' + STATE.project.name + (s.req.specDimensions ? ' (' + s.req.specDimensions + ')' : '')
         };
       });
-      localStorage.setItem('xp_reorder_draft_pnk', JSON.stringify({
+      try { sessionStorage.setItem('xp_reorder_draft_pnk', JSON.stringify({
         note: 'Nhập mua vật tư cho dự án ' + STATE.project.name,
         items: draftItems
-      }));
+      })); } catch (_) {}
       window.location.href = '/vouchers?new=IN&from=reorder';
       return;
     }
